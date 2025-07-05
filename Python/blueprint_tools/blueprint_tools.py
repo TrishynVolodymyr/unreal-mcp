@@ -21,7 +21,8 @@ from utils.blueprints.blueprint_operations import (
     add_interface_to_blueprint as add_interface_to_blueprint_impl,
     create_blueprint_interface as create_blueprint_interface_impl,
     list_blueprint_components as list_blueprint_components_impl,
-    create_custom_blueprint_function as create_custom_blueprint_function_impl
+    create_custom_blueprint_function as create_custom_blueprint_function_impl,
+    add_blueprint_custom_event_node as add_blueprint_custom_event_node_impl
 )
 
 # Get logger
@@ -555,5 +556,39 @@ def register_blueprint_tools(mcp: FastMCP):
             access_specifier, 
             category
         )
-    
+
+    @mcp.tool()
+    def add_blueprint_custom_event_node(
+        ctx: Context,
+        blueprint_name: str,
+        event_name: str,
+        node_position: List[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Add a custom event node to a Blueprint's event graph.
+
+        Args:
+            blueprint_name: Name of the target Blueprint
+            event_name: Name of the custom event to create
+            node_position: Optional [X, Y] position in the graph
+
+        Returns:
+            Response containing the node ID and success status
+
+        Examples:
+            # Create a custom event
+            add_blueprint_custom_event_node(
+                blueprint_name="BP_MyActor",
+                event_name="OnPlayerDied"
+            )
+
+            # Create a custom event at specific position
+            add_blueprint_custom_event_node(
+                blueprint_name="BP_GameManager",
+                event_name="TriggerAnimation",
+                node_position=[200, 300]
+            )
+        """
+        return add_blueprint_custom_event_node_impl(ctx, blueprint_name, event_name, node_position)
+
     logger.info("Blueprint tools registered successfully")

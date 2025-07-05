@@ -68,9 +68,13 @@ uint32 FMCPServerRunnable::Run()
                             break;
                         }
 
-                        // Convert received data to string
+                        // Convert received data to string with proper UTF-8 handling
                         Buffer[BytesRead] = '\0';
-                        FString ReceivedText = UTF8_TO_TCHAR(Buffer);
+
+                        // Use proper UTF-8 conversion
+                        FUTF8ToTCHAR UTF8Converter((const ANSICHAR*)Buffer);
+                        FString ReceivedText = FString(UTF8Converter.Length(), UTF8Converter.Get());
+
                         UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Received: %s"), *ReceivedText);
 
                         // Parse JSON
@@ -219,9 +223,13 @@ void FMCPServerRunnable::HandleClientConnection(TSharedPtr<FSocket> InClientSock
             UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Raw data (first 50 bytes hex): %s%s"), 
                    *HexData, BytesRead > 50 ? TEXT("...") : TEXT(""));
             
-            // Convert and log received data
+            // Convert and log received data with proper UTF-8 handling
             Buffer[BytesRead] = 0; // Null terminate
-            FString ReceivedData = UTF8_TO_TCHAR(Buffer);
+
+            // Use proper UTF-8 conversion
+            FUTF8ToTCHAR UTF8Converter((const ANSICHAR*)Buffer);
+            FString ReceivedData = FString(UTF8Converter.Length(), UTF8Converter.Get());
+
             UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Received data as string: '%s'"), *ReceivedData);
             
             // Append to message buffer
@@ -311,11 +319,22 @@ void FMCPServerRunnable::ProcessMessage(TSharedPtr<FSocket> Client, const FStrin
     // Send response with newline terminator
     Response += TEXT("\n");
     int32 BytesSent = 0;
-    
+
     UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Sending response: %s"), *Response);
-    
-    if (!Client->Send((uint8*)TCHAR_TO_UTF8(*Response), Response.Len(), BytesSent))
+
+    // Convert to UTF-8 properly
+    FTCHARToUTF8 UTF8Response(*Response);
+    const uint8* UTF8Data = (const uint8*)UTF8Response.Get();
+    int32 UTF8Length = UTF8Response.Length();
+
+    UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: UTF-8 response length: %d bytes"), UTF8Length);
+
+    if (!Client->Send(UTF8Data, UTF8Length, BytesSent))
     {
         UE_LOG(LogTemp, Error, TEXT("MCPServerRunnable: Failed to send response"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Successfully sent %d bytes"), BytesSent);
     }
 } 
