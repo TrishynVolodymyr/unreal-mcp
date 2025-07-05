@@ -45,24 +45,27 @@ class UnrealConnection:
                 except:
                     pass
                 self.socket = None
-            
+
             logger.info(f"Connecting to Unreal at {UNREAL_HOST}:{UNREAL_PORT}...")
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(5)  # 5 second timeout
-            
+            self.socket.settimeout(10)  # Increased connection timeout
+
             # Set socket options for better stability
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            
+
             # Set larger buffer sizes
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
-            
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 131072)  # 128KB
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 131072)  # 128KB
+
+            # Enable socket reuse
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
             self.socket.connect((UNREAL_HOST, UNREAL_PORT))
             self.connected = True
             logger.info("Connected to Unreal Engine")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to connect to Unreal: {e}")
             self.connected = False
@@ -78,10 +81,10 @@ class UnrealConnection:
         self.socket = None
         self.connected = False
 
-    def receive_full_response(self, sock, buffer_size=4096) -> bytes:
+    def receive_full_response(self, sock, buffer_size=4096, timeout=15) -> bytes:
         """Receive a complete response from Unreal, handling chunked data."""
         chunks = []
-        sock.settimeout(5)  # 5 second timeout
+        sock.settimeout(timeout)  # Increased timeout for complex operations
         try:
             while True:
                 chunk = sock.recv(buffer_size)
@@ -90,11 +93,15 @@ class UnrealConnection:
                         raise Exception("Connection closed before receiving data")
                     break
                 chunks.append(chunk)
-                
-                # Process the data received so far
+
+                # Process data received so far
                 data = b''.join(chunks)
-                decoded_data = data.decode('utf-8')
-                
+                try:
+                    decoded_data = data.decode('utf-8', errors='replace')  # Handle encoding errors gracefully
+                except UnicodeDecodeError as e:
+                    logger.warning(f"Unicode decode error: {e}, continuing to receive more data...")
+                    continue
+
                 # Try to parse as JSON to check if complete
                 try:
                     json.loads(decoded_data)
@@ -108,22 +115,23 @@ class UnrealConnection:
                     logger.warning(f"Error processing response chunk: {str(e)}")
                     continue
         except socket.timeout:
-            logger.warning("Socket timeout during receive")
+            logger.warning(f"Socket timeout during receive (timeout: {timeout}s)")
             if chunks:
                 # If we have some data already, try to use it
                 data = b''.join(chunks)
                 try:
-                    json.loads(data.decode('utf-8'))
+                    decoded_data = data.decode('utf-8', errors='replace')
+                    json.loads(decoded_data)
                     logger.info(f"Using partial response after timeout ({len(data)} bytes)")
                     return data
                 except:
                     pass
-            raise Exception("Timeout receiving Unreal response")
+            raise Exception(f"Timeout receiving Unreal response after {timeout} seconds")
         except Exception as e:
             logger.error(f"Error during receive: {str(e)}")
             raise
     
-    def send_command(self, command: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+    def send_command(self, command: str, params: Dict[str, Any] = None, timeout: int = 15) -> Optional[Dict[str, Any]]:
         """Send a command to Unreal Engine and get the response."""
         # Always reconnect for each command, since Unreal closes the connection after each command
         # This is different from Unity which keeps connections alive
@@ -140,20 +148,35 @@ class UnrealConnection:
             return None
         
         try:
+            # Determine timeout based on command type
+            complex_operations = [
+                'add_blueprint_event_node', 'add_blueprint_function_node', 'create_blueprint',
+                'create_struct', 'add_blueprint_variable', 'show_struct_variables'
+            ]
+            medium_operations = [
+                'compile_blueprint', 'spawn_actor', 'spawn_blueprint_actor',
+                'list_input_actions', 'list_input_mapping_contexts'
+            ]
+
+            if command in complex_operations:
+                timeout = 45  # Complex operations and Chinese character processing need longer timeout
+            elif command in medium_operations:
+                timeout = 35  # Medium timeout for compilation/generation and list operations
+
             # Match Unity's command format exactly
             command_obj = {
                 "type": command,  # Use "type" instead of "command"
                 "params": params or {}  # Use Unity's params or {} pattern
             }
-            
+
             # Send without newline, exactly like Unity
-            command_json = json.dumps(command_obj)
-            logger.info(f"Sending command: {command_json}")
+            command_json = json.dumps(command_obj, ensure_ascii=False)
+            logger.info(f"Sending command: {command_json} (timeout: {timeout}s)")
             self.socket.sendall(command_json.encode('utf-8'))
-            
-            # Read response using improved handler
-            response_data = self.receive_full_response(self.socket)
-            response = json.loads(response_data.decode('utf-8'))
+
+            # Read response using improved handler with dynamic timeout
+            response_data = self.receive_full_response(self.socket, timeout=timeout)
+            response = json.loads(response_data.decode('utf-8', errors='replace'))
             
             # Log complete response for debugging
             logger.info(f"Complete response from Unreal: {response}")

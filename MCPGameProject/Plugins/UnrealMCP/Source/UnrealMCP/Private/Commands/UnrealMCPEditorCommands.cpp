@@ -134,22 +134,71 @@ TSharedPtr<FJsonObject> FUnrealMCPEditorCommands::HandleFindActorsByName(const T
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'pattern' parameter"));
     }
-    
+
+    UE_LOG(LogTemp, Display, TEXT("FindActorsByName: Searching for pattern '%s'"), *Pattern);
+
     TArray<AActor*> AllActors;
     UGameplayStatics::GetAllActorsOfClass(GWorld, AActor::StaticClass(), AllActors);
-    
+
+    UE_LOG(LogTemp, Display, TEXT("FindActorsByName: Found %d total actors in level"), AllActors.Num());
+
     TArray<TSharedPtr<FJsonValue>> MatchingActors;
     for (AActor* Actor : AllActors)
     {
-        if (Actor && Actor->GetName().Contains(Pattern))
+        if (Actor && IsValid(Actor))
         {
-            MatchingActors.Add(FUnrealMCPCommonUtils::ActorToJson(Actor));
+            FString ActorName = Actor->GetName();
+            bool bMatches = false;
+
+            // Support wildcard matching with *
+            if (Pattern.Contains(TEXT("*")))
+            {
+                // Simple wildcard matching logic
+                if (Pattern.StartsWith(TEXT("*")) && Pattern.EndsWith(TEXT("*")))
+                {
+                    // *text* - contains match
+                    FString SearchText = Pattern.Mid(1, Pattern.Len() - 2);
+                    bMatches = !SearchText.IsEmpty() && ActorName.Contains(SearchText, ESearchCase::IgnoreCase);
+                }
+                else if (Pattern.StartsWith(TEXT("*")))
+                {
+                    // *text - ends with match
+                    FString SearchText = Pattern.Mid(1);
+                    bMatches = !SearchText.IsEmpty() && ActorName.EndsWith(SearchText, ESearchCase::IgnoreCase);
+                }
+                else if (Pattern.EndsWith(TEXT("*")))
+                {
+                    // text* - starts with match
+                    FString SearchText = Pattern.LeftChop(1);
+                    bMatches = !SearchText.IsEmpty() && ActorName.StartsWith(SearchText, ESearchCase::IgnoreCase);
+                }
+                else
+                {
+                    // Complex wildcard pattern - fallback to contains match
+                    FString SearchText = Pattern.Replace(TEXT("*"), TEXT(""));
+                    bMatches = !SearchText.IsEmpty() && ActorName.Contains(SearchText, ESearchCase::IgnoreCase);
+                }
+            }
+            else
+            {
+                // Exact match or contains
+                bMatches = ActorName.Equals(Pattern, ESearchCase::IgnoreCase) ||
+                          ActorName.Contains(Pattern, ESearchCase::IgnoreCase);
+            }
+
+            if (bMatches)
+            {
+                UE_LOG(LogTemp, Display, TEXT("FindActorsByName: Found matching actor '%s'"), *ActorName);
+                MatchingActors.Add(FUnrealMCPCommonUtils::ActorToJson(Actor));
+            }
         }
     }
-    
+
+    UE_LOG(LogTemp, Display, TEXT("FindActorsByName: Found %d matching actors"), MatchingActors.Num());
+
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetArrayField(TEXT("actors"), MatchingActors);
-    
+
     return ResultObj;
 }
 

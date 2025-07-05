@@ -272,23 +272,59 @@ def set_light_property(
     property_value
 ) -> Dict[str, Any]:
     """Implementation for setting properties on a light actor.
-    
+
     This function specifically handles properties of light actors by using
     specific property names that correspond to light component methods.
-    
+
     Args:
         name: Name of the light actor
         property_name: Name of the property to set (Intensity, LightColor, AttenuationRadius)
-        property_value: Value to set the property to
-        
+        property_value: Value to set the property to (various types)
+
     Returns:
         Dict containing response from Unreal
     """
+    # Convert property_value to appropriate string format based on property type
+    formatted_value = str(property_value)
+
+    # Handle special formatting for different property types
+    if property_name == "LightColor":
+        # Handle color values - can be list/array or string
+        if isinstance(property_value, (list, tuple)):
+            # Convert array to comma-separated string
+            if len(property_value) >= 3:
+                formatted_value = ",".join(str(float(x)) for x in property_value[:3])
+            else:
+                raise ValueError(f"LightColor requires at least 3 values (R,G,B), got {len(property_value)}")
+        elif isinstance(property_value, str):
+            # Try to parse as JSON array first
+            try:
+                import json
+                color_array = json.loads(property_value)
+                if isinstance(color_array, list) and len(color_array) >= 3:
+                    # Convert array to comma-separated string
+                    formatted_value = ",".join(str(float(x)) for x in color_array[:3])
+                else:
+                    # Assume it's already in comma-separated format
+                    formatted_value = property_value
+            except (json.JSONDecodeError, ValueError):
+                # Assume it's already in comma-separated format
+                formatted_value = property_value
+    elif property_name in ["Intensity", "AttenuationRadius", "SourceRadius", "SoftSourceRadius"]:
+        # Numeric properties - ensure they're formatted as strings
+        formatted_value = str(float(property_value))
+    elif property_name == "CastShadows":
+        # Boolean property - convert to string
+        if isinstance(property_value, bool):
+            formatted_value = "true" if property_value else "false"
+        else:
+            formatted_value = str(property_value).lower()
+
     # Create the parameters for the light-specific command
     params = {
         "name": name,
         "property_name": property_name,
-        "property_value": property_value
+        "property_value": formatted_value
     }
-    
+
     return send_unreal_command("set_light_property", params)

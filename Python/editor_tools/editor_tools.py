@@ -5,7 +5,7 @@ This module provides tools for controlling the Unreal Editor viewport and other 
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from mcp.server.fastmcp import FastMCP, Context
 from utils.editor.editor_operations import (
     get_actors_in_level as get_actors_in_level_impl,
@@ -243,13 +243,73 @@ def register_editor_tools(mcp: FastMCP):
         ctx: Context,
         name: str,
         property_name: str,
-        property_value
+        property_value: str
     ) -> Dict[str, Any]:
         """
         Set a property on a light component.
-        
+
         This function accesses the LightComponent of a light actor and sets properties on it.
-        
+
+        Args:
+            name: Name of the light actor
+            property_name: Property to set, one of:
+                - "Intensity": Brightness of the light (float)
+                - "LightColor": Color of the light (comma-separated R,G,B values 0-1)
+                - "AttenuationRadius": How far the light reaches (float)
+                - "SourceRadius": Size of the light source (float)
+                - "SoftSourceRadius": Size of the soft light source border (float)
+                - "CastShadows": Whether the light casts shadows (boolean)
+            property_value: Value to set the property to (as string)
+                - For numeric values: "5000.0"
+                - For colors: "1.0,0.0,0.0" (R,G,B comma-separated)
+                - For booleans: "true" or "false"
+
+        Returns:
+            Dict containing response information
+
+        Examples:
+            # Set light intensity
+            set_light_property(
+                name="MyPointLight",
+                property_name="Intensity",
+                property_value="5000.0"
+            )
+
+            # Set light color to red
+            set_light_property(
+                name="MyPointLight",
+                property_name="LightColor",
+                property_value="1.0,0.0,0.0"
+            )
+
+            # Set light attenuation radius
+            set_light_property(
+                name="MyPointLight",
+                property_name="AttenuationRadius",
+                property_value="500.0"
+            )
+
+            # Enable shadows
+            set_light_property(
+                name="MyPointLight",
+                property_name="CastShadows",
+                property_value="true"
+            )
+        """
+        return set_light_property_impl(ctx, name, property_name, property_value)
+
+    @mcp.tool()
+    def set_light_property_fixed(
+        ctx: Context,
+        name: str,
+        property_name: str,
+        property_value: Union[str, int, float, bool, List[float]]
+    ) -> Dict[str, Any]:
+        """
+        Set a property on a light component (fixed version).
+
+        This function accesses the LightComponent of a light actor and sets properties on it.
+
         Args:
             name: Name of the light actor
             property_name: Property to set, one of:
@@ -260,27 +320,27 @@ def register_editor_tools(mcp: FastMCP):
                 - "SoftSourceRadius": Size of the soft light source border (float)
                 - "CastShadows": Whether the light casts shadows (boolean)
             property_value: Value to set the property to
-            
+
         Returns:
             Dict containing response information
-            
+
         Examples:
             # Set light intensity
-            set_light_property(
+            set_light_property_fixed(
                 name="MyPointLight",
                 property_name="Intensity",
                 property_value=5000.0
             )
-            
+
             # Set light color to red
-            set_light_property(
+            set_light_property_fixed(
                 name="MyPointLight",
                 property_name="LightColor",
                 property_value=[1.0, 0.0, 0.0]
             )
-            
+
             # Set light attenuation radius
-            set_light_property(
+            set_light_property_fixed(
                 name="MyPointLight",
                 property_name="AttenuationRadius",
                 property_value=500.0
