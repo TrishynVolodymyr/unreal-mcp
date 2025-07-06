@@ -1,0 +1,3 @@
+@echo off
+echo Launching MCPGameProject...
+"C:\Program Files\Epic Games\UE_5.6\Engine\Binaries\Win64\UnrealEditor.exe" "%~dp0MCPGameProject\MCPGameProject.uproject"

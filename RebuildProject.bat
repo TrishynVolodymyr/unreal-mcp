@@ -1,0 +1,1 @@
+cd "%~dp0MCPGameProject" & "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="%~dp0MCPGameProject\MCPGameProject.uproject" -TargetType=Editor

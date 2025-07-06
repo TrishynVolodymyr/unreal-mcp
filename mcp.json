@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "unrealMCP": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "d:/BaiduNetdiskDownload/UnrealProjects/unreal-mcp/Python",
+        "run",
+        "unreal_mcp_server.py"
+      ]
+    }
+  }
+}
