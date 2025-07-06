@@ -265,7 +265,6 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 
                 static const TArray<FString> BlueprintNodeCommandsList = {
                     TEXT("connect_blueprint_nodes"), 
-                    TEXT("add_blueprint_get_self_component_reference"),
                     TEXT("add_blueprint_self_reference"),
                     TEXT("find_blueprint_nodes"),
                     TEXT("add_blueprint_event_node"),

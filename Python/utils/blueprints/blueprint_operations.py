@@ -342,30 +342,6 @@ def set_pawn_properties(
         
     return send_unreal_command("set_pawn_properties", params)
 
-def add_blueprint_custom_event_node(
-    ctx: Context,
-    blueprint_name: str,
-    event_name: str,
-    node_position: List[float] = None
-) -> Dict[str, Any]:
-    """
-    Adds a custom event node to the event graph of the specified Blueprint.
-    Args:
-        ctx: MCP context
-        blueprint_name: Name of the target Blueprint
-        event_name: Name of the custom event to create
-        node_position: Optional [X, Y] position for the node
-    Returns:
-        Dict with node_id and event_name
-    """
-    params = {
-        "blueprint_name": blueprint_name,
-        "event_name": event_name,
-    }
-    if node_position is not None:
-        params["node_position"] = node_position
-    return send_unreal_command("add_blueprint_custom_event_node", params)
-
 def add_interface_to_blueprint(
     ctx: Context,
     blueprint_name: str,

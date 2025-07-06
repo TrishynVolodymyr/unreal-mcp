@@ -137,14 +137,18 @@ Exposes Blueprint-related tools for Unreal Engine via MCP.
 
 ## Tools
 
-- add_blueprint_custom_event_node(blueprint_name, event_name, node_position=None)
-    Add a custom event node to the event graph.
 - call_blueprint_function(target_name, function_name, string_params=None)
     Call a BlueprintCallable function by name.
 - add_interface_to_blueprint(blueprint_name, interface_name)
     Add an interface to a Blueprint.
 - create_blueprint_interface(name, folder_path="")
     Create a new Blueprint Interface asset.
+
+## Node Creation
+
+For advanced node creation including custom events, function calls, and complex Blueprint logic, 
+use the Blueprint Action Commands which provide universal dynamic node creation via the 
+Blueprint Action Database.
 
 See the main server or tool docstrings for argument details and examples.
 """

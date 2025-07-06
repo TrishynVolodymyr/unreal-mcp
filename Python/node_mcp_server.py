@@ -11,92 +11,76 @@ register_blueprint_node_tools(mcp)
 if __name__ == "__main__":
     mcp.run(transport='stdio')
 
+
 """
 ## Blueprint Node Management
 
-### Important Limitation: Loop Nodes (ForEach, ForLoop, etc.)
+### Enhanced Node Creation
 
-> **Note:**
-> The standard Blueprint loop nodes such as **ForEach** and **ForLoop** are implemented as Blueprint Macros, not as native K2 nodes. Due to Unreal Engine's public API limitations, these macro nodes **cannot be added programmatically** via the MCP tool or any C++ plugin. Only native K2 nodes (such as Branch, Sequence, etc.) can be added programmatically.
-> If you need loop logic in your Blueprint, please provide a comment for user in place of the loop node. This is a known limitation of Unreal Engine and is not specific to this plugin.
+> **Important:**
+> For advanced node creation including **event nodes** (BeginPlay, Tick, EndPlay), **custom events**, 
+> **function calls**, **loops**, and **complex Blueprint logic**, use the **Blueprint Action Commands** 
+> which provide universal dynamic node creation via the Blueprint Action Database.
+> 
+> The `create_node_by_action_name` function supports:
+> - **Event Nodes**: BeginPlay, Tick, EndPlay, ActorBeginOverlap, etc.
+> - **Custom Events**: Fully customizable events with parameters
+> - **Control Flow**: Branch, Sequence, Cast, loops, etc.
+> - **Function Calls**: All BlueprintCallable functions from any class
+> - **Math Operations**: All Kismet Math Library functions
+> - **Utility Functions**: GameplayStatics, KismetSystemLibrary, etc.
+> - **Variable Operations**: Get/Set variable nodes
+> - **Universal Dynamic Creation**: Any node discoverable via Blueprint Action Database
 
-- **add_blueprint_event_node(blueprint_name, event_name, node_position=None)**
-  
-  Add an event node to a Blueprint's event graph.
-  
-  Args:
-    - blueprint_name (str): Name of the target Blueprint
-    - event_name (str): Name of the event. Use 'Receive' prefix for standard events (e.g., 'ReceiveBeginPlay', 'ReceiveTick')
-    - node_position (list): Optional [X, Y] position in the graph
-  
-  Returns: Response containing the node ID and success status.
+### Basic Node Tools
 
-- **add_blueprint_input_action_node(blueprint_name, action_name, node_position=None)**
-  
-  Add an input action event node to a Blueprint's event graph.
-  
-  Args:
-    - blueprint_name (str): Name of the target Blueprint
-    - action_name (str): Name of the input action to respond to
-    - node_position (list): Optional [X, Y] position in the graph
-  
-  Returns: Response containing the node ID and success status.
+The tools in this module provide **basic node manipulation** for specific use cases:
 
-- **add_blueprint_function_node(blueprint_name, target, function_name, params=None, node_position=None)**
-  
-  Add a function call node to a Blueprint's event graph.
-  
-  Args:
-    - blueprint_name (str): Name of the target Blueprint
-    - target (str): Target object for the function (component name or self)
-    - function_name (str): Name of the function to call
-    - params (dict): Optional parameters to set on the function node
-    - node_position (list): Optional [X, Y] position in the graph
-  
-  Returns: Response containing the node ID and success status.
+- **Connection Management**: Connect and disconnect Blueprint nodes
+- **Component References**: Get references to Blueprint components
+- **Node Discovery**: Find existing nodes in Blueprint graphs
+- **Variable Information**: Query Blueprint variable types and properties
 
-- **connect_blueprint_nodes(blueprint_name, source_node_id, source_pin, target_node_id, target_pin)**
-  
-  Connect two nodes in a Blueprint's event graph. You must determine the correct node IDs and pins to connect.
-  
-  Args:
-    - blueprint_name (str): Name of the target Blueprint
-    - source_node_id (str): ID of the source node
-    - source_pin (str): Name of the output pin on the source node
-    - target_node_id (str): ID of the target node
-    - target_pin (str): Name of the input pin on the target node
-  
-  Returns: Response indicating success or failure.
+### Migration Notes
 
-- **add_blueprint_get_self_component_reference(blueprint_name, component_name, node_position=None)**
-  
-  Add a node that gets a reference to a component owned by the current Blueprint (like dragging a component from the Components panel).
-  
-  Args:
-    - blueprint_name (str): Name of the target Blueprint
-    - component_name (str): Name of the component to get a reference to
-    - node_position (list): Optional [X, Y] position in the graph
-  
-  Returns: Response containing the node ID and success status.
+The following tools have been **consolidated into Blueprint Action Commands**:
+- ~~`add_blueprint_event_node`~~ → Use `create_node_by_action_name` with event names
+- ~~`add_blueprint_function_node`~~ → Use `create_node_by_action_name` with function names
+- ~~`add_blueprint_custom_event_node`~~ → Use `create_node_by_action_name` with "CustomEvent"
 
-- **add_blueprint_self_reference(blueprint_name, node_position=None)**
-  
-  Add a 'Get Self' node to a Blueprint's event graph that returns a reference to this actor.
-  
-  Args:
-    - blueprint_name (str): Name of the target Blueprint
-    - node_position (list): Optional [X, Y] position in the graph
-  
-  Returns: Response containing the node ID and success status.
+### Examples
 
-- **find_blueprint_nodes(blueprint_name, node_type=None, event_type=None)**
-  
-  Find nodes in a Blueprint's event graph.
-  
-  Args:
-    - blueprint_name (str): Name of the target Blueprint
-    - node_type (str): Optional type of node to find (Event, Function, Variable, etc.)
-    - event_type (str): Optional specific event type to find (BeginPlay, Tick, etc.)
-  
-  Returns: Response containing array of found node IDs and success status.
+```python
+# Event nodes (NEW unified approach)
+create_node_by_action_name(blueprint_name="BP_Player", function_name="BeginPlay")
+create_node_by_action_name(blueprint_name="BP_Player", function_name="Tick")
+create_node_by_action_name(blueprint_name="BP_Player", function_name="ReceiveEndPlay")
+
+# Custom events
+create_node_by_action_name(
+    blueprint_name="BP_Player", 
+    function_name="CustomEvent",
+    kwargs='{"event_name": "OnPlayerDied"}'
+)
+
+# Function calls
+create_node_by_action_name(
+    blueprint_name="BP_Player", 
+    function_name="GetActorLocation"
+)
+
+# Math operations
+create_node_by_action_name(
+    blueprint_name="BP_Calculator", 
+    function_name="SelectFloat",
+    class_name="KismetMathLibrary"
+)
+```
+
+### Workflow
+
+1. Use **Blueprint Action Commands** for creating nodes
+2. Use **Node Tools** for connecting and managing existing nodes
+3. Use **Component Tools** for Blueprint component operations
+4. Use **Variable Tools** for Blueprint variable management
 """ 

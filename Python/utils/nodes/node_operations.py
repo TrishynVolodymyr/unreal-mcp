@@ -119,23 +119,6 @@ def add_function_node(
         
     return send_unreal_command("add_blueprint_function_node", command_params)
 
-def add_self_component_reference(
-    ctx: Context,
-    blueprint_name: str,
-    component_name: str,
-    node_position: List[float] = None
-) -> Dict[str, Any]:
-    """Implementation for adding a node that gets a reference to a component owned by the current Blueprint."""
-    params = {
-        "blueprint_name": blueprint_name,
-        "component_name": component_name
-    }
-    
-    if node_position is not None:
-        params["node_position"] = node_position
-        
-    return send_unreal_command("add_blueprint_get_self_component_reference", params)
-
 def add_self_reference(
     ctx: Context,
     blueprint_name: str,
