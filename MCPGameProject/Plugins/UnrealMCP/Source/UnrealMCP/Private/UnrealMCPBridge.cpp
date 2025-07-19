@@ -57,8 +57,10 @@
 #include "Commands/UnrealMCPProjectCommands.h"
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Commands/UnrealMCPUMGCommands.h"
-#include "Commands/UnrealMCPDataTableCommands.h"
+
 #include "Commands/UnrealMCPBlueprintActionCommandsHandler.h"
+#include "Commands/EditorCommandRegistration.h"
+#include "Commands/DataTableCommandRegistration.h"
 
 // Default settings
 #define MCP_SERVER_HOST "127.0.0.1"
@@ -71,7 +73,6 @@ UUnrealMCPBridge::UUnrealMCPBridge()
     BlueprintNodeCommands = MakeShared<FUnrealMCPBlueprintNodeCommands>();
     ProjectCommands = MakeShared<FUnrealMCPProjectCommands>();
     UMGCommands = MakeShared<FUnrealMCPUMGCommands>();
-    DataTableCommands = MakeShared<FUnrealMCPDataTableCommands>();
     BlueprintActionCommands = MakeShared<FUnrealMCPBlueprintActionCommandsHandler>();
 }
 
@@ -82,7 +83,6 @@ UUnrealMCPBridge::~UUnrealMCPBridge()
     BlueprintNodeCommands.Reset();
     ProjectCommands.Reset();
     UMGCommands.Reset();
-    DataTableCommands.Reset();
     BlueprintActionCommands.Reset();
 }
 
@@ -98,6 +98,10 @@ void UUnrealMCPBridge::Initialize(FSubsystemCollectionBase& Collection)
     Port = MCP_SERVER_PORT;
     FIPv4Address::Parse(MCP_SERVER_HOST, ServerAddress);
 
+    // Register new command system
+    FEditorCommandRegistration::RegisterAllCommands();
+    FDataTableCommandRegistration::RegisterAllCommands();
+    
     // Start the server automatically
     StartServer();
 }
@@ -106,6 +110,11 @@ void UUnrealMCPBridge::Initialize(FSubsystemCollectionBase& Collection)
 void UUnrealMCPBridge::Deinitialize()
 {
     UE_LOG(LogTemp, Display, TEXT("UnrealMCPBridge: Shutting down"));
+    
+    // Unregister editor commands
+    FEditorCommandRegistration::UnregisterAllCommands();
+    FDataTableCommandRegistration::UnregisterAllCommands();
+    
     StopServer();
 }
 
@@ -315,8 +324,35 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("create_node_by_action_name")
                 };
                 
-                // Route to the appropriate handler
-                if (EditorCommands.Contains(CommandType))
+                // First check the new command registry system
+                FUnrealMCPCommandRegistry& CommandRegistry = FUnrealMCPCommandRegistry::Get();
+                if (CommandRegistry.IsCommandRegistered(CommandType))
+                {
+                    // Convert TSharedPtr<FJsonObject> to JSON string for new command interface
+                    FString ParamsString;
+                    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsString);
+                    FJsonSerializer::Serialize(Params.ToSharedRef(), Writer);
+                    
+                    // Execute command through new registry
+                    FString CommandResult = CommandRegistry.ExecuteCommand(CommandType, ParamsString);
+                    
+                    // Parse result back to JSON object
+                    TSharedPtr<FJsonObject> ParsedResult;
+                    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(CommandResult);
+                    if (FJsonSerializer::Deserialize(Reader, ParsedResult) && ParsedResult.IsValid())
+                    {
+                        ResultJson = ParsedResult;
+                    }
+                    else
+                    {
+                        // If parsing fails, create error response
+                        ResultJson = MakeShared<FJsonObject>();
+                        ResultJson->SetBoolField(TEXT("success"), false);
+                        ResultJson->SetStringField(TEXT("error"), TEXT("Failed to parse command result"));
+                    }
+                }
+                // Fall back to legacy command handlers
+                else if (EditorCommands.Contains(CommandType))
                 {
                     ResultJson = this->EditorCommands->HandleCommand(CommandType, Params);
                 }
@@ -339,15 +375,6 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 else if (BlueprintActionCommandsList.Contains(CommandType))
                 {
                     ResultJson = BlueprintActionCommands->HandleCommand(CommandType, Params);
-                }
-                else if (CommandType == TEXT("create_datatable") || 
-                         CommandType == TEXT("add_rows_to_datatable") || 
-                         CommandType == TEXT("get_datatable_rows") || 
-                         CommandType == TEXT("get_datatable_row_names") ||
-                         CommandType == TEXT("update_rows_in_datatable") ||
-                         CommandType == TEXT("delete_datatable_rows"))
-                {
-                    ResultJson = DataTableCommands->HandleCommand(CommandType, Params);
                 }
                 else
                 {

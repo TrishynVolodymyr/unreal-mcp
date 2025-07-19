@@ -1,0 +1,53 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Commands/IUnrealMCPCommand.h"
+#include "Services/IDataTableService.h"
+
+/**
+ * Command for deleting rows from DataTable assets
+ * Implements the IUnrealMCPCommand interface for standardized command execution
+ */
+class UNREALMCP_API FDeleteDataTableRowsCommand : public IUnrealMCPCommand
+{
+public:
+    /**
+     * Constructor
+     * @param InDataTableService - Reference to the DataTable service for operations
+     */
+    explicit FDeleteDataTableRowsCommand(IDataTableService& InDataTableService);
+
+    // IUnrealMCPCommand interface
+    virtual FString Execute(const FString& Parameters) override;
+    virtual FString GetCommandName() const override;
+    virtual bool ValidateParams(const FString& Parameters) const override;
+
+private:
+    /** Reference to the DataTable service */
+    IDataTableService& DataTableService;
+    
+    /**
+     * Parse JSON parameters into DataTable name and row names
+     * @param JsonString - JSON string containing parameters
+     * @param OutDataTableName - Parsed DataTable name
+     * @param OutRowNames - Parsed row names to delete
+     * @param OutError - Error message if parsing fails
+     * @return true if parsing succeeded
+     */
+    bool ParseParameters(const FString& JsonString, FString& OutDataTableName, TArray<FString>& OutRowNames, FString& OutError) const;
+    
+    /**
+     * Create success response JSON
+     * @param DeletedRows - Names of successfully deleted rows
+     * @param FailedRows - Names of rows that failed to delete
+     * @return JSON response string
+     */
+    FString CreateSuccessResponse(const TArray<FString>& DeletedRows, const TArray<FString>& FailedRows) const;
+    
+    /**
+     * Create error response JSON
+     * @param ErrorMessage - Error message
+     * @return JSON response string
+     */
+    FString CreateErrorResponse(const FString& ErrorMessage) const;
+};
