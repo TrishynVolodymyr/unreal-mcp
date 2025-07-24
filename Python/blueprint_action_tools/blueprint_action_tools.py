@@ -14,7 +14,6 @@ from utils.blueprint_actions.blueprint_action_operations import (
     get_actions_for_class as get_actions_for_class_impl,
     get_actions_for_class_hierarchy as get_actions_for_class_hierarchy_impl,
     search_blueprint_actions as search_blueprint_actions_impl,
-    get_node_pin_info as get_node_pin_info_impl,
     create_node_by_action_name as create_node_by_action_name_impl
 )
 
@@ -191,48 +190,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         """
         return search_blueprint_actions_impl(ctx, search_query, category, max_results, blueprint_name)
 
-    @mcp.tool()
-    def get_node_pin_info(
-        ctx: Context,
-        node_name: str, 
-        pin_name: str
-    ) -> Dict[str, Any]:
-        """
-        Get specific information about a Blueprint node's pin including expected types.
 
-        This tool provides detailed information about what a specific pin on a specific node
-        expects or outputs, including the data type, whether it's required, input/output direction,
-        and a description of its purpose.
-
-        Args:
-            node_name: Name of the Blueprint node (e.g., "Create Widget", "Get Controller", "Cast to PlayerController")
-            pin_name: Name of the specific pin (e.g., "Owning Player", "Class", "Return Value", "Target")
-
-        Returns:
-            Dict containing:
-                - success: Boolean indicating if the operation succeeded
-                - node_name: The node name that was queried
-                - pin_name: The pin name that was queried
-                - pin_info: Detailed information about the pin including:
-                    - pin_type: Type category (object, class, exec, etc.)
-                    - expected_type: Specific type expected (PlayerController, Class<UserWidget>, etc.)
-                    - description: Description of the pin's purpose
-                    - is_required: Whether the pin must be connected
-                    - is_input: Whether it's an input (true) or output (false) pin
-                - message: Status message
-                - available_pins: List of available pins if the node is known but pin is not found
-
-        Examples:
-            # Find out what the "Owning Player" pin expects on Create Widget
-            get_node_pin_info(node_name="Create Widget", pin_name="Owning Player")
-            
-            # Check what Get Controller returns
-            get_node_pin_info(node_name="Get Controller", pin_name="Return Value")
-            
-            # Understand Cast to PlayerController inputs
-            get_node_pin_info(node_name="Cast to PlayerController", pin_name="Object")
-        """
-        return get_node_pin_info_impl(ctx, node_name, pin_name)
 
     @mcp.tool()
     def create_node_by_action_name(

@@ -21,7 +21,8 @@ from utils.blueprints.blueprint_operations import (
     add_interface_to_blueprint as add_interface_to_blueprint_impl,
     create_blueprint_interface as create_blueprint_interface_impl,
     list_blueprint_components as list_blueprint_components_impl,
-    create_custom_blueprint_function as create_custom_blueprint_function_impl
+    create_custom_blueprint_function as create_custom_blueprint_function_impl,
+    call_blueprint_function as call_blueprint_function_impl
 )
 
 # Get logger
@@ -429,12 +430,7 @@ def register_blueprint_tools(mcp: FastMCP):
         Call a BlueprintCallable function by name on the specified target.
         Only supports FString parameters for now.
         """
-        payload = {
-            "target_name": target_name,
-            "function_name": function_name,
-            "string_params": string_params or []
-        }
-        return ctx.mcp.command("call_function_by_name", payload)
+        return call_blueprint_function_impl(ctx, target_name, function_name, string_params)
     
     @mcp.tool()
     def add_interface_to_blueprint(

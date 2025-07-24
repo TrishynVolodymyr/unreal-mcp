@@ -74,17 +74,6 @@ def search_blueprint_actions(
         params["blueprint_name"] = blueprint_name
     return send_unreal_command("search_blueprint_actions", params)
 
-def get_node_pin_info(
-    ctx: Context,
-    node_name: str,
-    pin_name: str
-) -> Dict[str, Any]:
-    """Implementation for getting specific node pin information."""
-    params = {
-        "node_name": node_name,
-        "pin_name": pin_name
-    }
-    return send_unreal_command("get_node_pin_info", params)
 
 def create_node_by_action_name(
     ctx: Context,

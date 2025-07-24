@@ -226,20 +226,6 @@ Connect nodes in a Blueprint's event graph. Supports both single connection (leg
 
 **Examples:**
 
-_Single connection (legacy):_
-```json
-{
-  "command": "connect_blueprint_nodes",
-  "params": {
-    "blueprint_name": "BP_MyActor",
-    "source_node_id": "GUID1",
-    "source_pin": "Exec",
-    "target_node_id": "GUID2",
-    "target_pin": "Then"
-  }
-}
-```
-
 _Batch connection:_
 ```json
 {

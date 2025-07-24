@@ -1078,10 +1078,157 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
     return OutputString;
 }
 
+FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeName, const FString& PinName)
+{
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    
+    // Define known node pin information
+    TMap<FString, TMap<FString, TSharedPtr<FJsonObject>>> NodePinDatabase;
+    
+    // Create Widget node
+    TMap<FString, TSharedPtr<FJsonObject>> CreateWidgetPins;
+    
+    auto ClassPin = MakeShared<FJsonObject>();
+    ClassPin->SetStringField(TEXT("pin_type"), TEXT("class"));
+    ClassPin->SetStringField(TEXT("expected_type"), TEXT("Class<UserWidget>"));
+    ClassPin->SetStringField(TEXT("description"), TEXT("The widget class to instantiate"));
+    ClassPin->SetBoolField(TEXT("is_required"), true);
+    ClassPin->SetBoolField(TEXT("is_input"), true);
+    CreateWidgetPins.Add(TEXT("Class"), ClassPin);
+    
+    auto OwningPlayerPin = MakeShared<FJsonObject>();
+    OwningPlayerPin->SetStringField(TEXT("pin_type"), TEXT("object"));
+    OwningPlayerPin->SetStringField(TEXT("expected_type"), TEXT("PlayerController"));
+    OwningPlayerPin->SetStringField(TEXT("description"), TEXT("The player controller that owns this widget"));
+    OwningPlayerPin->SetBoolField(TEXT("is_required"), false);
+    OwningPlayerPin->SetBoolField(TEXT("is_input"), true);
+    CreateWidgetPins.Add(TEXT("Owning Player"), OwningPlayerPin);
+    CreateWidgetPins.Add(TEXT("OwningPlayer"), OwningPlayerPin); // Alternative name
+    
+    auto ReturnValuePin = MakeShared<FJsonObject>();
+    ReturnValuePin->SetStringField(TEXT("pin_type"), TEXT("object"));
+    ReturnValuePin->SetStringField(TEXT("expected_type"), TEXT("UserWidget"));
+    ReturnValuePin->SetStringField(TEXT("description"), TEXT("The created widget instance"));
+    ReturnValuePin->SetBoolField(TEXT("is_required"), false);
+    ReturnValuePin->SetBoolField(TEXT("is_input"), false);
+    CreateWidgetPins.Add(TEXT("Return Value"), ReturnValuePin);
+    
+    NodePinDatabase.Add(TEXT("Create Widget"), CreateWidgetPins);
+    NodePinDatabase.Add(TEXT("CreateWidget"), CreateWidgetPins);
+    
+    // Get Controller node
+    TMap<FString, TSharedPtr<FJsonObject>> GetControllerPins;
+    
+    auto TargetPin = MakeShared<FJsonObject>();
+    TargetPin->SetStringField(TEXT("pin_type"), TEXT("object"));
+    TargetPin->SetStringField(TEXT("expected_type"), TEXT("Pawn"));
+    TargetPin->SetStringField(TEXT("description"), TEXT("The pawn to get the controller from"));
+    TargetPin->SetBoolField(TEXT("is_required"), true);
+    TargetPin->SetBoolField(TEXT("is_input"), true);
+    GetControllerPins.Add(TEXT("Target"), TargetPin);
+    
+    auto ControllerReturnPin = MakeShared<FJsonObject>();
+    ControllerReturnPin->SetStringField(TEXT("pin_type"), TEXT("object"));
+    ControllerReturnPin->SetStringField(TEXT("expected_type"), TEXT("Controller"));
+    ControllerReturnPin->SetStringField(TEXT("description"), TEXT("The controller possessing this pawn"));
+    ControllerReturnPin->SetBoolField(TEXT("is_required"), false);
+    ControllerReturnPin->SetBoolField(TEXT("is_input"), false);
+    GetControllerPins.Add(TEXT("Return Value"), ControllerReturnPin);
+    
+    NodePinDatabase.Add(TEXT("Get Controller"), GetControllerPins);
+    NodePinDatabase.Add(TEXT("GetController"), GetControllerPins);
+    
+    // Cast To nodes
+    TMap<FString, TSharedPtr<FJsonObject>> CastToPins;
+    
+    auto ObjectPin = MakeShared<FJsonObject>();
+    ObjectPin->SetStringField(TEXT("pin_type"), TEXT("object"));
+    ObjectPin->SetStringField(TEXT("expected_type"), TEXT("Object"));
+    ObjectPin->SetStringField(TEXT("description"), TEXT("The object to cast"));
+    ObjectPin->SetBoolField(TEXT("is_required"), true);
+    ObjectPin->SetBoolField(TEXT("is_input"), true);
+    CastToPins.Add(TEXT("Object"), ObjectPin);
+    
+    auto CastSuccessPin = MakeShared<FJsonObject>();
+    CastSuccessPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
+    CastSuccessPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
+    CastSuccessPin->SetStringField(TEXT("description"), TEXT("Execution path if cast succeeds"));
+    CastSuccessPin->SetBoolField(TEXT("is_required"), false);
+    CastSuccessPin->SetBoolField(TEXT("is_input"), false);
+    CastToPins.Add(TEXT("Cast Success"), CastSuccessPin);
+    
+    auto CastFailPin = MakeShared<FJsonObject>();
+    CastFailPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
+    CastFailPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
+    CastFailPin->SetStringField(TEXT("description"), TEXT("Execution path if cast fails"));
+    CastFailPin->SetBoolField(TEXT("is_required"), false);
+    CastFailPin->SetBoolField(TEXT("is_input"), false);
+    CastToPins.Add(TEXT("Cast Failed"), CastFailPin);
+    
+    NodePinDatabase.Add(TEXT("Cast to PlayerController"), CastToPins);
+    NodePinDatabase.Add(TEXT("Cast to"), CastToPins);
+    
+    // Look up the requested node and pin
+    FString NormalizedNodeName = NodeName;
+    NormalizedNodeName = NormalizedNodeName.Replace(TEXT(" "), TEXT(""));
+    
+    TSharedPtr<FJsonObject> PinInfo = nullptr;
+    if (NodePinDatabase.Contains(NodeName))
+    {
+        auto& PinMap = NodePinDatabase[NodeName];
+        if (PinMap.Contains(PinName))
+        {
+            PinInfo = PinMap[PinName];
+        }
+    }
+    else if (NodePinDatabase.Contains(NormalizedNodeName))
+    {
+        auto& PinMap = NodePinDatabase[NormalizedNodeName];
+        if (PinMap.Contains(PinName))
+        {
+            PinInfo = PinMap[PinName];
+        }
+    }
+    
+    if (PinInfo.IsValid())
+    {
+        ResultObj->SetBoolField(TEXT("success"), true);
+        ResultObj->SetStringField(TEXT("node_name"), NodeName);
+        ResultObj->SetStringField(TEXT("pin_name"), PinName);
+        ResultObj->SetObjectField(TEXT("pin_info"), PinInfo);
+        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found pin information for '%s' on node '%s'"), *PinName, *NodeName));
+    }
+    else
+    {
+        ResultObj->SetBoolField(TEXT("success"), false);
+        ResultObj->SetStringField(TEXT("node_name"), NodeName);
+        ResultObj->SetStringField(TEXT("pin_name"), PinName);
+        ResultObj->SetObjectField(TEXT("pin_info"), MakeShared<FJsonObject>());
+        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("No pin information found for '%s' on node '%s'"), *PinName, *NodeName));
+        
+        // Provide available pins for this node if we know the node
+        if (NodePinDatabase.Contains(NodeName) || NodePinDatabase.Contains(NormalizedNodeName))
+        {
+            TArray<TSharedPtr<FJsonValue>> AvailablePins;
+            const auto& PinMap = NodePinDatabase.Contains(NodeName) ? NodePinDatabase[NodeName] : NodePinDatabase[NormalizedNodeName];
+            for (const auto& Pin : PinMap)
+            {
+                AvailablePins.Add(MakeShared<FJsonValueString>(Pin.Key));
+            }
+            ResultObj->SetArrayField(TEXT("available_pins"), AvailablePins);
+        }
+    }
+    
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
+    
+    return OutputString;
+}
+
 FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults, const FString& BlueprintName)
 {
-    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions called with: SearchQuery='%s', Category='%s', MaxResults=%d, BlueprintName='%s'"), 
-           *SearchQuery, *Category, MaxResults, *BlueprintName);
+    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions called with: SearchQuery='%s', Category='%s', MaxResults=%d, BlueprintName='%s'"), *SearchQuery, *Category, MaxResults, *BlueprintName);
     
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> ActionsArray;
@@ -1107,7 +1254,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
         
         // Try different path patterns to find the Blueprint
         TArray<FString> PathsToTry;
-        
         if (AssetPath.StartsWith(TEXT("/Game/")))
         {
             // Already a full path, use as-is
@@ -1119,7 +1265,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *BlueprintName, *BlueprintName));
             PathsToTry.Add(FString::Printf(TEXT("/Game/%s.%s"), *BlueprintName, *BlueprintName));
             PathsToTry.Add(FString::Printf(TEXT("/Game/ThirdPerson/Blueprints/%s.%s"), *BlueprintName, *BlueprintName));
-            
             // Also try without the duplicate name pattern
             PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/%s"), *BlueprintName));
             PathsToTry.Add(FString::Printf(TEXT("/Game/%s"), *BlueprintName));
@@ -1273,7 +1418,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                 if (bMatchesSearch && bMatchesCategory)
                 {
                     TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
-                    
                     ActionObj->SetStringField(TEXT("title"), ActionName);
                     ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
                     ActionObj->SetStringField(TEXT("category"), ActionCategory);
@@ -1286,7 +1430,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                         {
                             ActionObj->SetStringField(TEXT("function_name"), Function->GetName());
                             ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
-                            
                             if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
                             {
                                 ActionObj->SetBoolField(TEXT("is_math_function"), true);
@@ -1317,154 +1460,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
     ResultObj->SetArrayField(TEXT("actions"), ActionsArray);
     ResultObj->SetNumberField(TEXT("action_count"), ActionsArray.Num());
     ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found %d actions matching '%s'"), ActionsArray.Num(), *SearchQuery));
-    
-    FString OutputString;
-    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-    FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
-    
-    return OutputString;
-}
-
-FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeName, const FString& PinName)
-{
-    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
-    
-    // Define known node pin information
-    TMap<FString, TMap<FString, TSharedPtr<FJsonObject>>> NodePinDatabase;
-    
-    // Create Widget node
-    TMap<FString, TSharedPtr<FJsonObject>> CreateWidgetPins;
-    
-    auto ClassPin = MakeShared<FJsonObject>();
-    ClassPin->SetStringField(TEXT("pin_type"), TEXT("class"));
-    ClassPin->SetStringField(TEXT("expected_type"), TEXT("Class<UserWidget>"));
-    ClassPin->SetStringField(TEXT("description"), TEXT("The widget class to instantiate"));
-    ClassPin->SetBoolField(TEXT("is_required"), true);
-    ClassPin->SetBoolField(TEXT("is_input"), true);
-    CreateWidgetPins.Add(TEXT("Class"), ClassPin);
-    
-    auto OwningPlayerPin = MakeShared<FJsonObject>();
-    OwningPlayerPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    OwningPlayerPin->SetStringField(TEXT("expected_type"), TEXT("PlayerController"));
-    OwningPlayerPin->SetStringField(TEXT("description"), TEXT("The player controller that owns this widget"));
-    OwningPlayerPin->SetBoolField(TEXT("is_required"), false);
-    OwningPlayerPin->SetBoolField(TEXT("is_input"), true);
-    CreateWidgetPins.Add(TEXT("Owning Player"), OwningPlayerPin);
-    CreateWidgetPins.Add(TEXT("OwningPlayer"), OwningPlayerPin); // Alternative name
-    
-    auto ReturnValuePin = MakeShared<FJsonObject>();
-    ReturnValuePin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    ReturnValuePin->SetStringField(TEXT("expected_type"), TEXT("UserWidget"));
-    ReturnValuePin->SetStringField(TEXT("description"), TEXT("The created widget instance"));
-    ReturnValuePin->SetBoolField(TEXT("is_required"), false);
-    ReturnValuePin->SetBoolField(TEXT("is_input"), false);
-    CreateWidgetPins.Add(TEXT("Return Value"), ReturnValuePin);
-    
-    NodePinDatabase.Add(TEXT("Create Widget"), CreateWidgetPins);
-    NodePinDatabase.Add(TEXT("CreateWidget"), CreateWidgetPins);
-    
-    // Get Controller node
-    TMap<FString, TSharedPtr<FJsonObject>> GetControllerPins;
-    
-    auto TargetPin = MakeShared<FJsonObject>();
-    TargetPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    TargetPin->SetStringField(TEXT("expected_type"), TEXT("Pawn"));
-    TargetPin->SetStringField(TEXT("description"), TEXT("The pawn to get the controller from"));
-    TargetPin->SetBoolField(TEXT("is_required"), true);
-    TargetPin->SetBoolField(TEXT("is_input"), true);
-    GetControllerPins.Add(TEXT("Target"), TargetPin);
-    
-    auto ControllerReturnPin = MakeShared<FJsonObject>();
-    ControllerReturnPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    ControllerReturnPin->SetStringField(TEXT("expected_type"), TEXT("Controller"));
-    ControllerReturnPin->SetStringField(TEXT("description"), TEXT("The controller possessing this pawn"));
-    ControllerReturnPin->SetBoolField(TEXT("is_required"), false);
-    ControllerReturnPin->SetBoolField(TEXT("is_input"), false);
-    GetControllerPins.Add(TEXT("Return Value"), ControllerReturnPin);
-    
-    NodePinDatabase.Add(TEXT("Get Controller"), GetControllerPins);
-    NodePinDatabase.Add(TEXT("GetController"), GetControllerPins);
-    
-    // Cast To nodes
-    TMap<FString, TSharedPtr<FJsonObject>> CastToPins;
-    
-    auto ObjectPin = MakeShared<FJsonObject>();
-    ObjectPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    ObjectPin->SetStringField(TEXT("expected_type"), TEXT("Object"));
-    ObjectPin->SetStringField(TEXT("description"), TEXT("The object to cast"));
-    ObjectPin->SetBoolField(TEXT("is_required"), true);
-    ObjectPin->SetBoolField(TEXT("is_input"), true);
-    CastToPins.Add(TEXT("Object"), ObjectPin);
-    
-    auto CastSuccessPin = MakeShared<FJsonObject>();
-    CastSuccessPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
-    CastSuccessPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
-    CastSuccessPin->SetStringField(TEXT("description"), TEXT("Execution path if cast succeeds"));
-    CastSuccessPin->SetBoolField(TEXT("is_required"), false);
-    CastSuccessPin->SetBoolField(TEXT("is_input"), false);
-    CastToPins.Add(TEXT("Cast Success"), CastSuccessPin);
-    
-    auto CastFailPin = MakeShared<FJsonObject>();
-    CastFailPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
-    CastFailPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
-    CastFailPin->SetStringField(TEXT("description"), TEXT("Execution path if cast fails"));
-    CastFailPin->SetBoolField(TEXT("is_required"), false);
-    CastFailPin->SetBoolField(TEXT("is_input"), false);
-    CastToPins.Add(TEXT("Cast Failed"), CastFailPin);
-    
-    NodePinDatabase.Add(TEXT("Cast to PlayerController"), CastToPins);
-    NodePinDatabase.Add(TEXT("Cast to"), CastToPins);
-    
-    // Look up the requested node and pin
-    FString NormalizedNodeName = NodeName;
-    NormalizedNodeName = NormalizedNodeName.Replace(TEXT(" "), TEXT(""));
-    
-    TSharedPtr<FJsonObject> PinInfo = nullptr;
-    if (NodePinDatabase.Contains(NodeName))
-    {
-        auto& PinMap = NodePinDatabase[NodeName];
-        if (PinMap.Contains(PinName))
-        {
-            PinInfo = PinMap[PinName];
-        }
-    }
-    else if (NodePinDatabase.Contains(NormalizedNodeName))
-    {
-        auto& PinMap = NodePinDatabase[NormalizedNodeName];
-        if (PinMap.Contains(PinName))
-        {
-            PinInfo = PinMap[PinName];
-        }
-    }
-    
-    if (PinInfo.IsValid())
-    {
-        ResultObj->SetBoolField(TEXT("success"), true);
-        ResultObj->SetStringField(TEXT("node_name"), NodeName);
-        ResultObj->SetStringField(TEXT("pin_name"), PinName);
-        ResultObj->SetObjectField(TEXT("pin_info"), PinInfo);
-        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found pin information for '%s' on node '%s'"), *PinName, *NodeName));
-    }
-    else
-    {
-        ResultObj->SetBoolField(TEXT("success"), false);
-        ResultObj->SetStringField(TEXT("node_name"), NodeName);
-        ResultObj->SetStringField(TEXT("pin_name"), PinName);
-        ResultObj->SetObjectField(TEXT("pin_info"), MakeShared<FJsonObject>());
-        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("No pin information found for '%s' on node '%s'"), *PinName, *NodeName));
-        
-        // Provide available pins for this node if we know the node
-        if (NodePinDatabase.Contains(NodeName) || NodePinDatabase.Contains(NormalizedNodeName))
-        {
-            TArray<TSharedPtr<FJsonValue>> AvailablePins;
-            const auto& PinMap = NodePinDatabase.Contains(NodeName) ? NodePinDatabase[NodeName] : NodePinDatabase[NormalizedNodeName];
-            for (const auto& Pin : PinMap)
-            {
-                AvailablePins.Add(MakeShared<FJsonValueString>(Pin.Key));
-            }
-            ResultObj->SetArrayField(TEXT("available_pins"), AvailablePins);
-        }
-    }
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

@@ -25,6 +25,6 @@ private:
     TSharedPtr<FJsonObject> HandleAddBlueprintCustomEventNode(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleGetVariableInfo(const TSharedPtr<FJsonObject>& Params);
     
-    // Enhanced Input specific handlers
-    TSharedPtr<FJsonObject> HandleAddEnhancedInputActionNode(const TSharedPtr<FJsonObject>& Params);
+    // Enhanced Input specific handlers - REMOVED: Use create_node_by_action_name instead
+    // TSharedPtr<FJsonObject> HandleAddEnhancedInputActionNode(const TSharedPtr<FJsonObject>& Params);
 }; 

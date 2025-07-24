@@ -12,6 +12,7 @@
 #include "K2Node_VariableSet.h"
 #include "K2Node_InputAction.h"
 #include "K2Node_Self.h"
+#include "K2Node_CustomEvent.h"
 #include "EdGraphSchema_K2.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Components/StaticMeshComponent.h"
@@ -432,24 +433,7 @@ UK2Node_VariableSet* FUnrealMCPCommonUtils::CreateVariableSetNode(UEdGraph* Grap
     return nullptr;
 }
 
-UK2Node_InputAction* FUnrealMCPCommonUtils::CreateInputActionNode(UEdGraph* Graph, const FString& ActionName, const FVector2D& Position)
-{
-    if (!Graph)
-    {
-        return nullptr;
-    }
-    
-    UK2Node_InputAction* InputActionNode = NewObject<UK2Node_InputAction>(Graph);
-    InputActionNode->InputActionName = FName(*ActionName);
-    InputActionNode->NodePosX = Position.X;
-    InputActionNode->NodePosY = Position.Y;
-    Graph->AddNode(InputActionNode, true);
-    InputActionNode->CreateNewGuid();
-    InputActionNode->PostPlacedNewNode();
-    InputActionNode->AllocateDefaultPins();
-    
-    return InputActionNode;
-}
+
 
 UK2Node_Self* FUnrealMCPCommonUtils::CreateSelfReferenceNode(UEdGraph* Graph, const FVector2D& Position)
 {
@@ -1814,4 +1798,48 @@ FString FUnrealMCPCommonUtils::NormalizeAssetPath(const FString& AssetPath)
 bool FUnrealMCPCommonUtils::IsValidAssetPath(const FString& AssetPath)
 {
     return UEditorAssetLibrary::DoesAssetExist(AssetPath);
+}
+
+// Blueprint Node Creation Functions
+UK2Node_InputAction* FUnrealMCPCommonUtils::CreateInputActionNode(UEdGraph* Graph, const FString& ActionName, const FVector2D& Position)
+{
+    if (!Graph)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateInputActionNode: Graph is null"));
+        return nullptr;
+    }
+
+    if (ActionName.IsEmpty())
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateInputActionNode: ActionName is empty"));
+        return nullptr;
+    }
+
+    // Create the proper UK2Node_InputAction node
+    UK2Node_InputAction* InputActionNode = NewObject<UK2Node_InputAction>(Graph);
+    if (!InputActionNode)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateInputActionNode: Failed to create UK2Node_InputAction"));
+        return nullptr;
+    }
+
+    // Set the input action name
+    InputActionNode->InputActionName = FName(*ActionName);
+    
+    // Set position
+    InputActionNode->NodePosX = Position.X;
+    InputActionNode->NodePosY = Position.Y;
+    
+    // Create new GUID for the node
+    InputActionNode->CreateNewGuid();
+    
+    // Add the node to the graph
+    Graph->AddNode(InputActionNode, true, true);
+    
+    // Post-placement setup
+    InputActionNode->PostPlacedNewNode();
+    InputActionNode->AllocateDefaultPins();
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateInputActionNode: Successfully created input action node for '%s'"), *ActionName);
+    return InputActionNode;
 }

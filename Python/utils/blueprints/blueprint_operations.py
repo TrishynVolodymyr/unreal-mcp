@@ -413,3 +413,27 @@ def create_custom_blueprint_function(
         params["outputs"] = outputs
         
     return send_unreal_command("create_custom_blueprint_function", params)
+
+def call_blueprint_function(
+    ctx: Context,
+    target_name: str,
+    function_name: str,
+    string_params: List[str] = None
+) -> Dict[str, Any]:
+    """Implementation for calling a BlueprintCallable function by name.
+    
+    Args:
+        target_name: Name of the target object to call the function on
+        function_name: Name of the BlueprintCallable function to execute
+        string_params: List of string parameters to pass to the function
+        
+    Returns:
+        Dictionary containing the function call result and success status
+    """
+    params = {
+        "target_name": target_name,
+        "function_name": function_name,
+        "string_params": string_params or []
+    }
+    
+    return send_unreal_command("call_blueprint_function", params)

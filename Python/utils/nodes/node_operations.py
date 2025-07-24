@@ -5,6 +5,7 @@ This module provides utilities for working with Blueprint nodes in Unreal Engine
 """
 
 import logging
+import json
 from typing import Dict, List, Any
 from mcp.server.fastmcp import Context
 from utils.unreal_connection_utils import send_unreal_command
@@ -71,30 +72,7 @@ def add_event_node(
         
     return send_unreal_command("add_blueprint_event_node", params)
 
-def add_input_action_node(
-    ctx: Context,
-    blueprint_name: str,
-    action_name: str,
-    node_position: List[float] = None
-) -> Dict[str, Any]:
-    """Implementation for adding an Enhanced Input action event node to a Blueprint's event graph."""
-    # For Enhanced Input Actions, we need to provide the full path to the asset
-    # If action_name doesn't start with /Game/, assume it's just the name and construct the path
-    if not action_name.startswith("/Game/"):
-        # Use project-agnostic Enhanced Input Action path
-        action_path = f"/Game/Input/Actions/{action_name}"
-    else:
-        action_path = action_name
-    
-    params = {
-        "blueprint_name": blueprint_name,
-        "action_path": action_path
-    }
-    
-    if node_position is not None:
-        params["node_position"] = node_position
-        
-    return send_unreal_command("add_enhanced_input_action_node", params)
+
 
 def add_function_node(
     ctx: Context,
@@ -143,29 +121,20 @@ def find_nodes(
 def connect_nodes_impl(
     ctx: Context,
     blueprint_name: str,
-    source_node_id: str = None,
-    source_pin: str = None,
-    target_node_id: str = None,
-    target_pin: str = None,
-    connections: list = None
+    connections: list
 ) -> Dict[str, Any]:
     """
     Implementation for connecting nodes in a Blueprint's event graph.
-    Supports both single connection (legacy) and batch connections (recommended).
-    If 'connections' is provided (a list of dicts), batch mode is used.
+    Only supports batch connections mode.
     Each connection dict must have: source_node_id, source_pin, target_node_id, target_pin.
     """
-    if connections is not None:
-        params = {"blueprint_name": blueprint_name, "connections": connections}
-        return send_unreal_command("connect_blueprint_nodes", params)
-    # Single connection fallback
-    params = {"blueprint_name": blueprint_name}
-    params.update({
-        "source_node_id": source_node_id,
-        "source_pin": source_pin,
-        "target_node_id": target_node_id,
-        "target_pin": target_pin
-    })
+    if not connections:
+        return {
+            "success": False,
+            "error": "Missing 'connections' parameter - only batch connections are supported"
+        }
+    
+    params = {"blueprint_name": blueprint_name, "connections": connections}
     return send_unreal_command("connect_blueprint_nodes", params)
 
 def get_variable_info_impl(

@@ -1,0 +1,913 @@
+#include "CoreMinimal.h"
+#include "Engine/Engine.h"
+#include "Engine/Blueprint.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+#include "Commands/IUnrealMCPCommand.h"
+#include "Commands/CreateBlueprintCommand.h"
+#include "Commands/AddComponentToBlueprintCommand.h"
+#include "Commands/CompileBlueprintCommand.h"
+#include "Commands/UnrealMCPCommandRegistry.h"
+#include "Services/IBlueprintService.h"
+
+/**
+ * Mock command implementation for testing base command functionality
+ */
+class FMockCommand : public IUnrealMCPCommand
+{
+public:
+    // Test state tracking
+    mutable bool bExecuteCalled = false;
+    mutable bool bValidateParamsCalled = false;
+    mutable FString LastParameters;
+    
+    // Mock return values
+    bool bShouldValidate = true;
+    bool bShouldExecuteSucceed = true;
+    FString MockCommandName = TEXT("MockCommand");
+    FString MockExecuteResult = TEXT("{\"success\": true}");
+    
+    virtual FString Execute(const FString& Parameters) override
+    {
+        bExecuteCalled = true;
+        LastParameters = Parameters;
+        
+        if (bShouldExecuteSucceed)
+        {
+            return MockExecuteResult;
+        }
+        else
+        {
+            return TEXT("{\"success\": false, \"error\": \"Mock execution failed\"}");
+        }
+    }
+    
+    virtual FString GetCommandName() const override
+    {
+        return MockCommandName;
+    }
+    
+    virtual bool ValidateParams(const FString& Parameters) const override
+    {
+        bValidateParamsCalled = true;
+        LastParameters = Parameters;
+        return bShouldValidate;
+    }
+    
+    // Test helper methods
+    void Reset()
+    {
+        bExecuteCalled = false;
+        bValidateParamsCalled = false;
+        LastParameters.Empty();
+        bShouldValidate = true;
+        bShouldExecuteSucceed = true;
+        MockExecuteResult = TEXT("{\"success\": true}");
+    }
+};
+
+/**
+ * Mock Blueprint Service for command testing
+ */
+class FMockBlueprintServiceForCommands : public IBlueprintService
+{
+public:
+    // Test state tracking
+    mutable bool bCreateBlueprintCalled = false;
+    mutable bool bAddComponentCalled = false;
+    mutable bool bCompileCalled = false;
+    mutable bool bFindCalled = false;
+    mutable bool bAddVariableCalled = false;
+    mutable bool bSetPropertyCalled = false;
+    
+    // Mock return values
+    UBlueprint* MockBlueprint = nullptr;
+    bool bShouldSucceed = true;
+    FString MockError = TEXT("Mock service error");
+    
+    // Captured parameters
+    mutable FBlueprintCreationParams LastCreationParams;
+    mutable FString LastBlueprintName;
+    
+    virtual UBlueprint* CreateBlueprint(const FBlueprintCreationParams& Params) override
+    {
+        bCreateBlueprintCalled = true;
+        LastCreationParams = Params;
+        return bShouldSucceed ? MockBlueprint : nullptr;
+    }
+    
+    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params) override
+    {
+        bAddComponentCalled = true;
+        return bShouldSucceed;
+    }
+    
+    virtual bool CompileBlueprint(UBlueprint* Blueprint, FString& OutError) override
+    {
+        bCompileCalled = true;
+        if (!bShouldSucceed)
+        {
+            OutError = MockError;
+        }
+        return bShouldSucceed;
+    }
+    
+    virtual UBlueprint* FindBlueprint(const FString& BlueprintName) override
+    {
+        bFindCalled = true;
+        LastBlueprintName = BlueprintName;
+        return bShouldSucceed ? MockBlueprint : nullptr;
+    }
+    
+    virtual bool AddVariableToBlueprint(UBlueprint* Blueprint, const FString& VariableName, 
+                                       const FString& VariableType, bool bIsExposed = false) override
+    {
+        bAddVariableCalled = true;
+        return bShouldSucceed;
+    }
+    
+    virtual bool SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, 
+                                     const TSharedPtr<FJsonValue>& PropertyValue) override
+    {
+        bSetPropertyCalled = true;
+        return bShouldSucceed;
+    }
+    
+    // Test helper methods
+    void Reset()
+    {
+        bCreateBlueprintCalled = false;
+        bAddComponentCalled = false;
+        bCompileCalled = false;
+        bFindCalled = false;
+        bAddVariableCalled = false;
+        bSetPropertyCalled = false;
+        bShouldSucceed = true;
+        MockError = TEXT("Mock service error");
+        LastBlueprintName.Empty();
+    }
+};
+
+/**
+ * Test suite for basic command functionality
+ */
+namespace BasicCommandTests
+{
+    /**
+     * Test basic command interface implementation
+     */
+    void TestBasicCommandInterface()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Basic Command Interface Test Started ==="));
+        
+        FMockCommand MockCommand;
+        
+        // Test command name
+        FString CommandName = MockCommand.GetCommandName();
+        if (CommandName == TEXT("MockCommand"))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Command name returned correctly: %s"), *CommandName);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Command name not returned correctly"));
+        }
+        
+        // Test parameter validation
+        FString TestParams = TEXT("{\"test\": \"value\"}");
+        bool bValidationResult = MockCommand.ValidateParams(TestParams);
+        
+        if (MockCommand.bValidateParamsCalled && bValidationResult)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Parameter validation called and succeeded"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Parameter validation failed"));
+        }
+        
+        if (MockCommand.LastParameters == TestParams)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Parameters captured correctly in validation"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Parameters not captured correctly in validation"));
+        }
+        
+        // Test command execution
+        MockCommand.Reset();
+        FString ExecuteResult = MockCommand.Execute(TestParams);
+        
+        if (MockCommand.bExecuteCalled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Command execution called"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Command execution not called"));
+        }
+        
+        if (ExecuteResult == MockCommand.MockExecuteResult)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Command execution returned expected result"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Command execution result mismatch"));
+        }
+        
+        // Test execution failure
+        MockCommand.Reset();
+        MockCommand.bShouldExecuteSucceed = false;
+        ExecuteResult = MockCommand.Execute(TestParams);
+        
+        if (ExecuteResult.Contains(TEXT("success\": false")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Command execution failure handled correctly"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Command execution failure not handled correctly"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Basic Command Interface Test Completed ==="));
+    }
+    
+    /**
+     * Test parameter validation edge cases
+     */
+    void TestParameterValidationEdgeCases()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Parameter Validation Edge Cases Test Started ==="));
+        
+        FMockCommand MockCommand;
+        
+        // Test empty parameters
+        bool bResult = MockCommand.ValidateParams(TEXT(""));
+        if (MockCommand.bValidateParamsCalled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Empty parameters validation called"));
+        }
+        
+        // Test invalid JSON
+        MockCommand.Reset();
+        MockCommand.bShouldValidate = false;
+        bResult = MockCommand.ValidateParams(TEXT("{invalid json"));
+        if (!bResult)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Invalid JSON correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Invalid JSON should be rejected"));
+        }
+        
+        // Test very large parameters
+        FString LargeParams = TEXT("{\"data\": \"") + FString::ChrN(10000, TEXT('A')) + TEXT("\"}");
+        MockCommand.Reset();
+        MockCommand.bShouldValidate = true;
+        bResult = MockCommand.ValidateParams(LargeParams);
+        if (bResult)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Large parameters handled correctly"));
+        }
+        
+        // Test null/whitespace parameters
+        MockCommand.Reset();
+        bResult = MockCommand.ValidateParams(TEXT("   "));
+        if (MockCommand.bValidateParamsCalled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Whitespace parameters validation called"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Parameter Validation Edge Cases Test Completed ==="));
+    }
+    
+    /**
+     * Run all basic command tests
+     */
+    void RunAllTests()
+    {
+        TestBasicCommandInterface();
+        TestParameterValidationEdgeCases();
+    }
+}
+
+/**
+ * Test suite for Create Blueprint Command
+ */
+namespace CreateBlueprintCommandTests
+{
+    /**
+     * Test Create Blueprint Command execution
+     */
+    void TestCreateBlueprintExecution()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Create Blueprint Command Test Started ==="));
+        
+        FMockBlueprintServiceForCommands MockService;
+        FCreateBlueprintCommand Command(MockService);
+        
+        // Test command name
+        FString CommandName = Command.GetCommandName();
+        if (CommandName == TEXT("create_blueprint"))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Create Blueprint command name correct"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("! Create Blueprint command name: %s"), *CommandName);
+        }
+        
+        // Test valid parameters
+        FString ValidParams = TEXT("{\"name\": \"TestBlueprint\", \"parent_class\": \"Actor\", \"folder_path\": \"/Game/Test\"}");
+        bool bValidation = Command.ValidateParams(ValidParams);
+        
+        if (bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Valid parameters accepted"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Valid parameters should be accepted"));
+        }
+        
+        // Test successful execution
+        MockService.bShouldSucceed = true;
+        FString Result = Command.Execute(ValidParams);
+        
+        if (MockService.bCreateBlueprintCalled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Blueprint service CreateBlueprint called"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Blueprint service CreateBlueprint not called"));
+        }
+        
+        if (Result.Contains(TEXT("success")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Successful execution returned success response"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Successful execution should return success response"));
+        }
+        
+        // Test parameter capture
+        if (MockService.LastCreationParams.Name == TEXT("TestBlueprint"))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Blueprint name parameter captured correctly"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Blueprint name parameter not captured correctly"));
+        }
+        
+        // Test execution failure
+        MockService.Reset();
+        MockService.bShouldSucceed = false;
+        Result = Command.Execute(ValidParams);
+        
+        if (Result.Contains(TEXT("error")) || Result.Contains(TEXT("success\": false")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Failed execution returned error response"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Failed execution should return error response"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Create Blueprint Command Test Completed ==="));
+    }
+    
+    /**
+     * Test Create Blueprint Command parameter validation
+     */
+    void TestCreateBlueprintParameterValidation()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Create Blueprint Parameter Validation Test Started ==="));
+        
+        FMockBlueprintServiceForCommands MockService;
+        FCreateBlueprintCommand Command(MockService);
+        
+        // Test missing required parameters
+        FString InvalidParams1 = TEXT("{\"parent_class\": \"Actor\"}"); // Missing name
+        bool bValidation = Command.ValidateParams(InvalidParams1);
+        if (!bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Missing name parameter correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Missing name parameter should be rejected"));
+        }
+        
+        // Test empty name
+        FString InvalidParams2 = TEXT("{\"name\": \"\", \"parent_class\": \"Actor\"}");
+        bValidation = Command.ValidateParams(InvalidParams2);
+        if (!bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Empty name parameter correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Empty name parameter should be rejected"));
+        }
+        
+        // Test invalid JSON structure
+        FString InvalidParams3 = TEXT("{\"name\": \"Test\", \"parent_class\": }");
+        bValidation = Command.ValidateParams(InvalidParams3);
+        if (!bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Invalid JSON structure correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Invalid JSON structure should be rejected"));
+        }
+        
+        // Test valid minimal parameters
+        FString ValidParams = TEXT("{\"name\": \"ValidBlueprint\", \"parent_class\": \"Actor\"}");
+        bValidation = Command.ValidateParams(ValidParams);
+        if (bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Valid minimal parameters accepted"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Valid minimal parameters should be accepted"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Create Blueprint Parameter Validation Test Completed ==="));
+    }
+    
+    /**
+     * Run all Create Blueprint command tests
+     */
+    void RunAllTests()
+    {
+        TestCreateBlueprintExecution();
+        TestCreateBlueprintParameterValidation();
+    }
+}/**
+
+ * Test suite for Add Component Command
+ */
+namespace AddComponentCommandTests
+{
+    /**
+     * Test Add Component Command execution
+     */
+    void TestAddComponentExecution()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Add Component Command Test Started ==="));
+        
+        FMockBlueprintServiceForCommands MockService;
+        FAddComponentToBlueprintCommand Command(MockService);
+        
+        // Test command name
+        FString CommandName = Command.GetCommandName();
+        if (CommandName == TEXT("add_component_to_blueprint"))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Add Component command name correct"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("! Add Component command name: %s"), *CommandName);
+        }
+        
+        // Test valid parameters
+        FString ValidParams = TEXT("{\"blueprint_name\": \"TestBlueprint\", \"component_name\": \"TestMesh\", \"component_type\": \"StaticMeshComponent\"}");
+        bool bValidation = Command.ValidateParams(ValidParams);
+        
+        if (bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Valid component parameters accepted"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Valid component parameters should be accepted"));
+        }
+        
+        // Test successful execution
+        MockService.bShouldSucceed = true;
+        MockService.MockBlueprint = reinterpret_cast<UBlueprint*>(0x1); // Mock non-null pointer
+        FString Result = Command.Execute(ValidParams);
+        
+        if (MockService.bFindCalled && MockService.bAddComponentCalled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Blueprint service methods called correctly"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Blueprint service methods not called correctly"));
+        }
+        
+        if (Result.Contains(TEXT("success")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Successful component addition returned success response"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Successful component addition should return success response"));
+        }
+        
+        // Test blueprint not found
+        MockService.Reset();
+        MockService.bShouldSucceed = false; // FindBlueprint will return nullptr
+        Result = Command.Execute(ValidParams);
+        
+        if (Result.Contains(TEXT("error")) || Result.Contains(TEXT("success\": false")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Blueprint not found returned error response"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Blueprint not found should return error response"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Add Component Command Test Completed ==="));
+    }
+    
+    /**
+     * Test Add Component Command parameter validation
+     */
+    void TestAddComponentParameterValidation()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Add Component Parameter Validation Test Started ==="));
+        
+        FMockBlueprintServiceForCommands MockService;
+        FAddComponentToBlueprintCommand Command(MockService);
+        
+        // Test missing blueprint name
+        FString InvalidParams1 = TEXT("{\"component_name\": \"TestMesh\", \"component_type\": \"StaticMeshComponent\"}");
+        bool bValidation = Command.ValidateParams(InvalidParams1);
+        if (!bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Missing blueprint name correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Missing blueprint name should be rejected"));
+        }
+        
+        // Test missing component name
+        FString InvalidParams2 = TEXT("{\"blueprint_name\": \"TestBlueprint\", \"component_type\": \"StaticMeshComponent\"}");
+        bValidation = Command.ValidateParams(InvalidParams2);
+        if (!bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Missing component name correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Missing component name should be rejected"));
+        }
+        
+        // Test missing component type
+        FString InvalidParams3 = TEXT("{\"blueprint_name\": \"TestBlueprint\", \"component_name\": \"TestMesh\"}");
+        bValidation = Command.ValidateParams(InvalidParams3);
+        if (!bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Missing component type correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Missing component type should be rejected"));
+        }
+        
+        // Test valid parameters with optional fields
+        FString ValidParams = TEXT("{\"blueprint_name\": \"TestBlueprint\", \"component_name\": \"TestMesh\", \"component_type\": \"StaticMeshComponent\", \"location\": [100, 200, 300]}");
+        bValidation = Command.ValidateParams(ValidParams);
+        if (bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Valid parameters with optional fields accepted"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Valid parameters with optional fields should be accepted"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Add Component Parameter Validation Test Completed ==="));
+    }
+    
+    /**
+     * Run all Add Component command tests
+     */
+    void RunAllTests()
+    {
+        TestAddComponentExecution();
+        TestAddComponentParameterValidation();
+    }
+}
+
+/**
+ * Test suite for Compile Blueprint Command
+ */
+namespace CompileBlueprintCommandTests
+{
+    /**
+     * Test Compile Blueprint Command execution
+     */
+    void TestCompileBlueprintExecution()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Compile Blueprint Command Test Started ==="));
+        
+        FMockBlueprintServiceForCommands MockService;
+        FCompileBlueprintCommand Command(MockService);
+        
+        // Test command name
+        FString CommandName = Command.GetCommandName();
+        if (CommandName == TEXT("compile_blueprint"))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Compile Blueprint command name correct"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("! Compile Blueprint command name: %s"), *CommandName);
+        }
+        
+        // Test valid parameters
+        FString ValidParams = TEXT("{\"blueprint_name\": \"TestBlueprint\"}");
+        bool bValidation = Command.ValidateParams(ValidParams);
+        
+        if (bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Valid compilation parameters accepted"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Valid compilation parameters should be accepted"));
+        }
+        
+        // Test successful compilation
+        MockService.bShouldSucceed = true;
+        MockService.MockBlueprint = reinterpret_cast<UBlueprint*>(0x1); // Mock non-null pointer
+        FString Result = Command.Execute(ValidParams);
+        
+        if (MockService.bFindCalled && MockService.bCompileCalled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Blueprint service compilation methods called"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Blueprint service compilation methods not called"));
+        }
+        
+        if (Result.Contains(TEXT("success")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Successful compilation returned success response"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Successful compilation should return success response"));
+        }
+        
+        // Test compilation failure
+        MockService.Reset();
+        MockService.bShouldSucceed = true; // FindBlueprint succeeds
+        MockService.MockBlueprint = reinterpret_cast<UBlueprint*>(0x1);
+        // But compilation fails
+        MockService.bShouldSucceed = false;
+        MockService.MockError = TEXT("Compilation failed: Missing node connection");
+        
+        Result = Command.Execute(ValidParams);
+        
+        if (Result.Contains(TEXT("error")) && Result.Contains(TEXT("Compilation failed")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Compilation failure returned detailed error response"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Compilation failure should return detailed error response"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Compile Blueprint Command Test Completed ==="));
+    }
+    
+    /**
+     * Test Compile Blueprint Command error handling
+     */
+    void TestCompileBlueprintErrorHandling()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Compile Blueprint Error Handling Test Started ==="));
+        
+        FMockBlueprintServiceForCommands MockService;
+        FCompileBlueprintCommand Command(MockService);
+        
+        // Test blueprint not found
+        FString ValidParams = TEXT("{\"blueprint_name\": \"NonExistentBlueprint\"}");
+        MockService.bShouldSucceed = false; // FindBlueprint returns nullptr
+        
+        FString Result = Command.Execute(ValidParams);
+        
+        if (Result.Contains(TEXT("error")) && Result.Contains(TEXT("not found")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Blueprint not found error handled correctly"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("! Blueprint not found error handling: %s"), *Result);
+        }
+        
+        // Test invalid parameters
+        FString InvalidParams = TEXT("{\"invalid\": \"parameter\"}");
+        bool bValidation = Command.ValidateParams(InvalidParams);
+        if (!bValidation)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Invalid compilation parameters correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Invalid compilation parameters should be rejected"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Compile Blueprint Error Handling Test Completed ==="));
+    }
+    
+    /**
+     * Run all Compile Blueprint command tests
+     */
+    void RunAllTests()
+    {
+        TestCompileBlueprintExecution();
+        TestCompileBlueprintErrorHandling();
+    }
+}
+
+/**
+ * Test suite for Command Registry functionality
+ */
+namespace CommandRegistryTests
+{
+    /**
+     * Test command registration and lookup
+     */
+    void TestCommandRegistration()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Command Registry Test Started ==="));
+        
+        FUnrealMCPCommandRegistry& Registry = FUnrealMCPCommandRegistry::Get();
+        
+        // Clear registry for clean test
+        Registry.ClearRegistry();
+        
+        // Test initial state
+        TArray<FString> InitialCommands = Registry.GetRegisteredCommandNames();
+        if (InitialCommands.Num() == 0)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Registry starts empty after clear"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("! Registry has %d commands after clear"), InitialCommands.Num());
+        }
+        
+        // Test command registration
+        TSharedPtr<FMockCommand> MockCommand = MakeShareable(new FMockCommand());
+        MockCommand->MockCommandName = TEXT("TestRegistryCommand");
+        
+        bool bRegistered = Registry.RegisterCommand(MockCommand);
+        if (bRegistered)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Command registered successfully"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Command registration failed"));
+        }
+        
+        // Test command lookup
+        bool bIsRegistered = Registry.IsCommandRegistered(TEXT("TestRegistryCommand"));
+        if (bIsRegistered)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Registered command found in registry"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Registered command not found in registry"));
+        }
+        
+        // Test command execution through registry
+        FString TestParams = TEXT("{\"test\": \"registry\"}");
+        FString Result = Registry.ExecuteCommand(TEXT("TestRegistryCommand"), TestParams);
+        
+        if (MockCommand->bExecuteCalled)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Command executed through registry"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Command not executed through registry"));
+        }
+        
+        if (MockCommand->LastParameters == TestParams)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Parameters passed correctly through registry"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Parameters not passed correctly through registry"));
+        }
+        
+        // Test command unregistration
+        bool bUnregistered = Registry.UnregisterCommand(TEXT("TestRegistryCommand"));
+        if (bUnregistered)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Command unregistered successfully"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Command unregistration failed"));
+        }
+        
+        // Verify command is no longer registered
+        bIsRegistered = Registry.IsCommandRegistered(TEXT("TestRegistryCommand"));
+        if (!bIsRegistered)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Unregistered command no longer found in registry"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Unregistered command still found in registry"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Command Registry Test Completed ==="));
+    }
+    
+    /**
+     * Test registry error handling
+     */
+    void TestRegistryErrorHandling()
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== Command Registry Error Handling Test Started ==="));
+        
+        FUnrealMCPCommandRegistry& Registry = FUnrealMCPCommandRegistry::Get();
+        
+        // Test executing non-existent command
+        FString Result = Registry.ExecuteCommand(TEXT("NonExistentCommand"), TEXT("{}"));
+        if (Result.Contains(TEXT("error")) || Result.Contains(TEXT("not found")))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Non-existent command execution returned error"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Non-existent command execution should return error"));
+        }
+        
+        // Test registering null command
+        bool bRegistered = Registry.RegisterCommand(nullptr);
+        if (!bRegistered)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Null command registration correctly rejected"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("✗ Null command registration should be rejected"));
+        }
+        
+        // Test unregistering non-existent command
+        bool bUnregistered = Registry.UnregisterCommand(TEXT("NonExistentCommand"));
+        if (!bUnregistered)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("✓ Non-existent command unregistration correctly handled"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("! Non-existent command unregistration returned true"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== Command Registry Error Handling Test Completed ==="));
+    }
+    
+    /**
+     * Run all Command Registry tests
+     */
+    void RunAllTests()
+    {
+        TestCommandRegistration();
+        TestRegistryErrorHandling();
+    }
+}
+
+/**
+ * Main test function to run all command handler tests
+ */
+void TestCommandHandlers()
+{
+    UE_LOG(LogTemp, Warning, TEXT("########################################"));
+    UE_LOG(LogTemp, Warning, TEXT("=== COMMAND HANDLER TESTS STARTED ==="));
+    UE_LOG(LogTemp, Warning, TEXT("########################################"));
+    
+    BasicCommandTests::RunAllTests();
+    CreateBlueprintCommandTests::RunAllTests();
+    AddComponentCommandTests::RunAllTests();
+    CompileBlueprintCommandTests::RunAllTests();
+    CommandRegistryTests::RunAllTests();
+    
+    UE_LOG(LogTemp, Warning, TEXT("########################################"));
+    UE_LOG(LogTemp, Warning, TEXT("=== COMMAND HANDLER TESTS COMPLETED ==="));
+    UE_LOG(LogTemp, Warning, TEXT("########################################"));
+}
