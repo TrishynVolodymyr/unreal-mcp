@@ -213,5 +213,64 @@ async def list_blueprint_components(blueprint_name: str) -> Dict[str, Any]:
     
     return await send_tcp_command("list_blueprint_components", params)
 
+@app.tool()
+async def create_custom_blueprint_function(
+    blueprint_name: str,
+    function_name: str,
+    inputs: Optional[List[Dict[str, str]]] = None,
+    outputs: Optional[List[Dict[str, str]]] = None,
+    is_pure: bool = False,
+    is_const: bool = False,
+    access_specifier: str = "Public",
+    category: str = "Default"
+) -> Dict[str, Any]:
+    """
+    Create a custom user-defined function in a Blueprint.
+    This will create a new function that appears in the Functions section of the Blueprint editor.
+    
+    Args:
+        blueprint_name: Name of the target Blueprint
+        function_name: Name of the custom function to create
+        inputs: List of input parameters, each with 'name' and 'type' keys
+        outputs: List of output parameters, each with 'name' and 'type' keys  
+        is_pure: Whether the function is pure (no execution pins)
+        is_const: Whether the function is const
+        access_specifier: Access level ("Public", "Protected", "Private")
+        category: Category for organization in the functions list
+        
+    Returns:
+        Dictionary containing success status and function information
+        
+    Examples:
+        # Create a simple function with no parameters
+        create_custom_blueprint_function(
+            blueprint_name="BP_LoopTest",
+            function_name="TestLoopFunction"
+        )
+        
+        # Create a function with input and output parameters
+        create_custom_blueprint_function(
+            blueprint_name="BP_LoopTest", 
+            function_name="ProcessArray",
+            inputs=[{"name": "InputArray", "type": "String[]"}],
+            outputs=[{"name": "ProcessedCount", "type": "Integer"}]
+        )
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "function_name": function_name,
+        "is_pure": is_pure,
+        "is_const": is_const,
+        "access_specifier": access_specifier,
+        "category": category
+    }
+    
+    if inputs:
+        params["inputs"] = inputs
+    if outputs:
+        params["outputs"] = outputs
+    
+    return await send_tcp_command("create_custom_blueprint_function", params)
+
 if __name__ == "__main__":
     app.run()

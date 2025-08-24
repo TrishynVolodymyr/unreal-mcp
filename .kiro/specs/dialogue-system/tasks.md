@@ -6,7 +6,11 @@
   - Set up DataTable structure for dialogue content storage
   - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ] 2. Implement core dialogue component Blueprint
+- [x] 2. Implement core dialogue component Blueprint
+
+
+
+
   - Create DialogueComponent Blueprint inheriting from ActorComponent
   - Add interaction range detection functionality
   - Implement CanInteract function to check player proximity
