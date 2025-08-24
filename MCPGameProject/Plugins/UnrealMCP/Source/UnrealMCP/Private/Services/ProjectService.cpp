@@ -238,6 +238,7 @@ FString FProjectService::GetPropertyTypeString(const FProperty* Property) const
     if (Property->IsA<FIntProperty>()) return TEXT("Integer");
     if (Property->IsA<FFloatProperty>() || Property->IsA<FDoubleProperty>()) return TEXT("Float");
     if (Property->IsA<FStrProperty>()) return TEXT("String");
+    if (Property->IsA<FTextProperty>()) return TEXT("Text");
     if (Property->IsA<FNameProperty>()) return TEXT("Name");
     if (const FStructProperty* StructProp = CastField<FStructProperty>(Property))
     {
@@ -258,8 +259,15 @@ FString FProjectService::GetPropertyTypeString(const FProperty* Property) const
 
 bool FProjectService::ResolvePropertyType(const FString& PropertyType, FEdGraphPinType& OutPinType) const
 {
-    // Check if this is an array type
-    if (PropertyType.EndsWith(TEXT("[]")))
+    // Check if this is an array type (either "Array" or ends with "[]")
+    if (PropertyType.Equals(TEXT("Array"), ESearchCase::IgnoreCase))
+    {
+        // Default to string array if no specific type is provided
+        OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
+        OutPinType.ContainerType = EPinContainerType::Array;
+        return true;
+    }
+    else if (PropertyType.EndsWith(TEXT("[]")))
     {
         // Get the base type without the array suffix
         FString BaseType = PropertyType.LeftChop(2);
@@ -283,6 +291,10 @@ bool FProjectService::ResolvePropertyType(const FString& PropertyType, FEdGraphP
         else if (BaseType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
         {
             BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
+        }
+        else if (BaseType.Equals(TEXT("Text"), ESearchCase::IgnoreCase))
+        {
+            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Text;
         }
         else if (BaseType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
         {
@@ -359,6 +371,10 @@ bool FProjectService::ResolvePropertyType(const FString& PropertyType, FEdGraphP
         else if (PropertyType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
         {
             OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
+        }
+        else if (PropertyType.Equals(TEXT("Text"), ESearchCase::IgnoreCase))
+        {
+            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
         }
         else if (PropertyType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
         {

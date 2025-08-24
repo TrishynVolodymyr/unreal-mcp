@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Create dialogue data structures and DataTable setup
+- [x] 1. Create dialogue data structures and DataTable setup
   - Create DialogueNode struct with all required fields (NodeID, SpeakerName, DialogueText, Responses, IsEndNode)
   - Create DialogueResponse struct for player response options
   - Set up DataTable structure for dialogue content storage
