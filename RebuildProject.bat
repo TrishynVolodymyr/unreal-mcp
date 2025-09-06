@@ -1,1 +1,1 @@
-cd e:\code\unreal-mcp\MCPGameProject; & "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="e:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject" -TargetType=Editor
+taskkill /F /IM "UnrealEditor.exe" 2>$null; cd e:\code\unreal-mcp\MCPGameProject; & "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="e:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject" -TargetType=Editor

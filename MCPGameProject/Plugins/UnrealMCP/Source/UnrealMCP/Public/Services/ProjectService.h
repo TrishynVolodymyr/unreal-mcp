@@ -32,4 +32,5 @@ private:
     FString GetPropertyTypeString(const FProperty* Property) const;
     bool ResolvePropertyType(const FString& PropertyType, FEdGraphPinType& OutPinType) const;
     bool CreateStructProperty(class UUserDefinedStruct* Struct, const TSharedPtr<FJsonObject>& PropertyObj) const;
+    class UScriptStruct* FindCustomStruct(const FString& StructName) const;
 };
