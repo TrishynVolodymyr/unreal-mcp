@@ -254,7 +254,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         function_name: str,
         class_name: str = "",
         node_position: List[float] = None,
-        target_graph: str = None,
+        target_graph: str = "EventGraph",
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -278,6 +278,9 @@ def register_blueprint_action_tools(mcp: FastMCP):
             class_name: Optional class name (supports both short names like "KismetMathLibrary" 
                        and full paths like "/Script/Engine.KismetMathLibrary")
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
+            target_graph: Optional name of the specific graph to place the node in (e.g., "CanInteract", "GetSpeaker").
+                         If not specified, defaults to "EventGraph". This allows creating nodes in custom functions.
+                         Can be passed either as a direct parameter or as a keyword argument.
             **kwargs: Additional parameters for special nodes (e.g., target_type="PlayerController" for Cast nodes)
 
         Returns:
@@ -298,14 +301,38 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 node_position=[100, 200]
             )
             
-            # Create a Map ForEach loop (WORKING!)
+            # Create a node in a specific function graph - Method 1 (direct parameter)
+            create_node_by_action_name(
+                blueprint_name="DialogueComponent",
+                function_name="GetOwner",
+                target_graph="CanInteract",
+                node_position=[100, 100]
+            )
+            
+            # Create a node in a specific function graph - Method 2 (keyword argument)
+            create_node_by_action_name(
+                blueprint_name="DialogueComponent",
+                function_name="GetDistanceTo",
+                node_position=[300, 100],
+                target_graph="CanInteract"
+            )
+            
+            # Create a comparison operator in a function
+            create_node_by_action_name(
+                blueprint_name="DialogueComponent",
+                function_name="<",
+                node_position=[500, 100],
+                target_graph="CanInteract"
+            )
+            
+            # Create a Map ForEach loop
             create_node_by_action_name(
                 blueprint_name="BP_MyActor",
                 function_name="For Each Loop (Map)",
                 node_position=[300, 400]
             )
             
-            # Create a Set ForEach loop (WORKING!)
+            # Create a Set ForEach loop
             create_node_by_action_name(
                 blueprint_name="BP_MyActor", 
                 function_name="For Each Loop (Set)",

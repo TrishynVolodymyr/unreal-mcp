@@ -396,27 +396,17 @@ bool FProjectService::ResolvePropertyType(const FString& PropertyType, FEdGraphP
         }
         else
         {
-            // Try to find a custom struct
-            UScriptStruct* FoundStruct = nullptr;
-            TArray<FString> StructNameVariations;
-            StructNameVariations.Add(BaseType);
-            StructNameVariations.Add(FString::Printf(TEXT("F%s"), *BaseType));
-            StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Blueprints/%s.%s"), *BaseType, *BaseType)));
-            StructNameVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataStructures/%s.%s"), *BaseType, *BaseType)));
-            
-            for (const FString& StructVariation : StructNameVariations)
+            // Try to find a custom struct dynamically
+            UScriptStruct* FoundStruct = FindCustomStruct(BaseType);
+            if (FoundStruct)
             {
-                FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
-                if (FoundStruct)
-                {
-                    BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-                    BasePinType.PinSubCategoryObject = FoundStruct;
-                    break;
-                }
+                UE_LOG(LogTemp, Display, TEXT("MCP Project: Found struct '%s' at path: '%s'"), *BaseType, *FoundStruct->GetPathName());
+                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                BasePinType.PinSubCategoryObject = FoundStruct;
             }
-            
-            if (!FoundStruct)
+            else
             {
+                UE_LOG(LogTemp, Warning, TEXT("MCP Project: Could not find struct '%s', defaulting to String array"), *BaseType);
                 // Default to string array if type not resolved
                 BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
             }
@@ -896,21 +886,9 @@ TArray<TSharedPtr<FJsonObject>> FProjectService::ListInputMappingContexts(const 
 
 UScriptStruct* FProjectService::FindCustomStruct(const FString& StructName) const
 {
-    // First try direct name variations
-    TArray<FString> DirectVariations;
-    DirectVariations.Add(StructName);
-    DirectVariations.Add(FString::Printf(TEXT("F%s"), *StructName));
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Dynamic search for struct '%s'"), *StructName);
     
-    for (const FString& Variation : DirectVariations)
-    {
-        UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *Variation);
-        if (FoundStruct)
-        {
-            return FoundStruct;
-        }
-    }
-    
-    // Use Asset Registry to search for UserDefinedStruct assets
+    // Use Asset Registry to search for UserDefinedStruct assets dynamically
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
     IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
     
@@ -922,19 +900,44 @@ UScriptStruct* FProjectService::FindCustomStruct(const FString& StructName) cons
     TArray<FAssetData> StructAssets;
     AssetRegistry.GetAssets(Filter, StructAssets);
     
-    // Look for matching struct names
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Found %d struct assets in project"), StructAssets.Num());
+    
+    // Look for matching struct names (try multiple variations)
+    TArray<FString> NameVariations;
+    NameVariations.Add(StructName);
+    NameVariations.Add(FString::Printf(TEXT("F%s"), *StructName));
+    
     for (const FAssetData& AssetData : StructAssets)
     {
         FString AssetName = AssetData.AssetName.ToString();
-        if (AssetName.Equals(StructName, ESearchCase::IgnoreCase))
+        UE_LOG(LogTemp, Verbose, TEXT("MCP Project: Checking struct asset: '%s' at path: '%s'"), *AssetName, *AssetData.GetObjectPathString());
+        
+        for (const FString& NameVariation : NameVariations)
         {
-            UObject* LoadedAsset = AssetData.GetAsset();
-            if (UUserDefinedStruct* UserStruct = Cast<UUserDefinedStruct>(LoadedAsset))
+            if (AssetName.Equals(NameVariation, ESearchCase::IgnoreCase))
             {
-                return UserStruct;
+                UE_LOG(LogTemp, Display, TEXT("MCP Project: Found matching struct '%s' -> '%s'"), *NameVariation, *AssetName);
+                UObject* LoadedAsset = AssetData.GetAsset();
+                if (UUserDefinedStruct* UserStruct = Cast<UUserDefinedStruct>(LoadedAsset))
+                {
+                    UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully loaded struct: '%s'"), *UserStruct->GetPathName());
+                    return UserStruct;
+                }
             }
         }
     }
     
+    // Also try direct loading for built-in structs
+    for (const FString& NameVariation : NameVariations)
+    {
+        UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *NameVariation);
+        if (FoundStruct)
+        {
+            UE_LOG(LogTemp, Display, TEXT("MCP Project: Found built-in struct: '%s'"), *NameVariation);
+            return FoundStruct;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("MCP Project: No struct found for '%s' after checking %d assets"), *StructName, StructAssets.Num());
     return nullptr;
 }
