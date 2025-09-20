@@ -1,4 +1,5 @@
 #include "Services/DataTableService.h"
+#include "Services/DataTableTransformationService.h"
 #include "Engine/DataTable.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -163,7 +164,7 @@ bool FDataTableService::AddRowsToDataTable(UDataTable* DataTable, const TArray<F
         return false;
     }
     
-    OutAddedRows.Empty();
+        OutAddedRows.Empty();
     OutFailedRows.Empty();
     
     for (const FDataTableRowParams& RowParams : Rows)
@@ -175,15 +176,34 @@ bool FDataTableService::AddRowsToDataTable(UDataTable* DataTable, const TArray<F
             continue;
         }
         
-        // Validate row data
-        if (!ValidateRowData(DataTable, RowParams.RowData, ValidationError))
+        // Check if we have GUID fields that need transformation BEFORE validation (to avoid auto-fill contamination)
+        bool bHasGuidFields = false;
+        for (const auto& Field : RowParams.RowData->Values)
+        {
+            bool bIsGuid = FDataTableTransformationService::IsGuidField(Field.Key);
+            UE_LOG(LogTemp, Warning, TEXT("Field '%s' is GUID: %s"), *Field.Key, bIsGuid ? TEXT("YES") : TEXT("NO"));
+            if (bIsGuid)
+            {
+                bHasGuidFields = true;
+                break;
+            }
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("Has GUID fields: %s"), bHasGuidFields ? TEXT("YES") : TEXT("NO"));
+        
+        // Transform GUID field names to friendly names before validation and JsonObjectToUStruct
+        TSharedPtr<FJsonObject> StructJson = RowParams.RowData;
+        if (bHasGuidFields)
+        {
+            StructJson = FDataTableTransformationService::AutoTransformFromGuidNames(RowParams.RowData, RowStruct);
+        }
+        
+        // Validate row data (after potential transformation)
+        if (!ValidateRowData(DataTable, StructJson, ValidationError))
         {
             OutFailedRows.Add(FString::Printf(TEXT("%s: %s"), *RowParams.RowName, *ValidationError));
             continue;
         }
-        
-        // Use the row data directly without GUID transformation (Variant A)
-        TSharedPtr<FJsonObject> StructJson = RowParams.RowData;
         
         // Allocate memory for the new row
         uint8* RowMemory = (uint8*)FMemory::Malloc(RowStruct->GetStructureSize());
@@ -263,15 +283,34 @@ bool FDataTableService::UpdateRowsInDataTable(UDataTable* DataTable, const TArra
             continue;
         }
         
-        // Validate row data
-        if (!ValidateRowData(DataTable, RowParams.RowData, ValidationError))
+        // Check if we have GUID fields that need transformation BEFORE validation (to avoid auto-fill contamination)
+        bool bHasGuidFields = false;
+        for (const auto& Field : RowParams.RowData->Values)
+        {
+            bool bIsGuid = FDataTableTransformationService::IsGuidField(Field.Key);
+            UE_LOG(LogTemp, Warning, TEXT("Field '%s' is GUID: %s"), *Field.Key, bIsGuid ? TEXT("YES") : TEXT("NO"));
+            if (bIsGuid)
+            {
+                bHasGuidFields = true;
+                break;
+            }
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("Has GUID fields: %s"), bHasGuidFields ? TEXT("YES") : TEXT("NO"));
+        
+        // Transform GUID field names to friendly names before validation and JsonObjectToUStruct
+        TSharedPtr<FJsonObject> StructJson = RowParams.RowData;
+        if (bHasGuidFields)
+        {
+            StructJson = FDataTableTransformationService::AutoTransformFromGuidNames(RowParams.RowData, RowStruct);
+        }
+        
+        // Validate row data (after potential transformation)
+        if (!ValidateRowData(DataTable, StructJson, ValidationError))
         {
             OutFailedRows.Add(FString::Printf(TEXT("%s: %s"), *RowParams.RowName, *ValidationError));
             continue;
         }
-        
-        // Use the row data directly without GUID transformation (Variant A)
-        TSharedPtr<FJsonObject> StructJson = RowParams.RowData;
         
         // Allocate memory for the new row
         uint8* RowMemory = (uint8*)FMemory::Malloc(RowStruct->GetStructureSize());
@@ -666,7 +705,7 @@ TSharedPtr<FJsonObject> FDataTableService::RowToJson(const UDataTable* DataTable
         }
         
         // Auto-transform GUID field names back to friendly names
-        TSharedPtr<FJsonObject> FriendlyRowDataObj = AutoTransformFromGuidNames(RowDataObj, DataTable->GetRowStruct());
+        TSharedPtr<FJsonObject> FriendlyRowDataObj = FDataTableTransformationService::AutoTransformFromGuidNames(RowDataObj, DataTable->GetRowStruct());
         
         RowObj->SetObjectField(TEXT("row_data"), FriendlyRowDataObj);
     }
@@ -852,334 +891,13 @@ void FDataTableService::FillMissingFields(const UScriptStruct* RowStruct, const 
 
 TSharedPtr<FJsonObject> FDataTableService::AutoTransformToGuidNames(const TSharedPtr<FJsonObject>& InJson, const UScriptStruct* RowStruct)
 {
-    if (!InJson.IsValid() || !RowStruct)
-    {
-        UE_LOG(LogTemp, Error, TEXT("MCP DataTable: AutoTransformToGuidNames - Invalid input: InJson=%s, RowStruct=%s"), 
-               InJson.IsValid() ? TEXT("Valid") : TEXT("Invalid"), 
-               RowStruct ? *RowStruct->GetName() : TEXT("Null"));
-        return InJson;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("AutoTransformToGuidNames: Processing %d fields for struct '%s'"), InJson->Values.Num(), *RowStruct->GetName());
-    
-    TSharedPtr<FJsonObject> OutJson = MakeShared<FJsonObject>();
-    
-    // Build mapping from friendly names to GUID names for the main struct
-    TMap<FString, FString> FriendlyToGuidMap;
-    for (TFieldIterator<FProperty> PropIt(RowStruct); PropIt; ++PropIt)
-    {
-        FProperty* Property = *PropIt;
-        FString FriendlyName = Property->GetDisplayNameText().ToString();
-        if (FriendlyName.IsEmpty())
-        {
-            // Fallback to property name without GUID
-            FriendlyName = Property->GetName();
-            // Remove GUID part (everything after last underscore)
-            int32 LastUnderscoreIndex;
-            if (FriendlyName.FindLastChar('_', LastUnderscoreIndex))
-            {
-                FString BaseName = FriendlyName.Left(LastUnderscoreIndex);
-                // Check if this is a GUID pattern (underscore followed by number)
-                FString Suffix = FriendlyName.Mid(LastUnderscoreIndex + 1);
-                if (Suffix.IsNumeric() || (Suffix.Len() > 30)) // GUID is long
-                {
-                    FriendlyName = BaseName;
-                }
-            }
-        }
-        
-        FString GuidName = Property->GetName();
-        FriendlyToGuidMap.Add(FriendlyName, GuidName);
-        
-
-    }
-    
-    // Transform each field in the input JSON
-    for (const auto& Pair : InJson->Values)
-    {
-        FString InputKey = Pair.Key;
-        
-        // Skip if this is already a GUID field (contains underscore followed by numbers/long string)
-        bool bIsGuidField = false;
-        int32 GuidUnderscoreIndex;
-        if (InputKey.FindLastChar('_', GuidUnderscoreIndex) && GuidUnderscoreIndex > 0)
-        {
-            FString Suffix = InputKey.Mid(GuidUnderscoreIndex + 1);
-            if (Suffix.IsNumeric() || Suffix.Len() > 30) // GUID pattern
-            {
-                bIsGuidField = true;
-
-            }
-        }
-        
-        if (bIsGuidField)
-        {
-            continue; // Skip GUID fields that are already in the input
-        }
-        
-        FString* GuidKeyPtr = FriendlyToGuidMap.Find(InputKey);
-        FString OutputKey = GuidKeyPtr ? *GuidKeyPtr : InputKey;
-        
-        if (Pair.Value->Type == EJson::Array)
-        {
-            // Handle arrays that might contain structs
-            const TArray<TSharedPtr<FJsonValue>>* InputArray;
-            if (Pair.Value->TryGetArray(InputArray))
-            {
-
-                
-                // Find the array property to get its inner struct type
-                FProperty* ArrayProperty = nullptr;
-                for (TFieldIterator<FProperty> PropIt(RowStruct); PropIt; ++PropIt)
-                {
-                    if ((*PropIt)->GetName() == OutputKey)
-                    {
-                        ArrayProperty = *PropIt;
-                        break;
-                    }
-                }
-                
-                if (const FArrayProperty* ArrProp = CastField<FArrayProperty>(ArrayProperty))
-                {
-                    if (const FStructProperty* StructProp = CastField<FStructProperty>(ArrProp->Inner))
-                    {
-                        // Transform each array element's struct fields
-                        TArray<TSharedPtr<FJsonValue>> TransformedArray;
-                        
-
-                        
-                        // Build mapping for the struct fields
-                        TMap<FString, FString> StructFriendlyToGuidMap;
-                        for (TFieldIterator<FProperty> StructPropIt(StructProp->Struct); StructPropIt; ++StructPropIt)
-                        {
-                            FProperty* StructField = *StructPropIt;
-                            FString StructFriendlyName = StructField->GetDisplayNameText().ToString();
-                            if (StructFriendlyName.IsEmpty())
-                            {
-                                // Extract friendly name from GUID name
-                                StructFriendlyName = StructField->GetName();
-                                int32 LastUnderscoreIndex;
-                                if (StructFriendlyName.FindLastChar('_', LastUnderscoreIndex))
-                                {
-                                    FString BaseName = StructFriendlyName.Left(LastUnderscoreIndex);
-                                    FString Suffix = StructFriendlyName.Mid(LastUnderscoreIndex + 1);
-                                    if (Suffix.IsNumeric() || (Suffix.Len() > 30))
-                                    {
-                                        StructFriendlyName = BaseName;
-                                    }
-                                }
-                            }
-                            
-                            FString StructGuidName = StructField->GetName();
-                            StructFriendlyToGuidMap.Add(StructFriendlyName, StructGuidName);
-                            
-
-                        }
-                        
-                        for (const auto& ArrayElement : *InputArray)
-                        {
-                            if (ArrayElement->Type == EJson::Object)
-                            {
-                                const TSharedPtr<FJsonObject>* ElementObj;
-                                if (ArrayElement->TryGetObject(ElementObj))
-                                {
-                                    TSharedPtr<FJsonObject> TransformedElement = MakeShared<FJsonObject>();
-                                    
-                                    // Transform each field in the struct
-                                    for (const auto& StructPair : (*ElementObj)->Values)
-                                    {
-                                        FString StructInputKey = StructPair.Key;
-                                        FString* StructGuidKeyPtr = StructFriendlyToGuidMap.Find(StructInputKey);
-                                        FString StructOutputKey = StructGuidKeyPtr ? *StructGuidKeyPtr : StructInputKey;
-                                        
-                                        TransformedElement->SetField(StructOutputKey, StructPair.Value);
-                                        
-
-                                    }
-                                    
-                                    TransformedArray.Add(MakeShared<FJsonValueObject>(TransformedElement));
-                                }
-                            }
-                            else
-                            {
-                                // Keep non-object elements as-is
-                                TransformedArray.Add(ArrayElement);
-                            }
-                        }
-                        
-                        OutJson->SetArrayField(OutputKey, TransformedArray);
-                        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Set transformed array field '%s' with %d elements"), 
-                               *OutputKey, TransformedArray.Num());
-                        continue;
-                    }
-                }
-                
-                // If not a struct array, copy as-is
-                OutJson->SetArrayField(OutputKey, *InputArray);
-            }
-        }
-        else
-        {
-            // Copy non-array fields as-is
-            FString ValuePreview = TEXT("null");
-            if (Pair.Value->Type == EJson::String)
-            {
-                ValuePreview = Pair.Value->AsString();
-            }
-            else if (Pair.Value->Type == EJson::Boolean)
-            {
-                ValuePreview = Pair.Value->AsBool() ? TEXT("true") : TEXT("false");
-            }
-            
-
-            
-            OutJson->SetField(OutputKey, Pair.Value);
-            
-
-        }
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("AutoTransformToGuidNames: Output contains %d fields"), OutJson->Values.Num());
-    return OutJson;
+    // Deprecated: Use FDataTableTransformationService::AutoTransformToGuidNames instead
+    return FDataTableTransformationService::AutoTransformToGuidNames(InJson, RowStruct);
 }
 
 TSharedPtr<FJsonObject> FDataTableService::AutoTransformFromGuidNames(const TSharedPtr<FJsonObject>& InJson, const UScriptStruct* RowStruct)
 {
-    if (!InJson.IsValid() || !RowStruct)
-    {
-        UE_LOG(LogTemp, Error, TEXT("MCP DataTable: AutoTransformFromGuidNames - Invalid input: InJson=%s, RowStruct=%s"), 
-               InJson.IsValid() ? TEXT("Valid") : TEXT("Invalid"), 
-               RowStruct ? *RowStruct->GetName() : TEXT("Null"));
-        return InJson;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("AutoTransformFromGuidNames: Processing %d fields for struct '%s'"), InJson->Values.Num(), *RowStruct->GetName());
-    
-    // Log all input fields
-    for (const auto& Pair : InJson->Values)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Input GUID field: '%s' (type: %d)"), *Pair.Key, (int32)Pair.Value->Type);
-    }
-    
-    TSharedPtr<FJsonObject> OutJson = MakeShared<FJsonObject>();
-    
-    // Build mapping from GUID names to friendly names for the main struct
-    TMap<FString, FString> GuidToFriendlyMap;
-    for (TFieldIterator<FProperty> PropIt(RowStruct); PropIt; ++PropIt)
-    {
-        FProperty* Property = *PropIt;
-        FString GuidName = Property->GetName(); // GUID name like "ResponseText_2_522C7D5A457AA53B9427FEA05A58D19D"
-        FString FriendlyName = Property->GetDisplayNameText().ToString();
-        
-        if (FriendlyName.IsEmpty())
-        {
-            FriendlyName = Property->GetAuthoredName(); // Fallback to authored name
-        }
-        
-        if (FriendlyName.IsEmpty())
-        {
-            // Extract friendly name from GUID name by taking part before first underscore
-            int32 UnderscoreIndex;
-            if (GuidName.FindChar('_', UnderscoreIndex))
-            {
-                FriendlyName = GuidName.Left(UnderscoreIndex);
-            }
-            else
-            {
-                FriendlyName = GuidName; // Use GUID name if no underscore found
-            }
-        }
-        
-        GuidToFriendlyMap.Add(GuidName, FriendlyName);
-        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Reverse mapping GUID '%s' -> friendly '%s'"), *GuidName, *FriendlyName);
-        
-        // Also add camelCase variant for UStructToJsonObject compatibility
-        // Convert PascalCase to camelCase (e.g., "NodeID" -> "nodeId")
-        FString CamelCaseName = FriendlyName;
-        if (CamelCaseName.Len() > 0)
-        {
-            CamelCaseName = CamelCaseName.Left(1).ToLower() + CamelCaseName.Mid(1);
-            GuidToFriendlyMap.Add(CamelCaseName, FriendlyName);
-            UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Reverse mapping camelCase '%s' -> friendly '%s'"), *CamelCaseName, *FriendlyName);
-        }
-    }
-    
-    // Transform all fields in the JSON
-    for (const auto& Pair : InJson->Values)
-    {
-        const FString& InputKey = Pair.Key;
-        FString OutputKey = InputKey;
-        
-        // Try to find friendly name for this GUID
-        if (GuidToFriendlyMap.Contains(InputKey))
-        {
-            OutputKey = GuidToFriendlyMap[InputKey];
-        }
-        
-        // Handle array fields (like Responses array)
-        if (Pair.Value->Type == EJson::Array)
-        {
-            const TArray<TSharedPtr<FJsonValue>>* InputArray;
-            if (Pair.Value->TryGetArray(InputArray))
-            {
-                // Check if this is a struct array by examining the first element
-                if (InputArray->Num() > 0 && (*InputArray)[0]->Type == EJson::Object)
-                {
-                    // Find the corresponding struct type for this array field
-                    FProperty* FoundProperty = nullptr;
-                    for (TFieldIterator<FProperty> PropIt(RowStruct); PropIt; ++PropIt)
-                    {
-                        if ((*PropIt)->GetName() == InputKey)
-                        {
-                            FoundProperty = *PropIt;
-                            break;
-                        }
-                    }
-                    
-                    if (FoundProperty)
-                    {
-                        if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(FoundProperty))
-                        {
-                            if (FStructProperty* InnerStructProp = CastField<FStructProperty>(ArrayProp->Inner))
-                            {
-                                // Transform each array element
-                                TArray<TSharedPtr<FJsonValue>> TransformedArray;
-                                for (const auto& ArrayElement : *InputArray)
-                                {
-                                    const TSharedPtr<FJsonObject>* ElementObj;
-                                    if (ArrayElement->TryGetObject(ElementObj))
-                                    {
-                                        TSharedPtr<FJsonObject> TransformedElement = AutoTransformFromGuidNames(*ElementObj, InnerStructProp->Struct);
-                                        TransformedArray.Add(MakeShared<FJsonValueObject>(TransformedElement));
-                                    }
-                                    else
-                                    {
-                                        TransformedArray.Add(ArrayElement);
-                                    }
-                                }
-                                
-                                OutJson->SetArrayField(OutputKey, TransformedArray);
-                                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Reverse transformed array field '%s' -> '%s' with %d elements"), 
-                                       *InputKey, *OutputKey, TransformedArray.Num());
-                                continue;
-                            }
-                        }
-                    }
-                }
-                
-                // If not a struct array, copy as-is
-                OutJson->SetArrayField(OutputKey, *InputArray);
-            }
-        }
-        else
-        {
-            // Copy non-array fields as-is
-            OutJson->SetField(OutputKey, Pair.Value);
-            
-
-        }
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("AutoTransformFromGuidNames: Output contains %d friendly fields"), OutJson->Values.Num());
-    return OutJson;
+    // Deprecated: Use FDataTableTransformationService::AutoTransformFromGuidNames instead
+    return FDataTableTransformationService::AutoTransformFromGuidNames(InJson, RowStruct);
 }
+            // Fallback to property name without GUID

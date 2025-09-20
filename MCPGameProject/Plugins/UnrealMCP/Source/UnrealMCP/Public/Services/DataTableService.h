@@ -48,20 +48,12 @@ private:
     TSharedPtr<FJsonObject> TransformJsonToStructNames(const TSharedPtr<FJsonObject>& InJson, const TMap<FString, FString>& GuidToStructMap);
     
     /**
-     * Auto-transform JSON from friendly names to GUID names for DataTable
-     * This function automatically maps friendly field names to GUID names based on the struct definition
-     * @param InJson - Input JSON with friendly field names (e.g., "ResponseText", "NextNodeID")
-     * @param RowStruct - Target struct to get GUID mappings from
-     * @return Transformed JSON with GUID field names
+     * @deprecated Use FDataTableTransformationService::AutoTransformToGuidNames instead
      */
     TSharedPtr<FJsonObject> AutoTransformToGuidNames(const TSharedPtr<FJsonObject>& InJson, const UScriptStruct* RowStruct);
 
     /**
-     * Auto-transform JSON from GUID names to friendly names for DataTable
-     * This function automatically maps GUID field names back to friendly names based on the struct definition
-     * @param InJson - Input JSON with GUID field names (e.g., "ResponseText_2_522C7D5A457AA53B9427FEA05A58D19D")
-     * @param RowStruct - Target struct to get friendly name mappings from
-     * @return Transformed JSON with friendly field names
+     * @deprecated Use FDataTableTransformationService::AutoTransformFromGuidNames instead
      */
     TSharedPtr<FJsonObject> AutoTransformFromGuidNames(const TSharedPtr<FJsonObject>& InJson, const UScriptStruct* RowStruct);
     
