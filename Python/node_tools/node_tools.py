@@ -52,7 +52,8 @@ def register_blueprint_node_tools(mcp: FastMCP):
     def connect_blueprint_nodes(
         ctx: Context,
         blueprint_name: str,
-        connections: list
+        connections: list,
+        target_graph: str = "EventGraph"
     ) -> Dict[str, Any]:
         """
         Connect nodes in a Blueprint's event graph.
@@ -64,6 +65,7 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 - source_pin
                 - target_node_id
                 - target_pin
+            target_graph: Optional name of the specific graph to connect nodes in (e.g., "EventGraph", "CanInteract")
 
         Returns:
             Response indicating success or failure. Returns an array of results.
@@ -78,7 +80,8 @@ def register_blueprint_node_tools(mcp: FastMCP):
         try:
             return connect_nodes_impl(
                 ctx, blueprint_name,
-                connections=connections
+                connections=connections,
+                target_graph=target_graph
             )
         except Exception as e:
             logger.error(f"Error connecting nodes: {e}")

@@ -118,11 +118,11 @@ def find_nodes(
     """Implementation for finding nodes in a Blueprint's event graph."""
     params = {
         "blueprint_name": blueprint_name,
-        "node_type": node_type if node_type is not None else "All"
+        "node_type": node_type if node_type is not None else ""
     }
     
     if event_type is not None:
-        params["event_name"] = event_type
+        params["event_type"] = event_type
         
     if target_graph is not None:
         params["target_graph"] = target_graph
@@ -132,7 +132,8 @@ def find_nodes(
 def connect_nodes_impl(
     ctx: Context,
     blueprint_name: str,
-    connections: list
+    connections: list,
+    target_graph: str = "EventGraph"
 ) -> Dict[str, Any]:
     """
     Implementation for connecting nodes in a Blueprint's event graph.
@@ -145,7 +146,7 @@ def connect_nodes_impl(
             "error": "Missing 'connections' parameter - only batch connections are supported"
         }
     
-    params = {"blueprint_name": blueprint_name, "connections": connections}
+    params = {"blueprint_name": blueprint_name, "connections": connections, "target_graph": target_graph}
     return send_unreal_command("connect_blueprint_nodes", params)
 
 def get_variable_info_impl(

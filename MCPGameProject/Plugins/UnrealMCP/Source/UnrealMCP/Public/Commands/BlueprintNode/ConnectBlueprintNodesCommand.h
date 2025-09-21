@@ -32,10 +32,11 @@ private:
      * @param JsonObject - JSON object containing parameters
      * @param OutBlueprintName - Parsed Blueprint name
      * @param OutConnections - Parsed connection parameters
+     * @param OutTargetGraph - Parsed target graph name (optional)
      * @param OutError - Error message if parsing fails
      * @return true if parsing succeeded
      */
-    bool ParseParameters(const TSharedPtr<FJsonObject>& JsonObject, FString& OutBlueprintName, TArray<FBlueprintNodeConnectionParams>& OutConnections, FString& OutError) const;
+    bool ParseParameters(const TSharedPtr<FJsonObject>& JsonObject, FString& OutBlueprintName, TArray<FBlueprintNodeConnectionParams>& OutConnections, FString& OutTargetGraph, FString& OutError) const;
     
     /**
      * Create success response JSON

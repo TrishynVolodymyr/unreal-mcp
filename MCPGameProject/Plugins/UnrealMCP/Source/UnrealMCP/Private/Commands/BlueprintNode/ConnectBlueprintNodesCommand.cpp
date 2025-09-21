@@ -23,9 +23,10 @@ FString FConnectBlueprintNodesCommand::Execute(const FString& Parameters)
 
     FString BlueprintName;
     TArray<FBlueprintNodeConnectionParams> Connections;
+    FString TargetGraph;
     FString ParseError;
     
-    if (!ParseParameters(JsonObject, BlueprintName, Connections, ParseError))
+    if (!ParseParameters(JsonObject, BlueprintName, Connections, TargetGraph, ParseError))
     {
         return CreateErrorResponse(ParseError);
     }
@@ -39,7 +40,7 @@ FString FConnectBlueprintNodesCommand::Execute(const FString& Parameters)
 
     // Delegate to service layer
     TArray<bool> Results;
-    if (!BlueprintNodeService->ConnectBlueprintNodes(Blueprint, Connections, Results))
+    if (!BlueprintNodeService->ConnectBlueprintNodes(Blueprint, Connections, TargetGraph, Results))
     {
         return CreateErrorResponse(TEXT("Failed to connect Blueprint nodes"));
     }
@@ -57,6 +58,7 @@ bool FConnectBlueprintNodesCommand::ValidateParams(const FString& Parameters) co
 {
     FString BlueprintName;
     TArray<FBlueprintNodeConnectionParams> Connections;
+    FString TargetGraph;
     FString ParseError;
     
     TSharedPtr<FJsonObject> JsonObject;
@@ -67,16 +69,22 @@ bool FConnectBlueprintNodesCommand::ValidateParams(const FString& Parameters) co
         return false;
     }
     
-    return ParseParameters(JsonObject, BlueprintName, Connections, ParseError);
+    return ParseParameters(JsonObject, BlueprintName, Connections, TargetGraph, ParseError);
 }
 
-bool FConnectBlueprintNodesCommand::ParseParameters(const TSharedPtr<FJsonObject>& JsonObject, FString& OutBlueprintName, TArray<FBlueprintNodeConnectionParams>& OutConnections, FString& OutError) const
+bool FConnectBlueprintNodesCommand::ParseParameters(const TSharedPtr<FJsonObject>& JsonObject, FString& OutBlueprintName, TArray<FBlueprintNodeConnectionParams>& OutConnections, FString& OutTargetGraph, FString& OutError) const
 {
     // Parse required blueprint_name parameter
     if (!JsonObject->TryGetStringField(TEXT("blueprint_name"), OutBlueprintName))
     {
         OutError = TEXT("Missing required 'blueprint_name' parameter");
         return false;
+    }
+    
+    // Parse optional target_graph parameter (defaults to "EventGraph")
+    if (!JsonObject->TryGetStringField(TEXT("target_graph"), OutTargetGraph) || OutTargetGraph.IsEmpty())
+    {
+        OutTargetGraph = TEXT("EventGraph");
     }
     
     OutConnections.Empty();

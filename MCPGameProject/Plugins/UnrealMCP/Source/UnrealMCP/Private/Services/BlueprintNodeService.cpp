@@ -66,7 +66,7 @@ FBlueprintNodeService& FBlueprintNodeService::Get()
     return Instance;
 }
 
-bool FBlueprintNodeService::ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, TArray<bool>& OutResults)
+bool FBlueprintNodeService::ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& TargetGraph, TArray<bool>& OutResults)
 {
     if (!Blueprint)
     {
@@ -78,10 +78,41 @@ bool FBlueprintNodeService::ConnectBlueprintNodes(UBlueprint* Blueprint, const T
     
     bool bAllSucceeded = true;
     
-    // Get the event graph
-    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
-    if (!EventGraph)
+    // Find the target graph dynamically
+    UEdGraph* SearchGraph = nullptr;
+    
+    // Try to find the specific graph by name in UbergraphPages
+    for (UEdGraph* Graph : Blueprint->UbergraphPages)
     {
+        if (Graph && Graph->GetFName() == FName(*TargetGraph))
+        {
+            SearchGraph = Graph;
+            break;
+        }
+    }
+    
+    // Also check function graphs
+    if (!SearchGraph)
+    {
+        for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+        {
+            if (Graph && Graph->GetFName() == FName(*TargetGraph))
+            {
+                SearchGraph = Graph;
+                break;
+            }
+        }
+    }
+    
+    // Fallback to EventGraph if not found and TargetGraph is default
+    if (!SearchGraph && TargetGraph == TEXT("EventGraph"))
+    {
+        SearchGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    }
+    
+    if (!SearchGraph)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Target graph '%s' not found in Blueprint '%s'"), *TargetGraph, *Blueprint->GetName());
         return false;
     }
     
@@ -98,7 +129,7 @@ bool FBlueprintNodeService::ConnectBlueprintNodes(UBlueprint* Blueprint, const T
         // Find the nodes by GUID
         UEdGraphNode* SourceNode = nullptr;
         UEdGraphNode* TargetNode = nullptr;
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        for (UEdGraphNode* Node : SearchGraph->Nodes)
         {
             if (Node->NodeGuid.ToString() == Connection.SourceNodeId)
             {
@@ -118,7 +149,7 @@ bool FBlueprintNodeService::ConnectBlueprintNodes(UBlueprint* Blueprint, const T
         }
         
         // Try to connect the nodes with automatic cast node creation if needed
-        bool bConnectionSucceeded = ConnectNodesWithAutoCast(EventGraph, SourceNode, Connection.SourcePin, TargetNode, Connection.TargetPin);
+        bool bConnectionSucceeded = ConnectNodesWithAutoCast(SearchGraph, SourceNode, Connection.SourcePin, TargetNode, Connection.TargetPin);
         OutResults.Add(bConnectionSucceeded);
         
         if (!bConnectionSucceeded)
@@ -178,7 +209,71 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     
     OutNodeIds.Empty();
     
-    // Determine which graph to search in
+    // If no specific filters, return all nodes from appropriate graphs
+    if (NodeType.IsEmpty() && EventType.IsEmpty())
+    {
+        // If target graph is specified, search only in that graph
+        if (!TargetGraph.IsEmpty())
+        {
+            UEdGraph* SearchGraph = nullptr;
+            
+            // Try to find the specific graph by name
+            for (UEdGraph* Graph : Blueprint->UbergraphPages)
+            {
+                if (Graph && Graph->GetFName() == FName(*TargetGraph))
+                {
+                    SearchGraph = Graph;
+                    break;
+                }
+            }
+            
+            // Also check function graphs
+            for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+            {
+                if (Graph && Graph->GetFName() == FName(*TargetGraph))
+                {
+                    SearchGraph = Graph;
+                    break;
+                }
+            }
+            
+            if (!SearchGraph)
+            {
+                // Target graph not found
+                return false;
+            }
+            
+            for (UEdGraphNode* Node : SearchGraph->Nodes)
+            {
+                if (Node)
+                {
+                    OutNodeIds.Add(Node->NodeGuid.ToString());
+                }
+            }
+        }
+        else
+        {
+            // No target graph specified, search in ALL graphs like UE does
+            TArray<UEdGraph*> AllGraphs;
+            Blueprint->GetAllGraphs(AllGraphs);
+            for (UEdGraph* Graph : AllGraphs)
+            {
+                if (Graph)
+                {
+                    for (UEdGraphNode* Node : Graph->Nodes)
+                    {
+                        if (Node)
+                        {
+                            OutNodeIds.Add(Node->NodeGuid.ToString());
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // For filtered searches, determine which graph to search in
     UEdGraph* SearchGraph = nullptr;
     
     if (!TargetGraph.IsEmpty())
@@ -218,19 +313,6 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     if (!SearchGraph)
     {
         return false;
-    }
-    
-    // If no specific filters, return all nodes
-    if (NodeType.IsEmpty() && EventType.IsEmpty())
-    {
-        for (UEdGraphNode* Node : SearchGraph->Nodes)
-        {
-            if (Node)
-            {
-                OutNodeIds.Add(Node->NodeGuid.ToString());
-            }
-        }
-        return true;
     }
     
     // Filter nodes by the exact requested type

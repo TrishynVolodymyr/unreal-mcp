@@ -18,10 +18,10 @@ bool FBlueprintCreationParams::IsValid(FString& OutError) const
     // Validate folder path if provided
     if (!FolderPath.IsEmpty())
     {
-        // Check for invalid path characters
-        if (FolderPath.Contains(TEXT("\\")) || FolderPath.StartsWith(TEXT("/")))
+        // Check for invalid path characters (allow forward slashes for /Game/ paths)
+        if (FolderPath.Contains(TEXT("\\")))
         {
-            OutError = TEXT("Invalid folder path format");
+            OutError = TEXT("Invalid folder path format - backslashes not allowed");
             return false;
         }
     }

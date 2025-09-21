@@ -71,10 +71,11 @@ public:
      * Connect two Blueprint nodes
      * @param Blueprint - Target Blueprint
      * @param Connections - Array of connection parameters (supports batch connections)
+     * @param TargetGraph - Name of the graph to search for nodes (defaults to "EventGraph")
      * @param OutResults - Results for each connection attempt
      * @return true if all connections succeeded
      */
-    virtual bool ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, TArray<bool>& OutResults) = 0;
+    virtual bool ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& TargetGraph, TArray<bool>& OutResults) = 0;
     
     /**
      * Add an input action node to a Blueprint
