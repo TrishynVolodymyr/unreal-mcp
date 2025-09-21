@@ -13,6 +13,7 @@
 #include "K2Node_InputAction.h"
 #include "K2Node_Self.h"
 #include "K2Node_CustomEvent.h"
+#include "K2Node_Variable.h"
 #include "EdGraphSchema_K2.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Components/StaticMeshComponent.h"
@@ -1842,4 +1843,298 @@ UK2Node_InputAction* FUnrealMCPCommonUtils::CreateInputActionNode(UEdGraph* Grap
     
     UE_LOG(LogTemp, Display, TEXT("CreateInputActionNode: Successfully created input action node for '%s'"), *ActionName);
     return InputActionNode;
+}
+
+// Blueprint node inspection utilities
+UEdGraphNode* FUnrealMCPCommonUtils::FindNodeInBlueprint(UBlueprint* Blueprint, const FString& NodeName, const FString& GraphName)
+{
+    if (!Blueprint)
+    {
+        return nullptr;
+    }
+
+    // Get all graphs from the Blueprint
+    TArray<UEdGraph*> GraphsToSearch = GetAllGraphsFromBlueprint(Blueprint);
+    
+    // If a specific graph is requested, filter to only that graph
+    if (!GraphName.IsEmpty())
+    {
+        GraphsToSearch = GraphsToSearch.FilterByPredicate([&GraphName](UEdGraph* Graph)
+        {
+            return Graph && (Graph->GetName().Contains(GraphName) || 
+                           Graph->GetName().Equals(GraphName, ESearchCase::IgnoreCase));
+        });
+    }
+
+    // Search for the node in all relevant graphs
+    for (UEdGraph* Graph : GraphsToSearch)
+    {
+        if (UEdGraphNode* FoundNode = FindNodeInGraph(Graph, NodeName))
+        {
+            return FoundNode;
+        }
+    }
+
+    return nullptr;
+}
+
+UEdGraphNode* FUnrealMCPCommonUtils::FindNodeInGraph(UEdGraph* Graph, const FString& NodeName)
+{
+    if (!Graph)
+    {
+        return nullptr;
+    }
+
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (!Node)
+        {
+            continue;
+        }
+
+        // Check node title/display name
+        FText NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle);
+        if (NodeTitle.ToString().Contains(NodeName) || NodeTitle.ToString().Equals(NodeName, ESearchCase::IgnoreCase))
+        {
+            return Node;
+        }
+
+        // Check node class name
+        FString NodeClassName = Node->GetClass()->GetName();
+        if (NodeClassName.Contains(NodeName) || NodeClassName.Equals(NodeName, ESearchCase::IgnoreCase))
+        {
+            return Node;
+        }
+
+        // For function call nodes, check the function name
+        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(Node))
+        {
+            if (UFunction* Function = FunctionNode->GetTargetFunction())
+            {
+                FString FunctionName = Function->GetName();
+                if (FunctionName.Contains(NodeName) || FunctionName.Equals(NodeName, ESearchCase::IgnoreCase))
+                {
+                    return Node;
+                }
+            }
+        }
+
+        // For variable get/set nodes, check variable name
+        if (UK2Node_Variable* VariableNode = Cast<UK2Node_Variable>(Node))
+        {
+            FString VariableName = VariableNode->GetVarName().ToString();
+            if (VariableName.Contains(NodeName) || VariableName.Equals(NodeName, ESearchCase::IgnoreCase))
+            {
+                return Node;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::GetNodePinInfoRuntime(UEdGraphNode* Node, const FString& PinName)
+{
+    TSharedPtr<FJsonObject> PinInfoObj = MakeShared<FJsonObject>();
+    
+    if (!Node)
+    {
+        return PinInfoObj;
+    }
+
+    // Find the requested pin
+    UEdGraphPin* FoundPin = nullptr;
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (!Pin)
+        {
+            continue;
+        }
+
+        // Check exact pin name match
+        if (Pin->PinName.ToString().Equals(PinName, ESearchCase::IgnoreCase))
+        {
+            FoundPin = Pin;
+            break;
+        }
+
+        // Check pin display name if different from pin name
+        FText DisplayName = Pin->PinFriendlyName;
+        if (!DisplayName.IsEmpty() && DisplayName.ToString().Equals(PinName, ESearchCase::IgnoreCase))
+        {
+            FoundPin = Pin;
+            break;
+        }
+    }
+
+    if (FoundPin)
+    {
+        // Get pin type information
+        TSharedPtr<FJsonObject> PinTypeInfo = GetPinTypeInfo(FoundPin->PinType);
+        
+        PinInfoObj->SetStringField(TEXT("pin_type"), GetPinCategoryDisplayName(FoundPin->PinType.PinCategory));
+        PinInfoObj->SetStringField(TEXT("expected_type"), FoundPin->PinType.PinSubCategory.ToString());
+        PinInfoObj->SetStringField(TEXT("description"), FoundPin->PinToolTip.IsEmpty() ? TEXT("No description available") : FoundPin->PinToolTip);
+        PinInfoObj->SetBoolField(TEXT("is_required"), true); // Most pins are required by default in UE
+        PinInfoObj->SetBoolField(TEXT("is_input"), FoundPin->Direction == EGPD_Input);
+        PinInfoObj->SetBoolField(TEXT("is_reference"), FoundPin->PinType.bIsReference);
+        PinInfoObj->SetBoolField(TEXT("is_array"), FoundPin->PinType.IsArray());
+        PinInfoObj->SetObjectField(TEXT("pin_type_details"), PinTypeInfo);
+        
+        // Add connection information
+        PinInfoObj->SetNumberField(TEXT("linked_to_count"), FoundPin->LinkedTo.Num());
+        
+        TArray<TSharedPtr<FJsonValue>> LinkedPins;
+        for (UEdGraphPin* LinkedPin : FoundPin->LinkedTo)
+        {
+            if (LinkedPin && LinkedPin->GetOwningNode())
+            {
+                TSharedPtr<FJsonObject> LinkedPinInfo = MakeShared<FJsonObject>();
+                LinkedPinInfo->SetStringField(TEXT("node_name"), LinkedPin->GetOwningNode()->GetNodeTitle(ENodeTitleType::FullTitle).ToString());
+                LinkedPinInfo->SetStringField(TEXT("pin_name"), LinkedPin->PinName.ToString());
+                LinkedPins.Add(MakeShared<FJsonValueObject>(LinkedPinInfo));
+            }
+        }
+        PinInfoObj->SetArrayField(TEXT("linked_to"), LinkedPins);
+    }
+
+    return PinInfoObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::GetPinTypeInfo(const FEdGraphPinType& PinType)
+{
+    TSharedPtr<FJsonObject> TypeInfo = MakeShared<FJsonObject>();
+    
+    TypeInfo->SetStringField(TEXT("category"), PinType.PinCategory.ToString());
+    TypeInfo->SetStringField(TEXT("subcategory"), PinType.PinSubCategory.ToString());
+    TypeInfo->SetBoolField(TEXT("is_array"), PinType.IsArray());
+    TypeInfo->SetBoolField(TEXT("is_reference"), PinType.bIsReference);
+    TypeInfo->SetBoolField(TEXT("is_const"), PinType.bIsConst);
+    TypeInfo->SetBoolField(TEXT("is_weak_pointer"), PinType.bIsWeakPointer);
+    
+    // Add container type information if it's a container
+    if (PinType.IsContainer())
+    {
+        TypeInfo->SetStringField(TEXT("container_type"), TEXT("Container")); // Simplified for UE 5.6
+        TypeInfo->SetStringField(TEXT("value_category"), TEXT("Unknown"));
+        TypeInfo->SetStringField(TEXT("value_subcategory"), TEXT("Unknown"));
+    }
+
+    // Add object information if it's an object type
+    if (PinType.PinSubCategoryObject.IsValid())
+    {
+        if (UClass* Class = Cast<UClass>(PinType.PinSubCategoryObject.Get()))
+        {
+            TypeInfo->SetStringField(TEXT("object_class"), Class->GetName());
+            TypeInfo->SetStringField(TEXT("object_class_path"), Class->GetPathName());
+        }
+        else if (UScriptStruct* Struct = Cast<UScriptStruct>(PinType.PinSubCategoryObject.Get()))
+        {
+            TypeInfo->SetStringField(TEXT("struct_name"), Struct->GetName());
+            TypeInfo->SetStringField(TEXT("struct_path"), Struct->GetPathName());
+        }
+    }
+
+    return TypeInfo;
+}
+
+FString FUnrealMCPCommonUtils::GetPinCategoryDisplayName(const FName& Category)
+{
+    if (Category == UEdGraphSchema_K2::PC_Boolean)
+    {
+        return TEXT("bool");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Byte)
+    {
+        return TEXT("byte");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Int)
+    {
+        return TEXT("int");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Int64)
+    {
+        return TEXT("int64");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Real)
+    {
+        return TEXT("real");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Double)
+    {
+        return TEXT("double");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_String)
+    {
+        return TEXT("string");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Text)
+    {
+        return TEXT("text");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Name)
+    {
+        return TEXT("name");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Object)
+    {
+        return TEXT("object");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Class)
+    {
+        return TEXT("class");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Struct)
+    {
+        return TEXT("struct");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Exec)
+    {
+        return TEXT("exec");
+    }
+    else if (Category == UEdGraphSchema_K2::PC_Wildcard)
+    {
+        return TEXT("wildcard");
+    }
+    
+    return Category.ToString();
+}
+
+TArray<UEdGraph*> FUnrealMCPCommonUtils::GetAllGraphsFromBlueprint(UBlueprint* Blueprint)
+{
+    TArray<UEdGraph*> AllGraphs;
+    
+    if (!Blueprint)
+    {
+        return AllGraphs;
+    }
+
+    // Add all UbergraphPages (event graphs)
+    for (UEdGraph* Graph : Blueprint->UbergraphPages)
+    {
+        if (Graph)
+        {
+            AllGraphs.Add(Graph);
+        }
+    }
+
+    // Add all function graphs
+    for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+    {
+        if (Graph)
+        {
+            AllGraphs.Add(Graph);
+        }
+    }
+
+    // Add macro graphs if any
+    for (UEdGraph* Graph : Blueprint->MacroGraphs)
+    {
+        if (Graph)
+        {
+            AllGraphs.Add(Graph);
+        }
+    }
+
+    return AllGraphs;
 }

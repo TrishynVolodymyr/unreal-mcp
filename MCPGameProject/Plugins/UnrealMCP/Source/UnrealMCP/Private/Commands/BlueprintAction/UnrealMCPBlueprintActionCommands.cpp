@@ -16,6 +16,7 @@
 #include "Utils/UnrealMCPCommonUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Components/ActorComponent.h"
+#include "UObject/UObjectIterator.h"
 
 // Native Blueprint Action Menu includes
 #include "BlueprintActionMenuUtils.h"
@@ -1090,329 +1091,69 @@ FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeNam
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     
-    UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Looking for pin '%s' on node '%s'"), *PinName, *NodeName);
+    UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Looking for pin '%s' on node '%s' using runtime inspection"), *PinName, *NodeName);
     
-    // Define known node pin information
-    TMap<FString, TMap<FString, TSharedPtr<FJsonObject>>> NodePinDatabase;
+    // Try to find node in currently loaded Blueprints
+    UEdGraphNode* FoundNode = nullptr;
     
-    // Create Widget node
-    TMap<FString, TSharedPtr<FJsonObject>> CreateWidgetPins;
+    // Search for the node in all loaded Blueprints using runtime inspection
+    TArray<UBlueprint*> LoadedBlueprints;
     
-    auto ClassPin = MakeShared<FJsonObject>();
-    ClassPin->SetStringField(TEXT("pin_type"), TEXT("class"));
-    ClassPin->SetStringField(TEXT("expected_type"), TEXT("Class<UserWidget>"));
-    ClassPin->SetStringField(TEXT("description"), TEXT("The widget class to instantiate"));
-    ClassPin->SetBoolField(TEXT("is_required"), true);
-    ClassPin->SetBoolField(TEXT("is_input"), true);
-    CreateWidgetPins.Add(TEXT("Class"), ClassPin);
-    
-    auto OwningPlayerPin = MakeShared<FJsonObject>();
-    OwningPlayerPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    OwningPlayerPin->SetStringField(TEXT("expected_type"), TEXT("PlayerController"));
-    OwningPlayerPin->SetStringField(TEXT("description"), TEXT("The player controller that owns this widget"));
-    OwningPlayerPin->SetBoolField(TEXT("is_required"), false);
-    OwningPlayerPin->SetBoolField(TEXT("is_input"), true);
-    CreateWidgetPins.Add(TEXT("Owning Player"), OwningPlayerPin);
-    CreateWidgetPins.Add(TEXT("OwningPlayer"), OwningPlayerPin); // Alternative name
-    
-    auto ReturnValuePin = MakeShared<FJsonObject>();
-    ReturnValuePin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    ReturnValuePin->SetStringField(TEXT("expected_type"), TEXT("UserWidget"));
-    ReturnValuePin->SetStringField(TEXT("description"), TEXT("The created widget instance"));
-    ReturnValuePin->SetBoolField(TEXT("is_required"), false);
-    ReturnValuePin->SetBoolField(TEXT("is_input"), false);
-    CreateWidgetPins.Add(TEXT("Return Value"), ReturnValuePin);
-    
-    NodePinDatabase.Add(TEXT("Create Widget"), CreateWidgetPins);
-    NodePinDatabase.Add(TEXT("CreateWidget"), CreateWidgetPins);
-    
-    // Get Controller node
-    TMap<FString, TSharedPtr<FJsonObject>> GetControllerPins;
-    
-    auto TargetPin = MakeShared<FJsonObject>();
-    TargetPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    TargetPin->SetStringField(TEXT("expected_type"), TEXT("Pawn"));
-    TargetPin->SetStringField(TEXT("description"), TEXT("The pawn to get the controller from"));
-    TargetPin->SetBoolField(TEXT("is_required"), true);
-    TargetPin->SetBoolField(TEXT("is_input"), true);
-    GetControllerPins.Add(TEXT("Target"), TargetPin);
-    
-    auto ControllerReturnPin = MakeShared<FJsonObject>();
-    ControllerReturnPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    ControllerReturnPin->SetStringField(TEXT("expected_type"), TEXT("Controller"));
-    ControllerReturnPin->SetStringField(TEXT("description"), TEXT("The controller possessing this pawn"));
-    ControllerReturnPin->SetBoolField(TEXT("is_required"), false);
-    ControllerReturnPin->SetBoolField(TEXT("is_input"), false);
-    GetControllerPins.Add(TEXT("Return Value"), ControllerReturnPin);
-    
-    NodePinDatabase.Add(TEXT("Get Controller"), GetControllerPins);
-    NodePinDatabase.Add(TEXT("GetController"), GetControllerPins);
-    
-    // Cast To nodes
-    TMap<FString, TSharedPtr<FJsonObject>> CastToPins;
-    
-    auto ObjectPin = MakeShared<FJsonObject>();
-    ObjectPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    ObjectPin->SetStringField(TEXT("expected_type"), TEXT("Object"));
-    ObjectPin->SetStringField(TEXT("description"), TEXT("The object to cast"));
-    ObjectPin->SetBoolField(TEXT("is_required"), true);
-    ObjectPin->SetBoolField(TEXT("is_input"), true);
-    CastToPins.Add(TEXT("Object"), ObjectPin);
-    
-    auto CastSuccessPin = MakeShared<FJsonObject>();
-    CastSuccessPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
-    CastSuccessPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
-    CastSuccessPin->SetStringField(TEXT("description"), TEXT("Execution path if cast succeeds"));
-    CastSuccessPin->SetBoolField(TEXT("is_required"), false);
-    CastSuccessPin->SetBoolField(TEXT("is_input"), false);
-    CastToPins.Add(TEXT("Cast Success"), CastSuccessPin);
-    
-    auto CastFailPin = MakeShared<FJsonObject>();
-    CastFailPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
-    CastFailPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
-    CastFailPin->SetStringField(TEXT("description"), TEXT("Execution path if cast fails"));
-    CastFailPin->SetBoolField(TEXT("is_required"), false);
-    CastFailPin->SetBoolField(TEXT("is_input"), false);
-    CastToPins.Add(TEXT("Cast Failed"), CastFailPin);
-    
-    NodePinDatabase.Add(TEXT("Cast to PlayerController"), CastToPins);
-    NodePinDatabase.Add(TEXT("Cast to"), CastToPins);
-    
-    // SelectFloat node (KismetMathLibrary)
-    TMap<FString, TSharedPtr<FJsonObject>> SelectFloatPins;
-    
-    auto SelectFloatAPin = MakeShared<FJsonObject>();
-    SelectFloatAPin->SetStringField(TEXT("pin_type"), TEXT("real"));
-    SelectFloatAPin->SetStringField(TEXT("expected_type"), TEXT("float"));
-    SelectFloatAPin->SetStringField(TEXT("description"), TEXT("First float value option"));
-    SelectFloatAPin->SetBoolField(TEXT("is_required"), true);
-    SelectFloatAPin->SetBoolField(TEXT("is_input"), true);
-    SelectFloatPins.Add(TEXT("A"), SelectFloatAPin);
-    
-    auto SelectFloatBPin = MakeShared<FJsonObject>();
-    SelectFloatBPin->SetStringField(TEXT("pin_type"), TEXT("real"));
-    SelectFloatBPin->SetStringField(TEXT("expected_type"), TEXT("float"));
-    SelectFloatBPin->SetStringField(TEXT("description"), TEXT("Second float value option"));
-    SelectFloatBPin->SetBoolField(TEXT("is_required"), true);
-    SelectFloatBPin->SetBoolField(TEXT("is_input"), true);
-    SelectFloatPins.Add(TEXT("B"), SelectFloatBPin);
-    
-    auto SelectFloatPickAPin = MakeShared<FJsonObject>();
-    SelectFloatPickAPin->SetStringField(TEXT("pin_type"), TEXT("bool"));
-    SelectFloatPickAPin->SetStringField(TEXT("expected_type"), TEXT("boolean"));
-    SelectFloatPickAPin->SetStringField(TEXT("description"), TEXT("If true, returns A; if false, returns B"));
-    SelectFloatPickAPin->SetBoolField(TEXT("is_required"), true);
-    SelectFloatPickAPin->SetBoolField(TEXT("is_input"), true);
-    SelectFloatPins.Add(TEXT("bPickA"), SelectFloatPickAPin);
-    SelectFloatPins.Add(TEXT("Pick A"), SelectFloatPickAPin); // Alternative name
-    
-    auto SelectFloatReturnPin = MakeShared<FJsonObject>();
-    SelectFloatReturnPin->SetStringField(TEXT("pin_type"), TEXT("real"));
-    SelectFloatReturnPin->SetStringField(TEXT("expected_type"), TEXT("float"));
-    SelectFloatReturnPin->SetStringField(TEXT("description"), TEXT("The selected float value (A or B)"));
-    SelectFloatReturnPin->SetBoolField(TEXT("is_required"), false);
-    SelectFloatReturnPin->SetBoolField(TEXT("is_input"), false);
-    SelectFloatPins.Add(TEXT("ReturnValue"), SelectFloatReturnPin);
-    SelectFloatPins.Add(TEXT("Return Value"), SelectFloatReturnPin); // Alternative name
-    
-    NodePinDatabase.Add(TEXT("SelectFloat"), SelectFloatPins);
-    NodePinDatabase.Add(TEXT("Select Float"), SelectFloatPins);
-    
-    // RandomFloat node (KismetMathLibrary)
-    TMap<FString, TSharedPtr<FJsonObject>> RandomFloatPins;
-    
-    auto RandomFloatReturnPin = MakeShared<FJsonObject>();
-    RandomFloatReturnPin->SetStringField(TEXT("pin_type"), TEXT("real"));
-    RandomFloatReturnPin->SetStringField(TEXT("expected_type"), TEXT("float"));
-    RandomFloatReturnPin->SetStringField(TEXT("description"), TEXT("Random float value between 0.0 and 1.0"));
-    RandomFloatReturnPin->SetBoolField(TEXT("is_required"), false);
-    RandomFloatReturnPin->SetBoolField(TEXT("is_input"), false);
-    RandomFloatPins.Add(TEXT("ReturnValue"), RandomFloatReturnPin);
-    RandomFloatPins.Add(TEXT("Return Value"), RandomFloatReturnPin);
-    
-    NodePinDatabase.Add(TEXT("RandomFloat"), RandomFloatPins);
-    NodePinDatabase.Add(TEXT("Random Float"), RandomFloatPins);
-    
-    // MultiplyByPi node (KismetMathLibrary)
-    TMap<FString, TSharedPtr<FJsonObject>> MultiplyByPiPins;
-    
-    auto MultiplyByPiValuePin = MakeShared<FJsonObject>();
-    MultiplyByPiValuePin->SetStringField(TEXT("pin_type"), TEXT("real"));
-    MultiplyByPiValuePin->SetStringField(TEXT("expected_type"), TEXT("float"));
-    MultiplyByPiValuePin->SetStringField(TEXT("description"), TEXT("Value to multiply by Pi"));
-    MultiplyByPiValuePin->SetBoolField(TEXT("is_required"), true);
-    MultiplyByPiValuePin->SetBoolField(TEXT("is_input"), true);
-    MultiplyByPiPins.Add(TEXT("Value"), MultiplyByPiValuePin);
-    
-    auto MultiplyByPiReturnPin = MakeShared<FJsonObject>();
-    MultiplyByPiReturnPin->SetStringField(TEXT("pin_type"), TEXT("real"));
-    MultiplyByPiReturnPin->SetStringField(TEXT("expected_type"), TEXT("float"));
-    MultiplyByPiReturnPin->SetStringField(TEXT("description"), TEXT("Value multiplied by Pi"));
-    MultiplyByPiReturnPin->SetBoolField(TEXT("is_required"), false);
-    MultiplyByPiReturnPin->SetBoolField(TEXT("is_input"), false);
-    MultiplyByPiPins.Add(TEXT("ReturnValue"), MultiplyByPiReturnPin);
-    MultiplyByPiPins.Add(TEXT("Return Value"), MultiplyByPiReturnPin);
-    
-    NodePinDatabase.Add(TEXT("MultiplyByPi"), MultiplyByPiPins);
-    NodePinDatabase.Add(TEXT("Multiply By Pi"), MultiplyByPiPins);
-    
-    // Get Hidden node (Actor property)
-    TMap<FString, TSharedPtr<FJsonObject>> GetHiddenPins;
-    
-    auto GetHiddenSelfPin = MakeShared<FJsonObject>();
-    GetHiddenSelfPin->SetStringField(TEXT("pin_type"), TEXT("object"));
-    GetHiddenSelfPin->SetStringField(TEXT("expected_type"), TEXT("Actor"));
-    GetHiddenSelfPin->SetStringField(TEXT("description"), TEXT("The actor to get the hidden property from"));
-    GetHiddenSelfPin->SetBoolField(TEXT("is_required"), true);
-    GetHiddenSelfPin->SetBoolField(TEXT("is_input"), true);
-    GetHiddenPins.Add(TEXT("self"), GetHiddenSelfPin);
-    GetHiddenPins.Add(TEXT("Target"), GetHiddenSelfPin); // Alternative name
-    
-    auto GetHiddenReturnPin = MakeShared<FJsonObject>();
-    GetHiddenReturnPin->SetStringField(TEXT("pin_type"), TEXT("bool"));
-    GetHiddenReturnPin->SetStringField(TEXT("expected_type"), TEXT("boolean"));
-    GetHiddenReturnPin->SetStringField(TEXT("description"), TEXT("Whether the actor is hidden"));
-    GetHiddenReturnPin->SetBoolField(TEXT("is_required"), false);
-    GetHiddenReturnPin->SetBoolField(TEXT("is_input"), false);
-    GetHiddenPins.Add(TEXT("bHidden"), GetHiddenReturnPin);
-    GetHiddenPins.Add(TEXT("Hidden"), GetHiddenReturnPin); // Alternative name
-    
-    NodePinDatabase.Add(TEXT("Get Hidden"), GetHiddenPins);
-    NodePinDatabase.Add(TEXT("GetHidden"), GetHiddenPins);
-    
-    // For Each Loop (Map) node
-    TMap<FString, TSharedPtr<FJsonObject>> ForEachMapPins;
-    
-    auto ForEachMapExecPin = MakeShared<FJsonObject>();
-    ForEachMapExecPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
-    ForEachMapExecPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
-    ForEachMapExecPin->SetStringField(TEXT("description"), TEXT("Execution input to start the loop"));
-    ForEachMapExecPin->SetBoolField(TEXT("is_required"), true);
-    ForEachMapExecPin->SetBoolField(TEXT("is_input"), true);
-    ForEachMapPins.Add(TEXT("execute"), ForEachMapExecPin);
-    ForEachMapPins.Add(TEXT("Exec"), ForEachMapExecPin); // Alternative name
-    
-    auto ForEachMapPin = MakeShared<FJsonObject>();
-    ForEachMapPin->SetStringField(TEXT("pin_type"), TEXT("wildcard"));
-    ForEachMapPin->SetStringField(TEXT("expected_type"), TEXT("Map"));
-    ForEachMapPin->SetStringField(TEXT("description"), TEXT("The map to iterate over"));
-    ForEachMapPin->SetBoolField(TEXT("is_required"), true);
-    ForEachMapPin->SetBoolField(TEXT("is_input"), true);
-    ForEachMapPins.Add(TEXT("MapPin"), ForEachMapPin);
-    ForEachMapPins.Add(TEXT("Map"), ForEachMapPin); // Alternative name
-    
-    auto ForEachMapThenPin = MakeShared<FJsonObject>();
-    ForEachMapThenPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
-    ForEachMapThenPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
-    ForEachMapThenPin->SetStringField(TEXT("description"), TEXT("Execution output for each iteration"));
-    ForEachMapThenPin->SetBoolField(TEXT("is_required"), false);
-    ForEachMapThenPin->SetBoolField(TEXT("is_input"), false);
-    ForEachMapPins.Add(TEXT("then"), ForEachMapThenPin);
-    ForEachMapPins.Add(TEXT("Loop Body"), ForEachMapThenPin); // Alternative name
-    
-    auto ForEachMapKeyPin = MakeShared<FJsonObject>();
-    ForEachMapKeyPin->SetStringField(TEXT("pin_type"), TEXT("wildcard"));
-    ForEachMapKeyPin->SetStringField(TEXT("expected_type"), TEXT("Key"));
-    ForEachMapKeyPin->SetStringField(TEXT("description"), TEXT("Current key in the iteration"));
-    ForEachMapKeyPin->SetBoolField(TEXT("is_required"), false);
-    ForEachMapKeyPin->SetBoolField(TEXT("is_input"), false);
-    ForEachMapPins.Add(TEXT("KeyPin"), ForEachMapKeyPin);
-    ForEachMapPins.Add(TEXT("Key"), ForEachMapKeyPin); // Alternative name
-    
-    auto ForEachMapValuePin = MakeShared<FJsonObject>();
-    ForEachMapValuePin->SetStringField(TEXT("pin_type"), TEXT("wildcard"));
-    ForEachMapValuePin->SetStringField(TEXT("expected_type"), TEXT("Value"));
-    ForEachMapValuePin->SetStringField(TEXT("description"), TEXT("Current value in the iteration"));
-    ForEachMapValuePin->SetBoolField(TEXT("is_required"), false);
-    ForEachMapValuePin->SetBoolField(TEXT("is_input"), false);
-    ForEachMapPins.Add(TEXT("ValuePin"), ForEachMapValuePin);
-    ForEachMapPins.Add(TEXT("Value"), ForEachMapValuePin); // Alternative name
-    
-    auto ForEachMapCompletedPin = MakeShared<FJsonObject>();
-    ForEachMapCompletedPin->SetStringField(TEXT("pin_type"), TEXT("exec"));
-    ForEachMapCompletedPin->SetStringField(TEXT("expected_type"), TEXT("exec"));
-    ForEachMapCompletedPin->SetStringField(TEXT("description"), TEXT("Execution output when loop completes"));
-    ForEachMapCompletedPin->SetBoolField(TEXT("is_required"), false);
-    ForEachMapCompletedPin->SetBoolField(TEXT("is_input"), false);
-    ForEachMapPins.Add(TEXT("CompletedPin"), ForEachMapCompletedPin);
-    ForEachMapPins.Add(TEXT("Completed"), ForEachMapCompletedPin); // Alternative name
-    
-    NodePinDatabase.Add(TEXT("For Each Loop (Map)"), ForEachMapPins);
-    NodePinDatabase.Add(TEXT("ForEachLoop(Map)"), ForEachMapPins);
-    NodePinDatabase.Add(TEXT("For Each Loop Map"), ForEachMapPins);
-    
-    // Look up the requested node and pin with flexible matching
-    FString NormalizedNodeName = NodeName;
-    NormalizedNodeName = NormalizedNodeName.Replace(TEXT(" "), TEXT(""));
-    
-    TSharedPtr<FJsonObject> PinInfo = nullptr;
-    FString FoundNodeKey;
-    TMap<FString, TSharedPtr<FJsonObject>>* FoundPinMap = nullptr;
-    
-    // Try exact match first
-    if (NodePinDatabase.Contains(NodeName))
+    // Get all loaded Blueprint assets
+    for (TObjectIterator<UBlueprint> BlueprintItr; BlueprintItr; ++BlueprintItr)
     {
-        FoundNodeKey = NodeName;
-        FoundPinMap = &NodePinDatabase[NodeName];
-    }
-    // Try normalized match (no spaces)
-    else if (NodePinDatabase.Contains(NormalizedNodeName))
-    {
-        FoundNodeKey = NormalizedNodeName;
-        FoundPinMap = &NodePinDatabase[NormalizedNodeName];
-    }
-    // Try case-insensitive match
-    else
-    {
-        for (const auto& NodeEntry : NodePinDatabase)
+        if (UBlueprint* Blueprint = *BlueprintItr)
         {
-            if (NodeEntry.Key.Equals(NodeName, ESearchCase::IgnoreCase) ||
-                NodeEntry.Key.Replace(TEXT(" "), TEXT("")).Equals(NormalizedNodeName, ESearchCase::IgnoreCase))
-            {
-                FoundNodeKey = NodeEntry.Key;
-                FoundPinMap = const_cast<TMap<FString, TSharedPtr<FJsonObject>>*>(&NodeEntry.Value);
-                break;
-            }
+            LoadedBlueprints.Add(Blueprint);
         }
     }
-    
-    // Look for the pin in the found node
-    if (FoundPinMap)
+
+    UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Searching through %d loaded Blueprints"), LoadedBlueprints.Num());
+
+    // Search for the node across all loaded Blueprints
+    for (UBlueprint* Blueprint : LoadedBlueprints)
     {
-        UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Found node '%s' (matched with '%s')"), *FoundNodeKey, *NodeName);
+        FoundNode = FUnrealMCPCommonUtils::FindNodeInBlueprint(Blueprint, NodeName);
+        if (FoundNode)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Found node '%s' in Blueprint '%s'"), *NodeName, *Blueprint->GetName());
+            break;
+        }
+    }
+
+    if (FoundNode)
+    {
+        // Get pin information using runtime inspection
+        TSharedPtr<FJsonObject> PinInfo = FUnrealMCPCommonUtils::GetNodePinInfoRuntime(FoundNode, PinName);
         
-        // Try exact pin name match first
-        if (FoundPinMap->Contains(PinName))
+        if (PinInfo->HasField(TEXT("pin_type")))
         {
-            PinInfo = (*FoundPinMap)[PinName];
-            UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Found exact pin match '%s'"), *PinName);
+            ResultObj->SetBoolField(TEXT("success"), true);
+            ResultObj->SetStringField(TEXT("node_name"), NodeName);
+            ResultObj->SetStringField(TEXT("pin_name"), PinName);
+            ResultObj->SetObjectField(TEXT("pin_info"), PinInfo);
+            ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found pin information for '%s' on node '%s' using runtime inspection"), *PinName, *NodeName));
         }
-        // Try case-insensitive pin match
         else
         {
-            for (const auto& PinEntry : *FoundPinMap)
+            ResultObj->SetBoolField(TEXT("success"), false);
+            ResultObj->SetStringField(TEXT("node_name"), NodeName);
+            ResultObj->SetStringField(TEXT("pin_name"), PinName);
+            ResultObj->SetObjectField(TEXT("pin_info"), MakeShared<FJsonObject>());
+            ResultObj->SetStringField(TEXT("error"), FString::Printf(TEXT("Pin '%s' not found on node '%s'"), *PinName, *NodeName));
+            
+            // Provide available pins for this node
+            TArray<TSharedPtr<FJsonValue>> AvailablePins;
+            for (UEdGraphPin* Pin : FoundNode->Pins)
             {
-                if (PinEntry.Key.Equals(PinName, ESearchCase::IgnoreCase))
+                if (Pin)
                 {
-                    PinInfo = PinEntry.Value;
-                    UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Found case-insensitive pin match '%s' -> '%s'"), *PinName, *PinEntry.Key);
-                    break;
+                    AvailablePins.Add(MakeShared<FJsonValueString>(Pin->PinName.ToString()));
                 }
             }
+            ResultObj->SetArrayField(TEXT("available_pins"), AvailablePins);
+            UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Provided %d available pins for node '%s'"), AvailablePins.Num(), *NodeName);
         }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Node '%s' not found in database"), *NodeName);
-    }
-    
-    if (PinInfo.IsValid())
-    {
-        ResultObj->SetBoolField(TEXT("success"), true);
-        ResultObj->SetStringField(TEXT("node_name"), NodeName);
-        ResultObj->SetStringField(TEXT("pin_name"), PinName);
-        ResultObj->SetObjectField(TEXT("pin_info"), PinInfo);
-        ResultObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Found pin information for '%s' on node '%s'"), *PinName, *NodeName));
     }
     else
     {
@@ -1420,30 +1161,51 @@ FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeNam
         ResultObj->SetStringField(TEXT("node_name"), NodeName);
         ResultObj->SetStringField(TEXT("pin_name"), PinName);
         ResultObj->SetObjectField(TEXT("pin_info"), MakeShared<FJsonObject>());
-        ResultObj->SetStringField(TEXT("error"), FString::Printf(TEXT("No pin information found for '%s' on node '%s'"), *PinName, *NodeName));
+        ResultObj->SetStringField(TEXT("error"), FString::Printf(TEXT("Node '%s' not found in any loaded Blueprint"), *NodeName));
         
-        // Provide available pins for this node if we know the node
-        if (FoundPinMap)
+        // Provide list of available node types from loaded Blueprints
+        TArray<TSharedPtr<FJsonValue>> AvailableNodes;
+        TSet<FString> UniqueNodeNames;
+        
+        for (UBlueprint* Blueprint : LoadedBlueprints)
         {
-            TArray<TSharedPtr<FJsonValue>> AvailablePins;
-            for (const auto& Pin : *FoundPinMap)
+            TArray<UEdGraph*> AllGraphs = FUnrealMCPCommonUtils::GetAllGraphsFromBlueprint(Blueprint);
+            for (UEdGraph* Graph : AllGraphs)
             {
-                AvailablePins.Add(MakeShared<FJsonValueString>(Pin.Key));
+                if (Graph)
+                {
+                    for (UEdGraphNode* Node : Graph->Nodes)
+                    {
+                        if (Node)
+                        {
+                            FString NodeDisplayName = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                            if (!NodeDisplayName.IsEmpty() && !UniqueNodeNames.Contains(NodeDisplayName))
+                            {
+                                UniqueNodeNames.Add(NodeDisplayName);
+                                AvailableNodes.Add(MakeShared<FJsonValueString>(NodeDisplayName));
+                                
+                                // Limit the number of examples to avoid overly large responses
+                                if (AvailableNodes.Num() >= 50)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (AvailableNodes.Num() >= 50)
+                    {
+                        break;
+                    }
+                }
             }
-            ResultObj->SetArrayField(TEXT("available_pins"), AvailablePins);
-            UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Provided %d available pins for node '%s'"), AvailablePins.Num(), *FoundNodeKey);
-        }
-        else
-        {
-            // Provide list of known nodes
-            TArray<TSharedPtr<FJsonValue>> AvailableNodes;
-            for (const auto& NodeEntry : NodePinDatabase)
+            if (AvailableNodes.Num() >= 50)
             {
-                AvailableNodes.Add(MakeShared<FJsonValueString>(NodeEntry.Key));
+                break;
             }
-            ResultObj->SetArrayField(TEXT("available_nodes"), AvailableNodes);
-            UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Provided %d available nodes"), AvailableNodes.Num());
         }
+        
+        ResultObj->SetArrayField(TEXT("available_nodes"), AvailableNodes);
+        UE_LOG(LogTemp, Warning, TEXT("GetNodePinInfo: Provided %d example node names from loaded Blueprints"), AvailableNodes.Num());
     }
     
     FString OutputString;

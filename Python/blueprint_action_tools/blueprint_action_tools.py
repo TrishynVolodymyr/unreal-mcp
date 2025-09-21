@@ -14,7 +14,7 @@ from utils.blueprint_actions.blueprint_action_operations import (
     get_actions_for_class as get_actions_for_class_impl,
     get_actions_for_class_hierarchy as get_actions_for_class_hierarchy_impl,
     search_blueprint_actions as search_blueprint_actions_impl,
-    get_node_pin_info as get_node_pin_info_impl,
+    get_node_pin_info as inspect_node_pin_connection_impl,
     create_node_by_action_name as create_node_by_action_name_impl
 )
 
@@ -209,13 +209,13 @@ def register_blueprint_action_tools(mcp: FastMCP):
         return search_blueprint_actions_impl(ctx, search_query, category, max_results, blueprint_name)
 
     @mcp.tool()
-    def get_node_pin_info(
+    def inspect_node_pin_connection(
         ctx: Context,
         node_name: str,
         pin_name: str
     ) -> Dict[str, Any]:
         """
-        Get specific information about a Blueprint node's pin including expected types.
+        Inspect Blueprint node pin connection details including expected types and compatibility info.
         
         Args:
             node_name: Name of the Blueprint node (e.g., "Create Widget", "Get Controller", "Cast to PlayerController")
@@ -236,16 +236,16 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 - available_pins: List of available pins if the node is known but pin is not found
         
         Examples:
-            # Get info about the Class pin on Create Widget node
-            get_node_pin_info(node_name="Create Widget", pin_name="Class")
+            # Inspect the Class pin on Create Widget node
+            inspect_node_pin_connection(node_name="Create Widget", pin_name="Class")
             
-            # Get info about the Target pin on Get Controller node
-            get_node_pin_info(node_name="Get Controller", pin_name="Target")
+            # Inspect the Target pin on Get Controller node
+            inspect_node_pin_connection(node_name="Get Controller", pin_name="Target")
             
-            # Get info about the Owning Player pin on Create Widget node
-            get_node_pin_info(node_name="Create Widget", pin_name="Owning Player")
+            # Inspect the Owning Player pin on Create Widget node
+            inspect_node_pin_connection(node_name="Create Widget", pin_name="Owning Player")
         """
-        return get_node_pin_info_impl(ctx, node_name, pin_name)
+        return inspect_node_pin_connection_impl(ctx, node_name, pin_name)
 
     @mcp.tool()
     def create_node_by_action_name(

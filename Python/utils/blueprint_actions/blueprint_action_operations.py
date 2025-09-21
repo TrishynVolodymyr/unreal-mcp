@@ -79,7 +79,7 @@ def get_node_pin_info(
     node_name: str,
     pin_name: str
 ) -> Dict[str, Any]:
-    """Implementation for getting specific information about a Blueprint node's pin."""
+    """Implementation for inspecting Blueprint node pin connection details and compatibility."""
     params = {
         "node_name": node_name,
         "pin_name": pin_name

@@ -132,6 +132,14 @@ public:
     static FString NormalizeAssetPath(const FString& AssetPath);
     static bool IsValidAssetPath(const FString& AssetPath);
 
+    // Blueprint node inspection utilities
+    static UEdGraphNode* FindNodeInBlueprint(UBlueprint* Blueprint, const FString& NodeName, const FString& GraphName = TEXT(""));
+    static UEdGraphNode* FindNodeInGraph(UEdGraph* Graph, const FString& NodeName);
+    static TSharedPtr<FJsonObject> GetNodePinInfoRuntime(UEdGraphNode* Node, const FString& PinName);
+    static TSharedPtr<FJsonObject> GetPinTypeInfo(const FEdGraphPinType& PinType);
+    static FString GetPinCategoryDisplayName(const FName& Category);
+    static TArray<UEdGraph*> GetAllGraphsFromBlueprint(UBlueprint* Blueprint);
+
 private:
     // ... existing code ...
 }; 
