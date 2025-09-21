@@ -30,7 +30,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         pin_type: str, 
         pin_subcategory: str = "",
         search_filter: str = "",
-        max_results: int = 50
+        max_results: int = 20
     ) -> Dict[str, Any]:
         """
         Get all available Blueprint actions for a specific pin type with search filtering.
@@ -71,7 +71,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         ctx: Context,
         class_name: str,
         search_filter: str = "",
-        max_results: int = 50
+        max_results: int = 20
     ) -> Dict[str, Any]:
         """
         Get all available Blueprint actions for a specific class with search filtering.
@@ -110,7 +110,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         ctx: Context,
         class_name: str,
         search_filter: str = "",
-        max_results: int = 50
+        max_results: int = 20
     ) -> Dict[str, Any]:
         """
         Get all available Blueprint actions for a class and its entire inheritance hierarchy with search filtering.
@@ -151,7 +151,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         ctx: Context,
         search_query: str,
         category: str = "",
-        max_results: int = 50,
+        max_results: int = 20,
         blueprint_name: str = None
     ) -> Dict[str, Any]:
         """
@@ -181,7 +181,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         Args:
             search_query: Search string to find EXISTING actions (searches in name, keywords, category, tooltip)
             category: Optional category filter (Flow Control, Math, Utilities, etc.)
-            max_results: Maximum number of results to return (default: 50)
+            max_results: Maximum number of results to return (default: 20)
             blueprint_name: Optional name of the Blueprint asset for local variable discovery
         
         Returns:

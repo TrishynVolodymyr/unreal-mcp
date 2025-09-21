@@ -28,6 +28,7 @@
 #include "K2Node.h"
 #include "BlueprintActionDatabase.h"
 #include "BlueprintActionFilter.h"
+#include "BlueprintFunctionNodeSpawner.h"
 #include "BlueprintTypePromotion.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_Event.h"
@@ -145,8 +146,7 @@ void AddBlueprintCustomFunctionActions(UBlueprint* Blueprint, const FString& Sea
         FunctionObj->SetStringField(TEXT("title"), FunctionName);
         FunctionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Call custom function %s"), *FunctionName));
         FunctionObj->SetStringField(TEXT("category"), TEXT("Custom Functions"));
-        FunctionObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("function call custom %s local blueprint"), *FunctionName));
-        FunctionObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_CallFunction"));
+
         FunctionObj->SetStringField(TEXT("function_name"), FunctionName);
         FunctionObj->SetBoolField(TEXT("is_blueprint_function"), true);
         
@@ -223,8 +223,7 @@ void AddBlueprintVariableActions(UBlueprint* Blueprint, const FString& SearchFil
             GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *VarName));
             GetterObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Get the value of variable %s"), *VarName));
             GetterObj->SetStringField(TEXT("category"), TEXT("Variables"));
-            GetterObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("variable get %s local blueprint"), *VarName));
-            GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
+
             GetterObj->SetStringField(TEXT("variable_name"), VarName);
             GetterObj->SetStringField(TEXT("pin_type"), VarDesc.VarType.PinCategory.ToString());
             GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *VarName));
@@ -241,8 +240,7 @@ void AddBlueprintVariableActions(UBlueprint* Blueprint, const FString& SearchFil
             SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *VarName));
             SetterObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Set the value of variable %s"), *VarName));
             SetterObj->SetStringField(TEXT("category"), TEXT("Variables"));
-            SetterObj->SetStringField(TEXT("keywords"), FString::Printf(TEXT("variable set %s local blueprint"), *VarName));
-            SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
+
             SetterObj->SetStringField(TEXT("variable_name"), VarName);
             SetterObj->SetStringField(TEXT("pin_type"), VarDesc.VarType.PinCategory.ToString());
             SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *VarName));
@@ -477,8 +475,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                     ActionObj->SetStringField(TEXT("title"), ActionName);
                     ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
                     ActionObj->SetStringField(TEXT("category"), Category);
-                    ActionObj->SetStringField(TEXT("keywords"), Keywords);
-                    ActionObj->SetStringField(TEXT("node_type"), NodeType);
                     
                     // Apply search filter if provided
                     bool bPassesFilter = true;
@@ -545,8 +541,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                 GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 GetterObj->SetStringField(TEXT("category"), Category);
-                GetterObj->SetStringField(TEXT("keywords"), Keywords);
-                GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
                 GetterObj->SetStringField(TEXT("variable_name"), PropName);
                 GetterObj->SetStringField(TEXT("pin_type"), PinType);
                 GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *DisplayName));
@@ -562,8 +556,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinTy
                 SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 SetterObj->SetStringField(TEXT("category"), Category);
-                SetterObj->SetStringField(TEXT("keywords"), Keywords);
-                SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
                 SetterObj->SetStringField(TEXT("variable_name"), PropName);
                 SetterObj->SetStringField(TEXT("pin_type"), PinType);
                 SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *DisplayName));
@@ -651,8 +643,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
                 GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 GetterObj->SetStringField(TEXT("category"), Category);
-                GetterObj->SetStringField(TEXT("keywords"), Keywords);
-                GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
                 GetterObj->SetStringField(TEXT("variable_name"), PropName);
                 GetterObj->SetStringField(TEXT("pin_type"), PinType);
                 GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *DisplayName));
@@ -669,8 +659,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
                 SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 SetterObj->SetStringField(TEXT("category"), Category);
-                SetterObj->SetStringField(TEXT("keywords"), Keywords);
-                SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
                 SetterObj->SetStringField(TEXT("variable_name"), PropName);
                 SetterObj->SetStringField(TEXT("pin_type"), PinType);
                 SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *DisplayName));
@@ -752,7 +740,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClass(const FString& Cla
                         ActionObj->SetStringField(TEXT("title"), ActionName);
                         ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
                         ActionObj->SetStringField(TEXT("category"), Category);
-                        ActionObj->SetStringField(TEXT("keywords"), Keywords);
                         
                         // Apply search filter if provided
                         bool bPassesFilter = true;
@@ -895,8 +882,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                     GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                     GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                     GetterObj->SetStringField(TEXT("category"), Category);
-                    GetterObj->SetStringField(TEXT("keywords"), Keywords);
-                    GetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableGet"));
                     GetterObj->SetStringField(TEXT("variable_name"), PropName);
                     GetterObj->SetStringField(TEXT("pin_type"), PinType);
                     GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *DisplayName));
@@ -913,8 +898,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                     SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                     SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                     SetterObj->SetStringField(TEXT("category"), Category);
-                    SetterObj->SetStringField(TEXT("keywords"), Keywords);
-                    SetterObj->SetStringField(TEXT("node_type"), TEXT("UK2Node_VariableSet"));
                     SetterObj->SetStringField(TEXT("variable_name"), PropName);
                     SetterObj->SetStringField(TEXT("pin_type"), PinType);
                     SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *DisplayName));
@@ -1001,7 +984,6 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
                         ActionObj->SetStringField(TEXT("title"), ActionName);
                         ActionObj->SetStringField(TEXT("tooltip"), TEXT(""));
                         ActionObj->SetStringField(TEXT("category"), CategoryName);
-                        ActionObj->SetStringField(TEXT("keywords"), TEXT(""));
                         
                         if (UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode())
                         {
@@ -1224,6 +1206,15 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> ActionsArray;
     
+    // Declare variables that might be used across different sections (to avoid goto issues)
+    FString SearchLower = SearchQuery.ToLower();
+    const TSet<FName>& OperatorNames = FTypePromotion::GetAllOpNames();
+    
+    // Initialize variables that will be used after potential goto
+    FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+    FBlueprintActionContext FilterContext;
+    FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
+    
     if (SearchQuery.IsEmpty())
     {
         ResultObj->SetBoolField(TEXT("success"), false);
@@ -1236,6 +1227,13 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
         FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
         return OutputString;
     }
+    
+    // Check if this is a mathematical query that should prioritize math operators
+    bool bIsMathQuery = SearchLower == TEXT("add") || SearchLower == TEXT("subtract") || 
+                       SearchLower == TEXT("multiply") || SearchLower == TEXT("divide") ||
+                       SearchLower == TEXT("math") || SearchLower == TEXT("operator") ||
+                       SearchLower.Contains(TEXT("+")) || SearchLower.Contains(TEXT("-")) ||
+                       SearchLower.Contains(TEXT("*")) || SearchLower.Contains(TEXT("/"));
     
     // Blueprint-local variable actions
     if (!BlueprintName.IsEmpty())
@@ -1260,14 +1258,55 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
         }
     }
     
-    // Use Unreal's native Blueprint Action Menu system instead of custom search
+    // Prioritize mathematical operators for math-related queries
+    if (bIsMathQuery && (Category.IsEmpty() || Category.ToLower().Contains(TEXT("math")) || 
+                        Category.ToLower().Contains(TEXT("utilities")) || Category.ToLower().Contains(TEXT("operators"))))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Prioritizing mathematical operators for math query '%s'"), *SearchQuery);
+        
+        for (const FName& OpName : OperatorNames)
+        {
+            FString OpNameString = OpName.ToString();
+            FString OpNameLower = OpNameString.ToLower();
+            
+            // Check if this operator matches our search
+            bool bMatchesSearch = OpNameLower.Contains(SearchLower) ||
+                                 (SearchLower == TEXT("add") && OpNameString.Contains(TEXT("+"))) ||
+                                 (SearchLower == TEXT("subtract") && OpNameString.Contains(TEXT("-"))) ||
+                                 (SearchLower == TEXT("multiply") && OpNameString.Contains(TEXT("*"))) ||
+                                 (SearchLower == TEXT("divide") && OpNameString.Contains(TEXT("/"))) ||
+                                 (SearchLower == TEXT("math") || SearchLower == TEXT("operator"));
+            
+            if (bMatchesSearch)
+            {
+                // Get the spawner for this operator
+                UBlueprintFunctionNodeSpawner* OperatorSpawner = FTypePromotion::GetOperatorSpawner(OpName);
+                if (OperatorSpawner)
+                {
+                    // Get additional information about the operator
+                    FText UserFacingName = FTypePromotion::GetUserFacingOperatorName(OpName);
+                    
+                    TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+                    ActionObj->SetStringField(TEXT("title"), UserFacingName.IsEmpty() ? OpNameString : UserFacingName.ToString());
+                    ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Mathematical operator: %s"), UserFacingName.IsEmpty() ? *OpNameString : *UserFacingName.ToString()));
+                    ActionObj->SetStringField(TEXT("category"), TEXT("Utilities|Operators"));
+                    
+                    ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+                    
+                    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Prioritized mathematical operator: %s"), *OpNameString);
+                    
+                    // Limit results
+                    if (ActionsArray.Num() >= MaxResults)
+                    {
+                        goto EndSearch;
+                    }
+                }
+            }
+        }
+    }
+
+    // Use Unreal's native Blueprint Action Menu system for remaining search
     UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Using native UE Blueprint Action Menu system for search '%s' in category '%s'"), *SearchQuery, *Category);
-    
-    // Go back to using FBlueprintActionDatabase directly - the native approach was causing crashes
-    FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
-    
-    // Create a context for filtering
-    FBlueprintActionContext FilterContext;
     if (!BlueprintName.IsEmpty())
     {
         UBlueprint* ContextBlueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *FString::Printf(TEXT("/Game/%s.%s"), *BlueprintName, *BlueprintName), nullptr, LOAD_Quiet | LOAD_NoWarn));
@@ -1276,9 +1315,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             FilterContext.Blueprints.Add(ContextBlueprint);
         }
     }
-    
-    // Use BlueprintActionDatabase to get actions with minimal filtering
-    FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
     
     UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Action database has %d action lists"), ActionRegistry.Num());
     
@@ -1293,34 +1329,84 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                 continue;
             }
         
-        UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode();
-        if (!TemplateNode)
-        {
-            continue;
-        }
+            // Get the display name and properties - handle function spawners differently
+            FString ActionName;
+            FString NodeType;
+            FString ActionCategory = TEXT("Unknown");
+            FString Tooltip;
+            FString Keywords;
+            
+            // Declare template node for later use
+            UEdGraphNode* TemplateNode = nullptr;
+            
+            // Check if this is a function spawner (for KismetMathLibrary and other function libraries)
+            if (UBlueprintFunctionNodeSpawner* FunctionSpawner = Cast<UBlueprintFunctionNodeSpawner>(NodeSpawner))
+            {
+                UFunction const* Function = FunctionSpawner->GetFunction();
+                if (Function)
+                {
+                    ActionName = Function->GetDisplayNameText().ToString();
+                    if (ActionName.IsEmpty())
+                    {
+                        ActionName = Function->GetName();
+                    }
+                    NodeType = TEXT("Function");
+                    
+                    // Extract category from metadata
+                    if (Function->HasMetaData(TEXT("Category")))
+                    {
+                        ActionCategory = Function->GetMetaData(TEXT("Category"));
+                    }
+                    
+                    // Extract tooltip from metadata
+                    if (Function->HasMetaData(TEXT("ToolTip")))
+                    {
+                        Tooltip = Function->GetMetaData(TEXT("ToolTip"));
+                    }
+                    else
+                    {
+                        Tooltip = Function->GetToolTipText().ToString();
+                    }
+                    
+                    // Extract keywords from metadata
+                    if (Function->HasMetaData(TEXT("Keywords")))
+                    {
+                        Keywords = Function->GetMetaData(TEXT("Keywords"));
+                    }
+                    
+                    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Found function '%s' from class '%s', category: '%s'"), 
+                        *ActionName, *Function->GetOuterUClass()->GetName(), *ActionCategory);
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                // Handle regular template nodes
+                TemplateNode = NodeSpawner->GetTemplateNode();
+                if (!TemplateNode)
+                {
+                    continue;
+                }
+                
+                if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                {
+                    ActionName = FunctionNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                    NodeType = TEXT("Function");
+                }
+                else
+                {
+                    ActionName = TemplateNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                    NodeType = TemplateNode->GetClass()->GetName();
+                }
+                
+                Tooltip = TemplateNode->GetTooltipText().ToString();
+                Keywords = TemplateNode->GetKeywords().ToString();
+            }
         
-        // Get the display name using the proper node method
-        FString ActionName;
-        FString NodeType;
-        
-        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
-        {
-            ActionName = FunctionNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
-            NodeType = TEXT("Function");
-        }
-        else
-        {
-            ActionName = TemplateNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
-            NodeType = TemplateNode->GetClass()->GetName();
-        }
-        
-        // Get other properties
-        FString ActionCategory = TEXT("Unknown");
-        FString Tooltip = TemplateNode->GetTooltipText().ToString();
-        FString Keywords = TemplateNode->GetKeywords().ToString();
-        
-        // Apply search and category filters
-        FString SearchLower = SearchQuery.ToLower();
+        // Apply search and category filters (SearchLower already declared at function start)
         FString ActionNameLower = ActionName.ToLower();
         FString ActionCategoryLower = ActionCategory.ToLower();
         FString TooltipLower = Tooltip.ToLower();
@@ -1339,8 +1425,6 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             ActionObj->SetStringField(TEXT("title"), ActionName);
             ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
             ActionObj->SetStringField(TEXT("category"), ActionCategory);
-            ActionObj->SetStringField(TEXT("keywords"), Keywords);
-            ActionObj->SetStringField(TEXT("node_type"), NodeType);
             
             // Try to extract additional information if it's a function call
             if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
