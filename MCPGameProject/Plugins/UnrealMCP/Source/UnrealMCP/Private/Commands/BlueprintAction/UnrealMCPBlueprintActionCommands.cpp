@@ -1235,6 +1235,17 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                        SearchLower.Contains(TEXT("+")) || SearchLower.Contains(TEXT("-")) ||
                        SearchLower.Contains(TEXT("*")) || SearchLower.Contains(TEXT("/"));
     
+    // Check if this is a comparison query that should prioritize comparison operators
+    bool bIsComparisonQuery = SearchLower == TEXT("greater") || SearchLower == TEXT("less") ||
+                             SearchLower == TEXT("equal") || SearchLower == TEXT("compare") ||
+                             SearchLower == TEXT("comparison") || SearchLower.Contains(TEXT(">")) ||
+                             SearchLower.Contains(TEXT("<")) || SearchLower.Contains(TEXT("=")) ||
+                             SearchLower.Contains(TEXT("<=")) || SearchLower.Contains(TEXT(">=")) ||
+                             SearchLower.Contains(TEXT("==")) || SearchLower.Contains(TEXT("!="));
+    
+    // Combined check for any type promotion operator
+    bool bIsTypePromotionQuery = bIsMathQuery || bIsComparisonQuery;
+    
     // Blueprint-local variable actions
     if (!BlueprintName.IsEmpty())
     {
@@ -1258,11 +1269,19 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
         }
     }
     
-    // Prioritize mathematical operators for math-related queries
-    if (bIsMathQuery && (Category.IsEmpty() || Category.ToLower().Contains(TEXT("math")) || 
-                        Category.ToLower().Contains(TEXT("utilities")) || Category.ToLower().Contains(TEXT("operators"))))
+    // Prioritize type promotion operators (math and comparison) for relevant queries
+    if (bIsTypePromotionQuery && (Category.IsEmpty() || Category.ToLower().Contains(TEXT("math")) || 
+                                 Category.ToLower().Contains(TEXT("utilities")) || Category.ToLower().Contains(TEXT("operators")) ||
+                                 Category.ToLower().Contains(TEXT("comparison"))))
     {
-        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Prioritizing mathematical operators for math query '%s'"), *SearchQuery);
+        FString QueryType = bIsMathQuery ? TEXT("mathematical") : (bIsComparisonQuery ? TEXT("comparison") : TEXT("type promotion"));
+        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Prioritizing %s operators for query '%s'"), *QueryType, *SearchQuery);
+        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Available operators count: %d"), OperatorNames.Num());
+        
+        for (const FName& OpName : OperatorNames)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Checking operator: %s"), *OpName.ToString());
+        }
         
         for (const FName& OpName : OperatorNames)
         {
@@ -1270,15 +1289,29 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             FString OpNameLower = OpNameString.ToLower();
             
             // Check if this operator matches our search
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Testing operator '%s' against search '%s'"), *OpNameString, *SearchLower);
             bool bMatchesSearch = OpNameLower.Contains(SearchLower) ||
+                                 // Math operators
                                  (SearchLower == TEXT("add") && OpNameString.Contains(TEXT("+"))) ||
                                  (SearchLower == TEXT("subtract") && OpNameString.Contains(TEXT("-"))) ||
                                  (SearchLower == TEXT("multiply") && OpNameString.Contains(TEXT("*"))) ||
                                  (SearchLower == TEXT("divide") && OpNameString.Contains(TEXT("/"))) ||
-                                 (SearchLower == TEXT("math") || SearchLower == TEXT("operator"));
+                                 // Comparison operators
+                                 (SearchLower.Contains(TEXT("<=")) && (OpNameString == TEXT("LessEqual") || OpNameString.Contains(TEXT("<=")))) ||
+                                 (SearchLower.Contains(TEXT(">=")) && (OpNameString == TEXT("GreaterEqual") || OpNameString.Contains(TEXT(">=")))) ||
+                                 (SearchLower.Contains(TEXT("==")) && (OpNameString == TEXT("EqualEqual") || OpNameString.Contains(TEXT("==")))) ||
+                                 (SearchLower.Contains(TEXT("!=")) && (OpNameString == TEXT("NotEqual") || OpNameString.Contains(TEXT("!=")))) ||
+                                 (SearchLower.Contains(TEXT("<")) && !SearchLower.Contains(TEXT("<=")) && (OpNameString == TEXT("Less") || OpNameString.Contains(TEXT("<")))) ||
+                                 (SearchLower.Contains(TEXT(">")) && !SearchLower.Contains(TEXT(">=")) && (OpNameString == TEXT("Greater") || OpNameString.Contains(TEXT(">")))) ||
+                                 (SearchLower == TEXT("greater") && OpNameString.Contains(TEXT("Greater"))) ||
+                                 (SearchLower == TEXT("less") && OpNameString.Contains(TEXT("Less"))) ||
+                                 (SearchLower == TEXT("equal") && OpNameString.Contains(TEXT("Equal"))) ||
+                                 // General terms
+                                 (SearchLower == TEXT("math") || SearchLower == TEXT("operator") || SearchLower == TEXT("compare") || SearchLower == TEXT("comparison"));
             
             if (bMatchesSearch)
             {
+                UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: MATCHED operator '%s' for search '%s'"), *OpNameString, *SearchLower);
                 // Get the spawner for this operator
                 UBlueprintFunctionNodeSpawner* OperatorSpawner = FTypePromotion::GetOperatorSpawner(OpName);
                 if (OperatorSpawner)
@@ -1288,12 +1321,15 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                     
                     TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
                     ActionObj->SetStringField(TEXT("title"), UserFacingName.IsEmpty() ? OpNameString : UserFacingName.ToString());
-                    ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Mathematical operator: %s"), UserFacingName.IsEmpty() ? *OpNameString : *UserFacingName.ToString()));
+                    // Determine if this is a comparison operator
+                    bool bIsComparisonOp = FTypePromotion::IsComparisonOpName(OpName);
+                    FString OperatorType = bIsComparisonOp ? TEXT("Comparison operator") : TEXT("Mathematical operator");
+                    ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("%s: %s"), *OperatorType, UserFacingName.IsEmpty() ? *OpNameString : *UserFacingName.ToString()));
                     ActionObj->SetStringField(TEXT("category"), TEXT("Utilities|Operators"));
                     
                     ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
                     
-                    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Prioritized mathematical operator: %s"), *OpNameString);
+                    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Prioritized %s operator: %s"), bIsComparisonOp ? TEXT("comparison") : TEXT("mathematical"), *OpNameString);
                     
                     // Limit results
                     if (ActionsArray.Num() >= MaxResults)
