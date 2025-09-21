@@ -5,13 +5,6 @@
   - Create DialogueResponse struct for player response options
   - Set up DataTable structure for dialogue content storage
   - _Requirements: 3.1, 3.2, 3.3_
-  
-  **Implementation notes:**
-  - Fixed plugin code to properly handle Array<CustomStruct> syntax
-  - DialogueResponse struct created with ResponseText, NextNodeID, bEndsDialogue fields
-  - DialogueNode struct created with proper DialogueResponse[] array type
-  - DataTable created and tested with sample data
-  - Plugin now uses dynamic struct discovery instead of hardcoded paths
 
 - [ ] 2. Implement core dialogue component Blueprint
   - Create DialogueComponent Blueprint inheriting from ActorComponent

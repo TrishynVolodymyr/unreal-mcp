@@ -13,13 +13,21 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/Character.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Components/ActorComponent.h"
+
+// Native Blueprint Action Menu includes
+#include "BlueprintActionMenuUtils.h"
+#include "BlueprintActionMenuBuilder.h"
+#include "BlueprintActionMenuItem.h"
+#include "EdGraphSchema_K2_Actions.h"
 
 // Blueprint Action Database includes
 #include "K2Node.h"
 #include "BlueprintActionDatabase.h"
 #include "BlueprintActionFilter.h"
+#include "BlueprintTypePromotion.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_Event.h"
 #include "K2Node_VariableGet.h"
@@ -1470,83 +1478,8 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
     // Blueprint-local variable actions
     if (!BlueprintName.IsEmpty())
     {
-        UBlueprint* Blueprint = nullptr;
-        FString AssetPath = BlueprintName;
-        
-        // Try different path patterns to find the Blueprint
-        TArray<FString> PathsToTry;
-        if (AssetPath.StartsWith(TEXT("/Game/")))
-        {
-            // Already a full path, use as-is
-            PathsToTry.Add(AssetPath);
-            // Also try with .Blueprint_C suffix for compiled blueprints
-            if (!AssetPath.EndsWith(TEXT("_C")))
-            {
-                PathsToTry.Add(AssetPath + TEXT("_C"));
-            }
-        }
-        else
-        {
-            // Try common Blueprint locations with various patterns
-            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s"), *BlueprintName, *BlueprintName));
-            PathsToTry.Add(FString::Printf(TEXT("/Game/%s.%s"), *BlueprintName, *BlueprintName));
-            PathsToTry.Add(FString::Printf(TEXT("/Game/ThirdPerson/Blueprints/%s.%s"), *BlueprintName, *BlueprintName));
-            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/Integration/%s.%s"), *BlueprintName, *BlueprintName));
-            
-            // Also try without the duplicate name pattern
-            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/%s"), *BlueprintName));
-            PathsToTry.Add(FString::Printf(TEXT("/Game/%s"), *BlueprintName));
-            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/Integration/%s"), *BlueprintName));
-            
-            // Try with _C suffix for compiled blueprints
-            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/%s.%s_C"), *BlueprintName, *BlueprintName));
-            PathsToTry.Add(FString::Printf(TEXT("/Game/%s.%s_C"), *BlueprintName, *BlueprintName));
-            PathsToTry.Add(FString::Printf(TEXT("/Game/Blueprints/Integration/%s.%s_C"), *BlueprintName, *BlueprintName));
-        }
-        
-        // Try loading from each path
-        for (const FString& PathToTry : PathsToTry)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Trying to load Blueprint from path: %s"), *PathToTry);
-            Blueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *PathToTry));
-            if (Blueprint)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Successfully loaded Blueprint from: %s"), *PathToTry);
-                break;
-            }
-        }
-        
-        // If direct loading failed, try using Asset Registry
-        if (!Blueprint)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Direct loading failed, trying Asset Registry"));
-            FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-            IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-            
-            // Search for Blueprint assets by name
-            TArray<FAssetData> AssetDataList;
-            FARFilter Filter;
-            Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
-            Filter.bRecursiveClasses = true;
-            
-            AssetRegistry.GetAssets(Filter, AssetDataList);
-            
-            for (const FAssetData& AssetData : AssetDataList)
-            {
-                FString AssetName = AssetData.AssetName.ToString();
-                if (AssetName.Equals(BlueprintName, ESearchCase::IgnoreCase) ||
-                    AssetName.Replace(TEXT("BP_"), TEXT("")).Equals(BlueprintName, ESearchCase::IgnoreCase))
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Found Blueprint asset: %s at %s"), *AssetName, *AssetData.GetObjectPathString());
-                    Blueprint = Cast<UBlueprint>(AssetData.GetAsset());
-                    if (Blueprint)
-                    {
-                        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Successfully loaded Blueprint from Asset Registry"));
-                        break;
-                    }
-                }
-            }
-        }
+        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Using FUnrealMCPCommonUtils to find Blueprint: %s"), *BlueprintName);
+        UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprintByName(BlueprintName);
         
         if (Blueprint)
         {
@@ -1561,164 +1494,120 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Failed to load Blueprint: %s. Tried paths:"), *BlueprintName);
-            for (const FString& PathToTry : PathsToTry)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("  - %s"), *PathToTry);
-            }
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Failed to load Blueprint: %s using FUnrealMCPCommonUtils"), *BlueprintName);
         }
     }
     
-    // Get the blueprint action database
+    // Use Unreal's native Blueprint Action Menu system instead of custom search
+    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Using native UE Blueprint Action Menu system for search '%s' in category '%s'"), *SearchQuery, *Category);
+    
+    // Go back to using FBlueprintActionDatabase directly - the native approach was causing crashes
     FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+    
+    // Create a context for filtering
+    FBlueprintActionContext FilterContext;
+    if (!BlueprintName.IsEmpty())
+    {
+        UBlueprint* ContextBlueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *FString::Printf(TEXT("/Game/%s.%s"), *BlueprintName, *BlueprintName), nullptr, LOAD_Quiet | LOAD_NoWarn));
+        if (ContextBlueprint)
+        {
+            FilterContext.Blueprints.Add(ContextBlueprint);
+        }
+    }
+    
+    // Use BlueprintActionDatabase to get actions with minimal filtering
     FBlueprintActionDatabase::FActionRegistry const& ActionRegistry = ActionDatabase.GetAllActions();
     
-    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Searching for '%s' in category '%s'"), *SearchQuery, *Category);
-    UE_LOG(LogTemp, Warning, TEXT("Total actions in database: %d"), ActionRegistry.Num());
+    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Action database has %d action lists"), ActionRegistry.Num());
     
-    // Search through all actions
-    for (const auto& ActionPair : ActionRegistry)
+    // Go through all actions in the database
+    for (auto Iterator(ActionRegistry.CreateConstIterator()); Iterator; ++Iterator)
     {
-        for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
+        const FBlueprintActionDatabase::FActionList& ActionList = Iterator.Value();
+        for (UBlueprintNodeSpawner* NodeSpawner : ActionList)
         {
-            if (NodeSpawner && IsValid(NodeSpawner))
+            if (!NodeSpawner)
             {
-                UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode();
-                if (!TemplateNode)
+                continue;
+            }
+        
+        UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode();
+        if (!TemplateNode)
+        {
+            continue;
+        }
+        
+        // Get the display name using the proper node method
+        FString ActionName;
+        FString NodeType;
+        
+        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+        {
+            ActionName = FunctionNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+            NodeType = TEXT("Function");
+        }
+        else
+        {
+            ActionName = TemplateNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+            NodeType = TemplateNode->GetClass()->GetName();
+        }
+        
+        // Get other properties
+        FString ActionCategory = TEXT("Unknown");
+        FString Tooltip = TemplateNode->GetTooltipText().ToString();
+        FString Keywords = TemplateNode->GetKeywords().ToString();
+        
+        // Apply search and category filters
+        FString SearchLower = SearchQuery.ToLower();
+        FString ActionNameLower = ActionName.ToLower();
+        FString ActionCategoryLower = ActionCategory.ToLower();
+        FString TooltipLower = Tooltip.ToLower();
+        FString KeywordsLower = Keywords.ToLower();
+        
+        bool bMatchesSearch = ActionNameLower.Contains(SearchLower) ||
+                             ActionCategoryLower.Contains(SearchLower) ||
+                             TooltipLower.Contains(SearchLower) ||
+                             KeywordsLower.Contains(SearchLower);
+        
+        bool bMatchesCategory = Category.IsEmpty() || ActionCategoryLower.Contains(Category.ToLower());
+        
+        if (bMatchesSearch && bMatchesCategory)
+        {
+            TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+            ActionObj->SetStringField(TEXT("title"), ActionName);
+            ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
+            ActionObj->SetStringField(TEXT("category"), ActionCategory);
+            ActionObj->SetStringField(TEXT("keywords"), Keywords);
+            ActionObj->SetStringField(TEXT("node_type"), NodeType);
+            
+            // Try to extract additional information if it's a function call
+            if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+            {
+                if (UFunction* Function = FunctionNode->GetTargetFunction())
                 {
-                    continue;
-                }
-                
-                FString ActionName = TEXT("Unknown Action");
-                FString ActionCategory = TEXT("Unknown");
-                FString Tooltip = TEXT("");
-                FString Keywords = TEXT("");
-                FString NodeType = TEXT("Unknown");
-                
-                // Determine node type and get information
-                if (TemplateNode->IsA<UK2Node_IfThenElse>())
-                {
-                    ActionName = TEXT("Branch");
-                    ActionCategory = TEXT("Flow Control");
-                    NodeType = TEXT("Branch");
-                    Tooltip = TEXT("Conditional execution based on boolean input");
-                    Keywords = TEXT("if then else conditional branch bool boolean");
-                }
-                else if (TemplateNode->IsA<UK2Node_ExecutionSequence>())
-                {
-                    ActionName = TEXT("Sequence");
-                    ActionCategory = TEXT("Flow Control");
-                    NodeType = TEXT("Sequence");
-                    Tooltip = TEXT("Execute multiple outputs in order");
-                    Keywords = TEXT("sequence multiple execution order flow");
-                }
-                else if (TemplateNode->IsA<UK2Node_DynamicCast>())
-                {
-                    ActionName = TEXT("Cast");
-                    ActionCategory = TEXT("Utilities");
-                    NodeType = TEXT("Cast");
-                    Tooltip = TEXT("Cast object to different type");
-                    Keywords = TEXT("cast convert type object class");
-                }
-                else if (TemplateNode->IsA<UK2Node_CustomEvent>())
-                {
-                    ActionName = TEXT("Custom Event");
-                    ActionCategory = TEXT("Events");
-                    NodeType = TEXT("CustomEvent");
-                    Tooltip = TEXT("Create custom event that can be called");
-                    Keywords = TEXT("custom event call dispatch");
-                }
-                else if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
-                {
-                    if (UFunction* Function = FunctionNode->GetTargetFunction())
+                    ActionObj->SetStringField(TEXT("function_name"), Function->GetName());
+                    ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
+                    if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
                     {
-                        ActionName = Function->GetName();
-                        UClass* OwnerClass = Function->GetOwnerClass();
-                        ActionCategory = OwnerClass->GetName();
-                        
-                        // Better categorization
-                        if (OwnerClass == UKismetMathLibrary::StaticClass())
-                        {
-                            ActionCategory = TEXT("Math");
-                            Keywords = TEXT("math mathematics calculation");
-                        }
-                        else if (OwnerClass == UKismetSystemLibrary::StaticClass())
-                        {
-                            ActionCategory = TEXT("Utilities");
-                            Keywords = TEXT("system utility helper");
-                        }
-                        else if (OwnerClass == UGameplayStatics::StaticClass())
-                        {
-                            ActionCategory = TEXT("Game");
-                            Keywords = TEXT("gameplay game static");
-                        }
-                        
-                        NodeType = TEXT("Function");
-                    }
-                }
-                else if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
-                {
-                    ActionName = K2Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
-                    if (ActionName.IsEmpty())
-                    {
-                        ActionName = K2Node->GetClass()->GetName();
-                    }
-                    NodeType = K2Node->GetClass()->GetName();
-                    ActionCategory = TEXT("Node");
-                }
-                
-                // Apply search and category filters
-                FString SearchLower = SearchQuery.ToLower();
-                FString ActionNameLower = ActionName.ToLower();
-                FString ActionCategoryLower = ActionCategory.ToLower();
-                FString TooltipLower = Tooltip.ToLower();
-                FString KeywordsLower = Keywords.ToLower();
-                
-                bool bMatchesSearch = ActionNameLower.Contains(SearchLower) ||
-                                     ActionCategoryLower.Contains(SearchLower) ||
-                                     TooltipLower.Contains(SearchLower) ||
-                                     KeywordsLower.Contains(SearchLower);
-                
-                bool bMatchesCategory = Category.IsEmpty() || ActionCategoryLower.Contains(Category.ToLower());
-                
-                if (bMatchesSearch && bMatchesCategory)
-                {
-                    TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
-                    ActionObj->SetStringField(TEXT("title"), ActionName);
-                    ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
-                    ActionObj->SetStringField(TEXT("category"), ActionCategory);
-                    ActionObj->SetStringField(TEXT("keywords"), Keywords);
-                    ActionObj->SetStringField(TEXT("node_type"), NodeType);
-                    
-                    if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
-                    {
-                        if (UFunction* Function = FunctionNode->GetTargetFunction())
-                        {
-                            ActionObj->SetStringField(TEXT("function_name"), Function->GetName());
-                            ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
-                            if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
-                            {
-                                ActionObj->SetBoolField(TEXT("is_math_function"), true);
-                            }
-                        }
-                    }
-                    
-                    ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
-                    
-                    // Limit results
-                    if (ActionsArray.Num() >= MaxResults)
-                    {
-                        break;
+                        ActionObj->SetBoolField(TEXT("is_math_function"), true);
                     }
                 }
             }
-        }
-        
-        if (ActionsArray.Num() >= MaxResults)
-        {
-            break;
-        }
+            
+            ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+            
+            // Limit results
+            if (ActionsArray.Num() >= MaxResults)
+            {
+                goto EndSearch; // Break out of both loops
+            }
+        } // Close bMatchesSearch condition
+        } // Close inner NodeSpawner loop
     }
+    
+    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Standard search completed. Found %d actions from database iteration"), ActionsArray.Num());
+    
+EndSearch:
     
     ResultObj->SetBoolField(TEXT("success"), true);
     ResultObj->SetStringField(TEXT("search_query"), SearchQuery);

@@ -178,9 +178,44 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     
     OutNodeIds.Empty();
     
-    // Get the event graph
-    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
-    if (!EventGraph)
+    // Determine which graph to search in
+    UEdGraph* SearchGraph = nullptr;
+    
+    if (!TargetGraph.IsEmpty())
+    {
+        // Try to find the specific graph by name
+        for (UEdGraph* Graph : Blueprint->UbergraphPages)
+        {
+            if (Graph && Graph->GetFName() == FName(*TargetGraph))
+            {
+                SearchGraph = Graph;
+                break;
+            }
+        }
+        
+        // Also check function graphs
+        for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+        {
+            if (Graph && Graph->GetFName() == FName(*TargetGraph))
+            {
+                SearchGraph = Graph;
+                break;
+            }
+        }
+        
+        if (!SearchGraph)
+        {
+            // Target graph not found
+            return false;
+        }
+    }
+    else
+    {
+        // Default to event graph if no specific graph is requested
+        SearchGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    }
+    
+    if (!SearchGraph)
     {
         return false;
     }
@@ -188,7 +223,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     // If no specific filters, return all nodes
     if (NodeType.IsEmpty() && EventType.IsEmpty())
     {
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        for (UEdGraphNode* Node : SearchGraph->Nodes)
         {
             if (Node)
             {
@@ -202,7 +237,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     if (NodeType == TEXT("Event"))
     {
         // Look for event nodes
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        for (UEdGraphNode* Node : SearchGraph->Nodes)
         {
             UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node);
             if (EventNode)
@@ -226,7 +261,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     else if (NodeType == TEXT("Function"))
     {
         // Look for function call nodes
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        for (UEdGraphNode* Node : SearchGraph->Nodes)
         {
             UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(Node);
             if (FunctionNode)
@@ -238,7 +273,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     else if (NodeType == TEXT("Variable"))
     {
         // Look for variable nodes
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        for (UEdGraphNode* Node : SearchGraph->Nodes)
         {
             UK2Node_VariableGet* VarGetNode = Cast<UK2Node_VariableGet>(Node);
             UK2Node_VariableSet* VarSetNode = Cast<UK2Node_VariableSet>(Node);
@@ -251,7 +286,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
     else
     {
         // Generic search by class name
-        for (UEdGraphNode* Node : EventGraph->Nodes)
+        for (UEdGraphNode* Node : SearchGraph->Nodes)
         {
             if (Node)
             {
@@ -261,6 +296,36 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                     OutNodeIds.Add(Node->NodeGuid.ToString());
                 }
             }
+        }
+    }
+    
+    return true;
+}
+
+bool FBlueprintNodeService::GetBlueprintGraphs(UBlueprint* Blueprint, TArray<FString>& OutGraphNames)
+{
+    if (!Blueprint)
+    {
+        return false;
+    }
+    
+    OutGraphNames.Empty();
+    
+    // Add all Ubergraph pages (includes EventGraph and other main graphs)
+    for (UEdGraph* Graph : Blueprint->UbergraphPages)
+    {
+        if (Graph)
+        {
+            OutGraphNames.Add(Graph->GetFName().ToString());
+        }
+    }
+    
+    // Add all function graphs
+    for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+    {
+        if (Graph)
+        {
+            OutGraphNames.Add(Graph->GetFName().ToString());
         }
     }
     

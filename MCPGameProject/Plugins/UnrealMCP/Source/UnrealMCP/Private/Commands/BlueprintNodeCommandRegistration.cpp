@@ -2,6 +2,7 @@
 #include "Commands/UnrealMCPCommandRegistry.h"
 #include "Commands/BlueprintNode/ConnectBlueprintNodesCommand.h"
 // #include "Commands/BlueprintNode/AddBlueprintInputActionNodeCommand.h"  // REMOVED: Use create_node_by_action_name instead
+#include "Commands/BlueprintNode/GetBlueprintGraphsCommand.h"
 #include "Commands/BlueprintNode/FindBlueprintNodesCommand.h"
 #include "Commands/BlueprintNode/AddBlueprintVariableNodeCommand.h"
 #include "Commands/BlueprintNode/GetVariableInfoCommand.h"
@@ -26,6 +27,7 @@ void FBlueprintNodeCommandRegistration::RegisterAllBlueprintNodeCommands()
     // Register individual commands
     RegisterConnectBlueprintNodesCommand();
     // RegisterAddBlueprintInputActionNodeCommand();  // REMOVED: Use create_node_by_action_name instead
+    RegisterGetBlueprintGraphsCommand();
     RegisterFindBlueprintNodesCommand();
     RegisterAddBlueprintVariableCommand();
     RegisterGetVariableInfoCommand();
@@ -74,6 +76,13 @@ void FBlueprintNodeCommandRegistration::RegisterConnectBlueprintNodesCommand()
 //     TSharedPtr<FAddBlueprintInputActionNodeCommand> Command = MakeShared<FAddBlueprintInputActionNodeCommand>(FBlueprintNodeService::Get());
 //     RegisterAndTrackCommand(Command);
 // }
+
+void FBlueprintNodeCommandRegistration::RegisterGetBlueprintGraphsCommand()
+{
+    // Use service layer pattern with singleton service
+    TSharedPtr<FGetBlueprintGraphsCommand> Command = MakeShared<FGetBlueprintGraphsCommand>(FBlueprintNodeService::Get());
+    RegisterAndTrackCommand(Command);
+}
 
 void FBlueprintNodeCommandRegistration::RegisterFindBlueprintNodesCommand()
 {

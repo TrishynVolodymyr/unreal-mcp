@@ -10,6 +10,13 @@ alwaysApply: true
 
 The Unreal MCP project enables **natural language control of Unreal Engine 5.6** through a synchronized dual-component architecture:
 
+### Unreal Engine Source Code Reference (`ues/UnrealEngine-5.6/`)
+- **Complete UE 5.6 Source**: Available as documentation and reference for plugin development
+- **Engine API Reference**: Use for understanding internal systems, subsystems, and implementation patterns
+- **Class Hierarchies**: Reference for proper inheritance and interface implementation
+- **Best Practices**: Study engine code for C++ conventions, memory management, and performance patterns
+- **Debugging Aid**: Helpful for understanding engine behavior and troubleshooting integration issues
+
 ### Python MCP Server Component (`Python/`)
 - **FastMCP-based servers**: Individual MCP servers per domain (blueprint_mcp_server.py, datatable_mcp_server.py, etc.)
 - **TCP Communication**: Uses TCP sockets (127.0.0.1:55557) via `send_tcp_command()` for Unreal Engine communication

@@ -12,6 +12,7 @@ from utils.nodes.node_operations import (
     # add_input_action_node as add_input_action_node_impl,  # REMOVED: Use create_node_by_action_name instead
     # add_function_node as add_function_node_impl,  # REMOVED: Use create_node_by_action_name instead
     connect_nodes_impl,
+    get_blueprint_graphs_impl,
     find_nodes as find_nodes_impl,
     get_variable_info_impl
 )
@@ -84,6 +85,29 @@ def register_blueprint_node_tools(mcp: FastMCP):
             return {
                 "success": False,
                 "message": f"Failed to connect nodes: {str(e)}"
+            }
+
+    @mcp.tool()
+    def get_blueprint_graphs(
+        ctx: Context,
+        blueprint_name: str
+    ) -> Dict[str, Any]:
+        """
+        Get list of all available graphs in a Blueprint.
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            
+        Returns:
+            Response containing array of graph names and success status
+        """
+        try:
+            return get_blueprint_graphs_impl(ctx, blueprint_name)
+        except Exception as e:
+            logger.error(f"Error getting Blueprint graphs: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to get Blueprint graphs: {str(e)}"
             }
 
     @mcp.tool()

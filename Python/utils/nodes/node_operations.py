@@ -97,6 +97,17 @@ def add_function_node(
         
     return send_unreal_command("add_blueprint_function_node", command_params)
 
+def get_blueprint_graphs_impl(
+    ctx: Context,
+    blueprint_name: str
+) -> Dict[str, Any]:
+    """Implementation for getting all graphs in a Blueprint."""
+    params = {
+        "blueprint_name": blueprint_name
+    }
+    
+    return send_unreal_command("get_blueprint_graphs", params)
+
 def find_nodes(
     ctx: Context,
     blueprint_name: str,

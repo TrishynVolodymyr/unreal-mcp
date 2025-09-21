@@ -5,7 +5,6 @@
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Dom/JsonObject.h"
-
 /**
  * Parameters for Blueprint node connection operations
  */
@@ -49,10 +48,7 @@ struct UNREALMCP_API FBlueprintNodeCreationParams
     TSharedPtr<FJsonObject> AdditionalParams;
     
     /** Default constructor */
-    FBlueprintNodeCreationParams()
-        : Position(FVector2D::ZeroVector)
-    {
-    }
+    FBlueprintNodeCreationParams() = default;
     
     /**
      * Validate the parameters
@@ -63,8 +59,8 @@ struct UNREALMCP_API FBlueprintNodeCreationParams
 };
 
 /**
- * Interface for Blueprint Node service operations
- * Provides abstraction for Blueprint node creation, connection, and management
+ * Abstract service interface for Blueprint node operations
+ * This interface provides all the functionality needed to manage Blueprint nodes
  */
 class UNREALMCP_API IBlueprintNodeService
 {
@@ -89,6 +85,14 @@ public:
      * @return true if node was created successfully
      */
     virtual bool AddInputActionNode(UBlueprint* Blueprint, const FString& ActionName, const FVector2D& Position, FString& OutNodeId) = 0;
+    
+    /**
+     * Get list of all available graphs in a Blueprint
+     * @param Blueprint - Target Blueprint
+     * @param OutGraphNames - Array of graph names
+     * @return true if operation was successful
+     */
+    virtual bool GetBlueprintGraphs(UBlueprint* Blueprint, TArray<FString>& OutGraphNames) = 0;
     
     /**
      * Find nodes in a Blueprint's event graph
