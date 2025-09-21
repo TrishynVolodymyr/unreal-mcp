@@ -13,6 +13,7 @@
 #include "BlueprintNodeSpawner.h"
 #include "K2Node_CallFunction.h"
 #include "BlueprintNodeBinder.h"
+#include "BlueprintTypePromotion.h"
 #include "K2Node_IfThenElse.h"
 #include "K2Node_ExecutionSequence.h"
 #include "K2Node_CustomEvent.h"
@@ -765,41 +766,6 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             }
         }
     }
-    // Special loop node types - these classes may not exist in all UE versions
-    // Commented out for UE 5.6 compatibility - the Blueprint Action Database will handle these
-    /*
-    else if (EffectiveFunctionName.Equals(TEXT("For Each Loop (Map)"), ESearchCase::IgnoreCase) ||
-             EffectiveFunctionName.Equals(TEXT("Map ForEach"), ESearchCase::IgnoreCase) ||
-             EffectiveFunctionName.Equals(TEXT("K2Node_MapForEach"), ESearchCase::IgnoreCase))
-    {
-        UK2Node_MapForEach* MapForEachNode = NewObject<UK2Node_MapForEach>(EventGraph);
-        MapForEachNode->NodePosX = PositionX;
-        MapForEachNode->NodePosY = PositionY;
-        MapForEachNode->CreateNewGuid();
-        EventGraph->AddNode(MapForEachNode, true, true);
-        MapForEachNode->PostPlacedNewNode();
-        MapForEachNode->AllocateDefaultPins();
-        NewNode = MapForEachNode;
-        NodeTitle = TEXT("For Each Loop (Map)");
-        NodeType = TEXT("UK2Node_MapForEach");
-    }
-    else if (EffectiveFunctionName.Equals(TEXT("For Each Loop (Set)"), ESearchCase::IgnoreCase) ||
-             EffectiveFunctionName.Equals(TEXT("Set ForEach"), ESearchCase::IgnoreCase) ||
-             EffectiveFunctionName.Equals(TEXT("K2Node_SetForEach"), ESearchCase::IgnoreCase))
-    {
-        UK2Node_SetForEach* SetForEachNode = NewObject<UK2Node_SetForEach>(EventGraph);
-        SetForEachNode->NodePosX = PositionX;
-        SetForEachNode->NodePosY = PositionY;
-        SetForEachNode->CreateNewGuid();
-        EventGraph->AddNode(SetForEachNode, true, true);
-        SetForEachNode->PostPlacedNewNode();
-        SetForEachNode->AllocateDefaultPins();
-        NewNode = SetForEachNode;
-        NodeTitle = TEXT("For Each Loop (Set)");
-        NodeType = TEXT("UK2Node_SetForEach");
-    }
-    */
-    // Handle struct break and make operations
     else if (EffectiveFunctionName.Equals(TEXT("BreakStruct"), ESearchCase::IgnoreCase) ||
              EffectiveFunctionName.Equals(TEXT("Break Struct"), ESearchCase::IgnoreCase) ||
              EffectiveFunctionName.Equals(TEXT("MakeStruct"), ESearchCase::IgnoreCase) ||
@@ -1315,80 +1281,113 @@ void FBlueprintNodeCreationService::LogNodeCreationAttempt(const FString& Functi
 // Helper function to create arithmetic and comparison operations directly
 static bool TryCreateArithmeticOrComparisonNode(const FString& OperationName, UEdGraph* EventGraph, int32 PositionX, int32 PositionY, UEdGraphNode*& OutNode, FString& OutTitle, FString& OutNodeType)
 {
-    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Attempting to create '%s'"), *OperationName);
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Attempting to create '%s' using TypePromotion system"), *OperationName);
     
-    // Map common operation names to their KismetMathLibrary function names
-    TMap<FString, TArray<FString>> OperationMappings;
+    // Map common operation names to TypePromotion operator names
+    TMap<FString, FName> OperationMappings;
     
-    // Arithmetic operations - try float first, then int, then double
-    OperationMappings.Add(TEXT("Add"), {TEXT("Add_FloatFloat"), TEXT("Add_IntInt"), TEXT("Add_DoubleDouble")});
-    OperationMappings.Add(TEXT("Subtract"), {TEXT("Subtract_FloatFloat"), TEXT("Subtract_IntInt"), TEXT("Subtract_DoubleDouble")});
-    OperationMappings.Add(TEXT("Multiply"), {TEXT("Multiply_FloatFloat"), TEXT("Multiply_IntInt"), TEXT("Multiply_DoubleDouble")});
-    OperationMappings.Add(TEXT("Divide"), {TEXT("Divide_FloatFloat"), TEXT("Divide_IntInt"), TEXT("Divide_DoubleDouble")});
-    OperationMappings.Add(TEXT("Modulo"), {TEXT("Percent_IntInt"), TEXT("FMod")});
-    OperationMappings.Add(TEXT("Power"), {TEXT("MultiplyMultiply_FloatFloat")});
+    // Arithmetic operations
+    OperationMappings.Add(TEXT("Add"), TEXT("Add"));
+    OperationMappings.Add(TEXT("Subtract"), TEXT("Subtract"));
+    OperationMappings.Add(TEXT("Multiply"), TEXT("Multiply"));
+    OperationMappings.Add(TEXT("Divide"), TEXT("Divide"));
+    OperationMappings.Add(TEXT("Modulo"), TEXT("Percent"));
+    OperationMappings.Add(TEXT("Power"), TEXT("MultiplyMultiply"));
     
     // Comparison operations
-    OperationMappings.Add(TEXT("Equal"), {TEXT("EqualEqual_FloatFloat"), TEXT("EqualEqual_IntInt"), TEXT("EqualEqual_BoolBool")});
-    OperationMappings.Add(TEXT("NotEqual"), {TEXT("NotEqual_FloatFloat"), TEXT("NotEqual_IntInt"), TEXT("NotEqual_BoolBool")});
-    OperationMappings.Add(TEXT("Greater"), {TEXT("Greater_FloatFloat"), TEXT("Greater_IntInt"), TEXT("Greater_DoubleDouble")});
-    OperationMappings.Add(TEXT("GreaterEqual"), {TEXT("GreaterEqual_FloatFloat"), TEXT("GreaterEqual_IntInt"), TEXT("GreaterEqual_DoubleDouble")});
-    OperationMappings.Add(TEXT("Less"), {TEXT("Less_FloatFloat"), TEXT("Less_IntInt"), TEXT("Less_DoubleDouble")});
-    OperationMappings.Add(TEXT("LessEqual"), {TEXT("LessEqual_FloatFloat"), TEXT("LessEqual_IntInt"), TEXT("LessEqual_DoubleDouble")});
+    OperationMappings.Add(TEXT("Equal"), TEXT("EqualEqual"));
+    OperationMappings.Add(TEXT("NotEqual"), TEXT("NotEqual"));
+    OperationMappings.Add(TEXT("Greater"), TEXT("Greater"));
+    OperationMappings.Add(TEXT("GreaterEqual"), TEXT("GreaterEqual"));
+    OperationMappings.Add(TEXT("Less"), TEXT("Less"));
+    OperationMappings.Add(TEXT("LessEqual"), TEXT("LessEqual"));
     
     // Logical operations
-    OperationMappings.Add(TEXT("And"), {TEXT("BooleanAND")});
-    OperationMappings.Add(TEXT("Or"), {TEXT("BooleanOR")});
-    OperationMappings.Add(TEXT("Not"), {TEXT("BooleanNOT")});
+    OperationMappings.Add(TEXT("And"), TEXT("BooleanAND"));
+    OperationMappings.Add(TEXT("Or"), TEXT("BooleanOR"));
+    OperationMappings.Add(TEXT("Not"), TEXT("BooleanNOT"));
     
-    // Also try some symbol-based operations
-    OperationMappings.Add(TEXT("+"), {TEXT("Add_FloatFloat"), TEXT("Add_IntInt")});
-    OperationMappings.Add(TEXT("-"), {TEXT("Subtract_FloatFloat"), TEXT("Subtract_IntInt")});
-    OperationMappings.Add(TEXT("*"), {TEXT("Multiply_FloatFloat"), TEXT("Multiply_IntInt")});
-    OperationMappings.Add(TEXT("/"), {TEXT("Divide_FloatFloat"), TEXT("Divide_IntInt")});
-    OperationMappings.Add(TEXT("=="), {TEXT("EqualEqual_FloatFloat"), TEXT("EqualEqual_IntInt")});
-    OperationMappings.Add(TEXT("!="), {TEXT("NotEqual_FloatFloat"), TEXT("NotEqual_IntInt")});
-    OperationMappings.Add(TEXT(">"), {TEXT("Greater_FloatFloat"), TEXT("Greater_IntInt")});
-    OperationMappings.Add(TEXT(">="), {TEXT("GreaterEqual_FloatFloat"), TEXT("GreaterEqual_IntInt")});
-    OperationMappings.Add(TEXT("<"), {TEXT("Less_FloatFloat"), TEXT("Less_IntInt")});
-    OperationMappings.Add(TEXT("<="), {TEXT("LessEqual_FloatFloat"), TEXT("LessEqual_IntInt")});
+    // Symbol-based operations
+    OperationMappings.Add(TEXT("+"), TEXT("Add"));
+    OperationMappings.Add(TEXT("-"), TEXT("Subtract"));
+    OperationMappings.Add(TEXT("*"), TEXT("Multiply"));
+    OperationMappings.Add(TEXT("/"), TEXT("Divide"));
+    OperationMappings.Add(TEXT("=="), TEXT("EqualEqual"));
+    OperationMappings.Add(TEXT("!="), TEXT("NotEqual"));
+    OperationMappings.Add(TEXT(">"), TEXT("Greater"));
+    OperationMappings.Add(TEXT(">="), TEXT("GreaterEqual"));
+    OperationMappings.Add(TEXT("<"), TEXT("Less"));
+    OperationMappings.Add(TEXT("<="), TEXT("LessEqual"));
     
     // Check if we have a mapping for this operation
-    const TArray<FString>* FunctionNames = OperationMappings.Find(OperationName);
-    if (!FunctionNames)
+    const FName* OpName = OperationMappings.Find(OperationName);
+    if (!OpName)
     {
-        UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No mapping found for '%s'"), *OperationName);
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No TypePromotion mapping found for '%s'"), *OperationName);
         return false;
     }
     
-    // Try each function name until we find one that works
-    for (const FString& FunctionName : *FunctionNames)
+    // Try to get the operator spawner from TypePromotion system
+    UBlueprintFunctionNodeSpawner* OperatorSpawner = FTypePromotion::GetOperatorSpawner(*OpName);
+    if (OperatorSpawner)
     {
-        UFunction* TargetFunction = UKismetMathLibrary::StaticClass()->FindFunctionByName(*FunctionName);
-        if (TargetFunction)
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Found TypePromotion spawner for operation '%s' -> '%s'"), *OperationName, *OpName->ToString());
+        
+        // Create the node using the TypePromotion spawner
+        OutNode = OperatorSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
+        if (OutNode)
         {
-            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Found function '%s' for operation '%s'"), *FunctionName, *OperationName);
+            FText UserFacingName = FTypePromotion::GetUserFacingOperatorName(*OpName);
+            OutTitle = UserFacingName.IsEmpty() ? OperationName : UserFacingName.ToString();
+            OutNodeType = OutNode->GetClass()->GetName();
             
-            // Create the function call node
-            UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
-            FunctionNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), UKismetMathLibrary::StaticClass());
-            FunctionNode->NodePosX = PositionX;
-            FunctionNode->NodePosY = PositionY;
-            FunctionNode->CreateNewGuid();
-            EventGraph->AddNode(FunctionNode, true, true);
-            FunctionNode->PostPlacedNewNode();
-            FunctionNode->AllocateDefaultPins();
-            
-            OutNode = FunctionNode;
-            OutTitle = OperationName;
-            OutNodeType = TEXT("UK2Node_CallFunction");
-            
-            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Successfully created '%s' node using function '%s'"), *OperationName, *FunctionName);
+            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Successfully created dynamic '%s' operator node using TypePromotion"), *OutTitle);
             return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("TryCreateArithmeticOrComparisonNode: TypePromotion spawner failed to create node for '%s'"), *OpName->ToString());
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No TypePromotion spawner found for operator '%s'"), *OpName->ToString());
+        
+        // Fallback to old system for non-promotable operations
+        TMap<FString, TArray<FString>> LegacyMappings;
+        LegacyMappings.Add(TEXT("And"), {TEXT("BooleanAND")});
+        LegacyMappings.Add(TEXT("Or"), {TEXT("BooleanOR")});
+        LegacyMappings.Add(TEXT("Not"), {TEXT("BooleanNOT")});
+        
+        const TArray<FString>* FunctionNames = LegacyMappings.Find(OperationName);
+        if (FunctionNames)
+        {
+            for (const FString& FunctionName : *FunctionNames)
+            {
+                UFunction* TargetFunction = UKismetMathLibrary::StaticClass()->FindFunctionByName(*FunctionName);
+                if (TargetFunction)
+                {
+                    UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
+                    FunctionNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), UKismetMathLibrary::StaticClass());
+                    FunctionNode->NodePosX = PositionX;
+                    FunctionNode->NodePosY = PositionY;
+                    FunctionNode->CreateNewGuid();
+                    EventGraph->AddNode(FunctionNode, true, true);
+                    FunctionNode->PostPlacedNewNode();
+                    FunctionNode->AllocateDefaultPins();
+                    
+                    OutNode = FunctionNode;
+                    OutTitle = OperationName;
+                    OutNodeType = TEXT("UK2Node_CallFunction");
+                    
+                    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Created legacy function node '%s'"), *FunctionName);
+                    return true;
+                }
+            }
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No suitable function found for operation '%s'"), *OperationName);
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Failed to create node for operation '%s'"), *OperationName);
     return false;
 }
 
