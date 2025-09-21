@@ -660,12 +660,35 @@ bool FProjectService::UpdateStruct(const FString& StructName, const FString& Pat
 
         if (ExistingVarsByName.Contains(PropertyName))
         {
-            // Update tooltip if needed
             const FStructVariableDescription& ExistingDesc = ExistingVarsByName[PropertyName];
-            if (!PropertyTooltip.IsEmpty() && PropertyTooltip != ExistingDesc.ToolTip)
+            
+            // Check if type needs to be updated using proper Unreal Engine approach
+            FString NewPropertyType;
+            PropertyObj->TryGetStringField(TEXT("type"), NewPropertyType);
+            
+            FEdGraphPinType NewPinType;
+            bool bNewTypeValid = ResolvePropertyType(NewPropertyType, NewPinType);
+            
+            if (bNewTypeValid)
+            {
+                // Use FStructureEditorUtils::ChangeVariableType for proper type updates
+                // This is the official Unreal Engine way to change variable types
+                if (FStructureEditorUtils::ChangeVariableType(ExistingStruct, ExistingDesc.VarGuid, NewPinType))
+                {
+                    UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully changed type for property '%s' in struct '%s'"), *PropertyName, *StructName);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("MCP Project: Failed to change type for property '%s' in struct '%s' - type may be the same"), *PropertyName, *StructName);
+                }
+            }
+            
+            // Update tooltip if needed
+            if (!PropertyTooltip.IsEmpty())
             {
                 FStructureEditorUtils::ChangeVariableTooltip(ExistingStruct, ExistingDesc.VarGuid, PropertyTooltip);
             }
+            
             UpdatedOrAddedNames.Add(PropertyName);
         }
         else
