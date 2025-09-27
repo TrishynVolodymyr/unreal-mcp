@@ -211,9 +211,39 @@ bool FDataTableService::AddRowsToDataTable(UDataTable* DataTable, const TArray<F
         FTableRowBase* NewRow = reinterpret_cast<FTableRowBase*>(RowMemory);
         
         TSharedRef<FJsonObject> JsonRef = StructJson.ToSharedRef();
-        bool bJsonConverted = FJsonObjectConverter::JsonObjectToUStruct(JsonRef, RowStruct, RowMemory);
         
-
+        // DEBUG: Log the JSON structure before conversion
+        FString JsonString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+        FJsonSerializer::Serialize(JsonRef, Writer);
+        UE_LOG(LogTemp, Warning, TEXT("MCP DEBUG: JSON before conversion: %s"), *JsonString);
+        
+        // Log each field in JsonRef->Values
+        for (const auto& Pair : JsonRef->Values)
+        {
+            FString ValueType = TEXT("Unknown");
+            if (Pair.Value->Type == EJson::String) ValueType = TEXT("String");
+            else if (Pair.Value->Type == EJson::Number) ValueType = TEXT("Number");
+            else if (Pair.Value->Type == EJson::Boolean) ValueType = TEXT("Boolean");
+            else if (Pair.Value->Type == EJson::Array) ValueType = TEXT("Array");
+            else if (Pair.Value->Type == EJson::Object) ValueType = TEXT("Object");
+            
+            UE_LOG(LogTemp, Warning, TEXT("MCP DEBUG: JSON field '%s' = Type: %s"), *Pair.Key, *ValueType);
+            
+            if (Pair.Value->Type == EJson::Array)
+            {
+                const TArray<TSharedPtr<FJsonValue>>* ArrayPtr = nullptr;
+                if (Pair.Value->TryGetArray(ArrayPtr) && ArrayPtr)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("MCP DEBUG: Array field '%s' has %d elements"), *Pair.Key, ArrayPtr->Num());
+                }
+            }
+        }
+        
+        // UE 5.6 proper fix: Use JsonAttributesToUStruct for struct array support
+        bool bJsonConverted = FJsonObjectConverter::JsonAttributesToUStruct(JsonRef->Values, RowStruct, RowMemory);
+        
+        UE_LOG(LogTemp, Warning, TEXT("MCP DEBUG: JsonAttributesToUStruct result: %s"), bJsonConverted ? TEXT("SUCCESS") : TEXT("FAILED"));
         
         if (!bJsonConverted)
         {
@@ -318,7 +348,9 @@ bool FDataTableService::UpdateRowsInDataTable(UDataTable* DataTable, const TArra
         FTableRowBase* NewRow = reinterpret_cast<FTableRowBase*>(RowMemory);
         
         TSharedRef<FJsonObject> JsonRef = StructJson.ToSharedRef();
-        bool bJsonConverted = FJsonObjectConverter::JsonObjectToUStruct(JsonRef, RowStruct, RowMemory);
+        
+        // UE 5.6 proper fix: Use JsonAttributesToUStruct for struct array support
+        bool bJsonConverted = FJsonObjectConverter::JsonAttributesToUStruct(JsonRef->Values, RowStruct, RowMemory);
         
         if (!bJsonConverted)
         {
