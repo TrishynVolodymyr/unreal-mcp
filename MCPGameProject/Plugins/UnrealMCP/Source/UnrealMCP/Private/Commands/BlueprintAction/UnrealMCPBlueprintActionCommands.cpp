@@ -49,6 +49,37 @@
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
 
+// Utility to convert CamelCase function names to Title Case (e.g., "GetActorLocation" -> "Get Actor Location")
+static FString ConvertCamelCaseToTitleCase(const FString& InFunctionName)
+{
+    if (InFunctionName.IsEmpty())
+    {
+        return InFunctionName;
+    }
+
+    FString Out;
+    Out.Reserve(InFunctionName.Len() * 2);
+    
+    for (int32 Index = 0; Index < InFunctionName.Len(); ++Index)
+    {
+        const TCHAR Ch = InFunctionName[Index];
+        
+        // Add space before uppercase letters (except the first character)
+        if (Index > 0 && FChar::IsUpper(Ch) && !FChar::IsUpper(InFunctionName[Index-1]))
+        {
+            // Don't add space if the previous character was already a space
+            if (Out.Len() > 0 && Out[Out.Len()-1] != TEXT(' '))
+            {
+                Out += TEXT(" ");
+            }
+        }
+        
+        Out.AppendChar(Ch);
+    }
+    
+    return Out;
+}
+
 // Phase 2 includes removed - using universal dynamic creation via Blueprint Action Database
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
@@ -1206,8 +1237,15 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> ActionsArray;
     
+    // Convert CamelCase to Title Case for better search results (e.g., "GetActorLocation" -> "Get Actor Location")
+    FString TitleCaseQuery = ConvertCamelCaseToTitleCase(SearchQuery);
+    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: CamelCase conversion: '%s' -> '%s'"), *SearchQuery, *TitleCaseQuery);
+    
+    // Use title case version for searching if it's different from original
+    FString EffectiveSearchQuery = TitleCaseQuery.Equals(SearchQuery, ESearchCase::IgnoreCase) ? SearchQuery : TitleCaseQuery;
+    
     // Declare variables that might be used across different sections (to avoid goto issues)
-    FString SearchLower = SearchQuery.ToLower();
+    FString SearchLower = EffectiveSearchQuery.ToLower();
     const TSet<FName>& OperatorNames = FTypePromotion::GetAllOpNames();
     
     // Initialize variables that will be used after potential goto
@@ -1241,7 +1279,10 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                              SearchLower == TEXT("comparison") || SearchLower.Contains(TEXT(">")) ||
                              SearchLower.Contains(TEXT("<")) || SearchLower.Contains(TEXT("=")) ||
                              SearchLower.Contains(TEXT("<=")) || SearchLower.Contains(TEXT(">=")) ||
-                             SearchLower.Contains(TEXT("==")) || SearchLower.Contains(TEXT("!="));
+                             SearchLower.Contains(TEXT("==")) || SearchLower.Contains(TEXT("!=")) ||
+                             // Additional wildcard operator patterns
+                             SearchLower == TEXT("operator") || SearchLower == TEXT("wildcard") ||
+                             SearchLower == TEXT("promotable");
     
     // Combined check for any type promotion operator
     bool bIsTypePromotionQuery = bIsMathQuery || bIsComparisonQuery;
@@ -1292,20 +1333,32 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Testing operator '%s' against search '%s'"), *OpNameString, *SearchLower);
             bool bMatchesSearch = OpNameLower.Contains(SearchLower) ||
                                  // Math operators
-                                 (SearchLower == TEXT("add") && OpNameString.Contains(TEXT("+"))) ||
-                                 (SearchLower == TEXT("subtract") && OpNameString.Contains(TEXT("-"))) ||
-                                 (SearchLower == TEXT("multiply") && OpNameString.Contains(TEXT("*"))) ||
-                                 (SearchLower == TEXT("divide") && OpNameString.Contains(TEXT("/"))) ||
-                                 // Comparison operators
-                                 (SearchLower.Contains(TEXT("<=")) && (OpNameString == TEXT("LessEqual") || OpNameString.Contains(TEXT("<=")))) ||
-                                 (SearchLower.Contains(TEXT(">=")) && (OpNameString == TEXT("GreaterEqual") || OpNameString.Contains(TEXT(">=")))) ||
-                                 (SearchLower.Contains(TEXT("==")) && (OpNameString == TEXT("EqualEqual") || OpNameString.Contains(TEXT("==")))) ||
-                                 (SearchLower.Contains(TEXT("!=")) && (OpNameString == TEXT("NotEqual") || OpNameString.Contains(TEXT("!=")))) ||
-                                 (SearchLower.Contains(TEXT("<")) && !SearchLower.Contains(TEXT("<=")) && (OpNameString == TEXT("Less") || OpNameString.Contains(TEXT("<")))) ||
-                                 (SearchLower.Contains(TEXT(">")) && !SearchLower.Contains(TEXT(">=")) && (OpNameString == TEXT("Greater") || OpNameString.Contains(TEXT(">")))) ||
-                                 (SearchLower == TEXT("greater") && OpNameString.Contains(TEXT("Greater"))) ||
-                                 (SearchLower == TEXT("less") && OpNameString.Contains(TEXT("Less"))) ||
-                                 (SearchLower == TEXT("equal") && OpNameString.Contains(TEXT("Equal"))) ||
+                                 (SearchLower == TEXT("add") && (OpNameString == TEXT("Add") || OpNameString.Contains(TEXT("+")))) ||
+                                 (SearchLower == TEXT("subtract") && (OpNameString == TEXT("Subtract") || OpNameString.Contains(TEXT("-")))) ||
+                                 (SearchLower == TEXT("multiply") && (OpNameString == TEXT("Multiply") || OpNameString.Contains(TEXT("*")))) ||
+                                 (SearchLower == TEXT("divide") && (OpNameString == TEXT("Divide") || OpNameString.Contains(TEXT("/")))) ||
+                                 // Comparison operators - FIXED LOGIC
+                                 (SearchLower.Contains(TEXT("<=")) && OpNameString == TEXT("LessEqual")) ||
+                                 (SearchLower.Contains(TEXT(">=")) && OpNameString == TEXT("GreaterEqual")) ||
+                                 (SearchLower.Contains(TEXT("==")) && OpNameString == TEXT("EqualEqual")) ||
+                                 (SearchLower.Contains(TEXT("!=")) && OpNameString == TEXT("NotEqual")) ||
+                                 (SearchLower.Contains(TEXT("<")) && !SearchLower.Contains(TEXT("<=")) && OpNameString == TEXT("Less")) ||
+                                 (SearchLower.Contains(TEXT(">")) && !SearchLower.Contains(TEXT(">=")) && OpNameString == TEXT("Greater")) ||
+                                 // Text-based matches - IMPROVED
+                                 (SearchLower == TEXT("greater") && OpNameString == TEXT("Greater")) ||
+                                 (SearchLower == TEXT("less") && OpNameString == TEXT("Less")) ||
+                                 (SearchLower == TEXT("equal") && OpNameString == TEXT("EqualEqual")) ||
+                                 // Symbol-to-operator mapping for wildcards
+                                 (SearchLower == TEXT("+") && OpNameString == TEXT("Add")) ||
+                                 (SearchLower == TEXT("-") && OpNameString == TEXT("Subtract")) ||
+                                 (SearchLower == TEXT("*") && OpNameString == TEXT("Multiply")) ||
+                                 (SearchLower == TEXT("/") && OpNameString == TEXT("Divide")) ||
+                                 (SearchLower == TEXT("<") && OpNameString == TEXT("Less")) ||
+                                 (SearchLower == TEXT(">") && OpNameString == TEXT("Greater")) ||
+                                 (SearchLower == TEXT("<=") && OpNameString == TEXT("LessEqual")) ||
+                                 (SearchLower == TEXT(">=") && OpNameString == TEXT("GreaterEqual")) ||
+                                 (SearchLower == TEXT("==") && OpNameString == TEXT("EqualEqual")) ||
+                                 (SearchLower == TEXT("!=") && OpNameString == TEXT("NotEqual")) ||
                                  // General terms
                                  (SearchLower == TEXT("math") || SearchLower == TEXT("operator") || SearchLower == TEXT("compare") || SearchLower == TEXT("comparison"));
             

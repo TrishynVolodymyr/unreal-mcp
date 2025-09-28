@@ -126,35 +126,46 @@ bool FBlueprintNodeService::ConnectBlueprintNodes(UBlueprint* Blueprint, const T
             continue;
         }
         
-        // Find the nodes by GUID
-        UEdGraphNode* SourceNode = nullptr;
-        UEdGraphNode* TargetNode = nullptr;
-        for (UEdGraphNode* Node : SearchGraph->Nodes)
-        {
-            if (Node->NodeGuid.ToString() == Connection.SourceNodeId)
-            {
-                SourceNode = Node;
-            }
-            else if (Node->NodeGuid.ToString() == Connection.TargetNodeId)
-            {
-                TargetNode = Node;
-            }
-        }
+        // Find the nodes by GUID or special identifiers for Entry/Exit nodes
+        UEdGraphNode* SourceNode = FindNodeByIdOrType(SearchGraph, Connection.SourceNodeId);
+        UEdGraphNode* TargetNode = FindNodeByIdOrType(SearchGraph, Connection.TargetNodeId);
+        
+        UE_LOG(LogTemp, Warning, TEXT("Connecting nodes: SourceID='%s' -> SourceNode=%s, TargetID='%s' -> TargetNode=%s"), 
+            *Connection.SourceNodeId, 
+            SourceNode ? *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString() : TEXT("NULL"),
+            *Connection.TargetNodeId,
+            TargetNode ? *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString() : TEXT("NULL"));
         
         if (!SourceNode || !TargetNode)
         {
+            UE_LOG(LogTemp, Error, TEXT("Failed to find nodes for connection: Source=%s, Target=%s"), 
+                SourceNode ? TEXT("Found") : TEXT("NOT FOUND"),
+                TargetNode ? TEXT("Found") : TEXT("NOT FOUND"));
             OutResults.Add(false);
             bAllSucceeded = false;
             continue;
         }
         
         // Try to connect the nodes with automatic cast node creation if needed
+        UE_LOG(LogTemp, Warning, TEXT("Attempting connection: '%s'.'%s' -> '%s'.'%s'"), 
+            *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.SourcePin,
+            *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.TargetPin);
+            
         bool bConnectionSucceeded = ConnectNodesWithAutoCast(SearchGraph, SourceNode, Connection.SourcePin, TargetNode, Connection.TargetPin);
         OutResults.Add(bConnectionSucceeded);
         
         if (!bConnectionSucceeded)
         {
+            UE_LOG(LogTemp, Error, TEXT("FINAL RESULT: Connection failed for '%s'.'%s' -> '%s'.'%s'"), 
+                *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.SourcePin,
+                *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.TargetPin);
             bAllSucceeded = false;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FINAL RESULT: Connection succeeded for '%s'.'%s' -> '%s'.'%s'"), 
+                *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.SourcePin,
+                *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.TargetPin);
         }
     }
     
@@ -200,14 +211,14 @@ bool FBlueprintNodeService::AddInputActionNode(UBlueprint* Blueprint, const FStr
     return false;
 }
 
-bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FString& NodeType, const FString& EventType, const FString& TargetGraph, TArray<FString>& OutNodeIds)
+bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FString& NodeType, const FString& EventType, const FString& TargetGraph, TArray<FBlueprintNodeInfo>& OutNodeInfos)
 {
     if (!Blueprint)
     {
         return false;
     }
     
-    OutNodeIds.Empty();
+    OutNodeInfos.Empty();
     
     // If no specific filters, return all nodes from appropriate graphs
     if (NodeType.IsEmpty() && EventType.IsEmpty())
@@ -247,7 +258,12 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
             {
                 if (Node)
                 {
-                    OutNodeIds.Add(Node->NodeGuid.ToString());
+                    FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                    
+                    // Special handling for TypePromotion nodes to show correct titles
+                    NodeTitle = GetCleanTypePromotionTitle(Node, NodeTitle);
+                    
+                    OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
                 }
             }
         }
@@ -264,7 +280,12 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                     {
                         if (Node)
                         {
-                            OutNodeIds.Add(Node->NodeGuid.ToString());
+                            FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                            
+                            // Special handling for TypePromotion nodes to show correct titles
+                            NodeTitle = GetCleanTypePromotionTitle(Node, NodeTitle);
+                            
+                            OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
                         }
                     }
                 }
@@ -329,13 +350,15 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                 {
                     if (EventNode->EventReference.GetMemberName() == FName(*EventType))
                     {
-                        OutNodeIds.Add(EventNode->NodeGuid.ToString());
+                        FString NodeTitle = EventNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                        OutNodeInfos.Add(FBlueprintNodeInfo(EventNode->NodeGuid.ToString(), NodeTitle));
                     }
                 }
                 else
                 {
                     // Add all event nodes
-                    OutNodeIds.Add(EventNode->NodeGuid.ToString());
+                    FString NodeTitle = EventNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                    OutNodeInfos.Add(FBlueprintNodeInfo(EventNode->NodeGuid.ToString(), NodeTitle));
                 }
             }
         }
@@ -348,7 +371,8 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
             UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(Node);
             if (FunctionNode)
             {
-                OutNodeIds.Add(FunctionNode->NodeGuid.ToString());
+                FString NodeTitle = FunctionNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                OutNodeInfos.Add(FBlueprintNodeInfo(FunctionNode->NodeGuid.ToString(), NodeTitle));
             }
         }
     }
@@ -361,7 +385,8 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
             UK2Node_VariableSet* VarSetNode = Cast<UK2Node_VariableSet>(Node);
             if (VarGetNode || VarSetNode)
             {
-                OutNodeIds.Add(Node->NodeGuid.ToString());
+                FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
             }
         }
     }
@@ -375,7 +400,8 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                 FString NodeClassName = Node->GetClass()->GetName();
                 if (NodeClassName.Contains(NodeType))
                 {
-                    OutNodeIds.Add(Node->NodeGuid.ToString());
+                    FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+                    OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
                 }
             }
         }
@@ -711,8 +737,16 @@ bool FBlueprintNodeService::ConnectPins(UEdGraphNode* SourceNode, const FString&
 
 bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName)
 {
+    UE_LOG(LogTemp, Warning, TEXT("=== ConnectNodesWithAutoCast START ==="));
+    UE_LOG(LogTemp, Warning, TEXT("Connecting: '%s'.%s -> '%s'.%s"), 
+        SourceNode ? *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString() : TEXT("NULL"), 
+        *SourcePinName,
+        TargetNode ? *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString() : TEXT("NULL"), 
+        *TargetPinName);
+    
     if (!Graph || !SourceNode || !TargetNode)
     {
+        UE_LOG(LogTemp, Error, TEXT("NULL parameters"));
         return false;
     }
     
@@ -722,37 +756,54 @@ bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNo
     
     if (!SourcePin || !TargetPin)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ConnectNodesWithAutoCast: Could not find pins - Source: %s, Target: %s"), 
-               SourcePin ? TEXT("Found") : TEXT("Not Found"), 
-               TargetPin ? TEXT("Found") : TEXT("Not Found"));
+        UE_LOG(LogTemp, Error, TEXT("Could not find pins - Source '%s': %s, Target '%s': %s"), 
+               *SourcePinName, SourcePin ? TEXT("FOUND") : TEXT("NOT FOUND"),
+               *TargetPinName, TargetPin ? TEXT("FOUND") : TEXT("NOT FOUND"));
         return false;
     }
     
-    // Check if this is an execution pin connection (no cast needed for exec pins)
-    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec || 
-        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
-    {
-        SourcePin->MakeLinkTo(TargetPin);
-        return true;
-    }
+    UE_LOG(LogTemp, Warning, TEXT("Pin types - Source: %s, Target: %s"),
+        *SourcePin->PinType.PinCategory.ToString(),
+        *TargetPin->PinType.PinCategory.ToString());
     
-    // Check if types are compatible
-    if (ArePinTypesCompatible(SourcePin->PinType, TargetPin->PinType))
+    // Just try to connect - let Unreal handle all the validation and type conversion
+    UE_LOG(LogTemp, Warning, TEXT("Attempting connection..."));
+    SourcePin->MakeLinkTo(TargetPin);
+    
+    // Check if connection was made
+    bool bConnectionExists = SourcePin->LinkedTo.Contains(TargetPin);
+    UE_LOG(LogTemp, Warning, TEXT("Connection result: %s"), bConnectionExists ? TEXT("SUCCESS") : TEXT("FAILED"));
+    
+    if (bConnectionExists)
     {
-        // Direct connection
-        SourcePin->MakeLinkTo(TargetPin);
-        UE_LOG(LogTemp, Display, TEXT("ConnectNodesWithAutoCast: Direct connection successful"));
-        return true;
+        // Force wildcard pin type resolution for mathematical operators
+        if (UK2Node_CallFunction* CallFuncNode = Cast<UK2Node_CallFunction>(SourceNode))
+        {
+            if (CallFuncNode->GetClass()->GetName().Contains(TEXT("PromotableOperator")))
+            {
+                // Reconstruct the node to lock in wildcard types
+                CallFuncNode->ReconstructNode();
+                UE_LOG(LogTemp, Log, TEXT("Reconstructed PromotableOperator node to lock wildcard types"));
+            }
+        }
+        
+        if (UK2Node_CallFunction* CallFuncNode = Cast<UK2Node_CallFunction>(TargetNode))
+        {
+            if (CallFuncNode->GetClass()->GetName().Contains(TEXT("PromotableOperator")))
+            {
+                // Reconstruct the node to lock in wildcard types
+                CallFuncNode->ReconstructNode();
+                UE_LOG(LogTemp, Log, TEXT("Reconstructed PromotableOperator target node to lock wildcard types"));
+            }
+        }
     }
     else
     {
-        // Types are incompatible, try to create a cast node
-        UE_LOG(LogTemp, Display, TEXT("ConnectNodesWithAutoCast: Types incompatible, attempting to create cast node"));
-        UE_LOG(LogTemp, Display, TEXT("  Source type: %s"), *SourcePin->PinType.PinCategory.ToString());
-        UE_LOG(LogTemp, Display, TEXT("  Target type: %s"), *TargetPin->PinType.PinCategory.ToString());
-        
-        return CreateCastNode(Graph, SourcePin, TargetPin);
+        UE_LOG(LogTemp, Error, TEXT("Connection rejected by Unreal Engine - incompatible pin types or other validation failed"));
     }
+    
+    UE_LOG(LogTemp, Warning, TEXT("=== ConnectNodesWithAutoCast END ==="));
+    return bConnectionExists;
 }
 
 bool FBlueprintNodeService::ArePinTypesCompatible(const FEdGraphPinType& SourcePinType, const FEdGraphPinType& TargetPinType) const
@@ -1070,4 +1121,116 @@ bool FBlueprintNodeService::CreateStringToFloatCast(UEdGraph* Graph, UEdGraphPin
     
     UE_LOG(LogTemp, Display, TEXT("CreateStringToFloatCast: Successfully created String to Float cast node"));
     return true;
+}
+
+UEdGraphNode* FBlueprintNodeService::FindNodeByIdOrType(UEdGraph* Graph, const FString& NodeIdOrType) const
+{
+    if (!Graph)
+    {
+        return nullptr;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("FindNodeByIdOrType: Looking for '%s' in graph '%s' with %d nodes"), 
+        *NodeIdOrType, *Graph->GetFName().ToString(), Graph->Nodes.Num());
+    
+    // First try to find by exact GUID
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (Node && Node->NodeGuid.ToString() == NodeIdOrType)
+        {
+            return Node;
+        }
+    }
+    
+    // If not found by GUID, try to find by node title (for Entry/Exit nodes)
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        if (Node)
+        {
+            FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+            
+            // Handle special cases for Entry/Exit nodes
+            if (NodeIdOrType == TEXT("FunctionEntry") || NodeIdOrType == TEXT("CanInteract"))
+            {
+                // Look for function entry nodes
+                if (NodeTitle.Contains(TEXT("CanInteract")) && !NodeTitle.Contains(TEXT("Return")))
+                {
+                    return Node;
+                }
+            }
+            else if (NodeIdOrType == TEXT("FunctionResult") || NodeIdOrType == TEXT("Return Node"))
+            {
+                // Look for function result nodes
+                if (NodeTitle.Contains(TEXT("Return")) && NodeTitle.Contains(TEXT("Node")))
+                {
+                    return Node;
+                }
+            }
+            else if (NodeTitle == NodeIdOrType)
+            {
+                // Direct title match
+                return Node;
+            }
+        }
+    }
+    
+    return nullptr;
+}
+
+FString FBlueprintNodeService::GetCleanTypePromotionTitle(UEdGraphNode* Node, const FString& OriginalTitle) const
+{
+    if (!Node || Node->GetClass()->GetName() != TEXT("K2Node_PromotableOperator"))
+    {
+        return OriginalTitle;
+    }
+    
+    FString CleanTitle = OriginalTitle;
+    
+    // Check if this is a Timespan operation that should be displayed as a generic operation
+    if (OriginalTitle.Contains(TEXT("Timespan")))
+    {
+        // Map specific operations to user-friendly names
+        if (OriginalTitle.Contains(TEXT("<=")))
+        {
+            CleanTitle = TEXT("Less Equal ( <= )");
+        }
+        else if (OriginalTitle.Contains(TEXT("<")))
+        {
+            CleanTitle = TEXT("Less ( < )");
+        }
+        else if (OriginalTitle.Contains(TEXT(">=")))
+        {
+            CleanTitle = TEXT("Greater Equal ( >= )");
+        }
+        else if (OriginalTitle.Contains(TEXT(">")))
+        {
+            CleanTitle = TEXT("Greater ( > )");
+        }
+        else if (OriginalTitle.Contains(TEXT("==")))
+        {
+            CleanTitle = TEXT("Equal ( == )");
+        }
+        else if (OriginalTitle.Contains(TEXT("!=")))
+        {
+            CleanTitle = TEXT("Not Equal ( != )");
+        }
+        else if (OriginalTitle.Contains(TEXT("+")))
+        {
+            CleanTitle = TEXT("Add ( + )");
+        }
+        else if (OriginalTitle.Contains(TEXT("-")))
+        {
+            CleanTitle = TEXT("Subtract ( - )");
+        }
+        else if (OriginalTitle.Contains(TEXT("*")))
+        {
+            CleanTitle = TEXT("Multiply ( * )");
+        }
+        else if (OriginalTitle.Contains(TEXT("/")))
+        {
+            CleanTitle = TEXT("Divide ( / )");
+        }
+    }
+    
+    return CleanTitle;
 }

@@ -38,12 +38,7 @@ private:
     bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, 
                         FComponentCreationParams& OutParams, FString& OutError) const;
     
-    /**
-     * Validate component type is supported
-     * @param ComponentType - Type of component to validate
-     * @return true if component type is supported
-     */
-    bool IsValidComponentType(const FString& ComponentType) const;
+
     
     /**
      * Create success response JSON

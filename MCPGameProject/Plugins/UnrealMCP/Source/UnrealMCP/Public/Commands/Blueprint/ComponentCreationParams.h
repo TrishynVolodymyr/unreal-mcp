@@ -26,11 +26,15 @@ struct UNREALMCP_API FComponentCreationParams
     /** Additional properties for the component */
     TSharedPtr<FJsonObject> ComponentProperties;
     
+    /** Name of the parent component to attach to (optional, defaults to RootComponent) */
+    FString ParentComponentName;
+    
     /** Default constructor */
     FComponentCreationParams()
         : Location({0.0f, 0.0f, 0.0f})
         , Rotation({0.0f, 0.0f, 0.0f})
         , Scale({1.0f, 1.0f, 1.0f})
+        , ParentComponentName(TEXT(""))
     {
     }
     

@@ -1,6 +1,7 @@
 #include "Services/ComponentService.h"
 #include "Services/IPropertyService.h"
 #include "Services/PropertyService.h"
+#include "Services/AssetDiscoveryService.h"
 #include "Engine/Blueprint.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
@@ -313,7 +314,42 @@ UClass* FComponentTypeCache::ResolveComponentClassInternal(const FString& Compon
         ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
     }
     
-    // Verify that the class is a valid component type
+        // If not found in Engine, try loading as a Blueprint class
+        if (!ComponentClass)
+        {
+            // Try direct Blueprint path (e.g., "/Game/DialogueSystem/DialogueComponent")
+            if (ActualComponentType.StartsWith(TEXT("/")))
+            {
+                // Try both the Blueprint asset path and the generated class path
+                ComponentClass = LoadObject<UClass>(nullptr, *ActualComponentType);
+                if (!ComponentClass)
+                {
+                    FString GeneratedClassPath = ActualComponentType + TEXT("_C");
+                    ComponentClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
+                }
+            }
+	else
+	{
+		// Use AssetDiscoveryService to find Blueprint components
+		TArray<FString> BlueprintPaths = FAssetDiscoveryService::Get().FindBlueprints(ActualComponentType);
+		TArray<FString> BlueprintSearchPaths;
+		
+		// Convert Blueprint paths to generated class paths
+		for (const FString& BPPath : BlueprintPaths)
+		{
+			FString GeneratedClassPath = BPPath + TEXT("_C");
+			BlueprintSearchPaths.Add(GeneratedClassPath);
+		}                for (const FString& SearchPath : BlueprintSearchPaths)
+                {
+                    ComponentClass = LoadObject<UClass>(nullptr, *SearchPath);
+                    if (ComponentClass)
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Found Blueprint component at '%s'"), *SearchPath);
+                        break;
+                    }
+                }
+            }
+        }    // Verify that the class is a valid component type
     if (ComponentClass && !ComponentClass->IsChildOf(UActorComponent::StaticClass()))
     {
         UE_LOG(LogTemp, Warning, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Class '%s' is not a component type"), *ActualComponentType);
@@ -394,11 +430,71 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
         }
     }
     
-    // Add to construction script
-    Blueprint->SimpleConstructionScript->AddNode(NewNode);
+    // Find parent component and establish hierarchy
+    USCS_Node* ParentNode = nullptr;
     
-    // Mark blueprint as modified
+    if (!Params.ParentComponentName.IsEmpty())
+    {
+        // Find specific parent component by name
+        ParentNode = Blueprint->SimpleConstructionScript->FindSCSNode(*Params.ParentComponentName);
+        if (!ParentNode)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FComponentService::AddComponentToBlueprint: Parent component '%s' not found, using default scene root"), 
+                *Params.ParentComponentName);
+        }
+    }
+    
+    // If no specific parent or parent not found, use default scene root or first root node
+    if (!ParentNode)
+    {
+        // Try to get the default scene root (for scene components)
+        if (USceneComponent* SceneComponent = Cast<USceneComponent>(NewNode->ComponentTemplate))
+        {
+            ParentNode = Blueprint->SimpleConstructionScript->GetDefaultSceneRootNode();
+            
+            // If no default scene root, find the first scene component in root nodes
+            if (!ParentNode)
+            {
+                TArray<USCS_Node*> RootNodes = Blueprint->SimpleConstructionScript->GetRootNodes();
+                for (USCS_Node* RootNode : RootNodes)
+                {
+                    if (RootNode && RootNode->ComponentTemplate && 
+                        Cast<USceneComponent>(RootNode->ComponentTemplate))
+                    {
+                        ParentNode = RootNode;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Establish parent-child relationship
+    if (ParentNode && Cast<USceneComponent>(NewNode->ComponentTemplate))
+    {
+        // Set parent relationship
+        NewNode->SetParent(ParentNode);
+        
+        // Add as child to parent node
+        ParentNode->AddChildNode(NewNode);
+        
+        UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Attached component '%s' to parent '%s'"), 
+            *Params.ComponentName, *ParentNode->GetVariableName().ToString());
+    }
+    else
+    {
+        // Add as root node if no parent or not a scene component
+        Blueprint->SimpleConstructionScript->AddNode(NewNode);
+        
+        UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Added component '%s' as root node"), 
+            *Params.ComponentName);
+    }
+    
+    // Mark blueprint as modified and refresh UI
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    
+    // Force refresh of blueprint nodes and UI to ensure proper display and connectivity
+    FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
     
     UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Successfully added component '%s'"), *Params.ComponentName);
     return true;

@@ -63,6 +63,37 @@ static FString ConvertPropertyNameToDisplayLocal(const FString& InPropName)
     return Out;
 }
 
+// Utility to convert CamelCase function names to Title Case (e.g., "GetActorLocation" -> "Get Actor Location")
+static FString ConvertCamelCaseToTitleCase(const FString& InFunctionName)
+{
+    if (InFunctionName.IsEmpty())
+    {
+        return InFunctionName;
+    }
+
+    FString Out;
+    Out.Reserve(InFunctionName.Len() * 2);
+    
+    for (int32 Index = 0; Index < InFunctionName.Len(); ++Index)
+    {
+        const TCHAR Ch = InFunctionName[Index];
+        
+        // Add space before uppercase letters (except the first character)
+        if (Index > 0 && FChar::IsUpper(Ch) && !FChar::IsUpper(InFunctionName[Index-1]))
+        {
+            // Don't add space if the previous character was already a space
+            if (Out.Len() > 0 && Out[Out.Len()-1] != TEXT(' '))
+            {
+                Out += TEXT(" ");
+            }
+        }
+        
+        Out.AppendChar(Ch);
+    }
+    
+    return Out;
+}
+
 FBlueprintNodeCreationService::FBlueprintNodeCreationService()
 {
 }
@@ -1103,6 +1134,14 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
     // Build list of function names to search for
     TArray<FString> SearchNames;
     SearchNames.Add(FunctionName);
+    
+    // Add CamelCase to Title Case conversion (e.g., "GetActorLocation" -> "Get Actor Location")
+    FString TitleCaseVersion = ConvertCamelCaseToTitleCase(FunctionName);
+    if (!TitleCaseVersion.Equals(FunctionName, ESearchCase::IgnoreCase))
+    {
+        SearchNames.Add(TitleCaseVersion);
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Added Title Case variation: '%s' -> '%s'"), *FunctionName, *TitleCaseVersion);
+    }
     
     // Add aliases if this is a known operation
     if (OperationAliases.Contains(FunctionName))

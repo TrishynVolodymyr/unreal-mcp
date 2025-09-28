@@ -1306,6 +1306,9 @@ bool FBlueprintService::CreateCustomBlueprintFunction(UBlueprint* Blueprint, con
     // Mark blueprint as structurally modified
     FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
     
+    // Force refresh of blueprint nodes and UI to ensure proper pin connectivity
+    FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
+    
     // Invalidate cache since blueprint was modified
     BlueprintCache.InvalidateBlueprint(Blueprint->GetName());
     

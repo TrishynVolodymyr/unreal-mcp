@@ -5,6 +5,32 @@
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Dom/JsonObject.h"
+
+/**
+ * Information about a Blueprint node
+ */
+struct UNREALMCP_API FBlueprintNodeInfo
+{
+    /** Node ID (GUID) */
+    FString NodeId;
+    
+    /** Node title/name */
+    FString NodeTitle;
+    
+    /** Default constructor */
+    FBlueprintNodeInfo() = default;
+    
+    /**
+     * Constructor with parameters
+     * @param InNodeId - The node ID
+     * @param InNodeTitle - The node title
+     */
+    FBlueprintNodeInfo(const FString& InNodeId, const FString& InNodeTitle)
+        : NodeId(InNodeId), NodeTitle(InNodeTitle)
+    {
+    }
+};
+
 /**
  * Parameters for Blueprint node connection operations
  */
@@ -101,10 +127,10 @@ public:
      * @param NodeType - Optional type of node to find
      * @param EventType - Optional specific event type to find
      * @param TargetGraph - Optional specific graph to search in
-     * @param OutNodeIds - Array of found node IDs
+     * @param OutNodeInfos - Array of found node information (ID and title)
      * @return true if search completed successfully
      */
-    virtual bool FindBlueprintNodes(UBlueprint* Blueprint, const FString& NodeType, const FString& EventType, const FString& TargetGraph, TArray<FString>& OutNodeIds) = 0;
+    virtual bool FindBlueprintNodes(UBlueprint* Blueprint, const FString& NodeType, const FString& EventType, const FString& TargetGraph, TArray<FBlueprintNodeInfo>& OutNodeInfos) = 0;
     
     /**
      * Add a variable node to a Blueprint

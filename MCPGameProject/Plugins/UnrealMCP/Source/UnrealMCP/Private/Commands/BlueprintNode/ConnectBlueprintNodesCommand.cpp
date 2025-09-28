@@ -40,9 +40,31 @@ FString FConnectBlueprintNodesCommand::Execute(const FString& Parameters)
 
     // Delegate to service layer
     TArray<bool> Results;
-    if (!BlueprintNodeService->ConnectBlueprintNodes(Blueprint, Connections, TargetGraph, Results))
+    BlueprintNodeService->ConnectBlueprintNodes(Blueprint, Connections, TargetGraph, Results);
+    
+    // Count failures and create detailed response
+    int32 FailedConnections = 0;
+    TArray<FString> FailureDetails;
+    
+    for (int32 i = 0; i < Results.Num(); i++)
     {
-        return CreateErrorResponse(TEXT("Failed to connect Blueprint nodes"));
+        if (!Results[i])
+        {
+            FailedConnections++;
+            FString FailureDetail = FString::Printf(TEXT("Connection %d failed: '%s'.%s -> '%s'.%s"), 
+                i + 1,
+                *Connections[i].SourceNodeId, *Connections[i].SourcePin,
+                *Connections[i].TargetNodeId, *Connections[i].TargetPin);
+            FailureDetails.Add(FailureDetail);
+        }
+    }
+    
+    // If some connections failed, provide detailed error info
+    if (FailedConnections > 0)
+    {
+        FString DetailedError = FString::Printf(TEXT("Failed to connect %d of %d Blueprint nodes:\n%s"), 
+            FailedConnections, Connections.Num(), *FString::Join(FailureDetails, TEXT("\n")));
+        return CreateMixedResponse(Results, Connections, DetailedError);
     }
 
     // Create success response
@@ -187,6 +209,47 @@ FString FConnectBlueprintNodesCommand::CreateErrorResponse(const FString& ErrorM
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), false);
     ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
+    
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
+    
+    return OutputString;
+}
+
+FString FConnectBlueprintNodesCommand::CreateMixedResponse(const TArray<bool>& Results, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& ErrorMessage) const
+{
+    TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
+    ResponseObj->SetBoolField(TEXT("success"), false);
+    ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
+    
+    // Add detailed results array
+    TArray<TSharedPtr<FJsonValue>> ResultsArray;
+    for (int32 i = 0; i < Results.Num(); i++)
+    {
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetBoolField(TEXT("success"), Results[i]);
+        ResultObj->SetStringField(TEXT("source_node_id"), Connections[i].SourceNodeId);
+        ResultObj->SetStringField(TEXT("source_pin"), Connections[i].SourcePin);
+        ResultObj->SetStringField(TEXT("target_node_id"), Connections[i].TargetNodeId);
+        ResultObj->SetStringField(TEXT("target_pin"), Connections[i].TargetPin);
+        
+        ResultsArray.Add(MakeShared<FJsonValueObject>(ResultObj));
+    }
+    ResponseObj->SetArrayField(TEXT("connection_results"), ResultsArray);
+    
+    // Add summary statistics
+    int32 SuccessfulConnections = 0;
+    for (bool Result : Results)
+    {
+        if (Result)
+        {
+            SuccessfulConnections++;
+        }
+    }
+    
+    ResponseObj->SetNumberField(TEXT("successful_connections"), SuccessfulConnections);
+    ResponseObj->SetNumberField(TEXT("total_connections"), Results.Num());
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

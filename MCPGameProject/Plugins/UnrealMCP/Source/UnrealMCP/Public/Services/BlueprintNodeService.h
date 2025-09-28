@@ -20,7 +20,7 @@ public:
     virtual bool ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& TargetGraph, TArray<bool>& OutResults) override;
     virtual bool AddInputActionNode(UBlueprint* Blueprint, const FString& ActionName, const FVector2D& Position, FString& OutNodeId) override;
     virtual bool GetBlueprintGraphs(UBlueprint* Blueprint, TArray<FString>& OutGraphNames) override;
-    virtual bool FindBlueprintNodes(UBlueprint* Blueprint, const FString& NodeType, const FString& EventType, const FString& TargetGraph, TArray<FString>& OutNodeIds) override;
+    virtual bool FindBlueprintNodes(UBlueprint* Blueprint, const FString& NodeType, const FString& EventType, const FString& TargetGraph, TArray<FBlueprintNodeInfo>& OutNodeInfos) override;
     virtual bool AddVariableNode(UBlueprint* Blueprint, const FString& VariableName, bool bIsGetter, const FVector2D& Position, FString& OutNodeId) override;
     virtual bool GetVariableInfo(UBlueprint* Blueprint, const FString& VariableName, FString& OutVariableType, TSharedPtr<FJsonObject>& OutAdditionalInfo) override;
     virtual bool AddEventNode(UBlueprint* Blueprint, const FString& EventType, const FVector2D& Position, FString& OutNodeId) override;
@@ -56,6 +56,14 @@ private:
     UEdGraphNode* FindNodeById(UBlueprint* Blueprint, const FString& NodeId) const;
     
     /**
+     * Clean TypePromotion node titles to show user-friendly names
+     * @param Node - The node to get clean title for
+     * @param OriginalTitle - Original node title from GetNodeTitle
+     * @return Cleaned user-friendly title
+     */
+    FString GetCleanTypePromotionTitle(UEdGraphNode* Node, const FString& OriginalTitle) const;
+
+    /**
      * Connect two pins on nodes
      * @param SourceNode - Source node
      * @param SourcePinName - Name of the source pin
@@ -83,6 +91,14 @@ private:
      * @return true if types are compatible without cast
      */
     bool ArePinTypesCompatible(const FEdGraphPinType& SourcePinType, const FEdGraphPinType& TargetPinType) const;
+    
+    /**
+     * Find a node by ID or special type identifiers (for Entry/Exit nodes)
+     * @param Graph - The graph to search in
+     * @param NodeIdOrType - Node ID (GUID) or special type like "FunctionEntry", "FunctionResult"
+     * @return Found node or nullptr
+     */
+    UEdGraphNode* FindNodeByIdOrType(UEdGraph* Graph, const FString& NodeIdOrType) const;
     
     /**
      * Create a cast node between two incompatible pins

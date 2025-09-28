@@ -52,4 +52,13 @@ private:
      * @return JSON response string
      */
     FString CreateErrorResponse(const FString& ErrorMessage) const;
+    
+    /**
+     * Create mixed response JSON for partial success/failure
+     * @param Results - Connection results 
+     * @param Connections - Original connection parameters for detailed response
+     * @param ErrorMessage - Error message with details
+     * @return JSON response string
+     */
+    FString CreateMixedResponse(const TArray<bool>& Results, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& ErrorMessage) const;
 };

@@ -3,6 +3,8 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/Blueprint.h"
+#include "Services/ComponentService.h"
+#include "Services/ComponentService.h"
 
 FAddComponentToBlueprintCommand::FAddComponentToBlueprintCommand(IBlueprintService& InBlueprintService)
     : BlueprintService(InBlueprintService)
@@ -96,12 +98,8 @@ bool FAddComponentToBlueprintCommand::ParseParameters(const FString& JsonString,
         return false;
     }
     
-    // Validate component type
-    if (!IsValidComponentType(OutParams.ComponentType))
-    {
-        OutError = FString::Printf(TEXT("Unsupported component type: %s"), *OutParams.ComponentType);
-        return false;
-    }
+    // Component type validation will be handled by ComponentService during creation
+    // This allows for dynamic discovery of both built-in and Blueprint components
     
     // Parse optional location parameter
     const TArray<TSharedPtr<FJsonValue>>* LocationArray;
@@ -148,6 +146,13 @@ bool FAddComponentToBlueprintCommand::ParseParameters(const FString& JsonString,
         }
     }
     
+    // Parse optional parent_component_name parameter
+    FString ParentComponentName;
+    if (JsonObject->TryGetStringField(TEXT("parent_component_name"), ParentComponentName))
+    {
+        OutParams.ParentComponentName = ParentComponentName;
+    }
+    
     // Parse optional component_properties parameter
     const TSharedPtr<FJsonObject>* ComponentPropsPtr;
     if (JsonObject->TryGetObjectField(TEXT("component_properties"), ComponentPropsPtr))
@@ -158,36 +163,7 @@ bool FAddComponentToBlueprintCommand::ParseParameters(const FString& JsonString,
     return true;
 }
 
-bool FAddComponentToBlueprintCommand::IsValidComponentType(const FString& ComponentType) const
-{
-    // List of supported component types
-    static const TArray<FString> SupportedTypes = {
-        TEXT("StaticMesh"),
-        TEXT("StaticMeshComponent"),
-        TEXT("PointLight"),
-        TEXT("PointLightComponent"),
-        TEXT("SpotLight"),
-        TEXT("SpotLightComponent"),
-        TEXT("DirectionalLight"),
-        TEXT("DirectionalLightComponent"),
-        TEXT("Box"),
-        TEXT("BoxComponent"),
-        TEXT("Sphere"),
-        TEXT("SphereComponent"),
-        TEXT("Capsule"),
-        TEXT("CapsuleComponent"),
-        TEXT("Camera"),
-        TEXT("CameraComponent"),
-        TEXT("Audio"),
-        TEXT("AudioComponent"),
-        TEXT("Scene"),
-        TEXT("SceneComponent"),
-        TEXT("Billboard"),
-        TEXT("BillboardComponent")
-    };
-    
-    return SupportedTypes.Contains(ComponentType);
-}
+
 
 FString FAddComponentToBlueprintCommand::CreateSuccessResponse(const FString& BlueprintName, const FString& ComponentName) const
 {

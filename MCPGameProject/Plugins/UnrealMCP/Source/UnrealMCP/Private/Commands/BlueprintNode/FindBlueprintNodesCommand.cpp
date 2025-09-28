@@ -29,10 +29,10 @@ FString FFindBlueprintNodesCommand::Execute(const FString& Parameters)
     }
     
     // Delegate to service layer for business logic
-    TArray<FString> NodeIds;
-    if (BlueprintNodeService.FindBlueprintNodes(Blueprint, NodeType, EventType, TargetGraph, NodeIds))
+    TArray<FBlueprintNodeInfo> NodeInfos;
+    if (BlueprintNodeService.FindBlueprintNodes(Blueprint, NodeType, EventType, TargetGraph, NodeInfos))
     {
-        return CreateSuccessResponse(NodeIds);
+        return CreateSuccessResponse(NodeInfos);
     }
     else
     {
@@ -87,19 +87,30 @@ bool FFindBlueprintNodesCommand::ParseParameters(const FString& JsonString, FStr
     return true;
 }
 
-FString FFindBlueprintNodesCommand::CreateSuccessResponse(const TArray<FString>& NodeIds) const
+FString FFindBlueprintNodesCommand::CreateSuccessResponse(const TArray<FBlueprintNodeInfo>& NodeInfos) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
     
-    // Add node IDs array
-    TArray<TSharedPtr<FJsonValue>> NodeIdsArray;
-    for (const FString& NodeId : NodeIds)
+    // Add node information array
+    TArray<TSharedPtr<FJsonValue>> NodesArray;
+    for (const FBlueprintNodeInfo& NodeInfo : NodeInfos)
     {
-        NodeIdsArray.Add(MakeShared<FJsonValueString>(NodeId));
+        TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
+        NodeObj->SetStringField(TEXT("id"), NodeInfo.NodeId);
+        NodeObj->SetStringField(TEXT("title"), NodeInfo.NodeTitle);
+        NodesArray.Add(MakeShared<FJsonValueObject>(NodeObj));
+    }
+    ResponseObj->SetArrayField(TEXT("nodes"), NodesArray);
+    ResponseObj->SetNumberField(TEXT("node_count"), NodeInfos.Num());
+    
+    // Add node IDs array for backward compatibility
+    TArray<TSharedPtr<FJsonValue>> NodeIdsArray;
+    for (const FBlueprintNodeInfo& NodeInfo : NodeInfos)
+    {
+        NodeIdsArray.Add(MakeShared<FJsonValueString>(NodeInfo.NodeId));
     }
     ResponseObj->SetArrayField(TEXT("node_ids"), NodeIdsArray);
-    ResponseObj->SetNumberField(TEXT("node_count"), NodeIds.Num());
     
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

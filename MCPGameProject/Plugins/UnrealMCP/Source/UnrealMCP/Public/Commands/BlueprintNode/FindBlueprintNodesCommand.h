@@ -41,10 +41,10 @@ private:
     
     /**
      * Create success response JSON
-     * @param NodeIds - Found node IDs
+     * @param NodeInfos - Found node information (ID and title)
      * @return JSON response string
      */
-    FString CreateSuccessResponse(const TArray<FString>& NodeIds) const;
+    FString CreateSuccessResponse(const TArray<FBlueprintNodeInfo>& NodeInfos) const;
     
     /**
      * Create error response JSON
