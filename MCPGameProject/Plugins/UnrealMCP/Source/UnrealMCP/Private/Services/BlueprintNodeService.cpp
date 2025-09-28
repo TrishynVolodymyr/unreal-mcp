@@ -17,6 +17,7 @@
 #include "K2Node_CustomEvent.h"
 #include "K2Node_InputAction.h"
 #include "K2Node_DynamicCast.h"
+#include "K2Node_PromotableOperator.h"
 #include "KismetCompiler.h"
 
 
@@ -724,6 +725,33 @@ bool FBlueprintNodeService::ConnectPins(UEdGraphNode* SourceNode, const FString&
         }
     }
     
+    // CRITICAL FIX: Handle Return Node pin naming variations
+    if (!TargetPin && TargetNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString().Contains(TEXT("Return")))
+    {
+        // Try alternative pin names for Return Node
+        TArray<FString> ReturnPinVariations = {
+            TEXT("ReturnValue"),
+            TEXT("Return Value"), 
+            TEXT("OutputDelegate"),
+            TEXT("Value"),
+            TEXT("Result")
+        };
+        
+        for (const FString& Variation : ReturnPinVariations)
+        {
+            for (UEdGraphPin* Pin : TargetNode->Pins)
+            {
+                if (Pin && Pin->PinName.ToString() == Variation)
+                {
+                    TargetPin = Pin;
+                    UE_LOG(LogTemp, Warning, TEXT("Found Return Node pin using variation: %s"), *Variation);
+                    break;
+                }
+            }
+            if (TargetPin) break;
+        }
+    }
+    
     if (!SourcePin || !TargetPin)
     {
         return false;
@@ -762,13 +790,37 @@ bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNo
         return false;
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("Pin types - Source: %s, Target: %s"),
+    // LOG DETAILED PIN INFORMATION
+    UE_LOG(LogTemp, Warning, TEXT("=== PIN TYPE ANALYSIS ==="));
+    UE_LOG(LogTemp, Warning, TEXT("Source Pin '%s': Category=%s, SubCategory=%s, SubCategoryObject=%s"), 
+        *SourcePin->PinName.ToString(),
         *SourcePin->PinType.PinCategory.ToString(),
-        *TargetPin->PinType.PinCategory.ToString());
+        *SourcePin->PinType.PinSubCategory.ToString(),
+        SourcePin->PinType.PinSubCategoryObject.IsValid() ? *SourcePin->PinType.PinSubCategoryObject->GetName() : TEXT("None"));
+    UE_LOG(LogTemp, Warning, TEXT("Target Pin '%s': Category=%s, SubCategory=%s, SubCategoryObject=%s"), 
+        *TargetPin->PinName.ToString(),
+        *TargetPin->PinType.PinCategory.ToString(),
+        *TargetPin->PinType.PinSubCategory.ToString(),
+        TargetPin->PinType.PinSubCategoryObject.IsValid() ? *TargetPin->PinType.PinSubCategoryObject->GetName() : TEXT("None"));
+    
+    // CHECK IF NODES ARE PROMOTABLE OPERATORS BEFORE CONNECTION
+    bool bSourceIsPromotable = SourceNode->GetClass()->GetName().Contains(TEXT("PromotableOperator"));
+    bool bTargetIsPromotable = TargetNode->GetClass()->GetName().Contains(TEXT("PromotableOperator"));
+    UE_LOG(LogTemp, Warning, TEXT("Node types - Source: %s (Promotable: %s), Target: %s (Promotable: %s)"),
+        *SourceNode->GetClass()->GetName(),
+        bSourceIsPromotable ? TEXT("YES") : TEXT("NO"),
+        *TargetNode->GetClass()->GetName(),
+        bTargetIsPromotable ? TEXT("YES") : TEXT("NO"));
     
     // Just try to connect - let Unreal handle all the validation and type conversion
     UE_LOG(LogTemp, Warning, TEXT("Attempting connection..."));
     SourcePin->MakeLinkTo(TargetPin);
+    
+    // CRITICAL: Explicitly notify nodes about pin connection changes for wildcard adaptation
+    // This ensures PromotableOperators properly evaluate their pins and convert wildcards to specific types
+    SourceNode->PinConnectionListChanged(SourcePin);
+    TargetNode->PinConnectionListChanged(TargetPin);
+    UE_LOG(LogTemp, Warning, TEXT("Notified nodes of pin connection changes"));
     
     // Check if connection was made
     bool bConnectionExists = SourcePin->LinkedTo.Contains(TargetPin);
@@ -776,25 +828,89 @@ bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNo
     
     if (bConnectionExists)
     {
+        UE_LOG(LogTemp, Warning, TEXT("=== POST-CONNECTION PIN TYPE ANALYSIS ==="));
+        UE_LOG(LogTemp, Warning, TEXT("AFTER Connection - Source Pin '%s': Category=%s, SubCategory=%s"), 
+            *SourcePin->PinName.ToString(),
+            *SourcePin->PinType.PinCategory.ToString(),
+            *SourcePin->PinType.PinSubCategory.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("AFTER Connection - Target Pin '%s': Category=%s, SubCategory=%s"), 
+            *TargetPin->PinName.ToString(),
+            *TargetPin->PinType.PinCategory.ToString(),
+            *TargetPin->PinType.PinSubCategory.ToString());
+        
         // Force wildcard pin type resolution for mathematical operators
-        if (UK2Node_CallFunction* CallFuncNode = Cast<UK2Node_CallFunction>(SourceNode))
+        if (UK2Node_PromotableOperator* PromotableOpSource = Cast<UK2Node_PromotableOperator>(SourceNode))
         {
-            if (CallFuncNode->GetClass()->GetName().Contains(TEXT("PromotableOperator")))
+            UE_LOG(LogTemp, Warning, TEXT("=== PROCESSING SOURCE PROMOTABLE OPERATOR ==="));
+            UE_LOG(LogTemp, Warning, TEXT("Source PromotableOperator before fixes:"));
+            for (UEdGraphPin* Pin : PromotableOpSource->Pins)
             {
-                // Reconstruct the node to lock in wildcard types
-                CallFuncNode->ReconstructNode();
-                UE_LOG(LogTemp, Log, TEXT("Reconstructed PromotableOperator node to lock wildcard types"));
+                UE_LOG(LogTemp, Warning, TEXT("  Pin '%s': %s.%s"), 
+                    *Pin->PinName.ToString(),
+                    *Pin->PinType.PinCategory.ToString(),
+                    *Pin->PinType.PinSubCategory.ToString());
             }
+            
+            // Apply comprehensive PromotableOperator fix (from Habr tutorial)
+            if (UEdGraph* Graph = PromotableOpSource->GetGraph())
+            {
+                // Force visualization cache clear and notify graph changed
+                if (const UEdGraphSchema* Schema = Graph->GetSchema())
+                {
+                    Schema->ForceVisualizationCacheClear();
+                }
+                Graph->NotifyGraphChanged();
+            }
+            
+            // DON'T ReconstructNode() - it breaks wildcard pins by converting them to specific types!
+            // PromotableOpSource->ReconstructNode();
+            
+            UE_LOG(LogTemp, Warning, TEXT("Source PromotableOperator AFTER fixes:"));
+            for (UEdGraphPin* Pin : PromotableOpSource->Pins)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("  Pin '%s': %s.%s"), 
+                    *Pin->PinName.ToString(),
+                    *Pin->PinType.PinCategory.ToString(),
+                    *Pin->PinType.PinSubCategory.ToString());
+            }
+            UE_LOG(LogTemp, Warning, TEXT("Applied comprehensive PromotableOperator fix to source node"));
         }
         
-        if (UK2Node_CallFunction* CallFuncNode = Cast<UK2Node_CallFunction>(TargetNode))
+        if (UK2Node_PromotableOperator* PromotableOpTarget = Cast<UK2Node_PromotableOperator>(TargetNode))
         {
-            if (CallFuncNode->GetClass()->GetName().Contains(TEXT("PromotableOperator")))
+            UE_LOG(LogTemp, Warning, TEXT("=== PROCESSING TARGET PROMOTABLE OPERATOR ==="));
+            UE_LOG(LogTemp, Warning, TEXT("Target PromotableOperator before fixes:"));
+            for (UEdGraphPin* Pin : PromotableOpTarget->Pins)
             {
-                // Reconstruct the node to lock in wildcard types
-                CallFuncNode->ReconstructNode();
-                UE_LOG(LogTemp, Log, TEXT("Reconstructed PromotableOperator target node to lock wildcard types"));
+                UE_LOG(LogTemp, Warning, TEXT("  Pin '%s': %s.%s"), 
+                    *Pin->PinName.ToString(),
+                    *Pin->PinType.PinCategory.ToString(),
+                    *Pin->PinType.PinSubCategory.ToString());
             }
+            
+            // Apply comprehensive PromotableOperator fix (from Habr tutorial)
+            if (UEdGraph* Graph = PromotableOpTarget->GetGraph())
+            {
+                // Force visualization cache clear and notify graph changed
+                if (const UEdGraphSchema* Schema = Graph->GetSchema())
+                {
+                    Schema->ForceVisualizationCacheClear();
+                }
+                Graph->NotifyGraphChanged();
+            }
+            
+            // DON'T ReconstructNode() - it breaks wildcard pins by converting them to specific types!
+            // PromotableOpTarget->ReconstructNode();
+            
+            UE_LOG(LogTemp, Warning, TEXT("Target PromotableOperator AFTER fixes:"));
+            for (UEdGraphPin* Pin : PromotableOpTarget->Pins)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("  Pin '%s': %s.%s"), 
+                    *Pin->PinName.ToString(),
+                    *Pin->PinType.PinCategory.ToString(),
+                    *Pin->PinType.PinSubCategory.ToString());
+            }
+            UE_LOG(LogTemp, Warning, TEXT("Applied comprehensive PromotableOperator fix to target node"));
         }
     }
     else
