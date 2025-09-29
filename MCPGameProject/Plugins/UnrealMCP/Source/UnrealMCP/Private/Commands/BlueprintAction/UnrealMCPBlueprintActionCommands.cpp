@@ -1379,6 +1379,8 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                     FString OperatorType = bIsComparisonOp ? TEXT("Comparison operator") : TEXT("Mathematical operator");
                     ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("%s: %s"), *OperatorType, UserFacingName.IsEmpty() ? *OpNameString : *UserFacingName.ToString()));
                     ActionObj->SetStringField(TEXT("category"), TEXT("Utilities|Operators"));
+                    // ADD FUNCTION_NAME for operators - this is what create_node_by_action_name expects!
+                    ActionObj->SetStringField(TEXT("function_name"), OpNameString);
                     
                     ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
                     
@@ -1515,6 +1517,20 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             ActionObj->SetStringField(TEXT("tooltip"), Tooltip);
             ActionObj->SetStringField(TEXT("category"), ActionCategory);
             
+            // Handle function spawners (for KismetMathLibrary and other function libraries)
+            if (UBlueprintFunctionNodeSpawner* FunctionSpawner = Cast<UBlueprintFunctionNodeSpawner>(NodeSpawner))
+            {
+                UFunction const* Function = FunctionSpawner->GetFunction();
+                if (Function)
+                {
+                    ActionObj->SetStringField(TEXT("function_name"), Function->GetName());
+                    ActionObj->SetStringField(TEXT("class_name"), Function->GetOwnerClass()->GetName());
+                    if (Function->GetOwnerClass() == UKismetMathLibrary::StaticClass())
+                    {
+                        ActionObj->SetBoolField(TEXT("is_math_function"), true);
+                    }
+                }
+            }
             // Try to extract additional information if it's a function call
             if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
             {
@@ -1526,6 +1542,16 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
                     {
                         ActionObj->SetBoolField(TEXT("is_math_function"), true);
                     }
+                }
+            }
+            else
+            {
+                // For non-function nodes, use the node class name or a fallback
+                // This ensures all actions have function_name for create_node_by_action_name
+                if (TemplateNode)
+                {
+                    // Use the action name as function_name for non-function nodes
+                    ActionObj->SetStringField(TEXT("function_name"), ActionName);
                 }
             }
             

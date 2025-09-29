@@ -20,6 +20,25 @@
 #include "K2Node_PromotableOperator.h"
 #include "KismetCompiler.h"
 
+// PROBLEM 2 FIX: Helper function to generate safe Node IDs
+static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
+{
+    if (!Node)
+    {
+        return TEXT("InvalidNode");
+    }
+    
+    FString NodeId = Node->NodeGuid.ToString();
+    if (NodeId.IsEmpty() || NodeId == TEXT("00000000-0000-0000-0000-000000000000") || NodeId == TEXT("00000000000000000000000000000000"))
+    {
+        // Generate fallback ID using node pointer and title
+        FString SafeTitle = NodeTitle.Replace(TEXT(" "), TEXT("_")).Replace(TEXT("("), TEXT("")).Replace(TEXT(")"), TEXT(""));
+        NodeId = FString::Printf(TEXT("Node_%p_%s"), Node, *SafeTitle);
+    }
+    
+    return NodeId;
+}
+
 
 bool FBlueprintNodeConnectionParams::IsValid(FString& OutError) const
 {
@@ -264,7 +283,9 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                     // Special handling for TypePromotion nodes to show correct titles
                     NodeTitle = GetCleanTypePromotionTitle(Node, NodeTitle);
                     
-                    OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
+                    // PROBLEM 2 FIX: Use safe Node ID generation
+                    FString NodeId = GetSafeNodeId(Node, NodeTitle);
+                    OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle));
                 }
             }
         }
@@ -286,7 +307,9 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                             // Special handling for TypePromotion nodes to show correct titles
                             NodeTitle = GetCleanTypePromotionTitle(Node, NodeTitle);
                             
-                            OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
+                            // PROBLEM 2 FIX: Use safe Node ID generation
+                            FString NodeId = GetSafeNodeId(Node, NodeTitle);
+                            OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle));
                         }
                     }
                 }
@@ -352,14 +375,14 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                     if (EventNode->EventReference.GetMemberName() == FName(*EventType))
                     {
                         FString NodeTitle = EventNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                        OutNodeInfos.Add(FBlueprintNodeInfo(EventNode->NodeGuid.ToString(), NodeTitle));
+                        OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(EventNode, NodeTitle), NodeTitle));
                     }
                 }
                 else
                 {
                     // Add all event nodes
                     FString NodeTitle = EventNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                    OutNodeInfos.Add(FBlueprintNodeInfo(EventNode->NodeGuid.ToString(), NodeTitle));
+                    OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(EventNode, NodeTitle), NodeTitle));
                 }
             }
         }
@@ -373,7 +396,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
             if (FunctionNode)
             {
                 FString NodeTitle = FunctionNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                OutNodeInfos.Add(FBlueprintNodeInfo(FunctionNode->NodeGuid.ToString(), NodeTitle));
+                OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(FunctionNode, NodeTitle), NodeTitle));
             }
         }
     }
@@ -387,7 +410,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
             if (VarGetNode || VarSetNode)
             {
                 FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
+                OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(Node, NodeTitle), NodeTitle));
             }
         }
     }
@@ -402,7 +425,7 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                 if (NodeClassName.Contains(NodeType))
                 {
                     FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                    OutNodeInfos.Add(FBlueprintNodeInfo(Node->NodeGuid.ToString(), NodeTitle));
+                    OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(Node, NodeTitle), NodeTitle));
                 }
             }
         }
@@ -1249,12 +1272,19 @@ UEdGraphNode* FBlueprintNodeService::FindNodeByIdOrType(UEdGraph* Graph, const F
     UE_LOG(LogTemp, Warning, TEXT("FindNodeByIdOrType: Looking for '%s' in graph '%s' with %d nodes"), 
         *NodeIdOrType, *Graph->GetFName().ToString(), Graph->Nodes.Num());
     
-    // First try to find by exact GUID
+    // First try to find by exact GUID or safe node ID
     for (UEdGraphNode* Node : Graph->Nodes)
     {
-        if (Node && Node->NodeGuid.ToString() == NodeIdOrType)
+        if (Node)
         {
-            return Node;
+            // Check both raw GUID and safe node ID
+            FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+            FString SafeNodeId = GetSafeNodeId(Node, NodeTitle);
+            
+            if (Node->NodeGuid.ToString() == NodeIdOrType || SafeNodeId == NodeIdOrType)
+            {
+                return Node;
+            }
         }
     }
     
