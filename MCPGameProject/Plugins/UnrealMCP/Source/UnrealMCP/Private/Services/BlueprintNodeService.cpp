@@ -39,6 +39,74 @@ static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
     return NodeId;
 }
 
+// Helper function to collect pin information from a node
+static TArray<FBlueprintPinInfo> GetNodePinInfo(UEdGraphNode* Node)
+{
+    TArray<FBlueprintPinInfo> PinInfos;
+    
+    if (!Node)
+    {
+        return PinInfos;
+    }
+    
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin)
+        {
+            FString PinName = Pin->PinName.ToString();
+            FString PinType;
+            FString Direction = Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output");
+            bool bIsExecution = Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec;
+            
+            // Determine pin type
+            if (bIsExecution)
+            {
+                PinType = TEXT("exec");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean)
+            {
+                PinType = TEXT("bool");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Int)
+            {
+                PinType = TEXT("int");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Real)
+            {
+                PinType = TEXT("real");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+            {
+                PinType = TEXT("string");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Text)
+            {
+                PinType = TEXT("text");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+            {
+                PinType = TEXT("object");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Struct)
+            {
+                PinType = TEXT("struct");
+            }
+            else if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
+            {
+                PinType = TEXT("wildcard");
+            }
+            else
+            {
+                PinType = Pin->PinType.PinCategory.ToString();
+            }
+            
+            PinInfos.Add(FBlueprintPinInfo(PinName, PinType, Direction, bIsExecution));
+        }
+    }
+    
+    return PinInfos;
+}
+
 
 bool FBlueprintNodeConnectionParams::IsValid(FString& OutError) const
 {
@@ -285,7 +353,17 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                     
                     // PROBLEM 2 FIX: Use safe Node ID generation
                     FString NodeId = GetSafeNodeId(Node, NodeTitle);
-                    OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle));
+                    
+                    // Get node type
+                    FString NodeType = Node->GetClass()->GetName();
+                    
+                    // Get node position
+                    FVector2D Position(Node->NodePosX, Node->NodePosY);
+                    
+                    // Collect pin information
+                    TArray<FBlueprintPinInfo> PinInfos = GetNodePinInfo(Node);
+                    
+                    OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos));
                 }
             }
         }
@@ -309,7 +387,17 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                             
                             // PROBLEM 2 FIX: Use safe Node ID generation
                             FString NodeId = GetSafeNodeId(Node, NodeTitle);
-                            OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle));
+                            
+                            // Get node type
+                            FString NodeType = Node->GetClass()->GetName();
+                            
+                            // Get node position
+                            FVector2D Position(Node->NodePosX, Node->NodePosY);
+                            
+                            // Collect pin information
+                            TArray<FBlueprintPinInfo> PinInfos = GetNodePinInfo(Node);
+                            
+                            OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos));
                         }
                     }
                 }

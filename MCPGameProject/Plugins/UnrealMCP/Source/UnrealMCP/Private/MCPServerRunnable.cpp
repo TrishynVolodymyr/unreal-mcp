@@ -159,7 +159,8 @@ uint32 FMCPServerRunnable::Run()
                                 
                                 UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Command executed in %.3f seconds"), ExecuteDuration);
                                 
-                                // Log response length to avoid spam
+                                // Log response for debugging
+                                UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Response: %s"), *Response);
                                 UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Sending response (%d characters)"), Response.Len());
                                 
                                 // Send response

@@ -7,6 +7,35 @@
 #include "Dom/JsonObject.h"
 
 /**
+ * Information about a Blueprint node pin
+ */
+struct UNREALMCP_API FBlueprintPinInfo
+{
+    /** Pin name */
+    FString Name;
+    
+    /** Pin type (object, real, bool, struct, exec, etc.) */
+    FString Type;
+    
+    /** Pin direction (input/output) */
+    FString Direction;
+    
+    /** Whether this is an execution pin */
+    bool bIsExecution;
+    
+    /** Default constructor */
+    FBlueprintPinInfo() : bIsExecution(false) {}
+    
+    /**
+     * Constructor with parameters
+     */
+    FBlueprintPinInfo(const FString& InName, const FString& InType, const FString& InDirection, bool bInIsExecution)
+        : Name(InName), Type(InType), Direction(InDirection), bIsExecution(bInIsExecution)
+    {
+    }
+};
+
+/**
  * Information about a Blueprint node
  */
 struct UNREALMCP_API FBlueprintNodeInfo
@@ -16,6 +45,15 @@ struct UNREALMCP_API FBlueprintNodeInfo
     
     /** Node title/name */
     FString NodeTitle;
+    
+    /** Node type */
+    FString NodeType;
+    
+    /** Position in graph */
+    FVector2D Position;
+    
+    /** Information about all pins on this node */
+    TArray<FBlueprintPinInfo> Pins;
     
     /** Default constructor */
     FBlueprintNodeInfo() = default;
@@ -27,6 +65,14 @@ struct UNREALMCP_API FBlueprintNodeInfo
      */
     FBlueprintNodeInfo(const FString& InNodeId, const FString& InNodeTitle)
         : NodeId(InNodeId), NodeTitle(InNodeTitle)
+    {
+    }
+    
+    /**
+     * Full constructor with all parameters
+     */
+    FBlueprintNodeInfo(const FString& InNodeId, const FString& InNodeTitle, const FString& InNodeType, const FVector2D& InPosition, const TArray<FBlueprintPinInfo>& InPins)
+        : NodeId(InNodeId), NodeTitle(InNodeTitle), NodeType(InNodeType), Position(InPosition), Pins(InPins)
     {
     }
 };

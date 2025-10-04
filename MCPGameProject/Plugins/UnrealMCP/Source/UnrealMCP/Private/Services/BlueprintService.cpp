@@ -23,6 +23,10 @@
 #include "K2Node_FunctionResult.h"
 #include "Engine/UserDefinedStruct.h"
 #include "EdGraphSchema_K2.h"
+#include "Logging/TokenizedMessage.h"
+#include "Logging/MessageLog.h"
+#include "Kismet2/CompilerResultsLog.h"
+#include "Engine/BlueprintCore.h"
 #include "UObject/StructOnScope.h"
 #include "Engine/Engine.h"
 
@@ -365,8 +369,14 @@ bool FBlueprintService::CompileBlueprint(UBlueprint* Blueprint, FString& OutErro
     // Clear any existing compilation state
     Blueprint->bIsRegeneratingOnLoad = false;
     
-    // Compile the blueprint
-    FKismetEditorUtilities::CompileBlueprint(Blueprint);
+    // Create a compiler results log to capture detailed compilation information
+    FCompilerResultsLog CompilerLog(true);  // Enable event compatibility
+    CompilerLog.bLogDetailedResults = true;  // Enable detailed logging
+    CompilerLog.bSilentMode = false;         // We want to collect all messages
+    CompilerLog.bAnnotateMentionedNodes = true; // Annotate nodes with errors
+    
+    // Compile the blueprint with detailed logging (use different signature)
+    FKismetEditorUtilities::CompileBlueprint(Blueprint, EBlueprintCompileOptions::None, &CompilerLog);
     
     // Log the compilation status for debugging
     FString StatusName;
@@ -382,47 +392,126 @@ bool FBlueprintService::CompileBlueprint(UBlueprint* Blueprint, FString& OutErro
     }
     UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CompileBlueprint: Post-compilation status: %s (%d)"), *StatusName, (int32)Blueprint->Status);
     
-    // Check compilation result and provide detailed error information
-    if (Blueprint->Status == BS_Error)
+    // Check compilation result and extract detailed error information from CompilerLog
+    if (Blueprint->Status == BS_Error || CompilerLog.NumErrors > 0)
     {
         TArray<FString> DetailedErrors;
         
-        // Add basic error information
-        DetailedErrors.Add(FString::Printf(TEXT("Blueprint '%s' failed to compile"), *Blueprint->GetName()));
-        
-        // Check for common issues
-        if (!Blueprint->ParentClass)
+        // Extract ALL error messages from the FCompilerResultsLog
+        for (const TSharedRef<FTokenizedMessage>& Message : CompilerLog.Messages)
         {
-            DetailedErrors.Add(TEXT("Missing parent class"));
+            EMessageSeverity::Type Severity = Message->GetSeverity();
+            FString MessageText = Message->ToText().ToString();
+            
+            if (!MessageText.IsEmpty() && Severity == EMessageSeverity::Error)
+            {
+                DetailedErrors.Add(MessageText);
+            }
         }
         
-        if (Blueprint->UbergraphPages.Num() == 0 && Blueprint->FunctionGraphs.Num() == 0)
+        // If no specific errors found in the log, add basic error information
+        if (DetailedErrors.IsEmpty())
         {
-            DetailedErrors.Add(TEXT("Blueprint has no graphs"));
+            DetailedErrors.Add(FString::Printf(TEXT("Blueprint '%s' failed to compile (status: %s)"), 
+                *Blueprint->GetName(), *StatusName));
+            
+            // Check for common issues
+            if (!Blueprint->ParentClass)
+            {
+                DetailedErrors.Add(TEXT("Missing parent class"));
+            }
+            
+            if (Blueprint->UbergraphPages.Num() == 0 && Blueprint->FunctionGraphs.Num() == 0)
+            {
+                DetailedErrors.Add(TEXT("Blueprint has no graphs"));
+            }
+            
+            // Check for node connection errors in all graphs
+            TArray<UEdGraph*> AllGraphs;
+            Blueprint->GetAllGraphs(AllGraphs);
+            
+            for (UEdGraph* Graph : AllGraphs)
+            {
+                if (Graph)
+                {
+                    for (UEdGraphNode* Node : Graph->Nodes)
+                    {
+                        if (Node)
+                        {
+                            // Check if node has validation errors
+                            if (!Node->IsNodeEnabled() || Node->HasAnyFlags(RF_Transient))
+                            {
+                                DetailedErrors.Add(FString::Printf(TEXT("Node '%s' in graph '%s' has validation issues"), 
+                                    *Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString(),
+                                    *Graph->GetFName().ToString()));
+                            }
+                            
+                            // Check for unconnected pins that should be connected
+                            for (UEdGraphPin* Pin : Node->Pins)
+                            {
+                                if (Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && 
+                                    Pin->Direction == EGPD_Output && Pin->LinkedTo.Num() == 0)
+                                {
+                                    // This is likely an unconnected execution output
+                                    DetailedErrors.Add(FString::Printf(TEXT("Unconnected execution pin '%s' on node '%s' in graph '%s'"), 
+                                        *Pin->PinName.ToString(),
+                                        *Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString(),
+                                        *Graph->GetFName().ToString()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         
-        // Create comprehensive error message
-        if (DetailedErrors.Num() > 0)
-        {
-            OutError = FString::Printf(TEXT("Blueprint compilation failed with %d error(s):\n%s"), 
-                DetailedErrors.Num(), 
-                *FString::Join(DetailedErrors, TEXT("\n")));
-        }
-        else
-        {
-            OutError = TEXT("Blueprint compilation failed with unknown errors");
-        }
+        // Create comprehensive error message (use space instead of newlines for JSON compatibility)
+        FString DetailedErrorInfo = FString::Printf(
+            TEXT("Blueprint compilation failed: %d error(s), %d warning(s). Errors: %s"), 
+            CompilerLog.NumErrors,
+            CompilerLog.NumWarnings,
+            *FString::Join(DetailedErrors, TEXT(" | "))
+        );
         
-        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CompileBlueprint: Compilation failed for blueprint '%s' - %s"), 
-            *Blueprint->GetName(), *OutError);
+        OutError = DetailedErrorInfo;
+        
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CompileBlueprint: %s"), *OutError);
         
         return false;
     }
-    else if (Blueprint->Status == BS_UpToDateWithWarnings)
+    else if (Blueprint->Status == BS_UpToDateWithWarnings || CompilerLog.NumWarnings > 0)
     {
-        OutError = FString::Printf(TEXT("Blueprint '%s' compiled with warnings"), *Blueprint->GetName());
+        TArray<FString> WarningMessages;
         
-        UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CompileBlueprint: Blueprint '%s' compiled with warnings"), *Blueprint->GetName());
+        // Extract warning messages from the FCompilerResultsLog
+        for (const TSharedRef<FTokenizedMessage>& Message : CompilerLog.Messages)
+        {
+            if (Message->GetSeverity() == EMessageSeverity::Warning)
+            {
+                FString WarningText = Message->ToText().ToString();
+                if (!WarningText.IsEmpty())
+                {
+                    WarningMessages.Add(WarningText);
+                }
+            }
+        }
+        
+        if (WarningMessages.Num() > 0)
+        {
+            OutError = FString::Printf(TEXT("Blueprint '%s' compiled with %d warning(s): %s"), 
+                *Blueprint->GetName(), 
+                CompilerLog.NumWarnings,
+                *FString::Join(WarningMessages, TEXT(" | ")));
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Blueprint '%s' compiled with %d warning(s)"), 
+                *Blueprint->GetName(), 
+                CompilerLog.NumWarnings);
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::CompileBlueprint: Blueprint '%s' compiled with warnings: %s"), 
+            *Blueprint->GetName(), *OutError);
     }
     
     // Invalidate cache since blueprint was modified

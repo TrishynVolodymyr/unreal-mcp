@@ -40,8 +40,8 @@ async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[st
         writer.write(b'\n')  # Add newline delimiter
         await writer.drain()
         
-        # Read response
-        response_data = await reader.read(8192)  # Read up to 8KB
+        # Read response (увеличено буфер для детальних помилок компіляції)
+        response_data = await reader.read(49152)  # Read up to 48KB
         response_str = response_data.decode('utf-8').strip()
         
         # Close connection
@@ -50,7 +50,10 @@ async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[st
         
         # Parse JSON response
         if response_str:
-            return json.loads(response_str)
+            try:
+                return json.loads(response_str)
+            except json.JSONDecodeError as json_err:
+                return {"success": False, "error": f"JSON decode error: {str(json_err)}, Response: {response_str[:200]}"}
         else:
             return {"success": False, "error": "Empty response from server"}
             

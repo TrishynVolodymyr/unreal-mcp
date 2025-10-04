@@ -409,9 +409,20 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
             }
             else
             {
-                // Set error status and include the error message
+                // Set error status and preserve ALL fields from the command result
                 ResponseJson->SetStringField(TEXT("status"), TEXT("error"));
                 ResponseJson->SetStringField(TEXT("error"), ErrorMessage);
+                
+                // Copy all additional fields from ResultJson to ResponseJson (e.g., compilation_errors)
+                for (const auto& Pair : ResultJson->Values)
+                {
+                    const FString& Key = Pair.Key;
+                    // Skip 'success' and 'error' as we already handled them
+                    if (Key != TEXT("success") && Key != TEXT("error"))
+                    {
+                        ResponseJson->SetField(Key, Pair.Value);
+                    }
+                }
             }
         }
         catch (const std::exception& e)
