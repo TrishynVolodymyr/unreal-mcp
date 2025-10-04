@@ -1302,6 +1302,22 @@ FString FBlueprintNodeCreationService::BuildNodeResult(bool bSuccess, const FStr
         ResultObj->SetStringField(TEXT("node_id"), NewNode->NodeGuid.ToString());
         ResultObj->SetStringField(TEXT("node_title"), NodeTitle);
         
+        // Check if this is a pure function (no execution pins)
+        bool bHasExecutionPins = false;
+        for (UEdGraphPin* Pin : NewNode->Pins)
+        {
+            if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+            {
+                bHasExecutionPins = true;
+                break;
+            }
+        }
+        bool bIsPure = !bHasExecutionPins;
+        
+        // CRITICAL: Add execution pin information for AI assistants
+        ResultObj->SetBoolField(TEXT("is_pure_function"), bIsPure);
+        ResultObj->SetBoolField(TEXT("requires_execution_flow"), !bIsPure);
+        
         // Add position info
         TSharedPtr<FJsonObject> PositionObj = MakeShared<FJsonObject>();
         PositionObj->SetNumberField(TEXT("x"), PositionX);

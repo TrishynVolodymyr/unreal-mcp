@@ -164,6 +164,15 @@ public:
     virtual bool SpawnBlueprintActor(UBlueprint* Blueprint, const FString& ActorName, const FVector& Location, const FRotator& Rotation) override;
     virtual bool CallBlueprintFunction(UBlueprint* Blueprint, const FString& FunctionName, const TArray<FString>& Parameters) override;
 
+    /**
+     * Convert string type to Blueprint pin type
+     * Supports all Blueprint types including primitives, objects, structs, arrays, and custom types
+     * @param TypeString - String representation of the type (e.g., "Actor", "Float", "Vector", "String[]", custom struct names)
+     * @param OutPinType - Output pin type structure
+     * @return true if conversion was successful
+     */
+    bool ConvertStringToPinType(const FString& TypeString, FEdGraphPinType& OutPinType) const;
+
 private:
     /** Private constructor for singleton pattern */
     FBlueprintService() = default;
@@ -201,12 +210,4 @@ private:
      * @return UClass/UStruct pointer for the type, or nullptr if not found
      */
     UObject* ResolveVariableType(const FString& TypeString) const;
-    
-    /**
-     * Convert string type to Blueprint pin type
-     * @param TypeString - String representation of the type
-     * @param OutPinType - Output pin type structure
-     * @return true if conversion was successful
-     */
-    bool ConvertStringToPinType(const FString& TypeString, FEdGraphPinType& OutPinType) const;
 };

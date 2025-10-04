@@ -55,6 +55,9 @@ struct UNREALMCP_API FBlueprintNodeInfo
     /** Information about all pins on this node */
     TArray<FBlueprintPinInfo> Pins;
     
+    /** Whether this node is a pure function (has no execution pins) */
+    bool IsPure = false;
+    
     /** Default constructor */
     FBlueprintNodeInfo() = default;
     

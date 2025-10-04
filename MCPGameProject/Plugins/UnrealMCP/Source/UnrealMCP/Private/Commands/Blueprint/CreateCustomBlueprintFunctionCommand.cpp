@@ -9,6 +9,7 @@
 #include "EdGraphSchema_K2.h"
 #include "Engine/UserDefinedStruct.h"
 #include "UObject/StructOnScope.h"
+#include "Services/BlueprintService.h"
 
 FCreateCustomBlueprintFunctionCommand::FCreateCustomBlueprintFunctionCommand(IBlueprintService& InBlueprintService)
     : BlueprintService(InBlueprintService)
@@ -152,33 +153,11 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
                 FString ParamType;
                 if (InputObj->TryGetStringField(TEXT("name"), ParamName) && InputObj->TryGetStringField(TEXT("type"), ParamType))
                 {
-                    // Convert string to pin type
+                    // Convert string to pin type using dynamic type resolution
                     FEdGraphPinType PinType;
-                    if (ParamType == TEXT("Boolean"))
+                    if (!FBlueprintService::Get().ConvertStringToPinType(ParamType, PinType))
                     {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
-                    }
-                    else if (ParamType == TEXT("Integer"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-                    }
-                    else if (ParamType == TEXT("Float"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
-                        PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
-                    }
-                    else if (ParamType == TEXT("String"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_String;
-                    }
-                    else if (ParamType == TEXT("Vector"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-                        PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-                    }
-                    else
-                    {
-                        // Default to float for unknown types
+                        UE_LOG(LogTemp, Warning, TEXT("Failed to convert type '%s' for parameter '%s', using Float as default"), *ParamType, *ParamName);
                         PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
                         PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
                     }
@@ -222,33 +201,11 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
                 FString ParamType;
                 if (OutputObj->TryGetStringField(TEXT("name"), ParamName) && OutputObj->TryGetStringField(TEXT("type"), ParamType))
                 {
-                    // Convert string to pin type for output
+                    // Convert string to pin type for output using dynamic type resolution
                     FEdGraphPinType PinType;
-                    if (ParamType == TEXT("Boolean"))
+                    if (!FBlueprintService::Get().ConvertStringToPinType(ParamType, PinType))
                     {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
-                    }
-                    else if (ParamType == TEXT("Integer"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-                    }
-                    else if (ParamType == TEXT("Float"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
-                        PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
-                    }
-                    else if (ParamType == TEXT("String"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_String;
-                    }
-                    else if (ParamType == TEXT("Vector"))
-                    {
-                        PinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-                        PinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-                    }
-                    else
-                    {
-                        // Default to float for unknown types
+                        UE_LOG(LogTemp, Warning, TEXT("Failed to convert type '%s' for output parameter '%s', using Float as default"), *ParamType, *ParamName);
                         PinType.PinCategory = UEdGraphSchema_K2::PC_Real;
                         PinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
                     }

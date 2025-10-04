@@ -107,6 +107,25 @@ static TArray<FBlueprintPinInfo> GetNodePinInfo(UEdGraphNode* Node)
     return PinInfos;
 }
 
+// Helper function to check if a node is pure (has no execution pins)
+static bool IsNodePure(UEdGraphNode* Node)
+{
+    if (!Node)
+    {
+        return false;
+    }
+    
+    for (UEdGraphPin* Pin : Node->Pins)
+    {
+        if (Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+        {
+            return false; // Has execution pin, not pure
+        }
+    }
+    
+    return true; // No execution pins found, it's pure
+}
+
 
 bool FBlueprintNodeConnectionParams::IsValid(FString& OutError) const
 {
@@ -363,7 +382,10 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                     // Collect pin information
                     TArray<FBlueprintPinInfo> PinInfos = GetNodePinInfo(Node);
                     
-                    OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos));
+                    // Create node info and set IsPure flag
+                    FBlueprintNodeInfo NodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos);
+                    NodeInfo.IsPure = IsNodePure(Node);
+                    OutNodeInfos.Add(NodeInfo);
                 }
             }
         }
@@ -397,7 +419,10 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                             // Collect pin information
                             TArray<FBlueprintPinInfo> PinInfos = GetNodePinInfo(Node);
                             
-                            OutNodeInfos.Add(FBlueprintNodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos));
+                            // Create node info and set IsPure flag
+                            FBlueprintNodeInfo NodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos);
+                            NodeInfo.IsPure = IsNodePure(Node);
+                            OutNodeInfos.Add(NodeInfo);
                         }
                     }
                 }
@@ -463,7 +488,9 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                     if (EventNode->EventReference.GetMemberName() == FName(*EventType))
                     {
                         FString NodeTitle = EventNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                        OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(EventNode, NodeTitle), NodeTitle));
+                        FBlueprintNodeInfo NodeInfo(GetSafeNodeId(EventNode, NodeTitle), NodeTitle);
+                        NodeInfo.IsPure = IsNodePure(EventNode);
+                        OutNodeInfos.Add(NodeInfo);
                     }
                 }
                 else
@@ -484,7 +511,9 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
             if (FunctionNode)
             {
                 FString NodeTitle = FunctionNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(FunctionNode, NodeTitle), NodeTitle));
+                FBlueprintNodeInfo NodeInfo(GetSafeNodeId(FunctionNode, NodeTitle), NodeTitle);
+                NodeInfo.IsPure = IsNodePure(FunctionNode);
+                OutNodeInfos.Add(NodeInfo);
             }
         }
     }
@@ -513,7 +542,9 @@ bool FBlueprintNodeService::FindBlueprintNodes(UBlueprint* Blueprint, const FStr
                 if (NodeClassName.Contains(NodeType))
                 {
                     FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                    OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(Node, NodeTitle), NodeTitle));
+                    FBlueprintNodeInfo NodeInfo(GetSafeNodeId(Node, NodeTitle), NodeTitle);
+                    NodeInfo.IsPure = IsNodePure(Node);
+                    OutNodeInfos.Add(NodeInfo);
                 }
             }
         }

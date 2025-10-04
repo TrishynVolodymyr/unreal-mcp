@@ -99,6 +99,11 @@ FString FFindBlueprintNodesCommand::CreateSuccessResponse(const TArray<FBlueprin
         TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
         NodeObj->SetStringField(TEXT("id"), NodeInfo.NodeId);
         NodeObj->SetStringField(TEXT("title"), NodeInfo.NodeTitle);
+        
+        // CRITICAL: Add execution pin information
+        NodeObj->SetBoolField(TEXT("is_pure"), NodeInfo.IsPure);
+        NodeObj->SetBoolField(TEXT("has_execution_pins"), !NodeInfo.IsPure);
+        
         NodesArray.Add(MakeShared<FJsonValueObject>(NodeObj));
     }
     ResponseObj->SetArrayField(TEXT("nodes"), NodesArray);

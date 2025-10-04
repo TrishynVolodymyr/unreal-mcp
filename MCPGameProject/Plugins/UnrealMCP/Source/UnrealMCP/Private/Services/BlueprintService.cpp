@@ -1330,25 +1330,21 @@ bool FBlueprintService::CreateCustomBlueprintFunction(UBlueprint* Blueprint, con
         
         // Process output parameters
         const TArray<TSharedPtr<FJsonValue>>* OutputsArray = nullptr;
-        if (FunctionParams->TryGetArrayField(TEXT("outputs"), OutputsArray))
+        if (FunctionParams->TryGetArrayField(TEXT("outputs"), OutputsArray) && OutputsArray->Num() > 0)
         {
-            // Create only one function result node for all outputs
-            UK2Node_FunctionResult* ResultNode = nullptr;
-            if (OutputsArray->Num() > 0)
-            {
-                ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
-                FuncGraph->AddNode(ResultNode, false, false);
-                ResultNode->NodePosX = 400;
-                ResultNode->NodePosY = 0;
-                
-                // Clear any existing user defined pins to avoid duplicates
-                ResultNode->UserDefinedPins.Empty();
-            }
+            // Create function result node for outputs
+            UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
+            FuncGraph->AddNode(ResultNode, false, false);
+            ResultNode->NodePosX = 400;
+            ResultNode->NodePosY = 0;
+            
+            // Clear any existing user defined pins to avoid duplicates
+            ResultNode->UserDefinedPins.Empty();
             
             for (const auto& OutputValue : *OutputsArray)
             {
                 const TSharedPtr<FJsonObject>& OutputObj = OutputValue->AsObject();
-                if (OutputObj.IsValid() && ResultNode)
+                if (OutputObj.IsValid())
                 {
                     FString ParamName;
                     FString ParamType;
@@ -1378,12 +1374,25 @@ bool FBlueprintService::CreateCustomBlueprintFunction(UBlueprint* Blueprint, con
             }
             
             // Allocate pins for result node after adding all outputs
-            if (ResultNode)
-            {
-                ResultNode->AllocateDefaultPins();
-                // Reconstruct the result node to immediately update the visual representation
-                ResultNode->ReconstructNode();
-            }
+            ResultNode->AllocateDefaultPins();
+            // Reconstruct the result node to immediately update the visual representation
+            ResultNode->ReconstructNode();
+        }
+        else
+        {
+            // CRITICAL: Even if there are no outputs, we MUST create a result node
+            // for the execution flow connection. Without it, the function will never execute!
+            UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
+            FuncGraph->AddNode(ResultNode, false, false);
+            ResultNode->NodePosX = 400;
+            ResultNode->NodePosY = 0;
+            
+            // Allocate pins for result node
+            ResultNode->AllocateDefaultPins();
+            // Reconstruct the result node
+            ResultNode->ReconstructNode();
+            
+            UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Created result node for execution flow (no outputs)"));
         }
     }
     
@@ -1391,6 +1400,108 @@ bool FBlueprintService::CreateCustomBlueprintFunction(UBlueprint* Blueprint, con
     EntryNode->AllocateDefaultPins();
     // Reconstruct the entry node to immediately update the visual representation
     EntryNode->ReconstructNode();
+    
+    // CRITICAL FIX: Connect execution flow between entry and return nodes
+    // Without this, the function will NEVER execute - it becomes a dead method!
+    // This applies to BOTH pure and impure functions.
+    {
+        UE_LOG(LogTemp, Warning, TEXT("=== EXECUTION FLOW CONNECTION DEBUG START ==="));
+        UE_LOG(LogTemp, Warning, TEXT("Total nodes in graph: %d"), FuncGraph->Nodes.Num());
+        
+        // Find the return/result node in the function graph
+        UK2Node_FunctionResult* ResultNode = nullptr;
+        for (UEdGraphNode* Node : FuncGraph->Nodes)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Node found: %s (Type: %s)"), 
+                *Node->GetName(), 
+                *Node->GetClass()->GetName());
+            
+            if (UK2Node_FunctionResult* ExistingResult = Cast<UK2Node_FunctionResult>(Node))
+            {
+                ResultNode = ExistingResult;
+                UE_LOG(LogTemp, Warning, TEXT(">>> Found ResultNode: %s"), *ResultNode->GetName());
+                break;
+            }
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("EntryNode: %s"), EntryNode ? *EntryNode->GetName() : TEXT("NULL"));
+        UE_LOG(LogTemp, Warning, TEXT("ResultNode: %s"), ResultNode ? *ResultNode->GetName() : TEXT("NULL"));
+        
+        // If we have both entry and result nodes, connect their execution pins
+        if (EntryNode && ResultNode)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Both nodes exist! Searching for execution pins..."));
+            
+            // Find execution output pin on entry node (named "then" or similar)
+            UEdGraphPin* EntryExecPin = nullptr;
+            UE_LOG(LogTemp, Warning, TEXT("EntryNode pins count: %d"), EntryNode->Pins.Num());
+            for (UEdGraphPin* Pin : EntryNode->Pins)
+            {
+                if (Pin)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("  EntryNode Pin: '%s' | Category: %s | Direction: %d | IsExec: %s"), 
+                        *Pin->PinName.ToString(),
+                        *Pin->PinType.PinCategory.ToString(),
+                        (int32)Pin->Direction,
+                        (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec) ? TEXT("YES") : TEXT("NO"));
+                    
+                    if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && Pin->Direction == EGPD_Output)
+                    {
+                        EntryExecPin = Pin;
+                        UE_LOG(LogTemp, Warning, TEXT("  >>> FOUND ENTRY EXEC PIN: %s"), *Pin->PinName.ToString());
+                    }
+                }
+            }
+            
+            // Find execution input pin on result node
+            UEdGraphPin* ResultExecPin = nullptr;
+            UE_LOG(LogTemp, Warning, TEXT("ResultNode pins count: %d"), ResultNode->Pins.Num());
+            for (UEdGraphPin* Pin : ResultNode->Pins)
+            {
+                if (Pin)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("  ResultNode Pin: '%s' | Category: %s | Direction: %d | IsExec: %s"), 
+                        *Pin->PinName.ToString(),
+                        *Pin->PinType.PinCategory.ToString(),
+                        (int32)Pin->Direction,
+                        (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec) ? TEXT("YES") : TEXT("NO"));
+                    
+                    if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && Pin->Direction == EGPD_Input)
+                    {
+                        ResultExecPin = Pin;
+                        UE_LOG(LogTemp, Warning, TEXT("  >>> FOUND RESULT EXEC PIN: %s"), *Pin->PinName.ToString());
+                    }
+                }
+            }
+            
+            // Make the connection
+            if (EntryExecPin && ResultExecPin)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Attempting to connect: %s -> %s"), 
+                    *EntryExecPin->PinName.ToString(), 
+                    *ResultExecPin->PinName.ToString());
+                
+                EntryExecPin->MakeLinkTo(ResultExecPin);
+                
+                UE_LOG(LogTemp, Warning, TEXT("Connection made! Links on EntryExecPin: %d"), EntryExecPin->LinkedTo.Num());
+                UE_LOG(LogTemp, Log, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Connected execution flow between entry and return nodes"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Could not find execution pins to connect (Entry: %s, Result: %s)"),
+                    EntryExecPin ? TEXT("Found") : TEXT("Missing"),
+                    ResultExecPin ? TEXT("Found") : TEXT("Missing"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("FBlueprintService::CreateCustomBlueprintFunction: Could not find result node to connect execution flow (EntryNode: %s, ResultNode: %s)"),
+                EntryNode ? TEXT("Found") : TEXT("Missing"),
+                ResultNode ? TEXT("Found") : TEXT("Missing"));
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("=== EXECUTION FLOW CONNECTION DEBUG END ==="));
+    }
     
     // Mark blueprint as structurally modified
     FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
