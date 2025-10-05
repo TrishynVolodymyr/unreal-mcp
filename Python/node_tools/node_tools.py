@@ -5,7 +5,7 @@ This module provides tools for manipulating Blueprint graph nodes and connection
 """
 
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from mcp.server.fastmcp import FastMCP, Context
 from utils.nodes.node_operations import (
     # add_event_node as add_event_node_impl,  # REMOVED: Use create_node_by_action_name instead
@@ -15,6 +15,11 @@ from utils.nodes.node_operations import (
     get_blueprint_graphs_impl,
     find_nodes as find_nodes_impl,
     get_variable_info_impl
+)
+from utils.nodes.graph_manipulation import (
+    disconnect_node_impl,
+    delete_node_impl,
+    replace_node_impl
 )
 from utils.unreal_connection_utils import send_unreal_command
 
@@ -173,3 +178,134 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 "success": False,
                 "message": f"Failed to get variable info: {str(e)}"
             }
+
+    # ========== Graph Manipulation Tools (Low-level) ==========
+    
+    @mcp.tool()
+    def disconnect_node(
+        ctx: Context,
+        blueprint_name: str,
+        node_id: str,
+        target_graph: str = "EventGraph",
+        disconnect_inputs: bool = True,
+        disconnect_outputs: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Disconnect all connections from a specific node in a Blueprint graph.
+        This is useful for preparing a node for replacement or removal.
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            node_id: ID of the node to disconnect
+            target_graph: Name of the graph containing the node (default: "EventGraph")
+            disconnect_inputs: Whether to disconnect input pins (default: True)
+            disconnect_outputs: Whether to disconnect output pins (default: True)
+        
+        Returns:
+            Dict containing disconnection results including number of disconnections
+            
+        Examples:
+            # Disconnect all connections from a node
+            disconnect_node(ctx, blueprint_name="DialogueComponent", node_id="354D34B94684C47CC592A88E87C22772")
+            
+            # Disconnect only inputs
+            disconnect_node(ctx, blueprint_name="BP_MyActor", node_id="some_id", disconnect_outputs=False)
+        """
+        try:
+            return disconnect_node_impl(
+                ctx, blueprint_name, node_id, target_graph, disconnect_inputs, disconnect_outputs
+            )
+        except Exception as e:
+            logger.error(f"Error disconnecting node: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to disconnect node: {str(e)}"
+            }
+    
+    @mcp.tool()
+    def delete_node(
+        ctx: Context,
+        blueprint_name: str,
+        node_id: str,
+        target_graph: str = "EventGraph"
+    ) -> Dict[str, Any]:
+        """
+        Delete a node from a Blueprint graph.
+        Automatically disconnects all pins before deletion.
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            node_id: ID of the node to delete
+            target_graph: Name of the graph containing the node (default: "EventGraph")
+        
+        Returns:
+            Dict containing deletion results
+            
+        Examples:
+            # Delete a node
+            delete_node(ctx, blueprint_name="DialogueComponent", node_id="354D34B94684C47CC592A88E87C22772")
+        """
+        try:
+            return delete_node_impl(ctx, blueprint_name, node_id, target_graph)
+        except Exception as e:
+            logger.error(f"Error deleting node: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to delete node: {str(e)}"
+            }
+    
+    @mcp.tool()
+    def replace_node(
+        ctx: Context,
+        blueprint_name: str,
+        old_node_id: str,
+        new_node_type: str,
+        target_graph: str = "EventGraph",
+        new_node_config: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Replace a node in a Blueprint graph.
+        Returns stored connection information that can be used to reconnect after creating the new node.
+        
+        This is a multi-step process:
+        1. Stores all connections from the old node
+        2. Disconnects and deletes the old node
+        3. Returns connection data for manual reconnection after creating new node
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            old_node_id: ID of the node to replace
+            new_node_type: Type of the new node (for reference/logging)
+            target_graph: Name of the graph containing the node (default: "EventGraph")
+            new_node_config: Optional configuration for the new node
+        
+        Returns:
+            Dict containing:
+            - stored_connections: Array of connection info for reconnection
+            - old_node_pos_x, old_node_pos_y: Position of the old node
+            - success: Boolean indicating success
+            
+        Examples:
+            # Replace Get Owner with Get Owning Actor
+            result = replace_node(
+                ctx,
+                blueprint_name="DialogueComponent",
+                old_node_id="354D34B94684C47CC592A88E87C22772",
+                new_node_type="GetOwningActor"
+            )
+            # Then use create_node_by_action_name to create new node
+            # And connect_blueprint_nodes to reconnect using stored_connections
+        """
+        try:
+            return replace_node_impl(
+                ctx, blueprint_name, old_node_id, new_node_type, target_graph, new_node_config
+            )
+        except Exception as e:
+            logger.error(f"Error replacing node: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to replace node: {str(e)}"
+            }
+    
+    # NOTE: For getting node pin info, use the existing tool from blueprint_action_mcp_server:
+    # inspect_node_pin_connection(node_name="...", pin_name="...")

@@ -3,6 +3,7 @@
 #include "Commands/BlueprintCommandRegistration.h"
 #include "Commands/BlueprintNodeCommandRegistration.h"
 #include "Commands/BlueprintActionCommandRegistration.h"
+#include "Commands/GraphManipulationCommandRegistration.h"
 #include "Commands/ProjectCommandRegistration.h"
 #include "Commands/DataTableCommandRegistration.h"
 #include "Commands/EditorCommandRegistration.h"
@@ -87,6 +88,9 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
     
     // Register Blueprint Node commands
     FBlueprintNodeCommandRegistration::RegisterAllBlueprintNodeCommands();
+    
+    // Register Graph Manipulation commands (low-level node operations)
+    FGraphManipulationCommandRegistration::RegisterAllGraphManipulationCommands();
     
     // Register Blueprint Action commands (new architecture)
     TSharedPtr<IBlueprintActionService> BlueprintActionService = MakeShared<FBlueprintActionService>();

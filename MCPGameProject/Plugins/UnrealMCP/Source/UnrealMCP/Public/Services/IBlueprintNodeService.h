@@ -153,6 +153,17 @@ public:
     virtual bool ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& TargetGraph, TArray<bool>& OutResults) = 0;
     
     /**
+     * Connect two nodes with automatic type casting/conversion
+     * @param Graph - The graph containing the nodes
+     * @param SourceNode - Source node
+     * @param SourcePinName - Name of the output pin on source node
+     * @param TargetNode - Target node
+     * @param TargetPinName - Name of the input pin on target node
+     * @return true if connection succeeded
+     */
+    virtual bool ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName) = 0;
+    
+    /**
      * Add an input action node to a Blueprint
      * @param Blueprint - Target Blueprint
      * @param ActionName - Name of the input action
