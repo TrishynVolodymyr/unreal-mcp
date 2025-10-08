@@ -3,6 +3,7 @@
 #include "Commands/GraphManipulation/DisconnectNodeCommand.h"
 #include "Commands/GraphManipulation/DeleteNodeCommand.h"
 #include "Commands/GraphManipulation/ReplaceNodeCommand.h"
+#include "Commands/GraphManipulation/SetNodePinValueCommand.h"
 #include "Services/BlueprintNodeService.h"
 
 // Static member definition
@@ -19,6 +20,7 @@ void FGraphManipulationCommandRegistration::RegisterAllGraphManipulationCommands
     RegisterDisconnectNodeCommand();
     RegisterDeleteNodeCommand();
     RegisterReplaceNodeCommand();
+    RegisterSetNodePinValueCommand();
     
     UE_LOG(LogTemp, Log, TEXT("FGraphManipulationCommandRegistration::RegisterAllGraphManipulationCommands: Registered %d Graph Manipulation commands"), 
         RegisteredCommandNames.Num());
@@ -60,6 +62,12 @@ void FGraphManipulationCommandRegistration::RegisterDeleteNodeCommand()
 void FGraphManipulationCommandRegistration::RegisterReplaceNodeCommand()
 {
     TSharedPtr<FReplaceNodeCommand> Command = MakeShared<FReplaceNodeCommand>(FBlueprintNodeService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FGraphManipulationCommandRegistration::RegisterSetNodePinValueCommand()
+{
+    TSharedPtr<FSetNodePinValueCommand> Command = MakeShared<FSetNodePinValueCommand>(FBlueprintNodeService::Get());
     RegisterAndTrackCommand(Command);
 }
 

@@ -27,4 +27,6 @@ public:
 
 private:
     IBlueprintNodeService& Service;
+    
+    FString CreateErrorResponse(const FString& ErrorMessage) const;
 };

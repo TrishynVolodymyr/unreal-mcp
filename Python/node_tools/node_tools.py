@@ -5,7 +5,7 @@ This module provides tools for manipulating Blueprint graph nodes and connection
 """
 
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from mcp.server.fastmcp import FastMCP, Context
 from utils.nodes.node_operations import (
     # add_event_node as add_event_node_impl,  # REMOVED: Use create_node_by_action_name instead
@@ -309,3 +309,79 @@ def register_blueprint_node_tools(mcp: FastMCP):
     
     # NOTE: For getting node pin info, use the existing tool from blueprint_action_mcp_server:
     # inspect_node_pin_connection(node_name="...", pin_name="...")
+    
+    @mcp.tool()
+    def set_node_pin_value(
+        ctx: Context,
+        blueprint_name: str,
+        node_id: str,
+        pin_name: str,
+        value: Union[str, int, float, bool],
+        target_graph: str = "EventGraph"
+    ) -> Dict[str, Any]:
+        """
+        Set the default value or selection for a pin on a Blueprint node.
+        Works for dropdown selectors, literal values, class references, etc.
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            node_id: ID of the node containing the pin
+            pin_name: Name of the pin to set (e.g., "ComponentClass", "Class", "Value")
+            value: Value to set. Can be:
+                - Class path: "/Script/Engine.SplineComponent" or "SplineComponent"
+                - Enum value: "ESplineCoordinateSpace::Local" or "Local"
+                - Literal value: "1", "1.0", "true", "Hello" (or int/float/bool types)
+            target_graph: Name of the graph containing the node (default: "EventGraph")
+        
+        Returns:
+            Dict containing success status and updated pin info
+            
+        Examples:
+            # Set component class on Get Component by Class node
+            set_node_pin_value(
+                ctx,
+                blueprint_name="BP_MyActor",
+                node_id="ABC123...",
+                pin_name="ComponentClass",
+                value="SplineComponent"
+            )
+            
+            # Set coordinate space on spline function
+            set_node_pin_value(
+                ctx,
+                blueprint_name="BP_MyActor",
+                node_id="DEF456...",
+                pin_name="CoordinateSpace",
+                value="Local"
+            )
+            
+            # Set literal integer value
+            set_node_pin_value(
+                ctx,
+                blueprint_name="BP_MyActor",
+                node_id="GHI789...",
+                pin_name="Value",
+                value=42  # Can pass int directly
+            )
+        """
+        try:
+            # Convert value to string for C++ command
+            value_str = str(value) if not isinstance(value, str) else value
+            
+            params = {
+                "blueprint_name": blueprint_name,
+                "node_id": node_id,
+                "pin_name": pin_name,
+                "value": value_str,
+                "target_graph": target_graph
+            }
+            
+            result = send_unreal_command("set_node_pin_value", params)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error setting node pin value: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to set pin value: {str(e)}"
+            }

@@ -21,6 +21,7 @@ private:
     static void RegisterDisconnectNodeCommand();
     static void RegisterDeleteNodeCommand();
     static void RegisterReplaceNodeCommand();
+    static void RegisterSetNodePinValueCommand();
     
     /** Helper to register and track a command */
     static void RegisterAndTrackCommand(TSharedPtr<IUnrealMCPCommand> Command);

@@ -9,6 +9,19 @@
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
 
+FString FGetNodeConnectionsCommand::CreateErrorResponse(const FString& ErrorMessage) const
+{
+    TSharedPtr<FJsonObject> ResponseObj = MakeShareable(new FJsonObject());
+    ResponseObj->SetBoolField(TEXT("success"), false);
+    ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
+    
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
+    
+    return OutputString;
+}
+
 FString FGetNodeConnectionsCommand::Execute(const FString& Parameters)
 {
     TSharedPtr<FJsonObject> JsonObject;
@@ -16,20 +29,20 @@ FString FGetNodeConnectionsCommand::Execute(const FString& Parameters)
     
     if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Invalid JSON parameters"));
+        return CreateErrorResponse(TEXT("Invalid JSON parameters"));
     }
 
     // Parse parameters
     FString BlueprintName;
     if (!JsonObject->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing required parameter: blueprint_name"));
+        return CreateErrorResponse(TEXT("Missing required parameter: blueprint_name"));
     }
 
     FString NodeId;
     if (!JsonObject->TryGetStringField(TEXT("node_id"), NodeId))
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing required parameter: node_id"));
+        return CreateErrorResponse(TEXT("Missing required parameter: node_id"));
     }
 
     FString TargetGraph = TEXT("EventGraph");
@@ -39,7 +52,7 @@ FString FGetNodeConnectionsCommand::Execute(const FString& Parameters)
     UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
     if (!Blueprint)
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+        return CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
     }
 
     // Find the graph
@@ -55,7 +68,7 @@ FString FGetNodeConnectionsCommand::Execute(const FString& Parameters)
 
     if (!Graph)
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Graph not found: %s"), *TargetGraph));
+        return CreateErrorResponse(FString::Printf(TEXT("Graph not found: %s"), *TargetGraph));
     }
 
     // Find the node
@@ -71,7 +84,7 @@ FString FGetNodeConnectionsCommand::Execute(const FString& Parameters)
 
     if (!Node)
     {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Node not found with ID: %s"), *NodeId));
+        return CreateErrorResponse(FString::Printf(TEXT("Node not found with ID: %s"), *NodeId));
     }
 
     // Collect pin information
