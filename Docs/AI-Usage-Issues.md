@@ -46,7 +46,7 @@ add_blueprint_variable(
 
 **Status**: Feature implemented but not required for most use cases. Can be removed or kept as safety fallback.
 
-### 4. **Literal Value Creation**
+### 4. ~~**Literal Value Creation**~~ ✅ **FIXED**
 **Problem**: No simple way to create literal int/float values for node inputs:
 - `Make Literal Int` creates wrong node type
 - Setting default pin values not supported
@@ -54,7 +54,36 @@ add_blueprint_variable(
 
 **Impact**: AI cannot set simple numeric values (like "1" for increment operations) without trial and error.
 
-**What AI Needs**: Simple tool like `set_node_pin_default_value(node_id, pin_name, value)`.
+**Solution**: Created `set_node_pin_value` tool that sets default values directly on input pins.
+
+**Usage:**
+```python
+# Set integer value
+set_node_pin_value(
+    blueprint_name="BP_MyActor",
+    node_id="node_guid",
+    pin_name="PointIndex",
+    value=5  # Can pass int directly
+)
+
+# Set float value
+set_node_pin_value(
+    blueprint_name="BP_MyActor",
+    node_id="node_guid",
+    pin_name="BlendTime",
+    value=2.5
+)
+
+# Set boolean value
+set_node_pin_value(
+    blueprint_name="BP_MyActor",
+    node_id="node_guid",
+    pin_name="bLockOutgoing",
+    value=True
+)
+```
+
+**Status**: Fully implemented and tested. Verified with int (5), float (2.5), and bool (True) values.
 
 ### 5. **Component Access from Blueprint**
 **Problem**: Variables for components (like `RoadSpline`, `SplineMesh_Template`) don't appear in blueprint action search.
