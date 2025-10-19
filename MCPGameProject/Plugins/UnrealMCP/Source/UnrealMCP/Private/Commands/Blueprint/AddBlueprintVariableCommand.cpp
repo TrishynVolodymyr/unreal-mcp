@@ -142,6 +142,23 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
                 InnerPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
                 InnerPinType.PinSubCategoryObject = FoundStruct;
                 bInnerResolved = true;
+            } else {
+                // Try object/class resolution
+                UClass* FoundClass = FAssetDiscoveryService::Get().ResolveObjectClass(InnerType);
+                
+                if (!FoundClass) {
+                    // Try widget class finding for widget blueprints
+                    FoundClass = FAssetDiscoveryService::Get().FindWidgetClass(InnerType);
+                }
+
+                if (FoundClass) {
+                    InnerPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+                    InnerPinType.PinSubCategoryObject = FoundClass;
+                    bInnerResolved = true;
+                    UE_LOG(LogTemp, Display, TEXT("Successfully resolved array object type: %s -> %s"), *InnerType, *FoundClass->GetName());
+                } else {
+                    UE_LOG(LogTemp, Warning, TEXT("Could not resolve array inner type: %s"), *InnerType);
+                }
             }
         }
 

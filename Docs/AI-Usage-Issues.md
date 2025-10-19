@@ -12,12 +12,22 @@
 - Or tool to create class reference nodes
 - Or parameter in `create_node_by_action_name` to specify class type for component nodes
 
-### 2. **Variable Type Resolution - Arrays Not Supported**
+### 2. ~~**Variable Type Resolution - Arrays Not Supported**~~ ✅ **FIXED**
 **Problem**: `add_blueprint_variable` fails for array types like `SplineMeshComponent[]` with "Could not resolve variable type" error.
 
 **Impact**: AI cannot create essential data structures for iterative operations (e.g., storing multiple generated components).
 
-**What AI Needs**: Proper array type syntax or separate tool for array variables.
+**Solution**: Added object/class resolution in array inner type handling. Now supports `ClassName[]` syntax for object arrays.
+
+**Usage:**
+```python
+# Create array of SplineMeshComponent
+add_blueprint_variable(
+    blueprint_name="BP_MyActor",
+    variable_name="GeneratedMeshes",
+    variable_type="SplineMeshComponent[]"
+)
+```
 
 ### 3. **Node Connection Type Mismatches**
 **Problem**: When connecting nodes, type casting isn't automatic:
