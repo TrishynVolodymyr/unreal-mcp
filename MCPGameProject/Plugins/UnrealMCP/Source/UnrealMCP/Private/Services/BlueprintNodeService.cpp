@@ -954,6 +954,45 @@ bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNo
         *TargetNode->GetClass()->GetName(),
         bTargetIsPromotable ? TEXT("YES") : TEXT("NO"));
     
+    // Check if we need a cast node BEFORE attempting connection
+    // For object types, check if target requires more specific type than source provides
+    bool bNeedsCast = false;
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object && 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+    {
+        UClass* SourceClass = Cast<UClass>(SourcePin->PinType.PinSubCategoryObject.Get());
+        UClass* TargetClass = Cast<UClass>(TargetPin->PinType.PinSubCategoryObject.Get());
+        
+        if (SourceClass && TargetClass)
+        {
+            // Need cast if target is more specific than source (not a parent class)
+            // e.g., Source=ActorComponent, Target=SplineComponent -> need cast
+            // e.g., Source=AActor, Target=PlayerController -> need cast
+            bNeedsCast = !TargetClass->IsChildOf(SourceClass);
+            
+            UE_LOG(LogTemp, Warning, TEXT("Object type check: Source=%s, Target=%s, NeedsCast=%s"),
+                *SourceClass->GetName(), *TargetClass->GetName(), bNeedsCast ? TEXT("YES") : TEXT("NO"));
+        }
+    }
+    
+    // If we need a cast, create it immediately
+    if (bNeedsCast)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Creating cast node before connection attempt..."));
+        bool bCastCreated = CreateCastNode(Graph, SourcePin, TargetPin);
+        
+        if (bCastCreated)
+        {
+            UE_LOG(LogTemp, Display, TEXT("Auto-cast successful - created conversion node"));
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Auto-cast failed - no conversion available"));
+            // Continue with direct connection attempt as fallback
+        }
+    }
+    
     // Just try to connect - let Unreal handle all the validation and type conversion
     UE_LOG(LogTemp, Warning, TEXT("Attempting connection..."));
     SourcePin->MakeLinkTo(TargetPin);
@@ -967,6 +1006,26 @@ bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNo
     // Check if connection was made
     bool bConnectionExists = SourcePin->LinkedTo.Contains(TargetPin);
     UE_LOG(LogTemp, Warning, TEXT("Connection result: %s"), bConnectionExists ? TEXT("SUCCESS") : TEXT("FAILED"));
+    
+    // If direct connection failed and we didn't try cast yet, try now
+    if (!bConnectionExists && !bNeedsCast)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Direct connection failed - attempting auto-cast..."));
+        
+        // Check if this is a case where we can insert a cast node
+        bool bCastCreated = CreateCastNode(Graph, SourcePin, TargetPin);
+        
+        if (bCastCreated)
+        {
+            UE_LOG(LogTemp, Display, TEXT("Auto-cast successful - created conversion node"));
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Auto-cast failed - no conversion available"));
+            return false;
+        }
+    }
     
     if (bConnectionExists)
     {
@@ -1155,6 +1214,13 @@ bool FBlueprintNodeService::CreateCastNode(UEdGraph* Graph, UEdGraphPin* SourceP
         TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Real)
     {
         return CreateStringToFloatCast(Graph, SourcePin, TargetPin);
+    }
+    
+    // Object to Object cast (e.g., ActorComponent -> SplineComponent)
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object && 
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+    {
+        return CreateObjectCast(Graph, SourcePin, TargetPin);
     }
     
     UE_LOG(LogTemp, Warning, TEXT("CreateCastNode: No cast implementation for %s to %s"), 
@@ -1378,6 +1444,72 @@ bool FBlueprintNodeService::CreateStringToFloatCast(UEdGraph* Graph, UEdGraphPin
     ConvOutputPin->MakeLinkTo(TargetPin);
     
     UE_LOG(LogTemp, Display, TEXT("CreateStringToFloatCast: Successfully created String to Float cast node"));
+    return true;
+}
+
+bool FBlueprintNodeService::CreateObjectCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    if (!Graph || !SourcePin || !TargetPin)
+    {
+        return false;
+    }
+    
+    // Get the target class from the target pin
+    UClass* TargetClass = Cast<UClass>(TargetPin->PinType.PinSubCategoryObject.Get());
+    if (!TargetClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateObjectCast: Could not determine target class from pin"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateObjectCast: Creating cast to %s"), *TargetClass->GetName());
+    
+    // Create a dynamic cast node
+    UK2Node_DynamicCast* CastNode = NewObject<UK2Node_DynamicCast>(Graph);
+    CastNode->TargetType = TargetClass;
+    
+    // Position the cast node between source and target
+    FVector2D SourcePos(SourcePin->GetOwningNode()->NodePosX, SourcePin->GetOwningNode()->NodePosY);
+    FVector2D TargetPos(TargetPin->GetOwningNode()->NodePosX, TargetPin->GetOwningNode()->NodePosY);
+    FVector2D CastPos = (SourcePos + TargetPos) * 0.5f;
+    
+    CastNode->NodePosX = CastPos.X;
+    CastNode->NodePosY = CastPos.Y;
+    
+    Graph->AddNode(CastNode, true);
+    CastNode->PostPlacedNewNode();
+    CastNode->AllocateDefaultPins();
+    
+    // Find the input and output pins on the cast node
+    // Cast nodes have "Object" input pin and "As [ClassName]" output pin
+    UEdGraphPin* CastInputPin = nullptr;
+    UEdGraphPin* CastOutputPin = nullptr;
+    
+    for (UEdGraphPin* Pin : CastNode->Pins)
+    {
+        if (Pin->Direction == EGPD_Input && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+        {
+            CastInputPin = Pin;
+        }
+        else if (Pin->Direction == EGPD_Output && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object && 
+                 Pin->PinName.ToString().StartsWith(TEXT("As")))
+        {
+            CastOutputPin = Pin;
+        }
+    }
+    
+    if (!CastInputPin || !CastOutputPin)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CreateObjectCast: Could not find input/output pins on cast node"));
+        Graph->RemoveNode(CastNode);
+        return false;
+    }
+    
+    // Connect: Source -> Cast Input -> Cast Output -> Target
+    SourcePin->MakeLinkTo(CastInputPin);
+    CastOutputPin->MakeLinkTo(TargetPin);
+    
+    UE_LOG(LogTemp, Display, TEXT("CreateObjectCast: Successfully created object cast node to %s"), *TargetClass->GetName());
     return true;
 }
 

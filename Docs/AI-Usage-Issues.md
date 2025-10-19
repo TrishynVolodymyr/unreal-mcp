@@ -29,7 +29,7 @@ add_blueprint_variable(
 )
 ```
 
-### 3. **Node Connection Type Mismatches**
+### 3. ~~**Node Connection Type Mismatches**~~ ❌ **NOT A REAL PROBLEM**
 **Problem**: When connecting nodes, type casting isn't automatic:
 - `Get Component by Class` returns `ActorComponent`
 - Spline methods need `SplineComponent`
@@ -37,9 +37,14 @@ add_blueprint_variable(
 
 **Impact**: AI must manually create Cast nodes and manage type conversions, increasing complexity and error rate.
 
-**What AI Needs**: 
-- Auto-casting when connecting compatible types
-- Or clearer error messages indicating which Cast node to insert
+**Reality**: This is NOT actually a problem because:
+1. **`Get Component by Class` automatically returns the correct type** when `ComponentClass` is set - e.g., setting ComponentClass to SplineComponent makes ReturnValue type `Spline Component Object Reference`, not generic `ActorComponent`
+2. **Unreal Engine allows implicit conversions** for compatible class hierarchies (parent to child, interface implementations)
+3. **Cast nodes are only needed for truly incompatible types** (e.g., Actor -> PlayerController with no guarantee)
+
+**Auto-cast Implementation Added**: Code exists in `ConnectNodesWithAutoCast` to detect type mismatches and insert K2Node_DynamicCast nodes, but it's rarely triggered because Unreal's type system is already smart enough.
+
+**Status**: Feature implemented but not required for most use cases. Can be removed or kept as safety fallback.
 
 ### 4. **Literal Value Creation**
 **Problem**: No simple way to create literal int/float values for node inputs:

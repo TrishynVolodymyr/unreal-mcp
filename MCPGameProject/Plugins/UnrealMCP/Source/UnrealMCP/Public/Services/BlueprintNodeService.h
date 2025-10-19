@@ -125,6 +125,11 @@ private:
     bool CreateBoolToStringCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
     
     /**
+     * Create an Object to Object dynamic cast node (e.g., ActorComponent -> SplineComponent)
+     */
+    bool CreateObjectCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+    
+    /**
      * Create a String to Integer conversion node
      */
     bool CreateStringToIntCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
