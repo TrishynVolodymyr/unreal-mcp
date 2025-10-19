@@ -85,12 +85,30 @@ set_node_pin_value(
 
 **Status**: Fully implemented and tested. Verified with int (5), float (2.5), and bool (True) values.
 
-### 5. **Component Access from Blueprint**
+### 5. ~~**Component Access from Blueprint**~~ ✅ **FIXED**
 **Problem**: Variables for components (like `RoadSpline`, `SplineMesh_Template`) don't appear in blueprint action search.
 
 **Impact**: AI cannot easily get references to components that exist in the blueprint hierarchy.
 
-**What AI Needs**: Component variables to show up in `search_blueprint_actions` with blueprint_name parameter.
+**Solution**: Added `AddBlueprintComponentActions` function that scans Blueprint's SimpleConstructionScript and adds component getter actions to search results.
+
+**Usage:**
+```python
+# Search for component by name
+search_blueprint_actions(
+    search_query="RoadSpline",
+    blueprint_name="BP_SplineRoadActor"
+)
+# Returns: "Get RoadSpline" (SplineComponent)
+
+search_blueprint_actions(
+    search_query="SplineMesh",
+    blueprint_name="BP_SplineRoadActor"
+)
+# Returns: "Get SplineMesh_Template" (SplineMeshComponent)
+```
+
+**Status**: Fully implemented and tested. Components now appear in search results with category="Components".
 
 ### 6. **Execution Flow Chain Breaking**
 **Problem**: When reconnecting execution pins, old connections persist causing "failed building connection with 'Replace existing output connections'" errors.

@@ -17,6 +17,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Components/ActorComponent.h"
 #include "UObject/UObjectIterator.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
 
 // Native Blueprint Action Menu includes
 #include "BlueprintActionMenuUtils.h"
@@ -287,6 +289,65 @@ void AddBlueprintVariableActions(UBlueprint* Blueprint, const FString& SearchFil
     }
     
     UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariableActions: Added %d actions total"), AddedActions);
+}
+
+void AddBlueprintComponentActions(UBlueprint* Blueprint, const FString& SearchFilter, TArray<TSharedPtr<FJsonValue>>& OutActions)
+{
+    if (!Blueprint) 
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintComponentActions: Blueprint is null"));
+        return;
+    }
+    
+    // Get components from the Blueprint's SimpleConstructionScript
+    USimpleConstructionScript* SCS = Blueprint->SimpleConstructionScript;
+    if (!SCS)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintComponentActions: No SimpleConstructionScript found"));
+        return;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintComponentActions: Processing Blueprint '%s' with %d component nodes"), 
+           *Blueprint->GetName(), SCS->GetAllNodes().Num());
+    
+    int32 AddedActions = 0;
+    
+    for (USCS_Node* Node : SCS->GetAllNodes())
+    {
+        if (!Node || !Node->ComponentTemplate)
+        {
+            continue;
+        }
+        
+        FString ComponentName = Node->GetVariableName().ToString();
+        FString ComponentClassName = Node->ComponentTemplate->GetClass()->GetName();
+        
+        UE_LOG(LogTemp, Warning, TEXT("AddBlueprintComponentActions: Checking component '%s' (type: %s)"), *ComponentName, *ComponentClassName);
+        
+        if (!SearchFilter.IsEmpty() && !ComponentName.ToLower().Contains(SearchFilter.ToLower()))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintComponentActions: Component '%s' doesn't match search filter '%s'"), *ComponentName, *SearchFilter);
+            continue;
+        }
+        
+        // Getter
+        {
+            TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
+            GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *ComponentName));
+            GetterObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Get the %s component (%s)"), *ComponentName, *ComponentClassName));
+            GetterObj->SetStringField(TEXT("category"), TEXT("Components"));
+            GetterObj->SetStringField(TEXT("variable_name"), ComponentName);
+            GetterObj->SetStringField(TEXT("component_class"), ComponentClassName);
+            GetterObj->SetStringField(TEXT("pin_type"), TEXT("object"));
+            GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *ComponentName));
+            GetterObj->SetBoolField(TEXT("is_blueprint_component"), true);
+            OutActions.Add(MakeShared<FJsonValueObject>(GetterObj));
+            AddedActions++;
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintComponentActions: Added getter for component '%s'"), *ComponentName);
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintComponentActions: Added %d component actions total"), AddedActions);
 }
 
 FString UUnrealMCPBlueprintActionCommands::GetActionsForPin(const FString& PinType, const FString& PinSubCategory, const FString& SearchFilter, int32 MaxResults)
@@ -1298,6 +1359,11 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
             UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Adding variable actions for Blueprint: %s"), *Blueprint->GetName());
             AddBlueprintVariableActions(Blueprint, SearchQuery, ActionsArray);
             UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Added %d variable actions"), ActionsArray.Num());
+            
+            // Add component actions
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Adding component actions for Blueprint: %s"), *Blueprint->GetName());
+            AddBlueprintComponentActions(Blueprint, SearchQuery, ActionsArray);
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Added %d total actions after components"), ActionsArray.Num());
             
             // Add custom function actions
             UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Adding custom function actions for Blueprint: %s"), *Blueprint->GetName());
