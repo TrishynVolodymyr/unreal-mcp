@@ -995,6 +995,18 @@ bool FBlueprintNodeService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNo
     
     // Just try to connect - let Unreal handle all the validation and type conversion
     UE_LOG(LogTemp, Warning, TEXT("Attempting connection..."));
+    
+    // For execution pins, break existing connections first to avoid multiple outputs
+    // Execution pins should only have ONE outgoing connection
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+    {
+        if (SourcePin->LinkedTo.Num() > 0)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Breaking %d existing exec connections from source pin"), SourcePin->LinkedTo.Num());
+            SourcePin->BreakAllPinLinks();
+        }
+    }
+    
     SourcePin->MakeLinkTo(TargetPin);
     
     // CRITICAL: Explicitly notify nodes about pin connection changes for wildcard adaptation
