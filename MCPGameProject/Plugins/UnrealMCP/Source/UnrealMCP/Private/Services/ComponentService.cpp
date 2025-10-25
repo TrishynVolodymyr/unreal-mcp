@@ -365,11 +365,12 @@ FComponentService& FComponentService::Get()
     return Instance;
 }
 
-bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params)
+bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params, FString& OutErrorMessage)
 {
     if (!Blueprint)
     {
-        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: Invalid blueprint"));
+        OutErrorMessage = TEXT("Invalid blueprint");
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
         return false;
     }
     
@@ -380,7 +381,8 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
     FString ValidationError;
     if (!Params.IsValid(ValidationError))
     {
-        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: Invalid parameters - %s"), *ValidationError);
+        OutErrorMessage = FString::Printf(TEXT("Invalid parameters: %s"), *ValidationError);
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
         return false;
     }
     
@@ -388,22 +390,42 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
     UClass* ComponentClass = GetComponentClass(Params.ComponentType);
     if (!ComponentClass)
     {
-        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: Unknown component type '%s'"), *Params.ComponentType);
+        OutErrorMessage = FString::Printf(TEXT("Unknown component type '%s'"), *Params.ComponentType);
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
         return false;
     }
     
     // Ensure blueprint has a construction script
+    // Note: Only Actor-based blueprints have SimpleConstructionScript.
+    // ActorComponent blueprints do not support adding child components through SCS.
     if (!Blueprint->SimpleConstructionScript)
     {
-        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: Blueprint has no construction script"));
-        return false;
+        // Check if this is an ActorComponent blueprint
+        if (Blueprint->ParentClass && Blueprint->ParentClass->IsChildOf(UActorComponent::StaticClass()))
+        {
+            OutErrorMessage = FString::Printf(
+                TEXT("Cannot add components to ActorComponent blueprints. Blueprint '%s' with parent class '%s' does not support child components. Consider using an Actor-based blueprint instead."), 
+                *Blueprint->GetName(), *Blueprint->ParentClass->GetName());
+            UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
+            return false;
+        }
+        else
+        {
+            OutErrorMessage = FString::Printf(
+                TEXT("Blueprint '%s' has no SimpleConstructionScript. Parent class: %s"), 
+                *Blueprint->GetName(), 
+                Blueprint->ParentClass ? *Blueprint->ParentClass->GetName() : TEXT("None"));
+            UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
+            return false;
+        }
     }
     
     // Create the component node
     USCS_Node* NewNode = Blueprint->SimpleConstructionScript->CreateNode(ComponentClass, *Params.ComponentName);
     if (!NewNode)
     {
-        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: Failed to create component node"));
+        OutErrorMessage = FString::Printf(TEXT("Failed to create component node for '%s' of type '%s'"), *Params.ComponentName, *Params.ComponentType);
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
         return false;
     }
     

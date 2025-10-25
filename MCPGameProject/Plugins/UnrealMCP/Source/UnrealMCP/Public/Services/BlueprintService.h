@@ -149,7 +149,7 @@ public:
     
     // IBlueprintService interface implementation
     virtual UBlueprint* CreateBlueprint(const FBlueprintCreationParams& Params) override;
-    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params) override;
+    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params, FString& OutErrorMessage) override;
     virtual bool CompileBlueprint(UBlueprint* Blueprint, FString& OutError) override;
     virtual UBlueprint* FindBlueprint(const FString& BlueprintName) override;
     virtual bool AddVariableToBlueprint(UBlueprint* Blueprint, const FString& VariableName, const FString& VariableType, bool bIsExposed = false) override;

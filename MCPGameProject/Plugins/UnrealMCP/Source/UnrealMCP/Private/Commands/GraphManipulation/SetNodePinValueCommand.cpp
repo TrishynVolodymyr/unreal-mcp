@@ -169,8 +169,9 @@ FString FSetNodePinValueCommand::Execute(const FString& Parameters)
 
         if (ClassToSet)
         {
-            TargetPin->DefaultObject = ClassToSet;
-            TargetPin->DefaultValue = ClassToSet->GetPathName();
+            // Use schema's method to properly set class pin value
+            // This handles all the internal Blueprint requirements correctly
+            K2Schema->TrySetDefaultObject(*TargetPin, ClassToSet);
         }
         else
         {

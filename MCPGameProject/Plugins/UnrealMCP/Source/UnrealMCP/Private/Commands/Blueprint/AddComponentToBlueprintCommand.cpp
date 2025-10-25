@@ -37,9 +37,10 @@ FString FAddComponentToBlueprintCommand::Execute(const FString& Parameters)
     }
     
     // Add component using the service
-    if (!BlueprintService.AddComponentToBlueprint(Blueprint, ComponentParams))
+    FString ErrorMessage;
+    if (!BlueprintService.AddComponentToBlueprint(Blueprint, ComponentParams, ErrorMessage))
     {
-        return CreateErrorResponse(TEXT("Failed to add component to blueprint"));
+        return CreateErrorResponse(ErrorMessage.IsEmpty() ? TEXT("Failed to add component to blueprint") : ErrorMessage);
     }
     
     return CreateSuccessResponse(BlueprintName, ComponentParams.ComponentName);

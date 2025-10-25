@@ -5,6 +5,35 @@
 #include "Commands/Blueprint/ComponentCreationParams.h"
 
 /**
+ * Result of component operation with detailed error message
+ */
+struct UNREALMCP_API FComponentOperationResult
+{
+    bool bSuccess;
+    FString ErrorMessage;
+    
+    FComponentOperationResult() 
+        : bSuccess(false)
+        , ErrorMessage(TEXT(""))
+    {}
+    
+    static FComponentOperationResult Success()
+    {
+        FComponentOperationResult Result;
+        Result.bSuccess = true;
+        return Result;
+    }
+    
+    static FComponentOperationResult Failure(const FString& InErrorMessage)
+    {
+        FComponentOperationResult Result;
+        Result.bSuccess = false;
+        Result.ErrorMessage = InErrorMessage;
+        return Result;
+    }
+};
+
+/**
  * Interface for component-related operations
  * Provides abstraction for component creation, modification, and management
  */
@@ -17,9 +46,10 @@ public:
      * Add a component to an existing Blueprint
      * @param Blueprint - Target Blueprint
      * @param Params - Component creation parameters
+     * @param OutErrorMessage - Detailed error message if operation fails
      * @return true if component was added successfully
      */
-    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params) = 0;
+    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params, FString& OutErrorMessage) = 0;
     
     /**
      * Remove a component from a Blueprint

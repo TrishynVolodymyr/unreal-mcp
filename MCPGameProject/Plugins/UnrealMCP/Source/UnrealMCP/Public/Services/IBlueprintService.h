@@ -56,9 +56,10 @@ public:
      * Add a component to an existing Blueprint
      * @param Blueprint - Target Blueprint
      * @param Params - Component creation parameters
+     * @param OutErrorMessage - Detailed error message if operation fails
      * @return true if component was added successfully
      */
-    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const struct FComponentCreationParams& Params) = 0;
+    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const struct FComponentCreationParams& Params, FString& OutErrorMessage) = 0;
     
     /**
      * Compile a Blueprint

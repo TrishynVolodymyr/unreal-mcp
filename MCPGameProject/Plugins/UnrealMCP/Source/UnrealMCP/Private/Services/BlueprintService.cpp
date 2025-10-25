@@ -335,10 +335,10 @@ UBlueprint* FBlueprintService::CreateBlueprint(const FBlueprintCreationParams& P
     return NewBlueprint;
 }
 
-bool FBlueprintService::AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params)
+bool FBlueprintService::AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params, FString& OutErrorMessage)
 {
     // Delegate to ComponentService for component operations
-    bool bResult = FComponentService::Get().AddComponentToBlueprint(Blueprint, Params);
+    bool bResult = FComponentService::Get().AddComponentToBlueprint(Blueprint, Params, OutErrorMessage);
     
     if (bResult)
     {

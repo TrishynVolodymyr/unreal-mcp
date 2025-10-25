@@ -156,7 +156,7 @@ public:
     static FComponentService& Get();
     
     // IComponentService interface implementation
-    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params) override;
+    virtual bool AddComponentToBlueprint(UBlueprint* Blueprint, const FComponentCreationParams& Params, FString& OutErrorMessage) override;
     virtual bool RemoveComponentFromBlueprint(UBlueprint* Blueprint, const FString& ComponentName) override;
     virtual UObject* FindComponentInBlueprint(UBlueprint* Blueprint, const FString& ComponentName) override;
     virtual TArray<TPair<FString, FString>> GetBlueprintComponents(UBlueprint* Blueprint) override;
