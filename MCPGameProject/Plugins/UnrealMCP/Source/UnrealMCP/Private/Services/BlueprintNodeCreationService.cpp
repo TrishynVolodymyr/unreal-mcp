@@ -101,6 +101,8 @@ FBlueprintNodeCreationService::FBlueprintNodeCreationService()
 
 FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams)
 {
+    UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService::CreateNodeByActionName ENTRY: Blueprint='%s', Function='%s', ClassName='%s'"), *BlueprintName, *FunctionName, *ClassName);
+    
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     
     // Create a map for function name aliases
@@ -463,13 +465,13 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                                 {
                                     if (TestBP->GeneratedClass)
                                     {
-                                        FString ClassName = TestBP->GeneratedClass->GetName();
+                                        FString GeneratedClassName = TestBP->GeneratedClass->GetName();
                                         // Remove common Blueprint prefixes for comparison
-                                        if (ClassName.StartsWith(TEXT("BP_")))
+                                        if (GeneratedClassName.StartsWith(TEXT("BP_")))
                                         {
-                                            ClassName = ClassName.Mid(3);
+                                            GeneratedClassName = GeneratedClassName.Mid(3);
                                         }
-                                        bIsMatch = ClassName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
+                                        bIsMatch = GeneratedClassName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
                                     }
                                 }
                             }
@@ -766,24 +768,24 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             // create property nodes like "Get Show Mouse Cursor" on a PlayerController reference.
 
             bool bSpawned = false;
-            bSpawned = TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+            bSpawned = TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, TEXT(""), EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
 
             if (!bSpawned)
             {
                 // Try trimmed variable name (without Get/Set prefix)
-                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(VarName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(VarName, TEXT(""), EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
             }
 
             if (!bSpawned && bIsGetter)
             {
                 // Prepend "Get " to the node name in case the BAD entry includes it
                 FString GetterName = FString::Printf(TEXT("Get %s"), *VarName);
-                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(GetterName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(GetterName, TEXT(""), EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
             }
             else if (!bSpawned && !bIsGetter)
             {
                 FString SetterName = FString::Printf(TEXT("Set %s"), *VarName);
-                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(SetterName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
+                bSpawned = TryCreateNodeUsingBlueprintActionDatabase(SetterName, TEXT(""), EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType);
             }
 
             if (!bSpawned)
@@ -921,7 +923,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created arithmetic/comparison node '%s'"), *NodeTitle);
     }
     // Universal dynamic node creation using Blueprint Action Database
-    else if (TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
+    else if (TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, ClassName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
     {
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created node '%s' using Blueprint Action Database"), *NodeTitle);
     }
@@ -1120,9 +1122,9 @@ UBlueprint* FBlueprintNodeCreationService::FindBlueprintByName(const FString& Bl
     return nullptr;
 }
 
-bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, UEdGraph* EventGraph, float PositionX, float PositionY, UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType)
+bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, const FString& ClassName, UEdGraph* EventGraph, float PositionX, float PositionY, UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType)
 {
-    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s'"), *FunctionName);
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s' with class '%s'"), *FunctionName, *ClassName);
     
     // Create a map of common operation aliases to their actual function names
     TMap<FString, TArray<FString>> OperationAliases;
@@ -1226,6 +1228,7 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
                 
                 // Check if any of our search names match
                 bool bFoundMatch = false;
+                bool bExactMatch = false;  // Track if we found an exact match
                 FString MatchedName;
                 
                 for (const FString& SearchName : SearchNames)
@@ -1234,6 +1237,7 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
                     if (NodeName.Equals(SearchName, ESearchCase::IgnoreCase))
                     {
                         bFoundMatch = true;
+                        bExactMatch = true;
                         MatchedName = SearchName;
                         break;
                     }
@@ -1242,33 +1246,144 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
                     if (!FunctionNameFromNode.IsEmpty() && FunctionNameFromNode.Equals(SearchName, ESearchCase::IgnoreCase))
                     {
                         bFoundMatch = true;
+                        bExactMatch = true;
                         MatchedName = SearchName;
                         break;
                     }
                     
                     // Try partial match (for operations like "+" which might show as "Add (float)")
-                    if (NodeName.Contains(SearchName, ESearchCase::IgnoreCase))
+                    // But DON'T break here - continue searching for exact match
+                    if (!bFoundMatch && NodeName.Contains(SearchName, ESearchCase::IgnoreCase))
                     {
                         bFoundMatch = true;
+                        bExactMatch = false;
                         MatchedName = SearchName;
-                        break;
+                        // DON'T break - keep searching for exact match
                     }
                 }
                 
                 if (bFoundMatch)
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found matching spawner for '%s' -> '%s' (node class: %s, function: %s)"), 
-                           *FunctionName, *MatchedName, *NodeClass, *FunctionNameFromNode);
+                    // CRITICAL FIX for Problem #3/#5: Check class name if specified
+                    // This ensures we get the correct function when multiple functions have the same name
+                    bool bClassMatches = true;
                     
-                    // Create the node using the spawner
-                    NewNode = NodeSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
-                    if (NewNode)
+                    if (!ClassName.IsEmpty())
                     {
-                        NodeTitle = NodeName;
-                        NodeType = NodeClass;
-                        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
-                        return true;
+                        bClassMatches = false; // Start with false, must match to be true
+                        
+                        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Class filtering enabled, wanted class: '%s'"), *ClassName);
+                        
+                        // For function call nodes, check the owner class
+                        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                        {
+                            if (UFunction* Function = FunctionNode->GetTargetFunction())
+                            {
+                                UClass* OwnerClass = Function->GetOwnerClass();
+                                if (OwnerClass)
+                                {
+                                    FString OwnerClassName = OwnerClass->GetName();
+                                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found function '%s' in class '%s'"), *FunctionNameFromNode, *OwnerClassName);
+                                    
+                                    // Try exact match
+                                    if (OwnerClassName.Equals(ClassName, ESearchCase::IgnoreCase))
+                                    {
+                                        bClassMatches = true;
+                                    }
+                                    // Try without U/A prefix
+                                    else if (OwnerClassName.Len() > 1 && 
+                                            (OwnerClassName[0] == 'U' || OwnerClassName[0] == 'A') &&
+                                            OwnerClassName.Mid(1).Equals(ClassName, ESearchCase::IgnoreCase))
+                                    {
+                                        bClassMatches = true;
+                                    }
+                                    // Try with U prefix added to ClassName
+                                    else if (!ClassName.StartsWith(TEXT("U")) && !ClassName.StartsWith(TEXT("A")) &&
+                                            OwnerClassName.Equals(FString::Printf(TEXT("U%s"), *ClassName), ESearchCase::IgnoreCase))
+                                    {
+                                        bClassMatches = true;
+                                    }
+                                    // Try common library name mappings
+                                    else if (ClassName.Equals(TEXT("GameplayStatics"), ESearchCase::IgnoreCase) && 
+                                            OwnerClassName.Equals(TEXT("UGameplayStatics"), ESearchCase::IgnoreCase))
+                                    {
+                                        bClassMatches = true;
+                                    }
+                                    else if (ClassName.Equals(TEXT("KismetMathLibrary"), ESearchCase::IgnoreCase) && 
+                                            OwnerClassName.Equals(TEXT("UKismetMathLibrary"), ESearchCase::IgnoreCase))
+                                    {
+                                        bClassMatches = true;
+                                    }
+                                    else if (ClassName.Equals(TEXT("KismetSystemLibrary"), ESearchCase::IgnoreCase) && 
+                                            OwnerClassName.Equals(TEXT("UKismetSystemLibrary"), ESearchCase::IgnoreCase))
+                                    {
+                                        bClassMatches = true;
+                                    }
+                                    
+                                    if (!bClassMatches)
+                                    {
+                                        UE_LOG(LogTemp, Verbose, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Skipping '%s' - class mismatch (wanted '%s', got '%s')"), 
+                                               *NodeName, *ClassName, *OwnerClassName);
+                                    }
+                                }
+                            }
+                        }
+                        // For other node types, if class is specified but can't be checked, skip
+                        else
+                        {
+                            // Non-function nodes don't have a class, so if ClassName is specified, this isn't a match
+                            bClassMatches = false;
+                            UE_LOG(LogTemp, Verbose, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Skipping '%s' - not a function call node but class '%s' was specified"), 
+                                   *NodeName, *ClassName);
+                        }
                     }
+                    
+                    // Only create node if class matches (or no class was specified)
+                    // AND if we have an exact function name match (when ClassName is specified)
+                    // If class doesn't match, CONTINUE searching for other nodes with the same name
+                    if (bClassMatches)
+                    {
+                        // If class name is specified, require exact function name match
+                        // This prevents creating "GetAllActorsOfClassWithTag" when we want "GetAllActorsOfClass"
+                        bool bFunctionNameMatches = true;
+                        if (!ClassName.IsEmpty() && !FunctionNameFromNode.IsEmpty())
+                        {
+                            // Check if the actual function name exactly matches what we're looking for
+                            bFunctionNameMatches = false;
+                            for (const FString& SearchName : SearchNames)
+                            {
+                                if (FunctionNameFromNode.Equals(SearchName, ESearchCase::IgnoreCase))
+                                {
+                                    bFunctionNameMatches = true;
+                                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Exact function name match: '%s' == '%s'"), *FunctionNameFromNode, *SearchName);
+                                    break;
+                                }
+                            }
+                            
+                            if (!bFunctionNameMatches)
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Skipping '%s' - function name mismatch (wanted exact match for '%s', got '%s')"), 
+                                       *NodeName, *FunctionName, *FunctionNameFromNode);
+                            }
+                        }
+                        
+                        if (bFunctionNameMatches)
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found matching spawner for '%s' -> '%s' (node class: %s, function: %s)"), 
+                                   *FunctionName, *MatchedName, *NodeClass, *FunctionNameFromNode);
+                            
+                            // Create the node using the spawner
+                            NewNode = NodeSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
+                            if (NewNode)
+                            {
+                                NodeTitle = NodeName;
+                                NodeType = NodeClass;
+                                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
+                                return true;
+                            }
+                        }
+                    }
+                    // If class doesn't match, DON'T return - continue to next spawner
                 }
             }
         }
