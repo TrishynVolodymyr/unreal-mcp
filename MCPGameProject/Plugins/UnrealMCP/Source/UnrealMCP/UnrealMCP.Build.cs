@@ -67,7 +67,8 @@ public class UnrealMCP : ModuleRules
 				"AssetTools",
 				"StructUtils",
 				"PropertyEditor",
-				"BlueprintEditorLibrary"
+				"BlueprintEditorLibrary",
+				"SubobjectDataInterface"  // For UE 5.6 USubobjectDataSubsystem API
 			}
 		);
 		

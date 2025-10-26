@@ -2,23 +2,17 @@
 #include "Services/IPropertyService.h"
 #include "Services/PropertyService.h"
 #include "Services/AssetDiscoveryService.h"
+#include "Factories/ComponentFactory.h"
 #include "Engine/Blueprint.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "Components/SceneComponent.h"
 #include "Components/ActorComponent.h"
-#include "Components/StaticMeshComponent.h"
-#include "Components/PointLightComponent.h"
-#include "Components/SpotLightComponent.h"
-#include "Components/DirectionalLightComponent.h"
-#include "Components/BoxComponent.h"
-#include "Components/SphereComponent.h"
-#include "Components/CapsuleComponent.h"
-#include "Camera/CameraComponent.h"
-#include "Components/AudioComponent.h"
-#include "Components/BillboardComponent.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "GameFramework/Actor.h"
+#include "SubobjectDataSubsystem.h"
+#include "SubobjectData.h"
+#include "Engine/Engine.h"
 
 // Component Type Cache Implementation
 UClass* FComponentTypeCache::GetComponentClass(const FString& ComponentType)
@@ -244,6 +238,8 @@ TMap<FString, FString> FComponentTypeCache::GetSupportedComponentTypes() const
         SupportedTypes.Add(TEXT("SceneComponent"), TEXT("SceneComponent"));
         SupportedTypes.Add(TEXT("Billboard"), TEXT("BillboardComponent"));
         SupportedTypes.Add(TEXT("BillboardComponent"), TEXT("BillboardComponent"));
+        SupportedTypes.Add(TEXT("Widget"), TEXT("WidgetComponent"));
+        SupportedTypes.Add(TEXT("WidgetComponent"), TEXT("WidgetComponent"));
     }
     
     return SupportedTypes;
@@ -251,60 +247,22 @@ TMap<FString, FString> FComponentTypeCache::GetSupportedComponentTypes() const
 
 UClass* FComponentTypeCache::ResolveComponentClassInternal(const FString& ComponentType) const
 {
-    // Get the mapped component type
+    // Get the mapped component type (for aliases like "StaticMesh" -> "StaticMeshComponent")
     TMap<FString, FString> SupportedTypes = GetSupportedComponentTypes();
     const FString* MappedType = SupportedTypes.Find(ComponentType);
     FString ActualComponentType = MappedType ? *MappedType : ComponentType;
     
-    // Try direct class lookups for common components
-    if (ActualComponentType == TEXT("StaticMeshComponent"))
+    // First, try using ComponentFactory which has all default types registered
+    UClass* ComponentClass = FComponentFactory::Get().GetComponentClass(ActualComponentType);
+    if (ComponentClass)
     {
-        return UStaticMeshComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("PointLightComponent"))
-    {
-        return UPointLightComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("SpotLightComponent"))
-    {
-        return USpotLightComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("DirectionalLightComponent"))
-    {
-        return UDirectionalLightComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("BoxComponent"))
-    {
-        return UBoxComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("SphereComponent"))
-    {
-        return USphereComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("CapsuleComponent"))
-    {
-        return UCapsuleComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("CameraComponent"))
-    {
-        return UCameraComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("AudioComponent"))
-    {
-        return UAudioComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("SceneComponent"))
-    {
-        return USceneComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("BillboardComponent"))
-    {
-        return UBillboardComponent::StaticClass();
+        UE_LOG(LogTemp, Verbose, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Found component '%s' via ComponentFactory"), *ActualComponentType);
+        return ComponentClass;
     }
     
-    // Try loading from Engine module
+    // If not in ComponentFactory, try loading from Engine module
     FString EnginePath = FString::Printf(TEXT("/Script/Engine.%s"), *ActualComponentType);
-    UClass* ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
+    ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
     
     if (!ComponentClass)
     {
@@ -314,42 +272,46 @@ UClass* FComponentTypeCache::ResolveComponentClassInternal(const FString& Compon
         ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
     }
     
-        // If not found in Engine, try loading as a Blueprint class
-        if (!ComponentClass)
+    // If not found in Engine, try loading as a Blueprint class
+    if (!ComponentClass)
+    {
+        // Try direct Blueprint path (e.g., "/Game/DialogueSystem/DialogueComponent")
+        if (ActualComponentType.StartsWith(TEXT("/")))
         {
-            // Try direct Blueprint path (e.g., "/Game/DialogueSystem/DialogueComponent")
-            if (ActualComponentType.StartsWith(TEXT("/")))
+            // Try both the Blueprint asset path and the generated class path
+            ComponentClass = LoadObject<UClass>(nullptr, *ActualComponentType);
+            if (!ComponentClass)
             {
-                // Try both the Blueprint asset path and the generated class path
-                ComponentClass = LoadObject<UClass>(nullptr, *ActualComponentType);
-                if (!ComponentClass)
+                FString GeneratedClassPath = ActualComponentType + TEXT("_C");
+                ComponentClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
+            }
+        }
+        else
+        {
+            // Use AssetDiscoveryService to find Blueprint components
+            TArray<FString> BlueprintPaths = FAssetDiscoveryService::Get().FindBlueprints(ActualComponentType);
+            TArray<FString> BlueprintSearchPaths;
+            
+            // Convert Blueprint paths to generated class paths
+            for (const FString& BPPath : BlueprintPaths)
+            {
+                FString GeneratedClassPath = BPPath + TEXT("_C");
+                BlueprintSearchPaths.Add(GeneratedClassPath);
+            }
+            
+            for (const FString& SearchPath : BlueprintSearchPaths)
+            {
+                ComponentClass = LoadObject<UClass>(nullptr, *SearchPath);
+                if (ComponentClass)
                 {
-                    FString GeneratedClassPath = ActualComponentType + TEXT("_C");
-                    ComponentClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
+                    UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Found Blueprint component at '%s'"), *SearchPath);
+                    break;
                 }
             }
-	else
-	{
-		// Use AssetDiscoveryService to find Blueprint components
-		TArray<FString> BlueprintPaths = FAssetDiscoveryService::Get().FindBlueprints(ActualComponentType);
-		TArray<FString> BlueprintSearchPaths;
-		
-		// Convert Blueprint paths to generated class paths
-		for (const FString& BPPath : BlueprintPaths)
-		{
-			FString GeneratedClassPath = BPPath + TEXT("_C");
-			BlueprintSearchPaths.Add(GeneratedClassPath);
-		}                for (const FString& SearchPath : BlueprintSearchPaths)
-                {
-                    ComponentClass = LoadObject<UClass>(nullptr, *SearchPath);
-                    if (ComponentClass)
-                    {
-                        UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Found Blueprint component at '%s'"), *SearchPath);
-                        break;
-                    }
-                }
-            }
-        }    // Verify that the class is a valid component type
+        }
+    }
+    
+    // Verify that the class is a valid component type
     if (ComponentClass && !ComponentClass->IsChildOf(UActorComponent::StaticClass()))
     {
         UE_LOG(LogTemp, Warning, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Class '%s' is not a component type"), *ActualComponentType);
@@ -395,42 +357,129 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
         return false;
     }
     
-    // Ensure blueprint has a construction script
-    // Note: Only Actor-based blueprints have SimpleConstructionScript.
-    // ActorComponent blueprints do not support adding child components through SCS.
-    if (!Blueprint->SimpleConstructionScript)
+    // Check if this is an ActorComponent blueprint - they don't support child components
+    if (Blueprint->ParentClass && Blueprint->ParentClass->IsChildOf(UActorComponent::StaticClass()))
     {
-        // Check if this is an ActorComponent blueprint
-        if (Blueprint->ParentClass && Blueprint->ParentClass->IsChildOf(UActorComponent::StaticClass()))
-        {
-            OutErrorMessage = FString::Printf(
-                TEXT("Cannot add components to ActorComponent blueprints. Blueprint '%s' with parent class '%s' does not support child components. Consider using an Actor-based blueprint instead."), 
-                *Blueprint->GetName(), *Blueprint->ParentClass->GetName());
-            UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
-            return false;
-        }
-        else
-        {
-            OutErrorMessage = FString::Printf(
-                TEXT("Blueprint '%s' has no SimpleConstructionScript. Parent class: %s"), 
-                *Blueprint->GetName(), 
-                Blueprint->ParentClass ? *Blueprint->ParentClass->GetName() : TEXT("None"));
-            UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
-            return false;
-        }
-    }
-    
-    // Create the component node
-    USCS_Node* NewNode = Blueprint->SimpleConstructionScript->CreateNode(ComponentClass, *Params.ComponentName);
-    if (!NewNode)
-    {
-        OutErrorMessage = FString::Printf(TEXT("Failed to create component node for '%s' of type '%s'"), *Params.ComponentName, *Params.ComponentType);
+        OutErrorMessage = FString::Printf(
+            TEXT("Cannot add components to ActorComponent blueprints. Blueprint '%s' with parent class '%s' does not support child components. Consider using an Actor-based blueprint instead."), 
+            *Blueprint->GetName(), *Blueprint->ParentClass->GetName());
         UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
         return false;
     }
     
+    // Get the Subobject Data Subsystem (UE 5.6+ API)
+    // Note: USubobjectDataSubsystem is a UEngineSubsystem, not UEditorSubsystem
+    USubobjectDataSubsystem* SubobjectDataSubsystem = GEngine->GetEngineSubsystem<USubobjectDataSubsystem>();
+    if (!SubobjectDataSubsystem)
+    {
+        OutErrorMessage = TEXT("Failed to get SubobjectDataSubsystem");
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
+        return false;
+    }
+    
+    // Gather subobject data for the blueprint using K2_GatherSubobjectDataForBlueprint
+    TArray<FSubobjectDataHandle> SubobjectHandles;
+    SubobjectDataSubsystem->K2_GatherSubobjectDataForBlueprint(Blueprint, SubobjectHandles);
+    
+    UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Found %d existing subobjects"), SubobjectHandles.Num());
+    
+    // Find the parent handle
+    FSubobjectDataHandle ParentHandle;
+    
+    if (!Params.ParentComponentName.IsEmpty())
+    {
+        // Look for specific parent component by name
+        for (const FSubobjectDataHandle& Handle : SubobjectHandles)
+        {
+            FSubobjectData* Data = Handle.GetData();
+            if (Data && Data->GetVariableName().ToString() == Params.ParentComponentName)
+            {
+                ParentHandle = Handle;
+                UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Found specified parent '%s'"), 
+                    *Params.ParentComponentName);
+                break;
+            }
+        }
+        
+        if (!ParentHandle.IsValid())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FComponentService::AddComponentToBlueprint: Specified parent '%s' not found, will find scene root"), 
+                *Params.ParentComponentName);
+        }
+    }
+    
+    // If no parent specified or parent not found, find the scene root for scene components
+    if (!ParentHandle.IsValid() && ComponentClass->IsChildOf(USceneComponent::StaticClass()))
+    {
+        // Find scene root - try first valid subobject as a starting point
+        if (SubobjectHandles.Num() > 0)
+        {
+            ParentHandle = SubobjectDataSubsystem->FindSceneRootForSubobject(SubobjectHandles[0]);
+            
+            if (ParentHandle.IsValid())
+            {
+                FSubobjectData* ParentData = ParentHandle.GetData();
+                UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Found scene root '%s'"), 
+                    ParentData ? *ParentData->GetVariableName().ToString() : TEXT("Unknown"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("FComponentService::AddComponentToBlueprint: FindSceneRootForSubobject returned invalid handle"));
+            }
+        }
+    }
+    
+    // Prepare parameters for adding new subobject
+    FAddNewSubobjectParams AddParams;
+    AddParams.ParentHandle = ParentHandle;
+    AddParams.NewClass = ComponentClass;
+    AddParams.BlueprintContext = Blueprint;
+    AddParams.bSkipMarkBlueprintModified = false; // We want to mark blueprint as modified
+    AddParams.bConformTransformToParent = false;   // Keep our custom transform
+    
+    // Add the new component using the subsystem
+    FText FailReason;
+    FSubobjectDataHandle NewHandle = SubobjectDataSubsystem->AddNewSubobject(AddParams, FailReason);
+    
+    if (!NewHandle.IsValid())
+    {
+        OutErrorMessage = FString::Printf(TEXT("Failed to create component: %s"), *FailReason.ToString());
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
+        return false;
+    }
+    
+    // Get the newly created component template to set properties
+    FSubobjectData* NewSubobjectData = NewHandle.GetData();
+    if (!NewSubobjectData)
+    {
+        OutErrorMessage = TEXT("Failed to get subobject data for new component");
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
+        return false;
+    }
+    
+    const UObject* ConstComponentTemplate = NewSubobjectData->GetObject();
+    if (!ConstComponentTemplate)
+    {
+        OutErrorMessage = TEXT("Failed to get component template");
+        UE_LOG(LogTemp, Error, TEXT("FComponentService::AddComponentToBlueprint: %s"), *OutErrorMessage);
+        return false;
+    }
+    
+    // Remove const qualifier - we need to modify the component
+    UObject* ComponentTemplate = const_cast<UObject*>(ConstComponentTemplate);
+    
+    // Rename the component to match requested name
+    if (!Params.ComponentName.IsEmpty())
+    {
+        if (!SubobjectDataSubsystem->RenameSubobject(NewHandle, FText::FromString(Params.ComponentName)))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FComponentService::AddComponentToBlueprint: Failed to rename component to '%s'"), 
+                *Params.ComponentName);
+        }
+    }
+    
     // Set transform if it's a scene component
-    if (USceneComponent* SceneComponent = Cast<USceneComponent>(NewNode->ComponentTemplate))
+    if (USceneComponent* SceneComponent = Cast<USceneComponent>(ComponentTemplate))
     {
         SetComponentTransform(SceneComponent, Params.Location, Params.Rotation, Params.Scale);
     }
@@ -441,7 +490,7 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
         TArray<FString> SuccessProperties;
         TMap<FString, FString> FailedProperties;
         
-        FPropertyService::Get().SetObjectProperties(NewNode->ComponentTemplate, Params.ComponentProperties,
+        FPropertyService::Get().SetObjectProperties(ComponentTemplate, Params.ComponentProperties,
                                                    SuccessProperties, FailedProperties);
         
         // Log any failed properties
@@ -452,73 +501,12 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
         }
     }
     
-    // Find parent component and establish hierarchy
-    USCS_Node* ParentNode = nullptr;
-    
-    if (!Params.ParentComponentName.IsEmpty())
-    {
-        // Find specific parent component by name
-        ParentNode = Blueprint->SimpleConstructionScript->FindSCSNode(*Params.ParentComponentName);
-        if (!ParentNode)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("FComponentService::AddComponentToBlueprint: Parent component '%s' not found, using default scene root"), 
-                *Params.ParentComponentName);
-        }
-    }
-    
-    // If no specific parent or parent not found, use default scene root or first root node
-    if (!ParentNode)
-    {
-        // Try to get the default scene root (for scene components)
-        if (USceneComponent* SceneComponent = Cast<USceneComponent>(NewNode->ComponentTemplate))
-        {
-            ParentNode = Blueprint->SimpleConstructionScript->GetDefaultSceneRootNode();
-            
-            // If no default scene root, find the first scene component in root nodes
-            if (!ParentNode)
-            {
-                TArray<USCS_Node*> RootNodes = Blueprint->SimpleConstructionScript->GetRootNodes();
-                for (USCS_Node* RootNode : RootNodes)
-                {
-                    if (RootNode && RootNode->ComponentTemplate && 
-                        Cast<USceneComponent>(RootNode->ComponentTemplate))
-                    {
-                        ParentNode = RootNode;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    
-    // Establish parent-child relationship
-    if (ParentNode && Cast<USceneComponent>(NewNode->ComponentTemplate))
-    {
-        // Set parent relationship
-        NewNode->SetParent(ParentNode);
-        
-        // Add as child to parent node
-        ParentNode->AddChildNode(NewNode);
-        
-        UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Attached component '%s' to parent '%s'"), 
-            *Params.ComponentName, *ParentNode->GetVariableName().ToString());
-    }
-    else
-    {
-        // Add as root node if no parent or not a scene component
-        Blueprint->SimpleConstructionScript->AddNode(NewNode);
-        
-        UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Added component '%s' as root node"), 
-            *Params.ComponentName);
-    }
-    
-    // Mark blueprint as modified and refresh UI
+    // Mark blueprint as modified and refresh
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-    
-    // Force refresh of blueprint nodes and UI to ensure proper display and connectivity
     FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
     
-    UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Successfully added component '%s'"), *Params.ComponentName);
+    UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Successfully added component '%s' using SubobjectDataSubsystem"), 
+        *Params.ComponentName);
     return true;
 }
 
@@ -694,6 +682,8 @@ TMap<FString, FString> FComponentService::GetSupportedComponentTypes() const
         SupportedTypes.Add(TEXT("SceneComponent"), TEXT("SceneComponent"));
         SupportedTypes.Add(TEXT("Billboard"), TEXT("BillboardComponent"));
         SupportedTypes.Add(TEXT("BillboardComponent"), TEXT("BillboardComponent"));
+        SupportedTypes.Add(TEXT("Widget"), TEXT("WidgetComponent"));
+        SupportedTypes.Add(TEXT("WidgetComponent"), TEXT("WidgetComponent"));
     }
     
     return SupportedTypes;
@@ -701,60 +691,22 @@ TMap<FString, FString> FComponentService::GetSupportedComponentTypes() const
 
 UClass* FComponentService::ResolveComponentClass(const FString& ComponentType) const
 {
-    // Get the mapped component type
+    // Get the mapped component type (for aliases like "StaticMesh" -> "StaticMeshComponent")
     TMap<FString, FString> SupportedTypes = GetSupportedComponentTypes();
     const FString* MappedType = SupportedTypes.Find(ComponentType);
     FString ActualComponentType = MappedType ? *MappedType : ComponentType;
     
-    // Try direct class lookups for common components
-    if (ActualComponentType == TEXT("StaticMeshComponent"))
+    // First, try using ComponentFactory which has all default types registered
+    UClass* ComponentClass = FComponentFactory::Get().GetComponentClass(ActualComponentType);
+    if (ComponentClass)
     {
-        return UStaticMeshComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("PointLightComponent"))
-    {
-        return UPointLightComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("SpotLightComponent"))
-    {
-        return USpotLightComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("DirectionalLightComponent"))
-    {
-        return UDirectionalLightComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("BoxComponent"))
-    {
-        return UBoxComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("SphereComponent"))
-    {
-        return USphereComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("CapsuleComponent"))
-    {
-        return UCapsuleComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("CameraComponent"))
-    {
-        return UCameraComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("AudioComponent"))
-    {
-        return UAudioComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("SceneComponent"))
-    {
-        return USceneComponent::StaticClass();
-    }
-    else if (ActualComponentType == TEXT("BillboardComponent"))
-    {
-        return UBillboardComponent::StaticClass();
+        UE_LOG(LogTemp, Verbose, TEXT("FComponentService::ResolveComponentClass: Found component '%s' via ComponentFactory"), *ActualComponentType);
+        return ComponentClass;
     }
     
-    // Try loading from Engine module
+    // If not in ComponentFactory, try loading from Engine module
     FString EnginePath = FString::Printf(TEXT("/Script/Engine.%s"), *ActualComponentType);
-    UClass* ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
+    ComponentClass = LoadObject<UClass>(nullptr, *EnginePath);
     
     if (!ComponentClass)
     {
