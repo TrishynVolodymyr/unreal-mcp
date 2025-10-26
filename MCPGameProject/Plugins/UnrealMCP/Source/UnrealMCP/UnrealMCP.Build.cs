@@ -61,6 +61,7 @@ public class UnrealMCP : ModuleRules
 				"UMGEditor",
 				"InputCore",
 				"EnhancedInput",
+				"InputBlueprintNodes",
 				"ToolMenus",
 				"CoreUObject",
 				"EditorStyle",

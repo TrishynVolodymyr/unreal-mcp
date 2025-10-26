@@ -172,6 +172,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Engine functions (GetActorLocation, SetActorLocation, etc.)
         - Flow control nodes (Branch, Sequence, etc.)
         - Existing Blueprint nodes and functions
+        - Enhanced Input Actions (IA_Jump, IA_Move, etc.) - search for "IA_" prefix
         
         If you want to CREATE custom functionality, use create_node_by_action_name directly
         with the appropriate node type (like "CustomEvent" for custom events).
@@ -202,6 +203,12 @@ def register_blueprint_action_tools(mcp: FastMCP):
             
             # Search for existing print functions
             search_blueprint_actions(search_query="print")
+            
+            # Search for Enhanced Input Actions with IA_ prefix
+            search_blueprint_actions(search_query="IA_")
+            
+            # Search for specific Enhanced Input Action
+            search_blueprint_actions(search_query="IA_Jump")
             
             # Search for existing variable nodes in a Blueprint
             search_blueprint_actions(search_query="myvar", blueprint_name="BP_TestActor")
@@ -271,12 +278,15 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Variable get/set nodes
         - Custom events
         - Cast nodes
+        - Enhanced Input Action events (e.g., IA_Jump, IA_Move, IA_Interact)
 
         Args:
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
-            function_name: Name of the function to create a node for (from discovered actions)
+            function_name: Name of the function to create a node for (from discovered actions).
+                          For Enhanced Input Actions, use the action name (e.g., "IA_Interact")
             class_name: Optional class name (supports both short names like "KismetMathLibrary" 
-                       and full paths like "/Script/Engine.KismetMathLibrary")
+                       and full paths like "/Script/Engine.KismetMathLibrary").
+                       For Enhanced Input Actions, you can optionally use "EnhancedInputAction"
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
             target_graph: Optional name of the specific graph to place the node in (e.g., "CanInteract", "GetSpeaker").
                          If not specified, defaults to "EventGraph". This allows creating nodes in custom functions.
@@ -351,6 +361,21 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 blueprint_name="BP_MyActor",
                 function_name="Cast",
                 target_type="PlayerController"
+            )
+            
+            # Create Enhanced Input Action event node - Method 1 (just function_name)
+            create_node_by_action_name(
+                blueprint_name="BP_ThirdPersonCharacter",
+                function_name="IA_Interact",
+                node_position=[100, 200]
+            )
+            
+            # Create Enhanced Input Action event node - Method 2 (with class_name)
+            create_node_by_action_name(
+                blueprint_name="BP_ThirdPersonCharacter",
+                function_name="IA_Jump",
+                class_name="EnhancedInputAction",
+                node_position=[100, 300]
             )
             
             # Create without specifying class (will search common classes)

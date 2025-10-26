@@ -197,6 +197,14 @@ Create a blueprint node by discovered action/function name.
 - Variable get/set nodes
 - Custom events
 - Cast nodes
+- **Enhanced Input Action events** (e.g., IA_Jump, IA_Move, IA_Interact)
+
+**💡 Enhanced Input Actions:**
+Enhanced Input Action event nodes can be created in two ways:
+1. **Just function_name**: `function_name="IA_Interact"` (recommended)
+2. **With class_name**: `function_name="IA_Jump"`, `class_name="EnhancedInputAction"`
+
+Both methods work identically. Use `search_blueprint_actions(search_query="IA_")` to discover available Input Actions.
 
 **Returns:**
 - Dict containing node creation result with node info and pins
@@ -353,7 +361,48 @@ You can use this approach for any variable in any Blueprint, including UMG Widge
 }
 ```
 
-**Example 3: Creating cast nodes**
+**Example 3: Creating Enhanced Input Action events**
+
+First, discover available Input Actions:
+```json
+{
+  "command": "search_blueprint_actions",
+  "params": {
+    "search_query": "IA_",
+    "max_results": 20
+  }
+}
+// Result shows: IA_Jump, IA_Move, IA_Look, IA_Interact, etc.
+```
+
+Then create the event node (Method 1 - just function_name):
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_ThirdPersonCharacter",
+    "function_name": "IA_Interact",
+    "kwargs": "{}",
+    "node_position": [100, 200]
+  }
+}
+```
+
+Or Method 2 (with class_name):
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_ThirdPersonCharacter",
+    "function_name": "IA_Jump",
+    "class_name": "EnhancedInputAction",
+    "kwargs": "{}",
+    "node_position": [100, 300]
+  }
+}
+```
+
+**Example 4: Creating cast nodes**
 ```json
 {
   "command": "create_node_by_action_name",

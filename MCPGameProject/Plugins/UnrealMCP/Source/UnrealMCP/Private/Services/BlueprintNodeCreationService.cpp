@@ -33,6 +33,8 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "K2Node_ComponentBoundEvent.h"
+#include "K2Node_EnhancedInputAction.h"
+#include "InputAction.h"
 #include "Utils/UnrealMCPCommonUtils.h" // For utility blueprint finder
 
 // Forward declaration of native property helper
@@ -1125,6 +1127,63 @@ UBlueprint* FBlueprintNodeCreationService::FindBlueprintByName(const FString& Bl
 bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, const FString& ClassName, UEdGraph* EventGraph, float PositionX, float PositionY, UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType)
 {
     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s' with class '%s'"), *FunctionName, *ClassName);
+    
+    // Special handling for Enhanced Input Actions
+    // When ClassName is "EnhancedInputAction", we search the Asset Registry for Input Actions
+    // and create UK2Node_EnhancedInputAction nodes
+    if (ClassName.Equals(TEXT("EnhancedInputAction"), ESearchCase::IgnoreCase))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Enhanced Input Action requested for '%s'"), *FunctionName);
+        
+        // Search for the Input Action asset
+        IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+        TArray<FAssetData> ActionAssets;
+        AssetRegistry.GetAssetsByClass(UInputAction::StaticClass()->GetClassPathName(), ActionAssets, true);
+        
+        for (const FAssetData& ActionAsset : ActionAssets)
+        {
+            FString ActionName = ActionAsset.AssetName.ToString();
+            
+            // Check if this is the action we're looking for
+            if (ActionName.Equals(FunctionName, ESearchCase::IgnoreCase))
+            {
+                if (const UInputAction* Action = Cast<const UInputAction>(ActionAsset.GetAsset()))
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found Enhanced Input Action '%s', creating node"), *ActionName);
+                    
+                    // Create Enhanced Input Action node manually
+                    // Note: We can't use the spawner directly because UK2Node_EnhancedInputAction
+                    // is created dynamically based on available Input Actions
+                    UK2Node_EnhancedInputAction* InputActionNode = NewObject<UK2Node_EnhancedInputAction>(EventGraph);
+                    if (InputActionNode)
+                    {
+                        InputActionNode->InputAction = const_cast<UInputAction*>(Action);
+                        InputActionNode->NodePosX = PositionX;
+                        InputActionNode->NodePosY = PositionY;
+                        InputActionNode->CreateNewGuid();
+                        EventGraph->AddNode(InputActionNode, true, true);
+                        InputActionNode->PostPlacedNewNode();
+                        InputActionNode->AllocateDefaultPins();
+                        
+                        NewNode = InputActionNode;
+                        NodeTitle = FString::Printf(TEXT("EnhancedInputAction %s"), *ActionName);
+                        NodeType = TEXT("K2Node_EnhancedInputAction");
+                        
+                        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created Enhanced Input Action node for '%s'"), *ActionName);
+                        return true;
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Error, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Failed to create UK2Node_EnhancedInputAction for '%s'"), *ActionName);
+                        return false;
+                    }
+                }
+            }
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Enhanced Input Action '%s' not found in asset registry"), *FunctionName);
+        return false;
+    }
     
     // Create a map of common operation aliases to their actual function names
     TMap<FString, TArray<FString>> OperationAliases;
