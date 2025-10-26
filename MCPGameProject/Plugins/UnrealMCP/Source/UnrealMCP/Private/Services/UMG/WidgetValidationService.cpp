@@ -1,4 +1,5 @@
 #include "Services/UMG/WidgetValidationService.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Widget.h"
@@ -604,81 +605,39 @@ FWidgetValidationResult FWidgetValidationService::ValidateSize(const FVector2D& 
 
 bool FWidgetValidationService::DoesWidgetBlueprintExist(const FString& BlueprintName) const
 {
-    // Check if it's already a full path
-    if (BlueprintName.StartsWith(TEXT("/Game/")))
-    {
-        return UEditorAssetLibrary::DoesAssetExist(BlueprintName);
-    }
-
-    // Try common paths
-    TArray<FString> SearchPaths = {
-        FString::Printf(TEXT("/Game/Widgets/%s"), *BlueprintName),
-        FString::Printf(TEXT("/Game/UI/%s"), *BlueprintName),
-        FString::Printf(TEXT("/Game/UMG/%s"), *BlueprintName),
-        FString::Printf(TEXT("/Game/Interface/%s"), *BlueprintName)
-    };
-
-    for (const FString& SearchPath : SearchPaths)
-    {
-        if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
-        {
-            return true;
-        }
-    }
-
-    // Use asset registry to search everywhere (same fix as in UMGService)
-    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-    TArray<FAssetData> AssetData;
-
-    FARFilter Filter;
-    Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
-    Filter.PackagePaths.Add(FName(TEXT("/Game")));
-    Filter.bRecursivePaths = true;
-    AssetRegistryModule.Get().GetAssets(Filter, AssetData);
-
-    for (const FAssetData& Asset : AssetData)
-    {
-        FString AssetName = Asset.AssetName.ToString();
-        if (AssetName.Equals(BlueprintName, ESearchCase::IgnoreCase))
-        {
-            return true;
-        }
-    }
-
-    return false;
+    // Use the centralized FindWidgetBlueprint utility
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindWidgetBlueprint(BlueprintName);
+    UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(Blueprint);
+    return WidgetBlueprint != nullptr;
 }
 
 bool FWidgetValidationService::DoesWidgetComponentExist(const FString& BlueprintName, const FString& ComponentName) const
 {
-    // Try common paths to find the widget blueprint
-    TArray<FString> SearchPaths = {
-        FString::Printf(TEXT("/Game/Widgets/%s"), *BlueprintName),
-        FString::Printf(TEXT("/Game/UI/%s"), *BlueprintName),
-        FString::Printf(TEXT("/Game/UMG/%s"), *BlueprintName),
-        FString::Printf(TEXT("/Game/Interface/%s"), *BlueprintName)
-    };
-
-    // Check if it's already a full path
-    if (BlueprintName.StartsWith(TEXT("/Game/")))
+    // Use the centralized FindWidgetBlueprint utility
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindWidgetBlueprint(BlueprintName);
+    UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(Blueprint);
+    
+    if (!WidgetBlueprint)
     {
-        SearchPaths.Insert(BlueprintName, 0);
+        UE_LOG(LogTemp, Warning, TEXT("WidgetValidationService: Widget blueprint '%s' not found"), *BlueprintName);
+        return false;
     }
-
-    for (const FString& SearchPath : SearchPaths)
+    
+    if (!WidgetBlueprint->WidgetTree)
     {
-        if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
-        {
-            UObject* Asset = UEditorAssetLibrary::LoadAsset(SearchPath);
-            UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
-            if (WidgetBlueprint && WidgetBlueprint->WidgetTree)
-            {
-                UWidget* Widget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ComponentName));
-                return Widget != nullptr;
-            }
-        }
+        UE_LOG(LogTemp, Warning, TEXT("WidgetValidationService: Widget blueprint '%s' has no WidgetTree"), *BlueprintName);
+        return false;
     }
-
-    return false;
+    
+    UWidget* Widget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ComponentName));
+    
+    if (!Widget)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("WidgetValidationService: Component '%s' not found in blueprint '%s'"), 
+               *ComponentName, *BlueprintName);
+    }
+    
+    return Widget != nullptr;
 }
 
 UClass* FWidgetValidationService::GetWidgetClass(const FString& ComponentType) const

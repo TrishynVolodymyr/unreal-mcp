@@ -97,6 +97,15 @@ def create_node_by_action_name(
     **kwargs
 ) -> Dict[str, Any]:
     """Implementation for creating a blueprint node by discovered action/function name."""
+    
+    # Flatten if kwargs is double-wrapped (i.e., kwargs={'kwargs': {...}})
+    if (
+        len(kwargs) == 1 and
+        'kwargs' in kwargs and
+        isinstance(kwargs['kwargs'], dict)
+    ):
+        kwargs = kwargs['kwargs']
+    
     # --- PATCH START ---
     if function_name in ("Get", "Set") and "variable_name" in kwargs:
         function_name = f"{function_name} {kwargs['variable_name']}"

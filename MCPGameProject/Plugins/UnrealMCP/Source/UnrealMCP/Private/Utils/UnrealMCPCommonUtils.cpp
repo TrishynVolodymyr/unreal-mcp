@@ -1723,6 +1723,13 @@ TArray<FString> FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(const FString& 
 {
     TArray<FString> SearchPaths;
     
+    // If AssetName is already a full path (starts with /Game/ or /Script/), just return it
+    if (AssetName.StartsWith(TEXT("/Game/")) || AssetName.StartsWith(TEXT("/Script/")))
+    {
+        SearchPaths.Add(AssetName);
+        return SearchPaths;
+    }
+    
     // Clean the asset name
     FString CleanName = NormalizeAssetPath(AssetName);
     

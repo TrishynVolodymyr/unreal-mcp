@@ -24,6 +24,8 @@
 #include "Components/DecalComponent.h"
 #include "Components/SplineComponent.h"
 #include "Components/TimelineComponent.h"
+#include "Engine/Blueprint.h"
+#include "Misc/Paths.h"
 #include "Engine/Engine.h"
 
 FComponentFactory& FComponentFactory::Get()
@@ -68,7 +70,82 @@ UClass* FComponentFactory::GetComponentClass(const FString& TypeName) const
         return *FoundClass;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("FComponentFactory::GetComponentClass: Component type '%s' not found"), *TypeName);
+    // If not found in registry, try to load as Blueprint component
+    // Support both short names (BP_MyComponent) and full paths (/Game/Path/BP_MyComponent)
+    UClass* LoadedClass = nullptr;
+    
+    if (TypeName.StartsWith(TEXT("/Game/")) || TypeName.StartsWith(TEXT("/Script/")))
+    {
+        // Full path provided - try to load as Blueprint class
+        FString ClassPath = TypeName;
+        if (!ClassPath.EndsWith(TEXT("_C")))
+        {
+            // Add _C suffix for generated Blueprint class
+            FString BaseName = FPaths::GetBaseFilename(TypeName);
+            ClassPath = FString::Printf(TEXT("%s.%s_C"), *TypeName, *BaseName);
+        }
+        
+        LoadedClass = LoadObject<UClass>(nullptr, *ClassPath);
+        
+        if (!LoadedClass)
+        {
+            // Try loading as Blueprint asset
+            UObject* Asset = LoadObject<UObject>(nullptr, *TypeName);
+            if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+            {
+                LoadedClass = BP->GeneratedClass;
+            }
+        }
+    }
+    else
+    {
+        // Short name provided - search for Blueprint component
+        // Try common component paths
+        TArray<FString> SearchPaths = {
+            FString::Printf(TEXT("/Game/Blueprints/%s"), *TypeName),
+            FString::Printf(TEXT("/Game/Components/%s"), *TypeName),
+            FString::Printf(TEXT("/Game/%s"), *TypeName)
+        };
+        
+        for (const FString& SearchPath : SearchPaths)
+        {
+            FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *TypeName);
+            LoadedClass = LoadObject<UClass>(nullptr, *ClassPath);
+            
+            if (!LoadedClass)
+            {
+                UObject* Asset = LoadObject<UObject>(nullptr, *SearchPath);
+                if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+                {
+                    LoadedClass = BP->GeneratedClass;
+                }
+            }
+            
+            if (LoadedClass)
+            {
+                break;
+            }
+        }
+    }
+    
+    // Validate that loaded class is an ActorComponent
+    if (LoadedClass && LoadedClass->IsChildOf(UActorComponent::StaticClass()))
+    {
+        UE_LOG(LogTemp, Log, TEXT("FComponentFactory::GetComponentClass: Loaded Blueprint component class '%s' for type '%s'"), 
+               *LoadedClass->GetName(), *TypeName);
+        return LoadedClass;
+    }
+    
+    if (LoadedClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FComponentFactory::GetComponentClass: Loaded class '%s' is not an ActorComponent"), 
+               *LoadedClass->GetName());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FComponentFactory::GetComponentClass: Component type '%s' not found"), *TypeName);
+    }
+    
     return nullptr;
 }
 

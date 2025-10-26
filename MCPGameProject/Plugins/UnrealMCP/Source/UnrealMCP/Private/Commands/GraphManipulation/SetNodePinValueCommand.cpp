@@ -151,8 +151,31 @@ FString FSetNodePinValueCommand::Execute(const FString& Parameters)
         // Try to find the class by name
         if (Value.StartsWith(TEXT("/Script/")))
         {
-            // Full path provided
+            // Full path provided (Engine class)
             ClassToSet = FindObject<UClass>(nullptr, *Value);
+        }
+        else if (Value.StartsWith(TEXT("/Game/")))
+        {
+            // Full path to game asset provided
+            // Try to load as Blueprint class first
+            FString ClassPath = Value;
+            if (!ClassPath.EndsWith(TEXT("_C")))
+            {
+                // Add _C suffix for generated class
+                FString BaseName = FPaths::GetBaseFilename(Value);
+                ClassPath = FString::Printf(TEXT("%s.%s_C"), *Value, *BaseName);
+            }
+            ClassToSet = LoadObject<UClass>(nullptr, *ClassPath);
+            
+            if (!ClassToSet)
+            {
+                // Try loading as blueprint asset
+                UObject* Asset = LoadObject<UObject>(nullptr, *Value);
+                if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+                {
+                    ClassToSet = BP->GeneratedClass;
+                }
+            }
         }
         else
         {
