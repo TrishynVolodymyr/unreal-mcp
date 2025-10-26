@@ -48,6 +48,9 @@
 #include "K2Node_SetForEach.h"
 #include "K2Node_InputAction.h"
 #include "K2Node_Self.h"
+
+// Enhanced Input includes
+#include "InputAction.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
 
@@ -1373,6 +1376,56 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
         else
         {
             UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Failed to load Blueprint: %s using FUnrealMCPCommonUtils"), *BlueprintName);
+        }
+    }
+    
+    // Search for Enhanced Input Actions via Asset Registry (like UK2Node_EnhancedInputAction::GetMenuActions does)
+    // This is needed because Enhanced Input event nodes are registered through a different mechanism
+    if (Category.IsEmpty() || Category.ToLower().Contains(TEXT("input")))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Searching for Enhanced Input Actions"));
+        
+        IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+        TArray<FAssetData> ActionAssets;
+        AssetRegistry.GetAssetsByClass(UInputAction::StaticClass()->GetClassPathName(), ActionAssets, true);
+        
+        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Found %d Enhanced Input Action assets"), ActionAssets.Num());
+        
+        for (const FAssetData& ActionAsset : ActionAssets)
+        {
+            FString ActionName = ActionAsset.AssetName.ToString();
+            FString ActionNameLower = ActionName.ToLower();
+            
+            // Check if this action matches our search
+            if (ActionNameLower.Contains(SearchLower))
+            {
+                if (const UInputAction* Action = Cast<const UInputAction>(ActionAsset.GetAsset()))
+                {
+                    TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+                    ActionObj->SetStringField(TEXT("title"), ActionName);
+                    ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("Enhanced Input Action event for '%s'"), *ActionName));
+                    ActionObj->SetStringField(TEXT("category"), TEXT("Input|Enhanced Action Events"));
+                    ActionObj->SetStringField(TEXT("function_name"), ActionName);
+                    ActionObj->SetStringField(TEXT("class_name"), TEXT("EnhancedInputAction"));
+                    
+                    TArray<TSharedPtr<FJsonValue>> KeywordsArray;
+                    KeywordsArray.Add(MakeShared<FJsonValueString>(TEXT("input")));
+                    KeywordsArray.Add(MakeShared<FJsonValueString>(TEXT("enhanced")));
+                    KeywordsArray.Add(MakeShared<FJsonValueString>(TEXT("action")));
+                    KeywordsArray.Add(MakeShared<FJsonValueString>(TEXT("event")));
+                    ActionObj->SetArrayField(TEXT("keywords"), KeywordsArray);
+                    
+                    ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+                    
+                    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Added Enhanced Input Action: %s"), *ActionName);
+                    
+                    // Limit results
+                    if (ActionsArray.Num() >= MaxResults)
+                    {
+                        goto EndSearch;
+                    }
+                }
+            }
         }
     }
     

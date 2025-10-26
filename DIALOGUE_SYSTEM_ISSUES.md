@@ -6,29 +6,31 @@
 
 **Всього проблем виявлено:** 6
 **Критичних:** 0
-**Вирішених:** 3 (Проблема #1, #3/#5, #6)
-**Невирішених:** 2 (Проблема #2, #4)
+**Вирішених:** 4 (Проблема #1, #2, #3/#5, #6)
+**Невирішених:** 1 (Проблема #4)
 **Задокументованих:** 1 (Problem #4 - потребує окремої реалізації)
 
 **Загальний висновок:**
 ✅ **ВСІ критичні проблеми вирішені!**
 ✅ ComponentService успішно мігровано на USubobjectDataSubsystem API (UE 5.6)
+✅ SetComponentPropertyCommand мігровано на USubobjectDataSubsystem API (UE 5.6)
 ✅ create_node_by_action_name тепер правильно фільтрує за класом та назвою функції
+✅ set_component_property тепер коректно встановлює властивості з детальним error handling
 ⚠️ Enhanced Input events потребують спеціальної підтримки (не в action database)
 
 **Вирішені проблеми:**
 1. **Problem #1**: ✅ RESOLVED - WidgetComponent через ComponentFactory
-2. **Problem #3/#5**: ✅ RESOLVED - Додано фільтрацію по class_name та точному імені функції
-3. **Problem #6**: ✅ RESOLVED - Компоненти тепер видимі в Component Tree через USubobjectDataSubsystem
+2. **Problem #2**: ✅ RESOLVED - Міграція на USubobjectDataSubsystem + виправлення kwargs parsing
+3. **Problem #3/#5**: ✅ RESOLVED - Додано фільтрацію по class_name та точному імені функції
+4. **Problem #6**: ✅ RESOLVED - Компоненти тепер видимі в Component Tree через USubobjectDataSubsystem
 
 **Невирішені проблеми:**
-1. **Problem #2**: set_component_property не підтримує деякі властивості (SphereRadius)
-2. **Problem #4**: Enhanced Input events не доступні через Blueprint Action Database
+1. **Problem #4**: Enhanced Input events не доступні через Blueprint Action Database
 
 **Рекомендації:**
 1. ~~НЕГАЙНО: Мігрувати ComponentService на USubobjectDataSubsystem API для UE 5.6~~ ✅ ВИКОНАНО
 2. ~~Виправити баг в create_node_by_action_name для правильного розрізнення функцій~~ ✅ ВИКОНАНО
-3. Розширити set_component_property для підтримки більше властивостей (Problem #2)
+3. ~~Розширити set_component_property для підтримки більше властивостей (Problem #2)~~ ✅ ВИКОНАНО
 4. Додати спеціальну підтримку Enhanced Input Action events (Problem #4 - потребує окремого node type)
 
 ---
@@ -72,6 +74,8 @@ ComponentService мав hardcoded список компонентів і не в
 
 ### Проблема #2: Неможливо встановити властивості SphereComponent
 
+**Статус:** ✅ RESOLVED
+
 **Кроки що призвели до проблеми:**
 1. Успішно додано SphereComponent до BP_DialogueNPC з назвою "InteractionRadius"
 2. Спроба встановити радіус сфери через `mcp_blueprintmcp_set_component_property`
@@ -82,13 +86,57 @@ ComponentService мав hardcoded список компонентів і не в
 **Очікуваний результат:** 
 Радіус SphereComponent встановлено на 300.0 units
 
-**Фактичний результат:**
+**Фактичний результат (ДО ВИПРАВЛЕННЯ):**
 Помилка "Failed to set any component properties"
 
-**Можлива причина:**
-Неправильна назва властивості або плагін не підтримує всі властивості компонента
+**Причина:**
+1. SetComponentPropertyCommand використовував **застарілий SimpleConstructionScript API** (UE 4.x)
+2. Компоненти створені через USubobjectDataSubsystem (Problem #6 fix) не були видимі через SimpleConstructionScript
+3. Python MCP передавав подвійно-загорнутий kwargs: `{"kwargs": {"SphereRadius": 300.0}}`
+4. C++ не розпаковував внутрішній рівень kwargs
 
-**Статус:** UNRESOLVED - продовжую з Blueprint логікою, радіус потрібно буде налаштувати вручну в редакторі
+**Рішення (ЗАСТОСОВАНО):**
+1. **Міграція на USubobjectDataSubsystem API:**
+   - Замінено `Blueprint->SimpleConstructionScript->GetAllNodes()` на `SubobjectDataSubsystem->K2_GatherSubobjectDataForBlueprint()`
+   - Використано `FSubobjectData->GetVariableName()` для пошуку компонента
+   - Залишено fallback на CDO для inherited components
+
+2. **Виправлення kwargs parsing:**
+   - Додано розпакування подвійно-загорнутого kwargs
+   - Перевірка чи parsed object має inner "kwargs" field
+   - Використання inner object якщо знайдено
+
+3. **Покращений error handling:**
+   - Список available properties збирається один раз
+   - Короткі error messages без дублювання великого списку
+   - `available_properties[]` в response окремим полем
+   - Детальні summary messages з підказками
+
+**Результат:**
+✅ SphereRadius успішно встановлюється (протестовано: 300.0, 500.0, 600.0)
+✅ RelativeLocation, RelativeScale та інші властивості працюють
+✅ Error handling показує available properties один раз
+✅ Partial success підтримується (деякі properties OK, деякі failed)
+
+**Response структура:**
+```json
+{
+  "success": true/false,
+  "success_properties": ["SphereRadius", ...],
+  "failed_properties": {
+    "BadProp": "Property 'BadProp' not found on component 'Name' (Class: Type)"
+  },
+  "available_properties": ["SphereRadius", "RelativeLocation", ...],
+  "message": "Partially successful: 1 properties set, 2 failed. See 'available_properties' for valid options."
+}
+```
+
+**Файли змінено:**
+- SetComponentPropertyCommand.h: оновлено сигнатури функцій
+- SetComponentPropertyCommand.cpp: міграція на USubobjectDataSubsystem + kwargs parsing + error handling
+- Додано includes: MCPLogging.h, SubobjectDataSubsystem.h, SubobjectData.h
+
+**Статус:** ✅ RESOLVED - commit ac2f9c7
 
 ---
 
