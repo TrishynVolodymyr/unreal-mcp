@@ -156,14 +156,20 @@ FString FSetNodePinValueCommand::Execute(const FString& Parameters)
         }
         else
         {
-            // Short name provided, try common engine classes
-            FString FullPath = FString::Printf(TEXT("/Script/Engine.%s"), *Value);
-            ClassToSet = FindObject<UClass>(nullptr, *FullPath);
+            // First, try to find as a Widget Blueprint (for UserWidget subclasses)
+            ClassToSet = FUnrealMCPCommonUtils::FindWidgetClass(Value);
             
-            // If not found, try without Engine prefix
             if (!ClassToSet)
             {
-                ClassToSet = FindFirstObject<UClass>(*Value, EFindFirstObjectOptions::NativeFirst);
+                // Short name provided, try common engine classes
+                FString FullPath = FString::Printf(TEXT("/Script/Engine.%s"), *Value);
+                ClassToSet = FindObject<UClass>(nullptr, *FullPath);
+                
+                // If not found, try without Engine prefix
+                if (!ClassToSet)
+                {
+                    ClassToSet = FindFirstObject<UClass>(*Value, EFindFirstObjectOptions::NativeFirst);
+                }
             }
         }
 

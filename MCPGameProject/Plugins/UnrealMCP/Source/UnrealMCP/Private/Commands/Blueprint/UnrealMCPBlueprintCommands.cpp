@@ -65,7 +65,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetComponentProperty(const TSharedPtr<FJsonObject>& Params)
 {
     // Route through new architecture - all Blueprint commands now use the service layer and command registry
-    return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("set_component_property"), Params);
+    return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("modify_blueprint_component_properties"), Params);
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetPhysicsProperties(const TSharedPtr<FJsonObject>& Params)

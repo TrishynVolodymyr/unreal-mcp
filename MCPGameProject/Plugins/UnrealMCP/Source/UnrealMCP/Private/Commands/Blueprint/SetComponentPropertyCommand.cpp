@@ -50,7 +50,7 @@ FString FSetComponentPropertyCommand::Execute(const FString& Parameters)
 
 FString FSetComponentPropertyCommand::GetCommandName() const
 {
-    return TEXT("set_component_property");
+    return TEXT("modify_blueprint_component_properties");
 }
 
 bool FSetComponentPropertyCommand::ValidateParams(const FString& Parameters) const

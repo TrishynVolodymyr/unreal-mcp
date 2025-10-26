@@ -175,21 +175,52 @@ async def add_component_to_blueprint(
     return await send_tcp_command("add_component_to_blueprint", params)
 
 @app.tool()
-async def set_component_property(
+async def modify_blueprint_component_properties(
     blueprint_name: str,
     component_name: str,
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Set properties on a Blueprint component.
+    Modify ANY properties on a Blueprint component.
+    
+    This is a universal tool for setting component properties including:
+    - WidgetClass on WidgetComponent
+    - StaticMesh on StaticMeshComponent  
+    - Material on any mesh component
+    - LightColor, Intensity on LightComponent
+    - Any other component-specific properties
     
     Args:
         blueprint_name: Name of the target Blueprint
         component_name: Name of the component to modify
-        **kwargs: Properties to set (passed as JSON string)
+        **kwargs: Component properties to set (e.g., WidgetClass, StaticMesh, Material, LightColor, etc.)
     
     Returns:
-        Dictionary containing success status and property results
+        Dictionary containing success status and list of successfully set properties
+        
+    Examples:
+        # Set widget class on WidgetComponent
+        modify_blueprint_component_properties(
+            blueprint_name="BP_DialogueNPC",
+            component_name="InteractionWidget",
+            WidgetClass="/Game/Dialogue/WBP_InteractionPrompt.WBP_InteractionPrompt_C"
+        )
+        
+        # Set static mesh and material
+        modify_blueprint_component_properties(
+            blueprint_name="BP_Prop",
+            component_name="MeshComponent",
+            StaticMesh="/Game/Meshes/SM_Crate",
+            Material="/Game/Materials/M_Wood"
+        )
+        
+        # Set light properties
+        modify_blueprint_component_properties(
+            blueprint_name="BP_Lamp",
+            component_name="PointLight",
+            LightColor=[1.0, 0.8, 0.6],
+            Intensity=5000.0
+        )
     """
     params = {
         "blueprint_name": blueprint_name,
@@ -197,7 +228,7 @@ async def set_component_property(
         "kwargs": json.dumps(kwargs)
     }
     
-    return await send_tcp_command("set_component_property", params)
+    return await send_tcp_command("modify_blueprint_component_properties", params)
 
 @app.tool()
 async def list_blueprint_components(blueprint_name: str) -> Dict[str, Any]:

@@ -6,7 +6,14 @@
 #include "Dom/JsonObject.h"
 
 /**
- * Command for setting properties on Blueprint components
+ * Command for modifying properties on Blueprint components
+ * This is a universal tool for setting any component properties including:
+ * - WidgetClass on WidgetComponent
+ * - StaticMesh on StaticMeshComponent
+ * - Material on mesh components
+ * - LightColor, Intensity on LightComponent
+ * - Any other component-specific properties
+ * 
  * Uses the new service layer for property operations
  */
 class UNREALMCP_API FSetComponentPropertyCommand : public IUnrealMCPCommand

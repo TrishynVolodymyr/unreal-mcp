@@ -259,7 +259,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 static const TArray<FString> BlueprintCommandsList = {
                     TEXT("create_blueprint"), 
                     TEXT("add_component_to_blueprint"), 
-                    TEXT("set_component_property"), 
+                    TEXT("modify_blueprint_component_properties"), 
                     TEXT("set_physics_properties"), 
                     TEXT("compile_blueprint"), 
                     TEXT("set_blueprint_property"), 
