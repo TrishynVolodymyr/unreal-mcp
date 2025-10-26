@@ -47,21 +47,25 @@ private:
      * @param Properties - Properties to set
      * @param OutSuccessProperties - List of successfully set properties
      * @param OutFailedProperties - List of failed properties with error messages
+     * @param OutAvailableProperties - List of all available properties on the component
      * @return true if at least one property was set successfully
      */
     bool SetComponentProperties(UBlueprint* Blueprint, const FString& ComponentName,
                                const TSharedPtr<FJsonObject>& Properties,
                                TArray<FString>& OutSuccessProperties,
-                               TMap<FString, FString>& OutFailedProperties) const;
+                               TMap<FString, FString>& OutFailedProperties,
+                               TArray<FString>& OutAvailableProperties) const;
     
     /**
      * Create success response JSON
      * @param SuccessProperties - List of successfully set properties
      * @param FailedProperties - Map of failed properties to error messages
+     * @param AvailableProperties - List of all available properties on the component
      * @return JSON response string
      */
     FString CreateSuccessResponse(const TArray<FString>& SuccessProperties,
-                                 const TMap<FString, FString>& FailedProperties) const;
+                                 const TMap<FString, FString>& FailedProperties,
+                                 const TArray<FString>& AvailableProperties) const;
     
     /**
      * Create error response JSON
