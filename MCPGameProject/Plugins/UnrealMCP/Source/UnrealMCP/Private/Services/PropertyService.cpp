@@ -180,6 +180,17 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
         OutError = TEXT("Expected float value");
         return false;
     }
+    else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Property))
+    {
+        double DoubleValue;
+        if (JsonValue->TryGetNumber(DoubleValue))
+        {
+            DoubleProp->SetPropertyValue(PropertyData, DoubleValue);
+            return true;
+        }
+        OutError = TEXT("Expected double value");
+        return false;
+    }
     else if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
     {
         FString StringValue;
@@ -196,6 +207,7 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
         // Handle common struct types
         if (StructProp->Struct == TBaseStructure<FVector>::Get())
         {
+            // Try array format [X, Y, Z]
             const TArray<TSharedPtr<FJsonValue>>* ArrayValue;
             if (JsonValue->TryGetArray(ArrayValue) && ArrayValue->Num() == 3)
             {
@@ -209,11 +221,25 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
                     return true;
                 }
             }
-            OutError = TEXT("Expected array of 3 numbers for Vector");
+            // Try object format {"X": 1.0, "Y": 2.0, "Z": 3.0}
+            const TSharedPtr<FJsonObject>* ObjectValue;
+            if (JsonValue->TryGetObject(ObjectValue))
+            {
+                double X = 0.0, Y = 0.0, Z = 0.0;
+                (*ObjectValue)->TryGetNumberField(TEXT("X"), X);
+                (*ObjectValue)->TryGetNumberField(TEXT("Y"), Y);
+                (*ObjectValue)->TryGetNumberField(TEXT("Z"), Z);
+                
+                FVector VectorValue(static_cast<float>(X), static_cast<float>(Y), static_cast<float>(Z));
+                StructProp->CopyCompleteValue(PropertyData, &VectorValue);
+                return true;
+            }
+            OutError = TEXT("Expected array [X,Y,Z] or object {X,Y,Z} for Vector");
             return false;
         }
         else if (StructProp->Struct == TBaseStructure<FRotator>::Get())
         {
+            // Try array format [Pitch, Yaw, Roll]
             const TArray<TSharedPtr<FJsonValue>>* ArrayValue;
             if (JsonValue->TryGetArray(ArrayValue) && ArrayValue->Num() == 3)
             {
@@ -227,7 +253,20 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
                     return true;
                 }
             }
-            OutError = TEXT("Expected array of 3 numbers for Rotator");
+            // Try object format {"Pitch": 0.0, "Yaw": 45.0, "Roll": 0.0}
+            const TSharedPtr<FJsonObject>* ObjectValue;
+            if (JsonValue->TryGetObject(ObjectValue))
+            {
+                double Pitch = 0.0, Yaw = 0.0, Roll = 0.0;
+                (*ObjectValue)->TryGetNumberField(TEXT("Pitch"), Pitch);
+                (*ObjectValue)->TryGetNumberField(TEXT("Yaw"), Yaw);
+                (*ObjectValue)->TryGetNumberField(TEXT("Roll"), Roll);
+                
+                FRotator RotatorValue(static_cast<float>(Pitch), static_cast<float>(Yaw), static_cast<float>(Roll));
+                StructProp->CopyCompleteValue(PropertyData, &RotatorValue);
+                return true;
+            }
+            OutError = TEXT("Expected array [Pitch,Yaw,Roll] or object {Pitch,Yaw,Roll} for Rotator");
             return false;
         }
         else if (StructProp->Struct == TBaseStructure<FLinearColor>::Get())
@@ -249,7 +288,29 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
             return false;
         }
         
-        OutError = FString::Printf(TEXT("Unsupported struct type: %s"), *StructProp->Struct->GetName());
+        // Universal struct handling using reflection
+        return SetStructPropertyFromJson(StructProp, PropertyData, JsonValue, OutError);
+    }
+    else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+    {
+        return SetEnumPropertyFromJson(EnumProp, PropertyData, JsonValue, OutError);
+    }
+    else if (FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+    {
+        // Check if it's an enum
+        if (ByteProp->Enum)
+        {
+            return SetByteEnumPropertyFromJson(ByteProp, PropertyData, JsonValue, OutError);
+        }
+        
+        // Regular byte property
+        int32 ByteValue;
+        if (JsonValue->TryGetNumber(ByteValue))
+        {
+            ByteProp->SetPropertyValue(PropertyData, static_cast<uint8>(ByteValue));
+            return true;
+        }
+        OutError = TEXT("Expected number value for byte property");
         return false;
     }
     else if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
@@ -375,3 +436,217 @@ bool FPropertyService::HandleCollisionProperty(UObject* Object, const FString& P
     
     return false;
 }
+
+bool FPropertyService::SetEnumPropertyFromJson(FEnumProperty* EnumProp, void* PropertyData,
+                                              const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const
+{
+    if (!EnumProp || !PropertyData || !JsonValue.IsValid())
+    {
+        OutError = TEXT("Invalid parameters for enum property setting");
+        return false;
+    }
+    
+    UEnum* EnumType = EnumProp->GetEnum();
+    if (!EnumType)
+    {
+        OutError = TEXT("Enum type not found");
+        return false;
+    }
+    
+    int64 EnumValue = 0;
+    
+    // Try as string (e.g., "World", "Screen")
+    if (JsonValue->Type == EJson::String)
+    {
+        FString EnumValueName = JsonValue->AsString();
+        
+        // Try direct name match
+        EnumValue = EnumType->GetValueByNameString(EnumValueName);
+        
+        // If not found, try with enum prefix (e.g., "World" -> "EWidgetSpace::World")
+        if (EnumValue == INDEX_NONE)
+        {
+            FString FullEnumName = FString::Printf(TEXT("%s::%s"), *EnumType->GetName(), *EnumValueName);
+            EnumValue = EnumType->GetValueByNameString(FullEnumName);
+        }
+        
+        if (EnumValue == INDEX_NONE)
+        {
+            OutError = FString::Printf(TEXT("Invalid enum value '%s' for enum '%s'"), *EnumValueName, *EnumType->GetName());
+            return false;
+        }
+    }
+    // Try as number (e.g., 0, 1)
+    else if (JsonValue->Type == EJson::Number)
+    {
+        EnumValue = static_cast<int64>(JsonValue->AsNumber());
+        
+        // Validate that the number is a valid enum value
+        if (!EnumType->IsValidEnumValue(EnumValue))
+        {
+            OutError = FString::Printf(TEXT("Invalid enum numeric value %lld for enum '%s'"), EnumValue, *EnumType->GetName());
+            return false;
+        }
+    }
+    else
+    {
+        OutError = TEXT("Expected string or number for enum value");
+        return false;
+    }
+    
+    // Set the enum value
+    FNumericProperty* UnderlyingProp = EnumProp->GetUnderlyingProperty();
+    UnderlyingProp->SetIntPropertyValue(PropertyData, EnumValue);
+    
+    return true;
+}
+
+bool FPropertyService::SetByteEnumPropertyFromJson(FByteProperty* ByteProp, void* PropertyData,
+                                                   const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const
+{
+    if (!ByteProp || !PropertyData || !JsonValue.IsValid())
+    {
+        OutError = TEXT("Invalid parameters for byte enum property setting");
+        return false;
+    }
+    
+    UEnum* EnumType = ByteProp->Enum;
+    if (!EnumType)
+    {
+        OutError = TEXT("Byte property has no associated enum");
+        return false;
+    }
+    
+    int64 EnumValue = 0;
+    
+    // Try as string
+    if (JsonValue->Type == EJson::String)
+    {
+        FString EnumValueName = JsonValue->AsString();
+        
+        EnumValue = EnumType->GetValueByNameString(EnumValueName);
+        
+        if (EnumValue == INDEX_NONE)
+        {
+            FString FullEnumName = FString::Printf(TEXT("%s::%s"), *EnumType->GetName(), *EnumValueName);
+            EnumValue = EnumType->GetValueByNameString(FullEnumName);
+        }
+        
+        if (EnumValue == INDEX_NONE)
+        {
+            OutError = FString::Printf(TEXT("Invalid enum value '%s' for enum '%s'"), *EnumValueName, *EnumType->GetName());
+            return false;
+        }
+    }
+    // Try as number
+    else if (JsonValue->Type == EJson::Number)
+    {
+        EnumValue = static_cast<int64>(JsonValue->AsNumber());
+        
+        if (!EnumType->IsValidEnumValue(EnumValue))
+        {
+            OutError = FString::Printf(TEXT("Invalid enum numeric value %lld for enum '%s'"), EnumValue, *EnumType->GetName());
+            return false;
+        }
+    }
+    else
+    {
+        OutError = TEXT("Expected string or number for enum value");
+        return false;
+    }
+    
+    // Set the byte value
+    ByteProp->SetPropertyValue(PropertyData, static_cast<uint8>(EnumValue));
+    
+    return true;
+}
+
+bool FPropertyService::SetStructPropertyFromJson(FStructProperty* StructProp, void* PropertyData,
+                                                 const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const
+{
+    if (!StructProp || !PropertyData || !JsonValue.IsValid())
+    {
+        OutError = TEXT("Invalid parameters for struct property setting");
+        return false;
+    }
+    
+    UScriptStruct* Struct = StructProp->Struct;
+    if (!Struct)
+    {
+        OutError = TEXT("Struct type not found");
+        return false;
+    }
+    
+    FString StructName = Struct->GetName();
+    
+    // Handle as JSON object {"X": 512, "Y": 512}
+    if (JsonValue->Type == EJson::Object)
+    {
+        TSharedPtr<FJsonObject> StructJson = JsonValue->AsObject();
+        
+        // Iterate through all fields of the struct and set them
+        for (TFieldIterator<FProperty> It(Struct); It; ++It)
+        {
+            FProperty* StructField = *It;
+            FString FieldName = StructField->GetName();
+            
+            if (StructJson->HasField(FieldName))
+            {
+                void* FieldData = StructField->ContainerPtrToValuePtr<void>(PropertyData);
+                FString FieldError;
+                
+                if (!SetPropertyFromJson(StructField, FieldData, StructJson->Values[FieldName], FieldError))
+                {
+                    OutError = FString::Printf(TEXT("Failed to set struct field '%s': %s"), *FieldName, *FieldError);
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+    }
+    // Handle as JSON array for common 2D/3D structs
+    else if (JsonValue->Type == EJson::Array)
+    {
+        const TArray<TSharedPtr<FJsonValue>>& ArrayValue = JsonValue->AsArray();
+        
+        // FIntPoint: [X, Y]
+        if (StructName == TEXT("IntPoint") && ArrayValue.Num() >= 2)
+        {
+            FIntPoint TempValue;
+            TempValue.X = static_cast<int32>(ArrayValue[0]->AsNumber());
+            TempValue.Y = static_cast<int32>(ArrayValue[1]->AsNumber());
+            StructProp->CopyCompleteValue(PropertyData, &TempValue);
+            return true;
+        }
+        // FVector2D: [X, Y]
+        else if (StructName == TEXT("Vector2D") || StructName == TEXT("Vector2d"))
+        {
+            if (ArrayValue.Num() >= 2)
+            {
+                FVector2D TempValue;
+                TempValue.X = ArrayValue[0]->AsNumber();
+                TempValue.Y = ArrayValue[1]->AsNumber();
+                StructProp->CopyCompleteValue(PropertyData, &TempValue);
+                return true;
+            }
+        }
+        // FIntVector: [X, Y, Z]
+        else if (StructName == TEXT("IntVector") && ArrayValue.Num() >= 3)
+        {
+            FIntVector TempValue;
+            TempValue.X = static_cast<int32>(ArrayValue[0]->AsNumber());
+            TempValue.Y = static_cast<int32>(ArrayValue[1]->AsNumber());
+            TempValue.Z = static_cast<int32>(ArrayValue[2]->AsNumber());
+            StructProp->CopyCompleteValue(PropertyData, &TempValue);
+            return true;
+        }
+        
+        OutError = FString::Printf(TEXT("Struct '%s' cannot be set from array format"), *StructName);
+        return false;
+    }
+    
+    OutError = FString::Printf(TEXT("Unsupported struct type '%s' or invalid JSON format (expected object or array)"), *StructName);
+    return false;
+}
+

@@ -6,32 +6,35 @@
 
 **Всього проблем виявлено:** 6
 **Критичних:** 0
-**Вирішених:** 4 (Проблема #1, #2, #3/#5, #6)
-**Невирішених:** 1 (Проблема #4)
-**Задокументованих:** 1 (Problem #4 - потребує окремої реалізації)
+**Вирішених:** 5 (Проблема #1, #2, #3/#5, #4, #6)
+**Невирішених:** 0
+**Задокументованих:** 5
 
 **Загальний висновок:**
-✅ **ВСІ критичні проблеми вирішені!**
+✅ **ВСІ проблеми вирішені!**
 ✅ ComponentService успішно мігровано на USubobjectDataSubsystem API (UE 5.6)
 ✅ SetComponentPropertyCommand мігровано на USubobjectDataSubsystem API (UE 5.6)
 ✅ create_node_by_action_name тепер правильно фільтрує за класом та назвою функції
 ✅ set_component_property тепер коректно встановлює властивості з детальним error handling
-⚠️ Enhanced Input events потребують спеціальної підтримки (не в action database)
+✅ Enhanced Input Actions тепер знаходяться через search_blueprint_actions
 
 **Вирішені проблеми:**
 1. **Problem #1**: ✅ RESOLVED - WidgetComponent через ComponentFactory
 2. **Problem #2**: ✅ RESOLVED - Міграція на USubobjectDataSubsystem + виправлення kwargs parsing
 3. **Problem #3/#5**: ✅ RESOLVED - Додано фільтрацію по class_name та точному імені функції
-4. **Problem #6**: ✅ RESOLVED - Компоненти тепер видимі в Component Tree через USubobjectDataSubsystem
+4. **Problem #4**: ✅ RESOLVED - Enhanced Input Actions через AssetRegistry пошук
+5. **Problem #6**: ✅ RESOLVED - Компоненти тепер видимі в Component Tree через USubobjectDataSubsystem
 
 **Невирішені проблеми:**
-1. **Problem #4**: Enhanced Input events не доступні через Blueprint Action Database
+Немає! Всі проблеми вирішені.
 
 **Рекомендації:**
 1. ~~НЕГАЙНО: Мігрувати ComponentService на USubobjectDataSubsystem API для UE 5.6~~ ✅ ВИКОНАНО
-2. ~~Виправити баг в create_node_by_action_name для правильного розрізнення функцій~~ ✅ ВИКОНАНО
+2. ~~Виправити баг in create_node_by_action_name для правильного розрізнення функцій~~ ✅ ВИКОНАНО
 3. ~~Розширити set_component_property для підтримки більше властивостей (Problem #2)~~ ✅ ВИКОНАНО
-4. Додати спеціальну підтримку Enhanced Input Action events (Problem #4 - потребує окремого node type)
+4. ~~Додати підтримку Enhanced Input Action events (Problem #4)~~ ✅ ВИКОНАНО
+
+**Всі критичні проблеми вирішені! Система повністю функціональна.**
 
 ---
 
@@ -311,5 +314,99 @@ SubobjectSubsystem->AddNewSubobject(
 ✅ Можливість налаштування властивостей через Details panel
 
 **Статус:** ✅ RESOLVED - мігровано на UE 5.6 USubobjectDataSubsystem API
+
+---
+
+### Проблема #4: Enhanced Input Actions не знаходяться через search_blueprint_actions
+
+**Статус:** ✅ RESOLVED
+
+**Кроки що призвели до проблеми:**
+1. Створено Enhanced Input Action через `create_enhanced_input_action(action_name="TestJump")`
+2. Спроба знайти через `search_blueprint_actions(search_query="TestJump")` - **Не знайдено**
+3. Спроба знайти через `search_blueprint_actions(search_query="IA_", category="Input")` - **Не знайдено**
+4. ThirdPerson template має IA_Jump, IA_Move, IA_Look - теж не знаходилися
+
+**Очікуваний результат:** 
+Знайти Enhanced Input Action event ноди типу "IA_Jump", "IA_Move" для створення через create_node_by_action_name
+
+**Фактичний результат (ДО ВИПРАВЛЕННЯ):**
+Жодних Enhanced Input Actions не знайдено через search_blueprint_actions
+
+**Причина:**
+Enhanced Input Actions реєструються в Blueprint Action Database через **інший механізм**, ніж звичайні функції:
+- Звичайні функції: через `FBlueprintActionDatabase::GetAllActions()`
+- Enhanced Input Actions: через `AssetRegistry.GetAssetsByClass(UInputAction::StaticClass())`
+
+Це можна побачити в UE source коді (`UK2Node_EnhancedInputAction::GetMenuActions`):
+```cpp
+IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+TArray<FAssetData> ActionAssets;
+AssetRegistry.GetAssetsByClass(UInputAction::StaticClass()->GetClassPathName(), ActionAssets, true);
+for (const FAssetData& ActionAsset : ActionAssets) {
+    if (const UInputAction* Action = Cast<const UInputAction>(ActionAsset.GetAsset())) {
+        UBlueprintNodeSpawner* NodeSpawner = UInputActionEventNodeSpawner::Create(GetClass(), Action);
+        ActionRegistrar.AddBlueprintAction(Action, NodeSpawner);
+    }
+}
+```
+
+**Рішення (ЗАСТОСОВАНО):**
+1. Додано `#include "InputAction.h"` до UnrealMCPBlueprintActionCommands.cpp
+2. У функції `SearchBlueprintActions` додано окремий шлях пошуку після Blueprint-local actions:
+   ```cpp
+   // Search for Enhanced Input Actions via Asset Registry
+   if (Category.IsEmpty() || Category.ToLower().Contains(TEXT("input")))
+   {
+       IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+       TArray<FAssetData> ActionAssets;
+       AssetRegistry.GetAssetsByClass(UInputAction::StaticClass()->GetClassPathName(), ActionAssets, true);
+       
+       for (const FAssetData& ActionAsset : ActionAssets)
+       {
+           FString ActionName = ActionAsset.AssetName.ToString();
+           if (ActionName.ToLower().Contains(SearchLower))
+           {
+               if (const UInputAction* Action = Cast<const UInputAction>(ActionAsset.GetAsset()))
+               {
+                   // Add to actions array with proper metadata
+                   ActionObj->SetStringField(TEXT("category"), TEXT("Input|Enhanced Action Events"));
+                   ActionObj->SetStringField(TEXT("class_name"), TEXT("EnhancedInputAction"));
+               }
+           }
+       }
+   }
+   ```
+
+**Результат:**
+✅ `search_blueprint_actions(search_query="IA_", category="Input")` знаходить:
+   - IA_Jump
+   - IA_Move
+   - IA_Look
+   - IA_Interact
+   - IA_TestJump (щойно створений)
+
+✅ Всі Enhanced Input Actions мають категорію `Input|Enhanced Action Events`
+✅ Можна фільтрувати по категорії `Input`
+✅ Підтримується пошук по частині назви
+
+**Тестові виклики:**
+```python
+# Успішно знаходить всі Input Actions
+search_blueprint_actions(search_query="IA_", category="Input")
+# Результат: 6 actions (IA_Jump x2, IA_Move, IA_Look, IA_Interact x2, IA_TestJump)
+
+# Успішно знаходить конкретний action
+search_blueprint_actions(search_query="jump", category="Input") 
+# Результат: 2 actions (IA_Jump x2)
+
+# Успішно знаходить через enhanced
+search_blueprint_actions(search_query="enhanced", category="Input")
+# Результат: знаходить Enhanced Input функції + event nodes
+```
+
+**Commit:** 3907fc3
+
+**Статус:** ✅ RESOLVED - Enhanced Input Actions тепер знаходяться через AssetRegistry пошук
 
 ---

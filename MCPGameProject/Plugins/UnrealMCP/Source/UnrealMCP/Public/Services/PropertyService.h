@@ -63,4 +63,38 @@ private:
      */
     bool HandleCollisionProperty(UObject* Object, const FString& PropertyName,
                                const TSharedPtr<FJsonValue>& PropertyValue) const;
+    
+    /**
+     * Set enum property value from JSON (supports both string and numeric values)
+     * @param EnumProp - Enum property to set
+     * @param PropertyData - Pointer to property data
+     * @param JsonValue - JSON value (string like "World" or number like 0)
+     * @param OutError - Error message if conversion fails
+     * @return true if enum was set successfully
+     */
+    bool SetEnumPropertyFromJson(FEnumProperty* EnumProp, void* PropertyData,
+                                const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const;
+    
+    /**
+     * Set byte enum property value from JSON (for old-style UE4 enums)
+     * @param ByteProp - Byte property with enum
+     * @param PropertyData - Pointer to property data
+     * @param JsonValue - JSON value (string or number)
+     * @param OutError - Error message if conversion fails
+     * @return true if enum was set successfully
+     */
+    bool SetByteEnumPropertyFromJson(FByteProperty* ByteProp, void* PropertyData,
+                                    const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const;
+    
+    /**
+     * Universal struct property setter using reflection
+     * Handles both object format {"X": 512, "Y": 512} and array format [512, 512]
+     * @param StructProp - Struct property to set
+     * @param PropertyData - Pointer to property data
+     * @param JsonValue - JSON value (object or array)
+     * @param OutError - Error message if conversion fails
+     * @return true if struct was set successfully
+     */
+    bool SetStructPropertyFromJson(FStructProperty* StructProp, void* PropertyData,
+                                   const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const;
 };
