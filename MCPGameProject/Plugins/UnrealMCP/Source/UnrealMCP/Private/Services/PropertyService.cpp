@@ -146,149 +146,9 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
         return false;
     }
     
-    // Handle different property types
-    if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+    // Special handling for structs and enums that may come as JSON objects
+    if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
     {
-        bool BoolValue;
-        if (JsonValue->TryGetBool(BoolValue))
-        {
-            BoolProp->SetPropertyValue(PropertyData, BoolValue);
-            return true;
-        }
-        OutError = TEXT("Expected boolean value");
-        return false;
-    }
-    else if (FIntProperty* IntProp = CastField<FIntProperty>(Property))
-    {
-        int32 IntValue;
-        if (JsonValue->TryGetNumber(IntValue))
-        {
-            IntProp->SetPropertyValue(PropertyData, IntValue);
-            return true;
-        }
-        OutError = TEXT("Expected integer value");
-        return false;
-    }
-    else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Property))
-    {
-        double DoubleValue;
-        if (JsonValue->TryGetNumber(DoubleValue))
-        {
-            FloatProp->SetPropertyValue(PropertyData, static_cast<float>(DoubleValue));
-            return true;
-        }
-        OutError = TEXT("Expected float value");
-        return false;
-    }
-    else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Property))
-    {
-        double DoubleValue;
-        if (JsonValue->TryGetNumber(DoubleValue))
-        {
-            DoubleProp->SetPropertyValue(PropertyData, DoubleValue);
-            return true;
-        }
-        OutError = TEXT("Expected double value");
-        return false;
-    }
-    else if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
-    {
-        FString StringValue;
-        if (JsonValue->TryGetString(StringValue))
-        {
-            StrProp->SetPropertyValue(PropertyData, StringValue);
-            return true;
-        }
-        OutError = TEXT("Expected string value");
-        return false;
-    }
-    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
-    {
-        // Handle common struct types
-        if (StructProp->Struct == TBaseStructure<FVector>::Get())
-        {
-            // Try array format [X, Y, Z]
-            const TArray<TSharedPtr<FJsonValue>>* ArrayValue;
-            if (JsonValue->TryGetArray(ArrayValue) && ArrayValue->Num() == 3)
-            {
-                double X, Y, Z;
-                if ((*ArrayValue)[0]->TryGetNumber(X) && 
-                    (*ArrayValue)[1]->TryGetNumber(Y) && 
-                    (*ArrayValue)[2]->TryGetNumber(Z))
-                {
-                    FVector VectorValue(static_cast<float>(X), static_cast<float>(Y), static_cast<float>(Z));
-                    StructProp->CopyCompleteValue(PropertyData, &VectorValue);
-                    return true;
-                }
-            }
-            // Try object format {"X": 1.0, "Y": 2.0, "Z": 3.0}
-            const TSharedPtr<FJsonObject>* ObjectValue;
-            if (JsonValue->TryGetObject(ObjectValue))
-            {
-                double X = 0.0, Y = 0.0, Z = 0.0;
-                (*ObjectValue)->TryGetNumberField(TEXT("X"), X);
-                (*ObjectValue)->TryGetNumberField(TEXT("Y"), Y);
-                (*ObjectValue)->TryGetNumberField(TEXT("Z"), Z);
-                
-                FVector VectorValue(static_cast<float>(X), static_cast<float>(Y), static_cast<float>(Z));
-                StructProp->CopyCompleteValue(PropertyData, &VectorValue);
-                return true;
-            }
-            OutError = TEXT("Expected array [X,Y,Z] or object {X,Y,Z} for Vector");
-            return false;
-        }
-        else if (StructProp->Struct == TBaseStructure<FRotator>::Get())
-        {
-            // Try array format [Pitch, Yaw, Roll]
-            const TArray<TSharedPtr<FJsonValue>>* ArrayValue;
-            if (JsonValue->TryGetArray(ArrayValue) && ArrayValue->Num() == 3)
-            {
-                double Pitch, Yaw, Roll;
-                if ((*ArrayValue)[0]->TryGetNumber(Pitch) && 
-                    (*ArrayValue)[1]->TryGetNumber(Yaw) && 
-                    (*ArrayValue)[2]->TryGetNumber(Roll))
-                {
-                    FRotator RotatorValue(static_cast<float>(Pitch), static_cast<float>(Yaw), static_cast<float>(Roll));
-                    StructProp->CopyCompleteValue(PropertyData, &RotatorValue);
-                    return true;
-                }
-            }
-            // Try object format {"Pitch": 0.0, "Yaw": 45.0, "Roll": 0.0}
-            const TSharedPtr<FJsonObject>* ObjectValue;
-            if (JsonValue->TryGetObject(ObjectValue))
-            {
-                double Pitch = 0.0, Yaw = 0.0, Roll = 0.0;
-                (*ObjectValue)->TryGetNumberField(TEXT("Pitch"), Pitch);
-                (*ObjectValue)->TryGetNumberField(TEXT("Yaw"), Yaw);
-                (*ObjectValue)->TryGetNumberField(TEXT("Roll"), Roll);
-                
-                FRotator RotatorValue(static_cast<float>(Pitch), static_cast<float>(Yaw), static_cast<float>(Roll));
-                StructProp->CopyCompleteValue(PropertyData, &RotatorValue);
-                return true;
-            }
-            OutError = TEXT("Expected array [Pitch,Yaw,Roll] or object {Pitch,Yaw,Roll} for Rotator");
-            return false;
-        }
-        else if (StructProp->Struct == TBaseStructure<FLinearColor>::Get())
-        {
-            const TSharedPtr<FJsonObject>* ObjectValue;
-            if (JsonValue->TryGetObject(ObjectValue))
-            {
-                double R = 0.0, G = 0.0, B = 0.0, A = 1.0;
-                (*ObjectValue)->TryGetNumberField(TEXT("R"), R);
-                (*ObjectValue)->TryGetNumberField(TEXT("G"), G);
-                (*ObjectValue)->TryGetNumberField(TEXT("B"), B);
-                (*ObjectValue)->TryGetNumberField(TEXT("A"), A);
-                
-                FLinearColor ColorValue(static_cast<float>(R), static_cast<float>(G), static_cast<float>(B), static_cast<float>(A));
-                StructProp->CopyCompleteValue(PropertyData, &ColorValue);
-                return true;
-            }
-            OutError = TEXT("Expected object with R, G, B, A fields for LinearColor");
-            return false;
-        }
-        
-        // Universal struct handling using reflection
         return SetStructPropertyFromJson(StructProp, PropertyData, JsonValue, OutError);
     }
     else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
@@ -326,8 +186,66 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
         return false;
     }
     
-    OutError = FString::Printf(TEXT("Unsupported property type: %s"), *Property->GetClass()->GetName());
-    return false;
+    // Universal fallback: Use Unreal's ImportText for ALL other property types
+    // This handles Bool, Int, Float, Double, String, Text, Name, Object references, etc.
+    FString ValueString;
+    
+    // Convert JSON value to string for ImportText
+    if (JsonValue->Type == EJson::String)
+    {
+        JsonValue->TryGetString(ValueString);
+    }
+    else if (JsonValue->Type == EJson::Number)
+    {
+        double NumberValue;
+        if (JsonValue->TryGetNumber(NumberValue))
+        {
+            // For integer types, format without decimal point
+            if (Property->IsA<FIntProperty>() || 
+                Property->IsA<FInt64Property>() ||
+                Property->IsA<FInt16Property>() ||
+                Property->IsA<FInt8Property>() ||
+                Property->IsA<FUInt32Property>() ||
+                Property->IsA<FUInt64Property>() ||
+                Property->IsA<FUInt16Property>() ||
+                Property->IsA<FByteProperty>())
+            {
+                // Format as integer without decimal
+                ValueString = FString::Printf(TEXT("%lld"), static_cast<int64>(NumberValue));
+            }
+            else
+            {
+                // Format as float (for Float, Double properties)
+                ValueString = FString::SanitizeFloat(NumberValue);
+            }
+        }
+    }
+    else if (JsonValue->Type == EJson::Boolean)
+    {
+        bool BoolValue;
+        if (JsonValue->TryGetBool(BoolValue))
+        {
+            ValueString = BoolValue ? TEXT("True") : TEXT("False");
+        }
+    }
+    else
+    {
+        OutError = FString::Printf(TEXT("Cannot convert JSON type %d to string for ImportText"), 
+                                  static_cast<int32>(JsonValue->Type));
+        return false;
+    }
+    
+    // Use Unreal's reflection-based ImportText
+    const TCHAR* Result = Property->ImportText_Direct(*ValueString, PropertyData, nullptr, PPF_None);
+    
+    if (Result == nullptr || *Result != '\0')
+    {
+        OutError = FString::Printf(TEXT("Failed to import value '%s' for property type '%s'"), 
+                                  *ValueString, *Property->GetClass()->GetName());
+        return false;
+    }
+    
+    return true;
 }
 
 bool FPropertyService::GetPropertyAsJson(FProperty* Property, const void* PropertyData,

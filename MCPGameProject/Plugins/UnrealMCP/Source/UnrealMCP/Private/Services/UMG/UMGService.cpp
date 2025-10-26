@@ -1,6 +1,7 @@
 #include "Services/UMG/UMGService.h"
 #include "Services/UMG/WidgetComponentService.h"
 #include "Services/UMG/WidgetValidationService.h"
+#include "Services/PropertyService.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/UserWidget.h"
@@ -197,20 +198,20 @@ bool FUMGService::SetWidgetProperties(const FString& BlueprintName, const FStrin
     OutSuccessProperties.Empty();
     OutFailedProperties.Empty();
 
-    // Iterate through all properties in the JSON object
-    for (const auto& PropertyPair : Properties->Values)
+    // Use PropertyService for universal property setting
+    TArray<FString> SuccessProps;
+    TMap<FString, FString> FailedProps;
+    
+    FPropertyService::Get().SetObjectProperties(Widget, Properties, SuccessProps, FailedProps);
+    
+    // Convert to output format
+    OutSuccessProperties = SuccessProps;
+    for (const auto& FailedProp : FailedProps)
     {
-        const FString& PropertyName = PropertyPair.Key;
-        const TSharedPtr<FJsonValue>& PropertyValue = PropertyPair.Value;
-
-        if (SetWidgetProperty(Widget, PropertyName, PropertyValue))
-        {
-            OutSuccessProperties.Add(PropertyName);
-        }
-        else
-        {
-            OutFailedProperties.Add(PropertyName);
-        }
+        OutFailedProperties.Add(FailedProp.Key);
+        // Log detailed error message
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Failed to set property '%s': %s"), 
+               *FailedProp.Key, *FailedProp.Value);
     }
 
     // Save the blueprint if any properties were set
@@ -726,64 +727,17 @@ bool FUMGService::SetWidgetProperty(UWidget* Widget, const FString& PropertyName
         return false;
     }
 
-    UClass* WidgetClass = Widget->GetClass();
-    FProperty* Property = WidgetClass->FindPropertyByName(FName(*PropertyName));
+    // Use PropertyService for universal property setting (supports enums, structs, all types)
+    FString ErrorMessage;
+    bool bSuccess = FPropertyService::Get().SetObjectProperty(Widget, PropertyName, PropertyValue, ErrorMessage);
     
-    if (!Property)
+    if (!bSuccess)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UMGService: Property '%s' not found on widget class '%s'"), *PropertyName, *WidgetClass->GetName());
-        return false;
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Failed to set property '%s' on widget '%s': %s"), 
+               *PropertyName, *Widget->GetClass()->GetName(), *ErrorMessage);
     }
-
-    // Handle different property types
-    if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
-    {
-        bool Value = PropertyValue->AsBool();
-        BoolProp->SetPropertyValue_InContainer(Widget, Value);
-        return true;
-    }
-    else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Property))
-    {
-        float Value = PropertyValue->AsNumber();
-        FloatProp->SetPropertyValue_InContainer(Widget, Value);
-        return true;
-    }
-    else if (FIntProperty* IntProp = CastField<FIntProperty>(Property))
-    {
-        int32 Value = PropertyValue->AsNumber();
-        IntProp->SetPropertyValue_InContainer(Widget, Value);
-        return true;
-    }
-    else if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
-    {
-        FString Value = PropertyValue->AsString();
-        StrProp->SetPropertyValue_InContainer(Widget, Value);
-        return true;
-    }
-    else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
-    {
-        FString Value = PropertyValue->AsString();
-        FText TextValue = FText::FromString(Value);
-        TextProp->SetPropertyValue_InContainer(Widget, TextValue);
-        return true;
-    }
-    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
-    {
-        // Handle struct properties (like ColorAndOpacity, BrushColor, etc.)
-        if (PropertyValue->Type == EJson::Object)
-        {
-            const TSharedPtr<FJsonObject>* StructObject;
-            if (PropertyValue->TryGetObject(StructObject) && StructObject->IsValid())
-            {
-                // This would need more specific handling based on struct type
-                // For now, return true to indicate we attempted to handle it
-                return true;
-            }
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("UMGService: Unsupported property type for '%s'"), *PropertyName);
-    return false;
+    
+    return bSuccess;
 }
 
 bool FUMGService::CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FString& EventName, const FString& FunctionName) const
