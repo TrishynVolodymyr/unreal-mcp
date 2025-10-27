@@ -270,6 +270,176 @@ All examples below show how to request these operations using natural language w
 5. Connect hit event through damage and effect to destruction"
 ```
 
+## Graph Manipulation Tools
+
+These low-level tools allow you to modify existing Blueprint node graphs by disconnecting, deleting, or completely replacing nodes while preserving connections.
+
+### Disconnect Node
+
+Disconnect all pin connections from a node while keeping the node in the graph. Useful for preparing nodes for modification or replacement.
+
+**Basic Usage:**
+```
+"Disconnect all connections from the 'Get Owner' node in DialogueComponent"
+
+"Disconnect the 'SetActorLocation' node in PlayerCharacter's EventGraph"
+
+"Disconnect all pins from the 'BranchNode_3' node in the CanInteract function"
+```
+
+**Parameters:**
+- `blueprint_name`: Name of the Blueprint containing the node
+- `node_id`: Unique identifier of the node to disconnect
+- `target_graph`: Graph name (defaults to "EventGraph", use function name for custom functions like "CanInteract")
+- `disconnect_inputs`: Whether to disconnect input pins (default: true)
+- `disconnect_outputs`: Whether to disconnect output pins (default: true)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Disconnected 3 connections from node",
+  "disconnections": 3
+}
+```
+
+**Use Cases:**
+- Preparing nodes for replacement without deleting them yet
+- Isolating nodes to test different connection patterns
+- Cleaning up connections before manual rewiring
+- Debugging connection issues by starting fresh
+
+### Delete Node
+
+Permanently remove a node from the Blueprint graph. Automatically disconnects all pins before deletion.
+
+**Basic Usage:**
+```
+"Delete the 'Get Owner' node from DialogueComponent"
+
+"Remove the broken PrintString node from the EventGraph"
+
+"Delete the unused 'BranchNode_2' from the CanInteract function"
+```
+
+**Parameters:**
+- `blueprint_name`: Name of the Blueprint containing the node
+- `node_id`: Unique identifier of the node to delete
+- `target_graph`: Graph name (defaults to "EventGraph")
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Successfully deleted node 'Get Owner'. Disconnected 2 pins before deletion.",
+  "disconnections": 2
+}
+```
+
+**Use Cases:**
+- Removing incorrect or obsolete nodes
+- Cleaning up failed node creation attempts
+- Refactoring Blueprint logic by removing unnecessary nodes
+- Fixing Blueprint compilation errors caused by invalid nodes
+
+### Replace Node
+
+Completely replace one node with another while automatically restoring connections. This is the most powerful graph manipulation tool, featuring:
+
+- **Smart Pin Matching**: Tries exact pin name match first, falls back to same-direction matching
+- **Automatic Type Casting**: Uses `ConnectNodesWithAutoCast` for primitive type conversions
+- **Connection Restoration**: Preserves all compatible connections from the old node
+- **Position Preservation**: New node appears at the same position as the old node
+
+**Basic Usage:**
+```
+"Replace the 'Get Owner' node with 'Get Owning Actor' in DialogueComponent's CanInteract function"
+
+"Replace 'Get TestFloat' variable with 'Get ReplacementFloat' in the EventGraph"
+
+"Swap the 'Add' math node with a 'Multiply' node in CalculateDamage function"
+```
+
+**Advanced Usage with Explicit Parameters:**
+```
+"Replace node 354D34B94684C47CC592A88E87C22772 with Get Owning Actor in DialogueComponent"
+
+"In the CanInteract function, replace the Get Owner node with GetOwningActor"
+```
+
+**Parameters:**
+- `blueprint_name`: Name of the Blueprint
+- `old_node_id`: Unique identifier of the node to replace
+- `new_node_type`: Type/name of the new node (e.g., "GetOwningActor", "Add")
+- `target_graph`: Graph name (defaults to "EventGraph")
+- `new_node_config`: Optional configuration for the new node
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Successfully replaced node 'Get Owner' with 'Get Owning Actor'. Restored 1 connections.",
+  "old_node_id": "354D34B94684C47CC592A88E87C22772",
+  "new_node_id": "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6",
+  "restored_connections": 1,
+  "stored_connections": [
+    {
+      "source_node": "354D34B94684C47CC592A88E87C22772",
+      "source_pin": "ReturnValue",
+      "target_node": "789ABC123DEF456GHI789JKL012MNO345",
+      "target_pin": "Target"
+    }
+  ]
+}
+```
+
+**Pin Matching Strategy:**
+1. **Exact Name Match**: If old and new nodes have pins with identical names, those are connected
+2. **Direction Fallback**: If no exact match, connects pins with the same direction (input→input, output→output)
+3. **Type Casting**: Automatically handles primitive type conversions (Int→Float, etc.)
+
+**Use Cases:**
+- Fixing incorrect function calls (Get Owner → Get Owning Actor for ActorComponents)
+- Swapping variable references (Get OldVariable → Get NewVariable)
+- Replacing math operations while preserving data flow
+- Upgrading deprecated nodes to newer equivalents
+- Refactoring Blueprint logic without manual reconnection
+
+**Example Workflow:**
+```
+"I need to fix the DialogueComponent. Find the Get Owner node in the CanInteract function and replace it with Get Owning Actor"
+
+Result:
+1. Finds node "Get Owner" with ID 354D34B94684C47CC592A88E87C22772
+2. Stores connection: ReturnValue pin connected to GetDistanceTo's Target pin
+3. Deletes old Get Owner node
+4. Creates new Get Owning Actor node at same position
+5. Restores connection using auto-cast (both return AActor*)
+6. Returns success with 1 restored connection
+```
+
+**Connection Restoration Details:**
+The tool stores all connections before replacement:
+```
+{
+  "pin_name": "ReturnValue",
+  "pin_direction": "EGPD_Output", 
+  "connected_nodes": ["789ABC..."],
+  "connected_pins": ["Target"]
+}
+```
+
+Then attempts to reconnect each using:
+1. Find matching pin on new node (exact name or same direction)
+2. Call `ConnectNodesWithAutoCast` for type-safe connection
+3. Report success/failure per connection
+
+**Limitations:**
+- Cannot restore connections if new node has completely different pin structure
+- Complex struct/object connections may fail if types are incompatible
+- Event pins and execution flow pins must have matching signatures
+- Some connections may require manual intervention after replacement
+
 ## Best Practices for Natural Language Commands
 
 ### Be Specific with Node Types

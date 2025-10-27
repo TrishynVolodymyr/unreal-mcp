@@ -13,10 +13,15 @@ Blueprint Action tools allow you to dynamically discover available Blueprint act
 Get all available Blueprint actions for a specific pin type with search filtering.
 
 **Parameters:**
-- `pin_type` (string) - The type of pin (object, int, float, bool, string, struct, etc.)
+- `pin_type` (string) **REQUIRED** - The type of pin (object, int, float, bool, string, struct, etc.)
 - `pin_subcategory` (string, optional) - The subcategory/class name for object pins (e.g., "PlayerController", "Pawn")
 - `search_filter` (string, optional) - Optional search string to filter results (searches in name, keywords, category)
 - `max_results` (int, optional) - Maximum number of results to return, defaults to 50
+
+**⚠️ Common Issues:**
+- Pin types are case-sensitive: use "bool" not "boolean", "int" not "integer"
+- For object pins, pin_subcategory is highly recommended to get relevant results
+- Empty results may indicate incorrect pin_type or pin_subcategory spelling
 
 **Returns:**
 - Dict containing:
@@ -170,11 +175,36 @@ Get specific information about a Blueprint node's pin including expected types.
 Create a blueprint node by discovered action/function name.
 
 **Parameters:**
-- `blueprint_name` (string) - Name of the target Blueprint (e.g., "BP_MyActor")
-- `function_name` (string) - Name of the function to create a node for (from discovered actions)
+- `blueprint_name` (string) **REQUIRED** - Name of the target Blueprint (e.g., "BP_MyActor")
+- `function_name` (string) **REQUIRED** - Name of the function to create a node for (from discovered actions)
+- `kwargs` (string) **REQUIRED** - JSON string with additional parameters (use "{}" if no special params needed)
 - `class_name` (string, optional) - Optional class name if the function is from a specific class (e.g., "KismetMathLibrary")
 - `node_position` (array, optional) - Optional [X, Y] position in the graph (e.g., [100, 200])
-- `json_params` (string, optional) - Optional JSON string with additional parameters for special nodes
+- `target_graph` (string, optional) - Optional specific graph to create node in (e.g., "EventGraph", "UpdateDialogueText")
+
+**⚠️ Common Issues:**
+- Function names must match exactly as discovered (case-sensitive)
+- Some functions require class_name (e.g., "AddToViewport" needs class_name="UserWidget")
+- Use search_blueprint_actions first to find correct function names
+- For control flow nodes like "CustomEvent", use kwargs to specify event_name
+- For cast nodes, use kwargs to specify target_type
+
+**✅ Working Node Types:**
+- Function calls (KismetMathLibrary, GameplayStatics, etc.)
+- For Each Loop (Map) - UK2Node_MapForEach
+- For Each Loop (Set) - UK2Node_SetForEach
+- Control flow nodes (Branch, Sequence, etc.)
+- Variable get/set nodes
+- Custom events
+- Cast nodes
+- **Enhanced Input Action events** (e.g., IA_Jump, IA_Move, IA_Interact)
+
+**💡 Enhanced Input Actions:**
+Enhanced Input Action event nodes can be created in two ways:
+1. **Just function_name**: `function_name="IA_Interact"` (recommended)
+2. **With class_name**: `function_name="IA_Jump"`, `class_name="EnhancedInputAction"`
+
+Both methods work identically. Use `search_blueprint_actions(search_query="IA_")` to discover available Input Actions.
 
 **Returns:**
 - Dict containing node creation result with node info and pins
@@ -225,20 +255,6 @@ Connect nodes in a Blueprint's event graph. Supports both single connection (leg
 - In batch mode: Dict with a `results` array, each entry indicating success or failure for each connection.
 
 **Examples:**
-
-_Single connection (legacy):_
-```json
-{
-  "command": "connect_blueprint_nodes",
-  "params": {
-    "blueprint_name": "BP_MyActor",
-    "source_node_id": "GUID1",
-    "source_pin": "Exec",
-    "target_node_id": "GUID2",
-    "target_pin": "Then"
-  }
-}
-```
 
 _Batch connection:_
 ```json
@@ -298,6 +314,106 @@ You can use this approach for any variable in any Blueprint, including UMG Widge
 3. **Create Nodes**: Use `create_node_by_action_name` to create the discovered nodes
 4. **Connect Nodes**: Use Node Tools to connect the created nodes
 
+### Practical Examples from Testing
+
+**Example 1: Finding the correct function name**
+```json
+// WRONG: This will fail
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_GamePlayer",
+    "function_name": "Add to Viewport",
+    "kwargs": "{}"
+  }
+}
+
+// CORRECT: Search first, then use exact name
+{
+  "command": "search_blueprint_actions",
+  "params": {
+    "search_query": "viewport"
+  }
+}
+// Result shows "AddToViewport" is the correct name
+
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_GamePlayer",
+    "function_name": "AddToViewport",
+    "class_name": "UserWidget",
+    "kwargs": "{}"
+  }
+}
+```
+
+**Example 2: Creating custom events**
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_GamePlayer",
+    "function_name": "CustomEvent",
+    "kwargs": "{\"event_name\": \"OnInteractPressed\"}",
+    "node_position": [200, 300]
+  }
+}
+```
+
+**Example 3: Creating Enhanced Input Action events**
+
+First, discover available Input Actions:
+```json
+{
+  "command": "search_blueprint_actions",
+  "params": {
+    "search_query": "IA_",
+    "max_results": 20
+  }
+}
+// Result shows: IA_Jump, IA_Move, IA_Look, IA_Interact, etc.
+```
+
+Then create the event node (Method 1 - just function_name):
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_ThirdPersonCharacter",
+    "function_name": "IA_Interact",
+    "kwargs": "{}",
+    "node_position": [100, 200]
+  }
+}
+```
+
+Or Method 2 (with class_name):
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_ThirdPersonCharacter",
+    "function_name": "IA_Jump",
+    "class_name": "EnhancedInputAction",
+    "kwargs": "{}",
+    "node_position": [100, 300]
+  }
+}
+```
+
+**Example 4: Creating cast nodes**
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "function_name": "Cast",
+    "kwargs": "{\"target_type\": \"PlayerController\"}"
+  }
+}
+```
+
 ### Pin Type Reference
 
 Common pin types for `get_actions_for_pin`:
@@ -331,4 +447,42 @@ Common classes for action discovery:
 - `GameMode` - Game rules and state
 - `StaticMeshComponent` - Static mesh rendering
 - `AudioComponent` - Audio playback
-- `LightComponent` - Lighting functionality 
+- `LightComponent` - Lighting functionality
+
+## Troubleshooting and Error Handling
+
+### Common Errors and Solutions
+
+**Error: "Function 'X' not found and not a recognized control flow node"**
+- **Cause**: Function name doesn't match exactly or doesn't exist
+- **Solution**: Use `search_blueprint_actions` to find the correct function name
+- **Example**: "Add to Viewport" should be "AddToViewport"
+
+**Error: Node creation succeeds but has wrong pins**
+- **Cause**: Missing or incorrect class_name parameter
+- **Solution**: Some functions require specific class_name (e.g., AddToViewport needs "UserWidget")
+
+**Error: Empty results from get_actions_for_pin**
+- **Cause**: Incorrect pin_type or missing pin_subcategory for object pins
+- **Solution**: Check pin_type spelling, add pin_subcategory for object pins
+
+**Error: Blueprint compilation fails after node creation**
+- **Cause**: Nodes created but not properly connected or missing required connections
+- **Solution**: Use get_node_pin_info to understand required connections, then use connect_blueprint_nodes
+
+### Best Practices
+
+1. **Always search first**: Use search_blueprint_actions before creating nodes to ensure correct function names
+2. **Check pin requirements**: Use get_node_pin_info to understand what connections are needed
+3. **Use specific searches**: Include search_filter to narrow down results to relevant functions
+4. **Test incrementally**: Create and test nodes one at a time rather than creating complex graphs at once
+5. **Handle class names**: Some functions require class_name parameter - check the action discovery results
+
+### Debugging Workflow
+
+1. **Search for function**: `search_blueprint_actions` with relevant keywords
+2. **Check pin info**: `get_node_pin_info` for the target node type
+3. **Create node**: `create_node_by_action_name` with exact function name
+4. **Verify creation**: Check returned node_id and pins list
+5. **Connect nodes**: Use Node Tools to make connections
+6. **Compile Blueprint**: Use Blueprint Tools to compile and check for errors 

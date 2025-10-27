@@ -8,13 +8,14 @@
 #include "Json.h"
 #include "Interfaces/IPv4/IPv4Address.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
-#include "Commands/UnrealMCPEditorCommands.h"
-#include "Commands/UnrealMCPBlueprintCommands.h"
-#include "Commands/UnrealMCPBlueprintNodeCommands.h"
-#include "Commands/UnrealMCPProjectCommands.h"
-#include "Commands/UnrealMCPUMGCommands.h"
-#include "Commands/UnrealMCPDataTableCommands.h"
-#include "Commands/UnrealMCPBlueprintActionCommandsHandler.h"
+#include "Commands/Editor/UnrealMCPEditorCommands.h"
+#include "Commands/Blueprint/UnrealMCPBlueprintCommands.h"
+#include "Commands/BlueprintNode/UnrealMCPBlueprintNodeCommands.h"
+#include "Commands/Project/UnrealMCPProjectCommands.h"
+#include "Commands/UMG/UnrealMCPUMGCommands.h"
+
+#include "Commands/BlueprintAction/UnrealMCPBlueprintActionCommandsHandler.h"
+#include "Commands/UnrealMCPCommandRegistry.h"
 #include "UnrealMCPBridge.generated.h"
 
 class FMCPServerRunnable;
@@ -63,6 +64,5 @@ private:
 	TSharedPtr<FUnrealMCPBlueprintNodeCommands> BlueprintNodeCommands;
 	TSharedPtr<FUnrealMCPProjectCommands> ProjectCommands;
 	TSharedPtr<FUnrealMCPUMGCommands> UMGCommands;
-	TSharedPtr<FUnrealMCPDataTableCommands> DataTableCommands;
 	TSharedPtr<FUnrealMCPBlueprintActionCommandsHandler> BlueprintActionCommands;
 }; 

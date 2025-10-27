@@ -39,7 +39,7 @@ def register_project_tools(mcp: FastMCP):
         Example:
             create_input_mapping(action_name="Jump", key="SpaceBar")
         """
-        from unreal_mcp_server import get_unreal_connection
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
         
         try:
             unreal = get_unreal_connection()
@@ -91,7 +91,7 @@ def register_project_tools(mcp: FastMCP):
         Example:
             create_enhanced_input_action(action_name="Jump", value_type="Digital")
         """
-        from unreal_mcp_server import get_unreal_connection
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
         
         try:
             unreal = get_unreal_connection()
@@ -142,7 +142,7 @@ def register_project_tools(mcp: FastMCP):
         Example:
             create_input_mapping_context(context_name="Default")
         """
-        from unreal_mcp_server import get_unreal_connection
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
         
         try:
             unreal = get_unreal_connection()
@@ -204,7 +204,7 @@ def register_project_tools(mcp: FastMCP):
                 key="SpaceBar"
             )
         """
-        from unreal_mcp_server import get_unreal_connection
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
         
         try:
             unreal = get_unreal_connection()
@@ -254,7 +254,7 @@ def register_project_tools(mcp: FastMCP):
         Example:
             list_input_actions(path="/Game/Input")
         """
-        from unreal_mcp_server import get_unreal_connection
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
         
         try:
             unreal = get_unreal_connection()
@@ -298,7 +298,7 @@ def register_project_tools(mcp: FastMCP):
         Example:
             list_input_mapping_contexts(path="/Game/Input")
         """
-        from unreal_mcp_server import get_unreal_connection
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
         
         try:
             unreal = get_unreal_connection()
@@ -350,7 +350,7 @@ def register_project_tools(mcp: FastMCP):
             # Create a regular project folder
             create_folder(folder_path="Intermediate/MyTools")
         """
-        from unreal_mcp_server import get_unreal_connection
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
         
         try:
             unreal = get_unreal_connection()

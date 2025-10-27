@@ -85,12 +85,17 @@ Delete a row from a DataTable.
 Get all row names and struct field names from a DataTable.
 
 **Parameters:**
-- `datatable_name` (string) - Name of the target DataTable
+- `datatable_name` (string) **REQUIRED** - Name of the target DataTable
 
 **Returns:**
 - Dict containing:
   - `row_names` (array) - List of row names (string)
-  - `field_names` (array) - List of struct field names (string)
+  - `field_names` (array) - List of struct field names with GUID suffixes (string)
+
+**⚠️ CRITICAL: GUID-based Field Names**
+Field names returned include auto-generated GUID suffixes that MUST be used for add/update operations:
+- Original field: "ItemName" 
+- Actual field: "ItemName_2_6E790E8C43602AE89B031BA4C77F112E"
 
 **Example:**
 ```json
@@ -100,6 +105,18 @@ Get all row names and struct field names from a DataTable.
     "datatable_name": "ItemTable"
   }
 }
+
+// Response example:
+{
+  "result": {
+    "row_names": ["Sword", "Potion"],
+    "field_names": [
+      "ItemName_2_6E790E8C43602AE89B031BA4C77F112E",
+      "ItemType_4_B4EA87F9426CC9C18DDC389BB5346008",
+      "Value_6_2B59520A4965FAC496E07197E22FB659"
+    ]
+  }
+}
 ```
 
 ### add_rows_to_datatable
@@ -107,31 +124,53 @@ Get all row names and struct field names from a DataTable.
 Add multiple rows to an existing DataTable.
 
 **Parameters:**
-- `datatable_name` (string) - Name of the target DataTable. Can be:
+- `datatable_name` (string) **REQUIRED** - Name of the target DataTable. Can be:
   - Full path (recommended): "/Game/Data/MyTable"
   - Simple name: "MyTable" (will search in multiple locations)
-- `rows` (array) - List of dicts, each with:
+- `rows` (array) **REQUIRED** - List of dicts, each with:
   - `row_name` (string) - Unique name for the row
-  - `row_data` (object) - Dict of property values using the internal GUID-based property names
+  - `row_data` (object) - Dict of property values using GUID-based property names from get_datatable_row_names
 
 **Returns:**
 - Dict containing success status and list of added row names
 
-**Example:**
+**⚠️ CRITICAL WORKFLOW:**
+1. **ALWAYS call get_datatable_row_names FIRST** to get correct field names with GUIDs
+2. Use the exact field names returned (with GUID suffixes) in row_data
+3. Field names are case-sensitive and must match exactly
+
+**Example (Real workflow from testing):**
 ```json
+// Step 1: Get field names with GUIDs
+{
+  "command": "get_datatable_row_names",
+  "params": {
+    "datatable_name": "ItemsDataTable"
+  }
+}
+
+// Response shows actual field names:
+// "ItemName_2_6E790E8C43602AE89B031BA4C77F112E"
+// "ItemType_4_B4EA87F9426CC9C18DDC389BB5346008"
+// "Value_6_2B59520A4965FAC496E07197E22FB659"
+// etc.
+
+// Step 2: Use exact field names in add operation
 {
   "command": "add_rows_to_datatable",
   "params": {
-    "datatable_name": "/Game/Data/ItemTable",
+    "datatable_name": "ItemsDataTable",
     "rows": [
       {
-        "row_name": "MagicSword",
+        "row_name": "Sword",
         "row_data": {
-          "ItemName_12345678": "Magic Sword",
-          "Price_87654321": 299.99,
-          "Quantity_11111111": 1,
-          "IsAvailable_22222222": true,
-          "Tags_33333333": ["weapon", "magic"]
+          "ItemName_2_6E790E8C43602AE89B031BA4C77F112E": "Iron Sword",
+          "ItemType_4_B4EA87F9426CC9C18DDC389BB5346008": "Weapon",
+          "Value_6_2B59520A4965FAC496E07197E22FB659": 150,
+          "Weight_8_E1CD64B54B8F6B4D51677CACB3C96B13": 2.5,
+          "IsStackable_10_1483BFC542416DBC2E57269B9B5520B6": false,
+          "MaxStackSize_12_1AA05FCC4E410B0F6F0D5283F011F132": 1,
+          "Description_14_34CA8ACC453C90C90665BB9C963A5E9E": "A sturdy iron sword for combat"
         }
       }
     ]
@@ -329,3 +368,80 @@ DataTables work well with Blueprint systems:
 - **Selective Retrieval**: Use row_names parameter in get_datatable_rows to fetch only needed data
 - **Field Name Caching**: Cache field names from get_datatable_row_names to avoid repeated calls
 - **Asset References**: Use full paths to avoid search overhead 
+##
+ Troubleshooting and Error Handling
+
+### Common Errors and Solutions
+
+**Error: "Invalid parameters for command 'get_datatable_rows'"**
+- **Cause**: DataTable name not found or incorrect path
+- **Solution**: Use full path like "/Game/Data/ItemsDataTable" or verify DataTable exists
+
+**Error: "DataTable not found"**
+- **Cause**: Incorrect DataTable name or path
+- **Solution**: Check exact spelling and use full asset path
+
+**Error: "Field not found in struct"**
+- **Cause**: Using original field names instead of GUID-based names
+- **Solution**: Always call get_datatable_row_names first and use the returned field names exactly
+
+**Error: "Row already exists"**
+- **Cause**: Trying to add a row with a name that already exists
+- **Solution**: Use update_rows_in_datatable instead, or choose a different row_name
+
+**Error: "Struct type mismatch"**
+- **Cause**: DataTable struct doesn't match the provided data structure
+- **Solution**: Verify struct definition and ensure all required fields are provided
+
+### Best Practices
+
+1. **Always get field names first**: Call get_datatable_row_names before any add/update operations
+2. **Use full paths**: Specify complete asset paths to avoid resolution issues
+3. **Batch operations**: Group multiple row operations together for better performance
+4. **Validate data types**: Ensure data types match the struct definition
+5. **Handle errors gracefully**: Check success status in responses and handle failures appropriately
+
+### Debugging Workflow
+
+1. **Verify DataTable exists**: Check asset browser or use project tools to list assets
+2. **Get field structure**: Use get_datatable_row_names to see current structure
+3. **Test with single row**: Add one row first to verify field names and data types
+4. **Check response messages**: Read error messages carefully for specific issues
+5. **Use full paths**: Always specify complete asset paths for reliability
+
+### Field Name Management
+
+The GUID-based field naming system ensures uniqueness but requires careful handling:
+
+```json
+// WRONG: Using original field names
+{
+  "row_data": {
+    "ItemName": "Sword",
+    "Value": 100
+  }
+}
+
+// CORRECT: Using GUID-based field names from get_datatable_row_names
+{
+  "row_data": {
+    "ItemName_2_6E790E8C43602AE89B031BA4C77F112E": "Sword",
+    "Value_6_2B59520A4965FAC496E07197E22FB659": 100
+  }
+}
+```
+
+**Pro Tip**: Store the field names mapping in your workflow to avoid repeated get_datatable_row_names calls:
+
+```json
+// Get field names once
+const fieldNames = await get_datatable_row_names("ItemsDataTable");
+const nameField = fieldNames.field_names[0]; // "ItemName_2_6E790E8C43602AE89B031BA4C77F112E"
+const valueField = fieldNames.field_names[2]; // "Value_6_2B59520A4965FAC496E07197E22FB659"
+
+// Use stored field names for multiple operations
+const rowData = {
+  [nameField]: "New Item",
+  [valueField]: 150
+};
+```

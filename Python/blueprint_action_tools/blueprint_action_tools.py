@@ -14,7 +14,7 @@ from utils.blueprint_actions.blueprint_action_operations import (
     get_actions_for_class as get_actions_for_class_impl,
     get_actions_for_class_hierarchy as get_actions_for_class_hierarchy_impl,
     search_blueprint_actions as search_blueprint_actions_impl,
-    get_node_pin_info as get_node_pin_info_impl,
+    get_node_pin_info as inspect_node_pin_connection_impl,
     create_node_by_action_name as create_node_by_action_name_impl
 )
 
@@ -30,7 +30,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         pin_type: str, 
         pin_subcategory: str = "",
         search_filter: str = "",
-        max_results: int = 50
+        max_results: int = 20
     ) -> Dict[str, Any]:
         """
         Get all available Blueprint actions for a specific pin type with search filtering.
@@ -71,7 +71,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         ctx: Context,
         class_name: str,
         search_filter: str = "",
-        max_results: int = 50
+        max_results: int = 20
     ) -> Dict[str, Any]:
         """
         Get all available Blueprint actions for a specific class with search filtering.
@@ -110,7 +110,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         ctx: Context,
         class_name: str,
         search_filter: str = "",
-        max_results: int = 50
+        max_results: int = 20
     ) -> Dict[str, Any]:
         """
         Get all available Blueprint actions for a class and its entire inheritance hierarchy with search filtering.
@@ -151,63 +151,83 @@ def register_blueprint_action_tools(mcp: FastMCP):
         ctx: Context,
         search_query: str,
         category: str = "",
-        max_results: int = 50,
+        max_results: int = 20,
         blueprint_name: str = None
     ) -> Dict[str, Any]:
         """
-        Search for Blueprint actions using keywords.
+        Search for EXISTING Blueprint actions/nodes using keywords.
         
-        This tool provides a general search interface for finding Blueprint actions by name,
-        category, keywords, or tooltip text. It's similar to typing in the search box in
-        Unreal's Blueprint editor context menu.
+        IMPORTANT: This tool ONLY searches for existing Blueprint nodes and functions that are 
+        already available in Unreal Engine's FBlueprintActionDatabase. It searches built-in 
+        engine functionality like math operations, engine functions, and existing Blueprint nodes.
+        
+        DO NOT use this tool to search for:
+        - Custom functions you want to create
+        - Custom events you want to create  
+        - Custom Blueprint logic that doesn't exist yet
+        - Concepts like "custom function", "my function", etc.
+        
+        USE this tool to find:
+        - Built-in math operations (add, multiply, etc.)
+        - Engine functions (GetActorLocation, SetActorLocation, etc.)
+        - Flow control nodes (Branch, Sequence, etc.)
+        - Existing Blueprint nodes and functions
+        - Enhanced Input Actions (IA_Jump, IA_Move, etc.) - search for "IA_" prefix
+        
+        If you want to CREATE custom functionality, use create_node_by_action_name directly
+        with the appropriate node type (like "CustomEvent" for custom events).
+        
+        This tool is similar to typing in the search box in Unreal's Blueprint editor context menu.
         
         Args:
-            search_query: Search string to find actions (searches in name, keywords, category, tooltip)
+            search_query: Search string to find EXISTING actions (searches in name, keywords, category, tooltip)
             category: Optional category filter (Flow Control, Math, Utilities, etc.)
-            max_results: Maximum number of results to return (default: 50)
+            max_results: Maximum number of results to return (default: 20)
             blueprint_name: Optional name of the Blueprint asset for local variable discovery
         
         Returns:
             Dict containing:
                 - success: Boolean indicating if the operation succeeded
-                - actions: List of matching actions with title, tooltip, category, keywords
+                - actions: List of matching EXISTING actions with title, tooltip, category, keywords
                 - search_query: The search query that was used
                 - category_filter: The category filter that was applied
                 - action_count: Number of actions found
                 - message: Status message
         
         Examples:
-            # Search for math operations
+            # Search for existing math operations
             search_blueprint_actions(search_query="add")
             
-            # Search for flow control nodes
+            # Search for existing flow control nodes
             search_blueprint_actions(search_query="branch", category="Flow Control")
             
-            # Search for print functions
+            # Search for existing print functions
             search_blueprint_actions(search_query="print")
             
-            # Search for variable nodes in a Blueprint
+            # Search for Enhanced Input Actions with IA_ prefix
+            search_blueprint_actions(search_query="IA_")
+            
+            # Search for specific Enhanced Input Action
+            search_blueprint_actions(search_query="IA_Jump")
+            
+            # Search for existing variable nodes in a Blueprint
             search_blueprint_actions(search_query="myvar", blueprint_name="BP_TestActor")
         """
         return search_blueprint_actions_impl(ctx, search_query, category, max_results, blueprint_name)
 
     @mcp.tool()
-    def get_node_pin_info(
+    def inspect_node_pin_connection(
         ctx: Context,
-        node_name: str, 
+        node_name: str,
         pin_name: str
     ) -> Dict[str, Any]:
         """
-        Get specific information about a Blueprint node's pin including expected types.
-
-        This tool provides detailed information about what a specific pin on a specific node
-        expects or outputs, including the data type, whether it's required, input/output direction,
-        and a description of its purpose.
-
+        Inspect Blueprint node pin connection details including expected types and compatibility info.
+        
         Args:
             node_name: Name of the Blueprint node (e.g., "Create Widget", "Get Controller", "Cast to PlayerController")
             pin_name: Name of the specific pin (e.g., "Owning Player", "Class", "Return Value", "Target")
-
+        
         Returns:
             Dict containing:
                 - success: Boolean indicating if the operation succeeded
@@ -221,18 +241,18 @@ def register_blueprint_action_tools(mcp: FastMCP):
                     - is_input: Whether it's an input (true) or output (false) pin
                 - message: Status message
                 - available_pins: List of available pins if the node is known but pin is not found
-
+        
         Examples:
-            # Find out what the "Owning Player" pin expects on Create Widget
-            get_node_pin_info(node_name="Create Widget", pin_name="Owning Player")
+            # Inspect the Class pin on Create Widget node
+            inspect_node_pin_connection(node_name="Create Widget", pin_name="Class")
             
-            # Check what Get Controller returns
-            get_node_pin_info(node_name="Get Controller", pin_name="Return Value")
+            # Inspect the Target pin on Get Controller node
+            inspect_node_pin_connection(node_name="Get Controller", pin_name="Target")
             
-            # Understand Cast to PlayerController inputs
-            get_node_pin_info(node_name="Cast to PlayerController", pin_name="Object")
+            # Inspect the Owning Player pin on Create Widget node
+            inspect_node_pin_connection(node_name="Create Widget", pin_name="Owning Player")
         """
-        return get_node_pin_info_impl(ctx, node_name, pin_name)
+        return inspect_node_pin_connection_impl(ctx, node_name, pin_name)
 
     @mcp.tool()
     def create_node_by_action_name(
@@ -241,7 +261,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         function_name: str,
         class_name: str = "",
         node_position: List[float] = None,
-        target_graph: str = None,
+        target_graph: str = "EventGraph",
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -258,13 +278,19 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Variable get/set nodes
         - Custom events
         - Cast nodes
+        - Enhanced Input Action events (e.g., IA_Jump, IA_Move, IA_Interact)
 
         Args:
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
-            function_name: Name of the function to create a node for (from discovered actions)
+            function_name: Name of the function to create a node for (from discovered actions).
+                          For Enhanced Input Actions, use the action name (e.g., "IA_Interact")
             class_name: Optional class name (supports both short names like "KismetMathLibrary" 
-                       and full paths like "/Script/Engine.KismetMathLibrary")
+                       and full paths like "/Script/Engine.KismetMathLibrary").
+                       For Enhanced Input Actions, you can optionally use "EnhancedInputAction"
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
+            target_graph: Optional name of the specific graph to place the node in (e.g., "CanInteract", "GetSpeaker").
+                         If not specified, defaults to "EventGraph". This allows creating nodes in custom functions.
+                         Can be passed either as a direct parameter or as a keyword argument.
             **kwargs: Additional parameters for special nodes (e.g., target_type="PlayerController" for Cast nodes)
 
         Returns:
@@ -285,14 +311,38 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 node_position=[100, 200]
             )
             
-            # Create a Map ForEach loop (WORKING!)
+            # Create a node in a specific function graph - Method 1 (direct parameter)
+            create_node_by_action_name(
+                blueprint_name="DialogueComponent",
+                function_name="GetOwner",
+                target_graph="CanInteract",
+                node_position=[100, 100]
+            )
+            
+            # Create a node in a specific function graph - Method 2 (keyword argument)
+            create_node_by_action_name(
+                blueprint_name="DialogueComponent",
+                function_name="GetDistanceTo",
+                node_position=[300, 100],
+                target_graph="CanInteract"
+            )
+            
+            # Create a comparison operator in a function
+            create_node_by_action_name(
+                blueprint_name="DialogueComponent",
+                function_name="<",
+                node_position=[500, 100],
+                target_graph="CanInteract"
+            )
+            
+            # Create a Map ForEach loop
             create_node_by_action_name(
                 blueprint_name="BP_MyActor",
                 function_name="For Each Loop (Map)",
                 node_position=[300, 400]
             )
             
-            # Create a Set ForEach loop (WORKING!)
+            # Create a Set ForEach loop
             create_node_by_action_name(
                 blueprint_name="BP_MyActor", 
                 function_name="For Each Loop (Set)",
@@ -311,6 +361,21 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 blueprint_name="BP_MyActor",
                 function_name="Cast",
                 target_type="PlayerController"
+            )
+            
+            # Create Enhanced Input Action event node - Method 1 (just function_name)
+            create_node_by_action_name(
+                blueprint_name="BP_ThirdPersonCharacter",
+                function_name="IA_Interact",
+                node_position=[100, 200]
+            )
+            
+            # Create Enhanced Input Action event node - Method 2 (with class_name)
+            create_node_by_action_name(
+                blueprint_name="BP_ThirdPersonCharacter",
+                function_name="IA_Jump",
+                class_name="EnhancedInputAction",
+                node_position=[100, 300]
             )
             
             # Create without specifying class (will search common classes)

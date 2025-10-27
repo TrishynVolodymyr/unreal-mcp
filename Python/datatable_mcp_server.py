@@ -42,43 +42,34 @@ if __name__ == "__main__":
         description="Table containing all game items"
     )
 
-- **get_datatable_rows(datatable_name, row_names=None)**
+- **get_datatable_rows(datatable_path, row_names=None)**
   
   Get rows from a DataTable.
   
   Args:
-    - datatable_name (str): Name of the target DataTable
+    - datatable_path (str): Path to the target DataTable
     - row_names (list, optional): List of specific row names to retrieve
   
   Returns: Dict containing the requested rows.
 
-- **delete_datatable_row(datatable_name, row_name)**
-  
-  Delete a row from a DataTable.
-  
-  Args:
-    - datatable_name (str): Name of the target DataTable
-    - row_name (str): Name of the row to delete
-  
-  Returns: Dict containing success status and updated DataTable info.
 
-- **get_datatable_row_names(datatable_name)**
+- **get_datatable_row_names(datatable_path)**
   
   Get all row names and struct field names from a DataTable.
   
   Args:
-    - datatable_name (str): Name of the target DataTable
+    - datatable_path (str): Path to the target DataTable
   
   Returns: Dict containing:
     - 'row_names': list of row names (str)
     - 'field_names': list of struct field names (str)
 
-- **add_rows_to_datatable(datatable_name, rows)**
+- **add_rows_to_datatable(datatable_path, rows)**
   
   Add multiple rows to an existing DataTable.
   
   Args:
-    - datatable_name (str): Name of the target DataTable (full path or simple name)
+    - datatable_path (str): Path to the target DataTable (full path or simple name)
     - rows (list): List of dicts, each with:
       - 'row_name': Unique name for the row
       - 'row_data': Dict of property values using the internal GUID-based property names (get these from get_datatable_row_names)
@@ -89,7 +80,7 @@ if __name__ == "__main__":
     property_info = get_datatable_row_names("MyItemTable")
     field_names = property_info["result"]["field_names"]
     add_rows_to_datatable(
-        datatable_name="/Game/Data/MyItemTable",
+        datatable_path="/Game/Data/MyItemTable",
         rows=[{
             "row_name": "Item1",
             "row_data": {
@@ -102,12 +93,12 @@ if __name__ == "__main__":
         }]
     )
 
-- **update_rows_in_datatable(datatable_name, rows)**
+- **update_rows_in_datatable(datatable_path, rows)**
   
   Update multiple rows in an existing DataTable.
   
   Args:
-    - datatable_name (str): Name of the target DataTable (full path or simple name)
+    - datatable_path (str): Path to the target DataTable (full path or simple name)
     - rows (list): List of dicts, each with:
       - 'row_name': Name of the row to update
       - 'row_data': Dict of property values using the internal GUID-based property names (get these from get_datatable_row_names)
@@ -118,7 +109,7 @@ if __name__ == "__main__":
     property_info = get_datatable_row_names("MyItemTable")
     field_names = property_info["result"]["field_names"]
     update_rows_in_datatable(
-        datatable_name="/Game/Data/MyItemTable",
+        datatable_path="/Game/Data/MyItemTable",
         rows=[{
             "row_name": "Item1",
             "row_data": {
@@ -131,12 +122,12 @@ if __name__ == "__main__":
         }]
     )
 
-- **delete_datatable_rows(datatable_name, row_names)**
+- **delete_datatable_rows(datatable_path, row_names)**
   
   Delete multiple rows from a DataTable.
   
   Args:
-    - datatable_name (str): Name of the target DataTable
+    - datatable_path (str): Path to the target DataTable
     - row_names (list): List of row names to delete
   
   Returns: Dict containing success status and updated DataTable info.

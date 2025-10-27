@@ -1,5 +1,5 @@
 #include "Services/MacroDiscoveryService.h"
-#include "Commands/UnrealMCPCommonUtils.h"
+#include "Utils/UnrealMCPCommonUtils.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Editor/EditorEngine.h"
 #include "Misc/Paths.h"

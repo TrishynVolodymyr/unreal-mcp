@@ -51,14 +51,16 @@
 #include "EditorSubsystem.h"
 #include "Subsystems/EditorActorSubsystem.h"
 // Include our new command handler classes
-#include "Commands/UnrealMCPEditorCommands.h"
-#include "Commands/UnrealMCPBlueprintCommands.h"
-#include "Commands/UnrealMCPBlueprintNodeCommands.h"
-#include "Commands/UnrealMCPProjectCommands.h"
-#include "Commands/UnrealMCPCommonUtils.h"
-#include "Commands/UnrealMCPUMGCommands.h"
-#include "Commands/UnrealMCPDataTableCommands.h"
-#include "Commands/UnrealMCPBlueprintActionCommandsHandler.h"
+#include "Commands/Editor/UnrealMCPEditorCommands.h"
+#include "Commands/Blueprint/UnrealMCPBlueprintCommands.h"
+#include "Commands/BlueprintNode/UnrealMCPBlueprintNodeCommands.h"
+#include "Commands/Project/UnrealMCPProjectCommands.h"
+#include "Utils/UnrealMCPCommonUtils.h"
+#include "Commands/UMG/UnrealMCPUMGCommands.h"
+
+#include "Commands/BlueprintAction/UnrealMCPBlueprintActionCommandsHandler.h"
+#include "Commands/EditorCommandRegistration.h"
+#include "Commands/DataTableCommandRegistration.h"
 
 // Default settings
 #define MCP_SERVER_HOST "127.0.0.1"
@@ -71,7 +73,6 @@ UUnrealMCPBridge::UUnrealMCPBridge()
     BlueprintNodeCommands = MakeShared<FUnrealMCPBlueprintNodeCommands>();
     ProjectCommands = MakeShared<FUnrealMCPProjectCommands>();
     UMGCommands = MakeShared<FUnrealMCPUMGCommands>();
-    DataTableCommands = MakeShared<FUnrealMCPDataTableCommands>();
     BlueprintActionCommands = MakeShared<FUnrealMCPBlueprintActionCommandsHandler>();
 }
 
@@ -82,7 +83,6 @@ UUnrealMCPBridge::~UUnrealMCPBridge()
     BlueprintNodeCommands.Reset();
     ProjectCommands.Reset();
     UMGCommands.Reset();
-    DataTableCommands.Reset();
     BlueprintActionCommands.Reset();
 }
 
@@ -98,6 +98,10 @@ void UUnrealMCPBridge::Initialize(FSubsystemCollectionBase& Collection)
     Port = MCP_SERVER_PORT;
     FIPv4Address::Parse(MCP_SERVER_HOST, ServerAddress);
 
+    // Register new command system
+    FEditorCommandRegistration::RegisterAllCommands();
+    FDataTableCommandRegistration::RegisterAllCommands();
+    
     // Start the server automatically
     StartServer();
 }
@@ -106,6 +110,11 @@ void UUnrealMCPBridge::Initialize(FSubsystemCollectionBase& Collection)
 void UUnrealMCPBridge::Deinitialize()
 {
     UE_LOG(LogTemp, Display, TEXT("UnrealMCPBridge: Shutting down"));
+    
+    // Unregister editor commands
+    FEditorCommandRegistration::UnregisterAllCommands();
+    FDataTableCommandRegistration::UnregisterAllCommands();
+    
     StopServer();
 }
 
@@ -250,7 +259,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 static const TArray<FString> BlueprintCommandsList = {
                     TEXT("create_blueprint"), 
                     TEXT("add_component_to_blueprint"), 
-                    TEXT("set_component_property"), 
+                    TEXT("modify_blueprint_component_properties"), 
                     TEXT("set_physics_properties"), 
                     TEXT("compile_blueprint"), 
                     TEXT("set_blueprint_property"), 
@@ -267,13 +276,14 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("connect_blueprint_nodes"), 
                     TEXT("find_blueprint_nodes"),
                     TEXT("add_blueprint_event_node"),
-                    TEXT("add_blueprint_input_action_node"),
-                    TEXT("add_enhanced_input_action_node"),
+                    // TEXT("add_blueprint_input_action_node"),  // REMOVED: Use create_node_by_action_name instead
+                    // TEXT("add_enhanced_input_action_node"),  // REMOVED: Use create_node_by_action_name instead
                     TEXT("add_blueprint_function_node"),
                     TEXT("add_blueprint_get_component_node"),
                     TEXT("add_blueprint_variable"),
                     TEXT("add_blueprint_custom_event_node"),
-                    TEXT("get_variable_info")
+                    TEXT("get_variable_info"),
+                    TEXT("create_node_by_action_name")
                 };
                 
                 static const TArray<FString> ProjectCommandsList = {
@@ -309,14 +319,39 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 static const TArray<FString> BlueprintActionCommandsList = {
                     TEXT("get_actions_for_pin"),
                     TEXT("get_actions_for_class"),
-                    TEXT("get_actions_for_class_hierarchy"),
-                    TEXT("search_blueprint_actions"),
                     TEXT("get_node_pin_info"),
                     TEXT("create_node_by_action_name")
                 };
                 
-                // Route to the appropriate handler
-                if (EditorCommands.Contains(CommandType))
+                // First check the new command registry system
+                FUnrealMCPCommandRegistry& CommandRegistry = FUnrealMCPCommandRegistry::Get();
+                if (CommandRegistry.IsCommandRegistered(CommandType))
+                {
+                    // Convert TSharedPtr<FJsonObject> to JSON string for new command interface
+                    FString ParamsString;
+                    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsString);
+                    FJsonSerializer::Serialize(Params.ToSharedRef(), Writer);
+                    
+                    // Execute command through new registry
+                    FString CommandResult = CommandRegistry.ExecuteCommand(CommandType, ParamsString);
+                    
+                    // Parse result back to JSON object
+                    TSharedPtr<FJsonObject> ParsedResult;
+                    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(CommandResult);
+                    if (FJsonSerializer::Deserialize(Reader, ParsedResult) && ParsedResult.IsValid())
+                    {
+                        ResultJson = ParsedResult;
+                    }
+                    else
+                    {
+                        // If parsing fails, create error response
+                        ResultJson = MakeShared<FJsonObject>();
+                        ResultJson->SetBoolField(TEXT("success"), false);
+                        ResultJson->SetStringField(TEXT("error"), TEXT("Failed to parse command result"));
+                    }
+                }
+                // Fall back to legacy command handlers
+                else if (EditorCommands.Contains(CommandType))
                 {
                     ResultJson = this->EditorCommands->HandleCommand(CommandType, Params);
                 }
@@ -339,15 +374,6 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 else if (BlueprintActionCommandsList.Contains(CommandType))
                 {
                     ResultJson = BlueprintActionCommands->HandleCommand(CommandType, Params);
-                }
-                else if (CommandType == TEXT("create_datatable") || 
-                         CommandType == TEXT("add_rows_to_datatable") || 
-                         CommandType == TEXT("get_datatable_rows") || 
-                         CommandType == TEXT("get_datatable_row_names") ||
-                         CommandType == TEXT("update_rows_in_datatable") ||
-                         CommandType == TEXT("delete_datatable_rows"))
-                {
-                    ResultJson = DataTableCommands->HandleCommand(CommandType, Params);
                 }
                 else
                 {
@@ -383,9 +409,20 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
             }
             else
             {
-                // Set error status and include the error message
+                // Set error status and preserve ALL fields from the command result
                 ResponseJson->SetStringField(TEXT("status"), TEXT("error"));
                 ResponseJson->SetStringField(TEXT("error"), ErrorMessage);
+                
+                // Copy all additional fields from ResultJson to ResponseJson (e.g., compilation_errors)
+                for (const auto& Pair : ResultJson->Values)
+                {
+                    const FString& Key = Pair.Key;
+                    // Skip 'success' and 'error' as we already handled them
+                    if (Key != TEXT("success") && Key != TEXT("error"))
+                    {
+                        ResponseJson->SetField(Key, Pair.Value);
+                    }
+                }
             }
         }
         catch (const std::exception& e)

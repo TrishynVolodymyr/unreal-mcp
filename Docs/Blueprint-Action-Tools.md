@@ -243,6 +243,33 @@ All examples below show how to request these operations using natural language w
 "Add a custom event named 'CollectItem' in the Inventory Blueprint"
 ```
 
+**Enhanced Input Action Event Nodes:**
+```
+"Create an Enhanced Input Action event for IA_Interact in the ThirdPersonCharacter Blueprint"
+
+"Add an IA_Jump input action event node in the PlayerCharacter Blueprint at position [100, 200]"
+
+"Create an IA_Move Enhanced Input event in the Movement Blueprint"
+
+"Add input action event for IA_Fire in the Weapon Blueprint"
+```
+
+**Widget Creation Nodes:**
+```
+"Create a 'Create Widget' node for the MainMenu widget in the UI Controller Blueprint"
+
+"Add a 'Create Widget' node for HealthBar widget in the HUD Blueprint"
+````
+```
+"Create a custom event called 'OnPlayerDied' in the GameManager Blueprint"
+
+"Add a custom event named 'TriggerAnimation' in the Door Blueprint"
+
+"Create a custom event called 'SpawnEnemy' at position [200, 300]"
+
+"Add a custom event named 'CollectItem' in the Inventory Blueprint"
+```
+
 **Widget Creation Nodes:**
 ```
 "Create a 'Create Widget' node for the MainMenu widget in the UI Controller Blueprint"

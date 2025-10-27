@@ -39,9 +39,9 @@ private:
     UBlueprint* FindBlueprintByName(const FString& BlueprintName);
     
     // Node creation methods
-    bool TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, UEdGraph* EventGraph, 
-                                                  float PositionX, float PositionY, UEdGraphNode*& NewNode, 
-                                                  FString& NodeTitle, FString& NodeType);
+    bool TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, const FString& ClassName,
+                                                  UEdGraph* EventGraph, float PositionX, float PositionY, 
+                                                  UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType);
     
     // Result building
     FString BuildNodeResult(bool bSuccess, const FString& Message, const FString& BlueprintName = TEXT(""), 

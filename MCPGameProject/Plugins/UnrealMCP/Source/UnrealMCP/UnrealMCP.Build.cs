@@ -61,13 +61,15 @@ public class UnrealMCP : ModuleRules
 				"UMGEditor",
 				"InputCore",
 				"EnhancedInput",
+				"InputBlueprintNodes",
 				"ToolMenus",
 				"CoreUObject",
 				"EditorStyle",
 				"AssetTools",
 				"StructUtils",
 				"PropertyEditor",
-				"BlueprintEditorLibrary"
+				"BlueprintEditorLibrary",
+				"SubobjectDataInterface"  // For UE 5.6 USubobjectDataSubsystem API
 			}
 		);
 		

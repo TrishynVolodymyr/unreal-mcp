@@ -8,7 +8,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.datatable.datatable_utils import (
     create_datatable_impl,
     get_datatable_rows_impl,
-    delete_datatable_row_impl,
     get_datatable_row_names_impl,
     add_rows_to_datatable_impl,
     update_rows_in_datatable_impl,
@@ -70,59 +69,45 @@ def register_datatable_tools(mcp: 'FastMCP'):
     
     @mcp.tool()
     def get_datatable_rows(
-        datatable_name: str,
+        datatable_path: str,
         row_names: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Get rows from a DataTable.
         
         Args:
-            datatable_name: Name of the target DataTable
+            datatable_path: Path to the target DataTable
             row_names: Optional list of specific row names to retrieve
             
         Returns:
             Dict containing the requested rows
         """
-        return get_datatable_rows_impl(datatable_name, row_names)
+        return get_datatable_rows_impl(datatable_path, row_names)
     
-    @mcp.tool()
-    def delete_datatable_row(
-        datatable_name: str,
-        row_name: str
-    ) -> Dict[str, Any]:
-        """Delete a row from a DataTable.
-        
-        Args:
-            datatable_name: Name of the target DataTable
-            row_name: Name of the row to delete
-            
-        Returns:
-            Dict containing success status and updated DataTable info
-        """
-        return delete_datatable_row_impl(datatable_name, row_name)
+
     
     @mcp.tool()
     def get_datatable_row_names(
-        datatable_name: str
+        datatable_path: str
     ) -> Dict[str, Any]:
         """Get all row names and struct field names from a DataTable.
         
         Args:
-            datatable_name: Name of the target DataTable
+            datatable_path: Path to the target DataTable
         Returns:
             Dict containing:
                 - 'row_names': list of row names (str)
                 - 'field_names': list of struct field names (str)
         """
-        return get_datatable_row_names_impl(datatable_name)
+        return get_datatable_row_names_impl(datatable_path)
     
     @mcp.tool()
     def add_rows_to_datatable(
-        datatable_name: str,
+        datatable_path: str,
         rows: list[dict]
     ) -> Dict[str, Any]:
         """Add multiple rows to an existing DataTable.
         Args:
-            datatable_name: Name of the target DataTable. Can be:
+            datatable_path: Path to the target DataTable. Can be:
                 - Full path (recommended): "/Game/Data/MyTable"
                 - Simple name: "MyTable" (will search in multiple locations)
             rows: List of dicts, each with:
@@ -140,7 +125,7 @@ def register_datatable_tools(mcp: 'FastMCP'):
             
             # Then add rows using those property names
             add_rows_to_datatable(
-                datatable_name="/Game/Data/MyItemTable",
+                datatable_path="/Game/Data/MyItemTable",
                 rows=[{
                     "row_name": "Item1",
                     "row_data": {
@@ -153,16 +138,16 @@ def register_datatable_tools(mcp: 'FastMCP'):
                 }]
             )
         """
-        return add_rows_to_datatable_impl(datatable_name, rows)
+        return add_rows_to_datatable_impl(datatable_path, rows)
     
     @mcp.tool()
     def update_rows_in_datatable(
-        datatable_name: str,
+        datatable_path: str,
         rows: list[dict]
     ) -> Dict[str, Any]:
         """Update multiple rows in an existing DataTable.
         Args:
-            datatable_name: Name of the target DataTable. Can be:
+            datatable_path: Path to the target DataTable. Can be:
                 - Full path (recommended): "/Game/Data/MyTable"
                 - Simple name: "MyTable" (will search in multiple locations)
             rows: List of dicts, each with:
@@ -180,7 +165,7 @@ def register_datatable_tools(mcp: 'FastMCP'):
             
             # Then update existing rows using those property names
             update_rows_in_datatable(
-                datatable_name="/Game/Data/MyItemTable",
+                datatable_path="/Game/Data/MyItemTable",
                 rows=[{
                     "row_name": "Item1",
                     "row_data": {
@@ -193,18 +178,18 @@ def register_datatable_tools(mcp: 'FastMCP'):
                 }]
             )
         """
-        return update_rows_in_datatable_impl(datatable_name, rows)
+        return update_rows_in_datatable_impl(datatable_path, rows)
     
     @mcp.tool()
     def delete_datatable_rows(
-        datatable_name: str,
+        datatable_path: str,
         row_names: List[str]
     ) -> Dict[str, Any]:
         """Delete multiple rows from a DataTable.
         Args:
-            datatable_name: Name of the target DataTable
+            datatable_path: Path to the target DataTable
             row_names: List of row names to delete
         Returns:
             Dict containing success status and updated DataTable info
         """
-        return delete_datatable_rows_impl(datatable_name, row_names) 
+        return delete_datatable_rows_impl(datatable_path, row_names) 

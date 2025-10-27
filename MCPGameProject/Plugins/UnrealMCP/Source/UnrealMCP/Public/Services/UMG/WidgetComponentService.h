@@ -86,4 +86,20 @@ private:
      * @return The actual kwargs object to use
      */
     TSharedPtr<FJsonObject> GetKwargsToUse(const TSharedPtr<FJsonObject>& KwargsObject, const FString& ComponentName, const FString& ComponentType);
+    
+    /**
+     * Add a widget to the widget tree and set its position/size
+     * @param WidgetBlueprint - The widget blueprint
+     * @param Widget - The widget to add
+     * @param Position - Position in the canvas
+     * @param Size - Size of the widget
+     * @return true if successful
+     */
+    bool AddWidgetToTree(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FVector2D& Position, const FVector2D& Size);
+    
+    /**
+     * Save the widget blueprint
+     * @param WidgetBlueprint - The widget blueprint to save
+     */
+    void SaveWidgetBlueprint(UWidgetBlueprint* WidgetBlueprint);
 }; 

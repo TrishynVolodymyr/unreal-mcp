@@ -79,12 +79,13 @@ def get_node_pin_info(
     node_name: str,
     pin_name: str
 ) -> Dict[str, Any]:
-    """Implementation for getting specific node pin information."""
+    """Implementation for inspecting Blueprint node pin connection details and compatibility."""
     params = {
         "node_name": node_name,
         "pin_name": pin_name
     }
     return send_unreal_command("get_node_pin_info", params)
+
 
 def create_node_by_action_name(
     ctx: Context,
@@ -92,10 +93,19 @@ def create_node_by_action_name(
     function_name: str,
     class_name: str = "",
     node_position: List[float] = None,
-    target_graph: str = None,
+    target_graph: str = "EventGraph",
     **kwargs
 ) -> Dict[str, Any]:
     """Implementation for creating a blueprint node by discovered action/function name."""
+    
+    # Flatten if kwargs is double-wrapped (i.e., kwargs={'kwargs': {...}})
+    if (
+        len(kwargs) == 1 and
+        'kwargs' in kwargs and
+        isinstance(kwargs['kwargs'], dict)
+    ):
+        kwargs = kwargs['kwargs']
+    
     # --- PATCH START ---
     if function_name in ("Get", "Set") and "variable_name" in kwargs:
         function_name = f"{function_name} {kwargs['variable_name']}"
@@ -119,11 +129,15 @@ def create_node_by_action_name(
 
     extra_params: Dict[str, Any] = {}
 
-    # Promote target_graph into the top-level params (still needed by the handler)
-    # **and** put it inside the json_params object so deeper layers can read it.
-    if target_graph is not None:
-        params["target_graph"] = target_graph
-        extra_params["target_graph"] = target_graph
+    # IMPORTANT: target_graph must be in json_params for C++ to see it
+    # Handle both direct parameter and kwargs versions
+    final_target_graph = target_graph
+    if "target_graph" in kwargs:
+        final_target_graph = kwargs.pop("target_graph")
+    
+    # Always include target_graph (defaults to "EventGraph")
+    params["target_graph"] = final_target_graph  # For handler compatibility
+    extra_params["target_graph"] = final_target_graph  # For C++ service layer
 
     # Merge any additional kwargs supplied by the caller
     if kwargs:
