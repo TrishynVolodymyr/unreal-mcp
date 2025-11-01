@@ -641,11 +641,12 @@ bool FBlueprintService::AddVariableToBlueprint(UBlueprint* Blueprint, const FStr
     return true;
 }
 
-bool FBlueprintService::SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue)
+bool FBlueprintService::SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutErrorMessage)
 {
     if (!Blueprint)
     {
-        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: Invalid blueprint"));
+        OutErrorMessage = TEXT("Invalid blueprint");
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: %s"), *OutErrorMessage);
         return false;
     }
     
@@ -656,15 +657,16 @@ bool FBlueprintService::SetBlueprintProperty(UBlueprint* Blueprint, const FStrin
     UObject* DefaultObject = Blueprint->GeneratedClass ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
     if (!DefaultObject)
     {
-        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: No default object available"));
+        OutErrorMessage = FString::Printf(TEXT("No default object available for blueprint '%s'. Try compiling the blueprint first."), *Blueprint->GetName());
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: %s"), *OutErrorMessage);
         return false;
     }
     
     // Set the property using PropertyService
-    FString ErrorMessage;
-    if (!FPropertyService::Get().SetObjectProperty(DefaultObject, PropertyName, PropertyValue, ErrorMessage))
+    if (!FPropertyService::Get().SetObjectProperty(DefaultObject, PropertyName, PropertyValue, OutErrorMessage))
     {
-        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: Failed to set property - %s"), *ErrorMessage);
+        // OutErrorMessage is already set by PropertyService
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: Failed to set property - %s"), *OutErrorMessage);
         return false;
     }
     

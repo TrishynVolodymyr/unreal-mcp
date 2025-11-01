@@ -306,5 +306,62 @@ async def create_custom_blueprint_function(
     
     return await send_tcp_command("create_custom_blueprint_function", params)
 
+
+@app.tool()
+async def set_blueprint_variable_value(
+    blueprint_name: str,
+    variable_name: str,
+    value: Any
+) -> Dict[str, Any]:
+    """
+    Set the default value of a Blueprint variable.
+    
+    This sets the value on the Blueprint's Class Default Object (CDO), which means
+    it becomes the default value for all instances of this Blueprint.
+    
+    Args:
+        blueprint_name: Name of the target Blueprint
+        variable_name: Name of the variable to modify
+        value: New default value for the variable. Type must match the variable type:
+            - For bool: True/False
+            - For int/float: numeric values
+            - For string: text values
+            - For arrays: list of values
+            - For structs: dictionary with field names as keys
+            
+    Returns:
+        Dictionary containing success status
+        
+    Examples:
+        # Set a float variable
+        set_blueprint_variable_value(
+            blueprint_name="BP_DialogueNPC",
+            variable_name="InteractionRadius",
+            value=500.0
+        )
+        
+        # Set a string variable
+        set_blueprint_variable_value(
+            blueprint_name="BP_Character",
+            variable_name="CharacterName",
+            value="Hero"
+        )
+        
+        # Set a boolean variable
+        set_blueprint_variable_value(
+            blueprint_name="BP_Door",
+            variable_name="bIsLocked",
+            value=True
+        )
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "property_name": variable_name,
+        "property_value": value
+    }
+    
+    return await send_tcp_command("set_blueprint_property", params)
+
+
 if __name__ == "__main__":
     app.run()

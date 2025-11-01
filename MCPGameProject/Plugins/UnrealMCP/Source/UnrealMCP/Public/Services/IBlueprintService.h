@@ -91,9 +91,10 @@ public:
      * @param Blueprint - Target Blueprint
      * @param PropertyName - Name of the property
      * @param PropertyValue - Value to set (as JSON)
+     * @param OutErrorMessage - Detailed error message if operation fails
      * @return true if property was set successfully
      */
-    virtual bool SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue) = 0;
+    virtual bool SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutErrorMessage) = 0;
     
     /**
      * Set physics properties on a component in a Blueprint
