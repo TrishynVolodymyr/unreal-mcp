@@ -1519,10 +1519,31 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
     UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Using native UE Blueprint Action Menu system for search '%s' in category '%s'"), *SearchQuery, *Category);
     if (!BlueprintName.IsEmpty())
     {
-        UBlueprint* ContextBlueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *FString::Printf(TEXT("/Game/%s.%s"), *BlueprintName, *BlueprintName), nullptr, LOAD_Quiet | LOAD_NoWarn));
+        // Fix: Handle both short names (BP_MyBlueprint) and full paths (/Game/Folder/BP_MyBlueprint)
+        FString BlueprintPath;
+        if (BlueprintName.StartsWith(TEXT("/Game/")))
+        {
+            // Already a full path - extract just the asset name for the class reference
+            FString AssetName;
+            BlueprintName.Split(TEXT("/"), nullptr, &AssetName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+            AssetName.RemoveFromEnd(TEXT("_C")); // Remove _C suffix if present
+            BlueprintPath = FString::Printf(TEXT("%s.%s"), *BlueprintName, *AssetName);
+        }
+        else
+        {
+            // Short name - add /Game/ prefix
+            BlueprintPath = FString::Printf(TEXT("/Game/%s.%s"), *BlueprintName, *BlueprintName);
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Loading blueprint from path '%s'"), *BlueprintPath);
+        UBlueprint* ContextBlueprint = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, *BlueprintPath, nullptr, LOAD_Quiet | LOAD_NoWarn));
         if (ContextBlueprint)
         {
             FilterContext.Blueprints.Add(ContextBlueprint);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Failed to load blueprint from path '%s'"), *BlueprintPath);
         }
     }
     

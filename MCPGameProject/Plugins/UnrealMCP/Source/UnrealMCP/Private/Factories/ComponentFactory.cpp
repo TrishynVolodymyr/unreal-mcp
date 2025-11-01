@@ -100,16 +100,29 @@ UClass* FComponentFactory::GetComponentClass(const FString& TypeName) const
     else
     {
         // Short name provided - search for Blueprint component
+        // Fix: Ensure TypeName doesn't already start with /Game/ or Game/
+        FString CleanTypeName = TypeName;
+        if (CleanTypeName.StartsWith(TEXT("/Game/")))
+        {
+            // Already a full path - extract just the asset name
+            CleanTypeName = FPaths::GetBaseFilename(TypeName);
+        }
+        else if (CleanTypeName.StartsWith(TEXT("Game/")))
+        {
+            // Has Game/ prefix without leading slash - extract asset name
+            CleanTypeName = FPaths::GetBaseFilename(TypeName);
+        }
+        
         // Try common component paths
         TArray<FString> SearchPaths = {
-            FString::Printf(TEXT("/Game/Blueprints/%s"), *TypeName),
-            FString::Printf(TEXT("/Game/Components/%s"), *TypeName),
-            FString::Printf(TEXT("/Game/%s"), *TypeName)
+            FString::Printf(TEXT("/Game/Blueprints/%s"), *CleanTypeName),
+            FString::Printf(TEXT("/Game/Components/%s"), *CleanTypeName),
+            FString::Printf(TEXT("/Game/%s"), *CleanTypeName)
         };
         
         for (const FString& SearchPath : SearchPaths)
         {
-            FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *TypeName);
+            FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *CleanTypeName);
             LoadedClass = LoadObject<UClass>(nullptr, *ClassPath);
             
             if (!LoadedClass)

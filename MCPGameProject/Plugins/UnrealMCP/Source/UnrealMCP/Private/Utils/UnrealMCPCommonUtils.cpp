@@ -214,8 +214,19 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintN
         if (NormalizedName.Contains(TEXT("/")))
         {
             NormalizedName.Split(TEXT("/"), &SubPath, &BaseName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-            // Reconstruct with /Game/ prefix
-            NormalizedName = FString::Printf(TEXT("/Game/%s/%s"), *SubPath, *BaseName);
+            
+            // Fix: Check if SubPath already starts with "Game"
+            if (SubPath.StartsWith(TEXT("Game"), ESearchCase::IgnoreCase))
+            {
+                // Already has Game prefix, just add leading slash
+                NormalizedName = FString::Printf(TEXT("/%s/%s"), *SubPath, *BaseName);
+            }
+            else
+            {
+                // Reconstruct with /Game/ prefix
+                NormalizedName = FString::Printf(TEXT("/Game/%s/%s"), *SubPath, *BaseName);
+            }
+            
             UE_LOG(LogTemp, Display, TEXT("Reconstructed path with subdirectory: %s"), *NormalizedName);
             UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
             if (Blueprint)

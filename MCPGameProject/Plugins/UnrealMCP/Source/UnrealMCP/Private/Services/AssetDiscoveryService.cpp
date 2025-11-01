@@ -482,10 +482,20 @@ UClass* FAssetDiscoveryService::ResolveEngineClass(const FString& ClassName)
 FString FAssetDiscoveryService::BuildGamePath(const FString& Path)
 {
     FString CleanPath = Path;
+    
+    // Remove leading slash
     if (CleanPath.StartsWith(TEXT("/")))
     {
         CleanPath = CleanPath.RightChop(1);
     }
+    
+    // Fix: Check if already starts with Game/
+    if (CleanPath.StartsWith(TEXT("Game/"), ESearchCase::IgnoreCase))
+    {
+        // Already has Game/ prefix, just add leading slash
+        return FString::Printf(TEXT("/%s"), *CleanPath);
+    }
+    
     return FString::Printf(TEXT("/Game/%s"), *CleanPath);
 }
 
