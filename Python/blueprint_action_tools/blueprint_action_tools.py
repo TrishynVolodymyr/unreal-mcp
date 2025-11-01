@@ -270,6 +270,12 @@ def register_blueprint_action_tools(mcp: FastMCP):
         This allows you to create blueprint nodes using the function names discovered from
         the FBlueprintActionDatabase (via get_actions_for_pin, get_actions_for_class, etc.).
         
+        **IMPORTANT: When to specify class_name**:
+        - ALWAYS specify class_name when search returns multiple functions with the same name
+        - Example: "GetOwner" exists in Actor, ActorComponent, CheatManager classes
+        - Without class_name, the system may pick the wrong variant
+        - Use get_actions_for_class() instead of search_blueprint_actions() to get context-specific results
+        
         **WORKING NODE TYPES**:
         - Function calls (KismetMathLibrary, GameplayStatics, etc.)
         - For Each Loop (Map) - UK2Node_MapForEach
@@ -284,8 +290,8 @@ def register_blueprint_action_tools(mcp: FastMCP):
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
             function_name: Name of the function to create a node for (from discovered actions).
                           For Enhanced Input Actions, use the action name (e.g., "IA_Interact")
-            class_name: Optional class name (supports both short names like "KismetMathLibrary" 
-                       and full paths like "/Script/Engine.KismetMathLibrary").
+            class_name: Class name for the function (REQUIRED when multiple classes have the same function).
+                       Supports both short names like "ActorComponent" and full paths like "/Script/Engine.ActorComponent".
                        For Enhanced Input Actions, you can optionally use "EnhancedInputAction"
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
             target_graph: Optional name of the specific graph to place the node in (e.g., "CanInteract", "GetSpeaker").
@@ -303,6 +309,16 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 - message: Status message or error details
 
         Examples:
+            # RECOMMENDED: Use get_actions_for_class to find the correct function for your Blueprint type
+            actions = get_actions_for_class(class_name="ActorComponent", search_filter="GetOwner")
+            # Then create with explicit class_name
+            create_node_by_action_name(
+                blueprint_name="BP_DialogueComponent",
+                function_name="GetOwner",
+                class_name="ActorComponent",  # Explicit class prevents wrong variant
+                node_position=[100, 100]
+            )
+            
             # Create a working math function node (use SelectFloat, not Add_FloatFloat)
             create_node_by_action_name(
                 blueprint_name="BP_Calculator",
@@ -315,6 +331,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
             create_node_by_action_name(
                 blueprint_name="DialogueComponent",
                 function_name="GetOwner",
+                class_name="ActorComponent",  # Specify class to avoid ambiguity
                 target_graph="CanInteract",
                 node_position=[100, 100]
             )

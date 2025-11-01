@@ -214,8 +214,19 @@ UBlueprint* FUnrealMCPCommonUtils::FindBlueprintByName(const FString& BlueprintN
         if (NormalizedName.Contains(TEXT("/")))
         {
             NormalizedName.Split(TEXT("/"), &SubPath, &BaseName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-            // Reconstruct with /Game/ prefix
-            NormalizedName = FString::Printf(TEXT("/Game/%s/%s"), *SubPath, *BaseName);
+            
+            // Fix: Check if SubPath already starts with "Game"
+            if (SubPath.StartsWith(TEXT("Game"), ESearchCase::IgnoreCase))
+            {
+                // Already has Game prefix, just add leading slash
+                NormalizedName = FString::Printf(TEXT("/%s/%s"), *SubPath, *BaseName);
+            }
+            else
+            {
+                // Reconstruct with /Game/ prefix
+                NormalizedName = FString::Printf(TEXT("/Game/%s/%s"), *SubPath, *BaseName);
+            }
+            
             UE_LOG(LogTemp, Display, TEXT("Reconstructed path with subdirectory: %s"), *NormalizedName);
             UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *NormalizedName);
             if (Blueprint)
@@ -910,6 +921,63 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
                 StructProp->Struct ? *StructProp->Struct->GetName() : TEXT("Unknown"), *PropertyName);
         }
         return false;
+    }
+    else if (FObjectProperty* ObjectProp = CastField<FObjectProperty>(Property))
+    {
+        // Handle object references (like DataTable, Blueprint classes, etc.)
+        if (Value->Type == EJson::String)
+        {
+            FString AssetPath = Value->AsString();
+            
+            // Remove _C suffix if present (for blueprint classes)
+            AssetPath.RemoveFromEnd(TEXT("_C"));
+            
+            UObject* LoadedObject = nullptr;
+            
+            // Use UEditorAssetLibrary to search and load the asset
+            if (UEditorAssetLibrary::DoesAssetExist(AssetPath))
+            {
+                LoadedObject = UEditorAssetLibrary::LoadAsset(AssetPath);
+            }
+            else
+            {
+                // If direct path doesn't exist, search for it
+                TArray<FString> FoundAssets = UEditorAssetLibrary::ListAssets(TEXT("/Game"), true, false);
+                
+                for (const FString& AssetPathIter : FoundAssets)
+                {
+                    FString AssetName = FPaths::GetBaseFilename(AssetPathIter);
+                    if (AssetName.Equals(AssetPath, ESearchCase::IgnoreCase))
+                    {
+                        LoadedObject = UEditorAssetLibrary::LoadAsset(AssetPathIter);
+                        if (LoadedObject)
+                        {
+                            UE_LOG(LogTemp, Display, TEXT("Found asset by name search: %s at %s"), 
+                                  *AssetPath, *AssetPathIter);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (LoadedObject)
+            {
+                ObjectProp->SetObjectPropertyValue(PropertyAddr, LoadedObject);
+                UE_LOG(LogTemp, Display, TEXT("Set object property %s to %s"), 
+                      *PropertyName, *LoadedObject->GetPathName());
+                return true;
+            }
+            else
+            {
+                OutErrorMessage = FString::Printf(TEXT("Failed to load object from path: %s"), *AssetPath);
+                return false;
+            }
+        }
+        else
+        {
+            OutErrorMessage = FString::Printf(TEXT("Object property %s requires a string path value"), *PropertyName);
+            return false;
+        }
     }
     
     OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"), 

@@ -29,9 +29,10 @@ FString FSetBlueprintPropertyCommand::Execute(const FString& Parameters)
     }
     
     // Set blueprint property using the service
-    if (!BlueprintService.SetBlueprintProperty(Blueprint, PropertyName, PropertyValue))
+    FString ErrorMessage;
+    if (!BlueprintService.SetBlueprintProperty(Blueprint, PropertyName, PropertyValue, ErrorMessage))
     {
-        return CreateErrorResponse(TEXT("Failed to set blueprint property"));
+        return CreateErrorResponse(ErrorMessage);
     }
     
     return CreateSuccessResponse(BlueprintName, PropertyName);

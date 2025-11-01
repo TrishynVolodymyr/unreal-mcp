@@ -1327,6 +1327,36 @@ bool FBlueprintNodeCreationService::TryCreateNodeUsingBlueprintActionDatabase(co
                     // This ensures we get the correct function when multiple functions have the same name
                     bool bClassMatches = true;
                     
+                    // CRITICAL FIX: When ClassName is NOT specified, prefer exact function name matches
+                    // to avoid getting "GetAllActorsOfClassMatchingTagQuery" when we want "GetAllActorsOfClass"
+                    bool bPreferExactMatch = ClassName.IsEmpty() && !bExactMatch;
+                    if (bPreferExactMatch)
+                    {
+                        // Check if the actual function name is EXACTLY what we're looking for
+                        // This prevents partial matches from being accepted when an exact match might exist later
+                        bool bIsExactFunctionMatch = false;
+                        if (!FunctionNameFromNode.IsEmpty())
+                        {
+                            for (const FString& SearchName : SearchNames)
+                            {
+                                if (FunctionNameFromNode.Equals(SearchName, ESearchCase::IgnoreCase))
+                                {
+                                    bIsExactFunctionMatch = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // If this is NOT an exact function name match, skip it and continue searching
+                        // This allows us to find the exact match (e.g., "GetAllActorsOfClass" vs "GetAllActorsOfClassMatchingTagQuery")
+                        if (!bIsExactFunctionMatch)
+                        {
+                            UE_LOG(LogTemp, Verbose, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Skipping partial match '%s' (function: '%s') - searching for exact match"), 
+                                   *NodeName, *FunctionNameFromNode);
+                            continue; // Skip this spawner, continue to next one
+                        }
+                    }
+                    
                     if (!ClassName.IsEmpty())
                     {
                         bClassMatches = false; // Start with false, must match to be true

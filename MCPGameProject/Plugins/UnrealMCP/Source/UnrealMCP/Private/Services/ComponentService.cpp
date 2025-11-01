@@ -275,21 +275,35 @@ UClass* FComponentTypeCache::ResolveComponentClassInternal(const FString& Compon
     // If not found in Engine, try loading as a Blueprint class
     if (!ComponentClass)
     {
+        UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Component '%s' not found in Engine, searching for Blueprint..."), *ActualComponentType);
+        
         // Try direct Blueprint path (e.g., "/Game/DialogueSystem/DialogueComponent")
         if (ActualComponentType.StartsWith(TEXT("/")))
         {
+            UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Trying direct path: %s"), *ActualComponentType);
+            
             // Try both the Blueprint asset path and the generated class path
             ComponentClass = LoadObject<UClass>(nullptr, *ActualComponentType);
             if (!ComponentClass)
             {
                 FString GeneratedClassPath = ActualComponentType + TEXT("_C");
+                UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Trying generated class path: %s"), *GeneratedClassPath);
                 ComponentClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
+            }
+            
+            if (ComponentClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Found Blueprint component via direct path"));
             }
         }
         else
         {
             // Use AssetDiscoveryService to find Blueprint components
+            UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Using AssetDiscoveryService to find '%s'"), *ActualComponentType);
+            
             TArray<FString> BlueprintPaths = FAssetDiscoveryService::Get().FindBlueprints(ActualComponentType);
+            UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: AssetDiscoveryService found %d Blueprint paths"), BlueprintPaths.Num());
+            
             TArray<FString> BlueprintSearchPaths;
             
             // Convert Blueprint paths to generated class paths
@@ -297,15 +311,21 @@ UClass* FComponentTypeCache::ResolveComponentClassInternal(const FString& Compon
             {
                 FString GeneratedClassPath = BPPath + TEXT("_C");
                 BlueprintSearchPaths.Add(GeneratedClassPath);
+                UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Will try generated class path: %s"), *GeneratedClassPath);
             }
             
             for (const FString& SearchPath : BlueprintSearchPaths)
             {
+                UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Attempting to load: %s"), *SearchPath);
                 ComponentClass = LoadObject<UClass>(nullptr, *SearchPath);
                 if (ComponentClass)
                 {
                     UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Found Blueprint component at '%s'"), *SearchPath);
                     break;
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Failed to load from '%s'"), *SearchPath);
                 }
             }
         }
@@ -314,8 +334,19 @@ UClass* FComponentTypeCache::ResolveComponentClassInternal(const FString& Compon
     // Verify that the class is a valid component type
     if (ComponentClass && !ComponentClass->IsChildOf(UActorComponent::StaticClass()))
     {
-        UE_LOG(LogTemp, Warning, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Class '%s' is not a component type"), *ActualComponentType);
+        UE_LOG(LogTemp, Warning, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Class '%s' is not a component type (found class: %s)"), 
+            *ActualComponentType, *ComponentClass->GetName());
         return nullptr;
+    }
+    
+    if (!ComponentClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Failed to resolve component type '%s'"), *ActualComponentType);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("FComponentTypeCache::ResolveComponentClassInternal: Successfully resolved '%s' to class '%s'"), 
+            *ActualComponentType, *ComponentClass->GetName());
     }
     
     return ComponentClass;
@@ -408,23 +439,60 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
         }
     }
     
-    // If no parent specified or parent not found, find the scene root for scene components
-    if (!ParentHandle.IsValid() && ComponentClass->IsChildOf(USceneComponent::StaticClass()))
+    // If no parent specified or parent not found, we need to find a suitable parent
+    if (!ParentHandle.IsValid())
     {
-        // Find scene root - try first valid subobject as a starting point
-        if (SubobjectHandles.Num() > 0)
+        if (ComponentClass->IsChildOf(USceneComponent::StaticClass()))
         {
-            ParentHandle = SubobjectDataSubsystem->FindSceneRootForSubobject(SubobjectHandles[0]);
-            
-            if (ParentHandle.IsValid())
+            // For scene components, find scene root
+            if (SubobjectHandles.Num() > 0)
             {
-                FSubobjectData* ParentData = ParentHandle.GetData();
-                UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Found scene root '%s'"), 
-                    ParentData ? *ParentData->GetVariableName().ToString() : TEXT("Unknown"));
+                ParentHandle = SubobjectDataSubsystem->FindSceneRootForSubobject(SubobjectHandles[0]);
+                
+                if (ParentHandle.IsValid())
+                {
+                    FSubobjectData* ParentData = ParentHandle.GetData();
+                    UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Found scene root '%s'"), 
+                        ParentData ? *ParentData->GetVariableName().ToString() : TEXT("Unknown"));
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("FComponentService::AddComponentToBlueprint: FindSceneRootForSubobject returned invalid handle"));
+                }
             }
-            else
+        }
+        else
+        {
+            // For non-scene ActorComponents, use the first valid subobject as parent (usually the actor root)
+            UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Component is ActorComponent (not SceneComponent), searching for actor root"));
+            for (const FSubobjectDataHandle& Handle : SubobjectHandles)
             {
-                UE_LOG(LogTemp, Warning, TEXT("FComponentService::AddComponentToBlueprint: FindSceneRootForSubobject returned invalid handle"));
+                FSubobjectData* Data = Handle.GetData();
+                if (Data)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Checking subobject '%s', IsRootComponent=%d, IsDefaultSceneRoot=%d"), 
+                        *Data->GetVariableName().ToString(),
+                        Data->IsRootComponent(),
+                        Data->IsDefaultSceneRoot());
+                    
+                    // Use the first subobject that represents the actor itself (default scene root or actor root)
+                    if (Data->IsDefaultSceneRoot() || Data->IsRootComponent())
+                    {
+                        ParentHandle = Handle;
+                        UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Using '%s' as parent for ActorComponent"), 
+                            *Data->GetVariableName().ToString());
+                        break;
+                    }
+                }
+            }
+            
+            // If still no parent, just use the first subobject
+            if (!ParentHandle.IsValid() && SubobjectHandles.Num() > 0)
+            {
+                ParentHandle = SubobjectHandles[0];
+                FSubobjectData* Data = ParentHandle.GetData();
+                UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: No root found, using first subobject '%s' as parent"), 
+                    Data ? *Data->GetVariableName().ToString() : TEXT("Unknown"));
             }
         }
     }
@@ -437,9 +505,20 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
     AddParams.bSkipMarkBlueprintModified = false; // We want to mark blueprint as modified
     AddParams.bConformTransformToParent = false;   // Keep our custom transform
     
+    // Log detailed information before attempting to add
+    UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: Attempting to add component with:"));
+    UE_LOG(LogTemp, Log, TEXT("  - ComponentClass: %s (valid: %d)"), ComponentClass ? *ComponentClass->GetName() : TEXT("NULL"), ComponentClass != nullptr);
+    UE_LOG(LogTemp, Log, TEXT("  - ComponentClass->IsChildOf(UActorComponent): %d"), ComponentClass ? ComponentClass->IsChildOf(UActorComponent::StaticClass()) : false);
+    UE_LOG(LogTemp, Log, TEXT("  - ParentHandle.IsValid(): %d"), ParentHandle.IsValid());
+    UE_LOG(LogTemp, Log, TEXT("  - BlueprintContext: %s"), Blueprint ? *Blueprint->GetName() : TEXT("NULL"));
+    UE_LOG(LogTemp, Log, TEXT("  - Blueprint->ParentClass: %s"), Blueprint->ParentClass ? *Blueprint->ParentClass->GetName() : TEXT("NULL"));
+    
     // Add the new component using the subsystem
     FText FailReason;
     FSubobjectDataHandle NewHandle = SubobjectDataSubsystem->AddNewSubobject(AddParams, FailReason);
+    
+    UE_LOG(LogTemp, Log, TEXT("FComponentService::AddComponentToBlueprint: AddNewSubobject returned handle valid=%d, FailReason='%s'"), 
+        NewHandle.IsValid(), *FailReason.ToString());
     
     if (!NewHandle.IsValid())
     {
