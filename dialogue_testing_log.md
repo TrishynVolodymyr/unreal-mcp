@@ -54,6 +54,52 @@ Example:
 
 ---
 
+## Issue #4: UBlueprintEventNodeSpawner Compilation Errors
+
+**Problem**: Added EventNodeSpawner support to make CustomEvent searchable, but compilation failed with:
+- `error C2065: 'UBlueprintEventNodeSpawner': undeclared identifier`
+- `error C2039: 'GetMenuSignature': is not a member of 'UBlueprintNodeSpawner'`
+
+**Root Causes**:
+1. Missing include header for UBlueprintEventNodeSpawner class
+2. Wrong API usage - tried calling `GetMenuSignature()` function when it's actually a member variable `DefaultMenuSignature`
+
+**Investigation Process**:
+- Researched UE 5.6 source code: `Engine/Source/Editor/BlueprintGraph/Classes/BlueprintEventNodeSpawner.h`
+- Found UK2Node_CustomEvent::GetMenuActions() uses UBlueprintEventNodeSpawner::Create()
+- Discovered that BlueprintEventNodeSpawner.cpp sets MenuName = "Add Custom Event..." when CustomEventName.IsNone()
+- Learned DefaultMenuSignature is a public member variable of type FBlueprintActionUiSpec
+
+**Solution**:
+1. Added `#include "BlueprintEventNodeSpawner.h"` after BlueprintFunctionNodeSpawner include
+2. Changed API usage from:
+   ```cpp
+   FBlueprintActionUiSpec MenuSignature = NodeSpawner->GetMenuSignature();
+   ```
+   To:
+   ```cpp
+   const FBlueprintActionUiSpec& MenuSignature = NodeSpawner->DefaultMenuSignature;
+   ```
+
+**Files Modified**:
+- `MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/Private/Commands/BlueprintAction/UnrealMCPBlueprintActionCommands.cpp`
+  - Line ~33: Added include header
+  - Line ~1621: Fixed EventNodeSpawner metadata extraction (first location)
+  - Line ~1705: EventNodeSpawner JSON output handling (second location)
+
+**Status**: ✅ RESOLVED - Compilation successful, CustomEvent now appears in search results
+
+**Testing Validation**:
+```
+search_blueprint_actions("custom event")
+→ Returns: "Add Custom Event..." with function_name="CustomEvent"
+
+search_blueprint_actions("add custom")  
+→ "Add Custom Event..." appears as first result
+```
+
+---
+
 ## Steps and Issues
 
 ### Step 1: Creating Dialogue Widget
@@ -70,16 +116,26 @@ Successfully created:
 **Status:** In Progress
 
 **Issue #1**: Cannot directly create "Event Tick" node via action name
-- Attempted to create Event Tick using `create_node_by_action_name`
-- Error: "Function 'Event Tick' not found and not a recognized control flow node"
-- Workaround needed: Need to use different approach or find existing event nodes
+- ~~Attempted to create Event Tick using `create_node_by_action_name`~~
+- ~~Error: "Function 'Event Tick' not found and not a recognized control flow node"~~
+- **UPDATE**: ✅ RESOLVED - Event Tick can be created successfully
+- Both `"Event Tick"` (with space) and `"EventTick"` (without space) work
+- Created node type: K2Node_Event with pins: then (exec), DeltaSeconds (float)
 
 **Issue #2**: Need way to add custom events or use existing event nodes
-- BP_ThirdPersonCharacter already has many nodes in EventGraph
-- Need to either:
-  a) Find and use existing event nodes (like Event Receive Controller Changed)
-  b) Create a way to add custom event nodes
-  c) Use Set Timer by Function Name instead of Event Tick
+- ~~BP_ThirdPersonCharacter already has many nodes in EventGraph~~
+- **UPDATE**: ✅ FULLY RESOLVED - CustomEvent now fully supported and searchable
+- Usage: `create_node_by_action_name(function_name="CustomEvent", event_name="MyEventName")`
+- Creates node type: UK2Node_CustomEvent with exec output pin
+- **SOLUTION COMPLETED**: Added UBlueprintEventNodeSpawner support to C++ search function
+- CustomEvent now appears in search_blueprint_actions("custom event") as "Add Custom Event..."
+- Implementation: Modified `UnrealMCPBlueprintActionCommands.cpp` to handle EventNodeSpawner alongside FunctionNodeSpawner
+- Files changed:
+  - Added `#include "BlueprintEventNodeSpawner.h"` header
+  - Added EventNodeSpawner detection and metadata extraction
+  - Special handling: "Add Custom Event..." → function_name="CustomEvent"
+  - Now processes Event Tick, Custom Events, and other event types in search results
+- Status: Fully working - both creation and discovery through search
 
 **Current Progress**:
 - Created CheckForNearbyNPC function with logic:

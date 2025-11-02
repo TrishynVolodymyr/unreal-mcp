@@ -98,7 +98,7 @@ def get_actions_for_class(
         "max_results": max_results
     }
     
-    command_result = send_unreal_command("get_actions_for_pin", params)
+    command_result = send_unreal_command("get_actions_for_class", params)
     
     # Extract the actual result from the wrapper
     if "result" in command_result:
