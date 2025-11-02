@@ -38,17 +38,6 @@ private:
     UClass* FindTargetClass(const FString& ClassName);
     UBlueprint* FindBlueprintByName(const FString& BlueprintName);
     
-    // Node creation methods
-    bool TryCreateNodeUsingBlueprintActionDatabase(const FString& FunctionName, const FString& ClassName,
-                                                  UEdGraph* EventGraph, float PositionX, float PositionY, 
-                                                  UEdGraphNode*& NewNode, FString& NodeTitle, FString& NodeType);
-    
-    // Result building
-    FString BuildNodeResult(bool bSuccess, const FString& Message, const FString& BlueprintName = TEXT(""), 
-                           const FString& FunctionName = TEXT(""), UEdGraphNode* NewNode = nullptr, 
-                           const FString& NodeTitle = TEXT(""), const FString& NodeType = TEXT(""), 
-                           UClass* TargetClass = nullptr, int32 PositionX = 0, int32 PositionY = 0);
-    
     // Helper for logging and debugging
     void LogNodeCreationAttempt(const FString& FunctionName, const FString& BlueprintName, 
                                const FString& ClassName, int32 PositionX, int32 PositionY) const;
