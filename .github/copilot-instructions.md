@@ -16,6 +16,7 @@ The Unreal MCP project enables **natural language control of Unreal Engine 5.6**
 - **Class Hierarchies**: Reference for proper inheritance and interface implementation
 - **Best Practices**: Study engine code for C++ conventions, memory management, and performance patterns
 - **Debugging Aid**: Helpful for understanding engine behavior and troubleshooting integration issues
+- **ATTENTION**: Due to big folder size and inability to notmally look for file contents - use OS file search tools to locate specific classes or functions when needed
 
 ### Python MCP Server Component (`Python/`)
 - **FastMCP-based servers**: Individual MCP servers per domain (blueprint_mcp_server.py, datatable_mcp_server.py, etc.)

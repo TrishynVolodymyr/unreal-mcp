@@ -27,7 +27,63 @@ def get_actions_for_pin(
         "search_filter": search_filter,
         "max_results": max_results
     }
-    return send_unreal_command("get_actions_for_pin", params)
+    
+    command_result = send_unreal_command("get_actions_for_pin", params)
+    
+    # Extract the actual result from the wrapper
+    if "result" in command_result:
+        result = command_result["result"]
+    else:
+        result = command_result
+    
+    # Check for duplicate function names and add warning if found
+    if result.get("success") and "actions" in result:
+        actions = result["actions"]
+        function_names = {}
+        
+        # Count occurrences of each function name
+        for action in actions:
+            func_name = action.get("function_name", "")
+            if func_name:
+                if func_name not in function_names:
+                    function_names[func_name] = []
+                function_names[func_name].append(action.get("class_name", "Unknown"))
+        
+        # Find duplicates
+        duplicates = {name: classes for name, classes in function_names.items() if len(classes) > 1}
+        
+        # Add warning message if duplicates exist - prepend to existing message
+        if duplicates:
+            warning_lines = [
+                "IMPORTANT REMINDER: Multiple functions with the same name found!",
+                "",
+                "When using create_node_by_action_name() with these results,",
+                "you MUST specify the 'class_name' parameter to avoid getting the wrong variant.",
+                "",
+                "Functions with duplicates:"
+            ]
+            
+            for func_name, classes in duplicates.items():
+                unique_classes = list(set(classes))  # Remove duplicates in class list
+                warning_lines.append(f"  - '{func_name}' exists in: {', '.join(unique_classes)}")
+            
+            warning_lines.append("")
+            warning_lines.append("Example:")
+            first_dup = list(duplicates.keys())[0]
+            first_class = list(set(duplicates[first_dup]))[0]
+            warning_lines.append(f"  create_node_by_action_name(")
+            warning_lines.append(f"      function_name=\"{first_dup}\",")
+            warning_lines.append(f"      class_name=\"{first_class}\",  # ← REQUIRED!")
+            warning_lines.append(f"      ...)")
+            warning_lines.append("")
+            warning_lines.append("=" * 70)
+            warning_lines.append("")
+            
+            # Prepend warning to message
+            original_message = result.get("message", "")
+            result["message"] = "\n".join(warning_lines) + original_message
+    
+    return result
 
 def get_actions_for_class(
     ctx: Context,
@@ -41,7 +97,63 @@ def get_actions_for_class(
         "search_filter": search_filter,
         "max_results": max_results
     }
-    return send_unreal_command("get_actions_for_class", params)
+    
+    command_result = send_unreal_command("get_actions_for_class", params)
+    
+    # Extract the actual result from the wrapper
+    if "result" in command_result:
+        result = command_result["result"]
+    else:
+        result = command_result
+    
+    # Check for duplicate function names and add warning if found
+    if result.get("success") and "actions" in result:
+        actions = result["actions"]
+        function_names = {}
+        
+        # Count occurrences of each function name
+        for action in actions:
+            func_name = action.get("function_name", "")
+            if func_name:
+                if func_name not in function_names:
+                    function_names[func_name] = []
+                function_names[func_name].append(action.get("class_name", "Unknown"))
+        
+        # Find duplicates
+        duplicates = {name: classes for name, classes in function_names.items() if len(classes) > 1}
+        
+        # Add warning message if duplicates exist - prepend to existing message
+        if duplicates:
+            warning_lines = [
+                "IMPORTANT REMINDER: Multiple functions with the same name found!",
+                "",
+                "When using create_node_by_action_name() with these results,",
+                "you MUST specify the 'class_name' parameter to avoid getting the wrong variant.",
+                "",
+                "Functions with duplicates:"
+            ]
+            
+            for func_name, classes in duplicates.items():
+                unique_classes = list(set(classes))  # Remove duplicates in class list
+                warning_lines.append(f"  - '{func_name}' exists in: {', '.join(unique_classes)}")
+            
+            warning_lines.append("")
+            warning_lines.append("Example:")
+            first_dup = list(duplicates.keys())[0]
+            first_class = list(set(duplicates[first_dup]))[0]
+            warning_lines.append(f"  create_node_by_action_name(")
+            warning_lines.append(f"      function_name=\"{first_dup}\",")
+            warning_lines.append(f"      class_name=\"{first_class}\",  # ← REQUIRED!")
+            warning_lines.append(f"      ...)")
+            warning_lines.append("")
+            warning_lines.append("=" * 70)
+            warning_lines.append("")
+            
+            # Prepend warning to message
+            original_message = result.get("message", "")
+            result["message"] = "\n".join(warning_lines) + original_message
+    
+    return result
 
 def get_actions_for_class_hierarchy(
     ctx: Context,
@@ -55,7 +167,63 @@ def get_actions_for_class_hierarchy(
         "search_filter": search_filter,
         "max_results": max_results
     }
-    return send_unreal_command("get_actions_for_class_hierarchy", params)
+    
+    command_result = send_unreal_command("get_actions_for_class", params)
+    
+    # Extract the actual result from the wrapper
+    if "result" in command_result:
+        result = command_result["result"]
+    else:
+        result = command_result
+    
+    # Check for duplicate function names and add warning if found
+    if result.get("success") and "actions" in result:
+        actions = result["actions"]
+        function_names = {}
+        
+        # Count occurrences of each function name
+        for action in actions:
+            func_name = action.get("function_name", "")
+            if func_name:
+                if func_name not in function_names:
+                    function_names[func_name] = []
+                function_names[func_name].append(action.get("class_name", "Unknown"))
+        
+        # Find duplicates
+        duplicates = {name: classes for name, classes in function_names.items() if len(classes) > 1}
+        
+        # Add warning message if duplicates exist - prepend to existing message
+        if duplicates:
+            warning_lines = [
+                "IMPORTANT REMINDER: Multiple functions with the same name found!",
+                "",
+                "When using create_node_by_action_name() with these results,",
+                "you MUST specify the 'class_name' parameter to avoid getting the wrong variant.",
+                "",
+                "Functions with duplicates:"
+            ]
+            
+            for func_name, classes in duplicates.items():
+                unique_classes = list(set(classes))  # Remove duplicates in class list
+                warning_lines.append(f"  - '{func_name}' exists in: {', '.join(unique_classes)}")
+            
+            warning_lines.append("")
+            warning_lines.append("Example:")
+            first_dup = list(duplicates.keys())[0]
+            first_class = list(set(duplicates[first_dup]))[0]
+            warning_lines.append(f"  create_node_by_action_name(")
+            warning_lines.append(f"      function_name=\"{first_dup}\",")
+            warning_lines.append(f"      class_name=\"{first_class}\",  # ← REQUIRED!")
+            warning_lines.append(f"      ...)")
+            warning_lines.append("")
+            warning_lines.append("=" * 70)
+            warning_lines.append("")
+            
+            # Prepend warning to message
+            original_message = result.get("message", "")
+            result["message"] = "\n".join(warning_lines) + original_message
+    
+    return result
 
 def search_blueprint_actions(
     ctx: Context,
@@ -72,7 +240,64 @@ def search_blueprint_actions(
     }
     if blueprint_name:
         params["blueprint_name"] = blueprint_name
-    return send_unreal_command("search_blueprint_actions", params)
+    
+    command_result = send_unreal_command("search_blueprint_actions", params)
+    
+    # Extract the actual result from the wrapper
+    if "result" in command_result:
+        result = command_result["result"]
+    else:
+        result = command_result
+    
+    # Check for duplicate function names and add warning if found
+    if result.get("success") and "actions" in result:
+        actions = result["actions"]
+        function_names = {}
+        
+        # Count occurrences of each function name
+        for action in actions:
+            func_name = action.get("function_name", "")
+            if func_name:
+                if func_name not in function_names:
+                    function_names[func_name] = []
+                function_names[func_name].append(action.get("class_name", "Unknown"))
+        
+        # Find duplicates
+        duplicates = {name: classes for name, classes in function_names.items() if len(classes) > 1}
+        
+        # Add warning message if duplicates exist - prepend to existing message
+        if duplicates:
+            warning_lines = [
+                "IMPORTANT REMINDER: Multiple functions with the same name found!",
+                "",
+                "When using create_node_by_action_name() with these results,",
+                "you MUST specify the 'class_name' parameter to avoid getting the wrong variant.",
+                "",
+                "Functions with duplicates:"
+            ]
+            
+            for func_name, classes in duplicates.items():
+                unique_classes = list(set(classes))  # Remove duplicates in class list
+                warning_lines.append(f"  - '{func_name}' exists in: {', '.join(unique_classes)}")
+            
+            warning_lines.append("")
+            warning_lines.append("Example:")
+            first_dup = list(duplicates.keys())[0]
+            first_class = list(set(duplicates[first_dup]))[0]
+            warning_lines.append(f"  create_node_by_action_name(")
+            warning_lines.append(f"      function_name=\"{first_dup}\",")
+            warning_lines.append(f"      class_name=\"{first_class}\",  # ← REQUIRED!")
+            warning_lines.append(f"      ...)")
+            warning_lines.append("")
+            warning_lines.append("=" * 70)
+            warning_lines.append("")
+            
+            # Prepend warning to message
+            original_message = result.get("message", "")
+            warning_message = "\n".join(warning_lines) + original_message
+            result["message"] = warning_message
+    
+    return result
 
 def get_node_pin_info(
     ctx: Context,

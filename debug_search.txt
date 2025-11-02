@@ -1,0 +1,66 @@
+Total function names: 2
+Duplicate function names: 1
+Duplicates found:
+  - Event Tick: ['Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown']
+Warning added! Message length: 507
+First 200 chars of message: IMPORTANT REMINDER: Multiple functions with the same name found!
+
+When using create_node_by_action_name() with these results,
+you MUST specify the 'class_name' parameter to avoid getting the wrong var
+Total function names: 12
+Duplicate function names: 0
+Total function names: 12
+Duplicate function names: 0
+Total function names: 0
+Duplicate function names: 0
+Total function names: 28
+Duplicate function names: 2
+Duplicates found:
+  - SetCustomDataValue: ['TypedElementPrimitiveCustomDataInterface', 'TypedElementPrimitiveCustomDataInterface']
+  - SetCustomData: ['TypedElementPrimitiveCustomDataInterface', 'TypedElementPrimitiveCustomDataInterface']
+Warning added! Message length: 658
+First 200 chars of message: IMPORTANT REMINDER: Multiple functions with the same name found!
+
+When using create_node_by_action_name() with these results,
+you MUST specify the 'class_name' parameter to avoid getting the wrong var
+Total function names: 10
+Duplicate function names: 0
+Total function names: 5
+Duplicate function names: 0
+Total function names: 8
+Duplicate function names: 2
+Duplicates found:
+  - AddCustomAnimationTrackUid: ['InterchangeAnimationTrackSetNode', 'InterchangeLevelSequenceFactoryNode']
+  - AddCustomVariantSetUid: ['InterchangeSceneVariantSetsNode', 'InterchangeSceneVariantSetsFactoryNode']
+Warning added! Message length: 739
+First 200 chars of message: IMPORTANT REMINDER: Multiple functions with the same name found!
+
+When using create_node_by_action_name() with these results,
+you MUST specify the 'class_name' parameter to avoid getting the wrong var
+Total function names: 0
+Duplicate function names: 0
+Total function names: 14
+Duplicate function names: 1
+Duplicates found:
+  - IA_Interact: ['EnhancedInputAction', 'EnhancedInputAction']
+Warning added! Message length: 532
+First 200 chars of message: IMPORTANT REMINDER: Multiple functions with the same name found!
+
+When using create_node_by_action_name() with these results,
+you MUST specify the 'class_name' parameter to avoid getting the wrong var
+Total function names: 26
+Duplicate function names: 2
+Duplicates found:
+  - Get: ['Unknown', 'Unknown', 'Unknown']
+  - Set: ['Unknown', 'Unknown', 'Unknown']
+Warning added! Message length: 519
+First 200 chars of message: IMPORTANT REMINDER: Multiple functions with the same name found!
+
+When using create_node_by_action_name() with these results,
+you MUST specify the 'class_name' parameter to avoid getting the wrong var
+Total function names: 0
+Duplicate function names: 0
+Total function names: 0
+Duplicate function names: 0
+Total function names: 5
+Duplicate function names: 0
