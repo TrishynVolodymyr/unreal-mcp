@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Services/BlueprintAction/BlueprintClassSearchService.h"
+#include "Services/NodeCreation/NodeCreationHelpers.h"
 #include "BlueprintActionDatabase.h"
 #include "BlueprintNodeSpawner.h"
 #include "K2Node_CallFunction.h"
@@ -8,32 +9,6 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
-
-// Helper function from original file
-static FString ConvertPropertyNameToDisplay(const FString& InPropName)
-{
-    FString Result = InPropName;
-    
-    // Remove common prefixes
-    if (Result.StartsWith(TEXT("b")))
-    {
-        Result.RemoveAt(0);
-    }
-    
-    // Add spaces before capital letters
-    FString SpacedResult;
-    for (int32 i = 0; i < Result.Len(); i++)
-    {
-        TCHAR CurrentChar = Result[i];
-        if (i > 0 && FChar::IsUpper(CurrentChar))
-        {
-            SpacedResult += TEXT(" ");
-        }
-        SpacedResult += FString::Chr(CurrentChar);
-    }
-    
-    return SpacedResult;
-}
 
 FBlueprintClassSearchService::FBlueprintClassSearchService()
 {
@@ -105,7 +80,7 @@ FString FBlueprintClassSearchService::GetActionsForClass(
             // Getter node
             {
                 TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
-                FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                FString DisplayName = NodeCreationHelpers::ConvertPropertyNameToDisplay(PropName);
                 GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 GetterObj->SetStringField(TEXT("category"), Category);
@@ -121,7 +96,7 @@ FString FBlueprintClassSearchService::GetActionsForClass(
             if (Property->HasMetaData(TEXT("BlueprintReadWrite")) && !Property->HasMetaData(TEXT("BlueprintReadOnly")) && !Property->HasAnyPropertyFlags(CPF_ConstParm))
             {
                 TSharedPtr<FJsonObject> SetterObj = MakeShared<FJsonObject>();
-                FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                FString DisplayName = NodeCreationHelpers::ConvertPropertyNameToDisplay(PropName);
                 SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 SetterObj->SetStringField(TEXT("category"), Category);
@@ -348,7 +323,7 @@ FString FBlueprintClassSearchService::GetActionsForClassHierarchy(
                 // Getter node
                 {
                     TSharedPtr<FJsonObject> GetterObj = MakeShared<FJsonObject>();
-                    FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                    FString DisplayName = NodeCreationHelpers::ConvertPropertyNameToDisplay(PropName);
                     GetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Get %s"), *DisplayName));
                     GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                     GetterObj->SetStringField(TEXT("category"), Category);
@@ -364,7 +339,7 @@ FString FBlueprintClassSearchService::GetActionsForClassHierarchy(
                 if (Property->HasMetaData(TEXT("BlueprintReadWrite")) && !Property->HasMetaData(TEXT("BlueprintReadOnly")) && !Property->HasAnyPropertyFlags(CPF_ConstParm))
                 {
                     TSharedPtr<FJsonObject> SetterObj = MakeShared<FJsonObject>();
-                    FString DisplayName = ConvertPropertyNameToDisplay(PropName);
+                    FString DisplayName = NodeCreationHelpers::ConvertPropertyNameToDisplay(PropName);
                     SetterObj->SetStringField(TEXT("title"), FString::Printf(TEXT("Set %s"), *DisplayName));
                     SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                     SetterObj->SetStringField(TEXT("category"), Category);

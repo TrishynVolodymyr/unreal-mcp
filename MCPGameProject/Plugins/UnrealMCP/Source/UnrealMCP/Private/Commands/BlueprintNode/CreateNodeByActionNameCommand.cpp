@@ -58,21 +58,12 @@ FString FCreateNodeByActionNameCommand::Execute(const FString& Parameters)
     FString TargetGraph = JsonObject->GetStringField(TEXT("target_graph"));
     FString JsonParams = JsonObject->GetStringField(TEXT("json_params"));
 
-    // Verify Blueprint exists
-    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
-    if (!Blueprint)
-    {
-        FMCPError Error = FMCPErrorHandler::CreateValidationFailedError(
-            FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName)
-        );
-        return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
-    }
-    
     UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: About to call BlueprintActionService->CreateNodeByActionName()"));
     UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: Parameters - BlueprintName=%s, FunctionName=%s, ClassName=%s"), 
            *BlueprintName, *FunctionName, *ClassName);
 
     // Use the service layer to create the node - THIS IS THE NEW ARCHITECTURE!
+    // The service handles all validation including Blueprint existence check
     FString Result = BlueprintActionService->CreateNodeByActionName(
         BlueprintName, FunctionName, ClassName, NodePosition, JsonParams
     );
