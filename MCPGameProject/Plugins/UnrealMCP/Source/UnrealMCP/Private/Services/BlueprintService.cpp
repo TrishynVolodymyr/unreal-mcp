@@ -847,13 +847,13 @@ UObject* FBlueprintService::ResolveVariableType(const FString& TypeString) const
     }
     
     // Try to find as a class
-    if (UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *TypeString))
+    if (UClass* FoundClass = FindFirstObject<UClass>(*TypeString, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("ResolveVariableType")))
     {
         return FoundClass;
     }
     
     // Try to find as a struct
-    if (UScriptStruct* FoundStruct = FindObject<UScriptStruct>(ANY_PACKAGE, *TypeString))
+    if (UScriptStruct* FoundStruct = FindFirstObject<UScriptStruct>(*TypeString, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("ResolveVariableType")))
     {
         return FoundStruct;
     }
