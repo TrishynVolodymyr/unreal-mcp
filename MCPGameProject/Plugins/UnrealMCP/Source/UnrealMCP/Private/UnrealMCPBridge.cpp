@@ -329,8 +329,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 {
                     // Convert TSharedPtr<FJsonObject> to JSON string for new command interface
                     FString ParamsString;
-                    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ParamsString);
-                    FJsonSerializer::Serialize(Params.ToSharedRef(), Writer);
+                    TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&ParamsString);
+                    FJsonSerializer::Serialize(Params.ToSharedRef(), Writer.Get());
                     
                     // Execute command through new registry
                     FString CommandResult = CommandRegistry.ExecuteCommand(CommandType, ParamsString);
@@ -381,8 +381,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     ResponseJson->SetStringField(TEXT("error"), FString::Printf(TEXT("Unknown command: %s"), *CommandType));
                     
                     FString ResultString;
-                    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
-                    FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer);
+                    TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&ResultString);
+                    FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer.Get());
                     Promise.SetValue(ResultString);
                     return;
                 }
@@ -432,8 +432,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
         }
         
         FString ResultString;
-        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&ResultString);
-        FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer);
+        TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&ResultString);
+        FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer.Get());
         Promise.SetValue(ResultString);
     });
     

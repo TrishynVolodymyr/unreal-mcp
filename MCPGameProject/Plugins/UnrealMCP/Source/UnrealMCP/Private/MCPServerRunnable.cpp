@@ -161,12 +161,17 @@ uint32 FMCPServerRunnable::Run()
                                 
                                 // Log response for debugging
                                 UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Response: %s"), *Response);
-                                UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Sending response (%d characters)"), Response.Len());
                                 
-                                // Send response
+                                // Convert to UTF-8 and get actual byte length
+                                FTCHARToUTF8 UTF8Response(*Response);
+                                int32 UTF8ByteLength = UTF8Response.Length();
+                                
+                                UE_LOG(LogTemp, Display, TEXT("MCPServerRunnable: Sending response (%d characters, %d UTF-8 bytes)"), Response.Len(), UTF8ByteLength);
+                                
+                                // Send response with correct byte length
                                 int32 BytesSent = 0;
                                 double SendStartTime = FPlatformTime::Seconds();
-                                bool bSendSuccess = ClientSocket->Send((uint8*)TCHAR_TO_UTF8(*Response), Response.Len(), BytesSent);
+                                bool bSendSuccess = ClientSocket->Send((const uint8*)UTF8Response.Get(), UTF8ByteLength, BytesSent);
                                 double SendDuration = FPlatformTime::Seconds() - SendStartTime;
                                 
                                 if (!bSendSuccess)

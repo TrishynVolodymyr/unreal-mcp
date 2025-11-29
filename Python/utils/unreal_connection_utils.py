@@ -79,46 +79,96 @@ class UnrealConnection:
         """Receive a complete response from Unreal, handling chunked data."""
         chunks = []
         sock.settimeout(30)  # 30 second timeout for complex operations
+        debug_log_path = "E:/code/unreal-mcp/Python/tcp_debug.log"
+        
         try:
+            import datetime
+            with open(debug_log_path, "a", encoding="utf-8") as f:
+                f.write(f"\n\n=== RECEIVE START: {datetime.datetime.now()} ===\n")
+            
             while True:
-                chunk = sock.recv(buffer_size)
-                if not chunk:
-                    if not chunks:
-                        raise Exception("Connection closed before receiving data")
-                    break
-                chunks.append(chunk)
-                
-                # Process the data received so far
-                data = b''.join(chunks)
-                decoded_data = data.decode('utf-8')
-                
-                # Try to parse as JSON to check if complete
                 try:
-                    json.loads(decoded_data)
-                    logger.info(f"Received complete response ({len(data)} bytes)")
-                    return data
-                except json.JSONDecodeError:
-                    # Not complete JSON yet, continue reading
-                    logger.debug(f"Received partial response, waiting for more data...")
-                    continue
-                except Exception as e:
-                    logger.warning(f"Error processing response chunk: {str(e)}")
-                    continue
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"Calling sock.recv({buffer_size})...\n")
+                    
+                    chunk = sock.recv(buffer_size)
+                    
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"Received chunk: {len(chunk) if chunk else 0} bytes\n")
+                    
+                    if not chunk:
+                        if not chunks:
+                            with open(debug_log_path, "a", encoding="utf-8") as f:
+                                f.write("ERROR: Connection closed before receiving data\n")
+                            raise Exception("Connection closed before receiving data")
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write("No more chunks, breaking...\n")
+                        break
+                    chunks.append(chunk)
+                    
+                    # Process the data received so far
+                    data = b''.join(chunks)
+                    decoded_data = data.decode('utf-8')
+                    
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"Total data so far: {len(data)} bytes\n")
+                        f.write(f"Decoded preview: {decoded_data[:200]}...\n")
+                    
+                    # Try to parse as JSON to check if complete
+                    try:
+                        json.loads(decoded_data)
+                        logger.info(f"Received complete response ({len(data)} bytes)")
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(f"SUCCESS: Complete JSON received!\n")
+                            f.write(f"Full response: {decoded_data}\n")
+                        return data
+                    except json.JSONDecodeError as je:
+                        # Not complete JSON yet, continue reading
+                        logger.debug(f"Received partial response, waiting for more data...")
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(f"Partial JSON (error: {je}), continuing...\n")
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Error processing response chunk: {str(e)}")
+                        with open(debug_log_path, "a", encoding="utf-8") as f:
+                            f.write(f"ERROR processing chunk: {e}\n")
+                        continue
+                        
+                except socket.timeout as st:
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"SOCKET TIMEOUT in recv loop after {len(chunks)} chunks\n")
+                    raise st
+                except Exception as ex:
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"EXCEPTION in recv loop: {ex}\n")
+                    raise ex
+                    
         except socket.timeout:
             logger.warning(f"Socket timeout during receive after {len(chunks)} chunks")
+            with open(debug_log_path, "a", encoding="utf-8") as f:
+                f.write(f"TIMEOUT: After {len(chunks)} chunks\n")
             if chunks:
                 # If we have some data already, try to use it
                 data = b''.join(chunks)
                 logger.info(f"Received {len(data)} bytes before timeout")
+                with open(debug_log_path, "a", encoding="utf-8") as f:
+                    f.write(f"Attempting to use partial data: {len(data)} bytes\n")
+                    f.write(f"Partial data: {data.decode('utf-8', errors='replace')}\n")
                 try:
                     json.loads(data.decode('utf-8'))
                     logger.info(f"Using partial response after timeout ({len(data)} bytes)")
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"SUCCESS: Partial data is valid JSON!\n")
                     return data
                 except Exception as parse_error:
                     logger.warning(f"Partial data is not valid JSON: {parse_error}")
+                    with open(debug_log_path, "a", encoding="utf-8") as f:
+                        f.write(f"ERROR: Partial data is not valid JSON: {parse_error}\n")
             raise Exception(f"Timeout receiving Unreal response after 30 seconds (received {len(chunks)} chunks)")
         except Exception as e:
             logger.error(f"Error during receive: {str(e)}")
+            with open(debug_log_path, "a", encoding="utf-8") as f:
+                f.write(f"FATAL ERROR: {e}\n")
             raise
     
     def send_command(self, command: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:

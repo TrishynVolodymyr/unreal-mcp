@@ -43,9 +43,11 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
     float PositionY,
     UEdGraphNode*& NewNode,
     FString& NodeTitle,
-    FString& NodeType
+    FString& NodeType,
+    FString* OutErrorMessage
 )
 {
+    UE_LOG(LogTemp, Warning, TEXT("=== TryCreateNodeUsingBlueprintActionDatabase START ==="));
     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s' with class '%s'"), *FunctionName, *ClassName);
     
     // Special handling for Enhanced Input Actions
@@ -158,11 +160,24 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
     
     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found %d action categories, searching for %d name variations"), ActionRegistry.Num(), SearchNames.Num());
     
-    // Search through spawners directly
+    // CRITICAL FIX: Track all matching functions to detect duplicates
+    TMap<FString, TArray<FString>> MatchingFunctionsByClass; // FunctionName -> Array of ClassName
+    TArray<const UBlueprintNodeSpawner*> MatchingSpawners; // Store spawners for later use
+    
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Starting spawner search loop..."));
+    int32 ProcessedSpawners = 0;
+    
+    // First pass: Collect all matching functions
     for (const auto& ActionPair : ActionRegistry)
     {
         for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
         {
+            ProcessedSpawners++;
+            if (ProcessedSpawners % 1000 == 0)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Processed %d spawners so far..."), ProcessedSpawners);
+            }
+            
             if (NodeSpawner && IsValid(NodeSpawner))
             {
                 // Get template node to determine what type of node this is
@@ -246,6 +261,19 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
                     // CRITICAL FIX for Problem #3/#5: Check class name if specified
                     // This ensures we get the correct function when multiple functions have the same name
                     bool bClassMatches = true;
+                    
+                    // Extract class information for duplicate detection
+                    FString DetectedClassName = TEXT("Unknown");
+                    if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                    {
+                        if (UFunction* Function = FunctionNode->GetTargetFunction())
+                        {
+                            if (UClass* OwnerClass = Function->GetOwnerClass())
+                            {
+                                DetectedClassName = OwnerClass->GetName();
+                            }
+                        }
+                    }
                     
                     // CRITICAL FIX: When ClassName is NOT specified, prefer exact function name matches
                     // to avoid getting "GetAllActorsOfClassMatchingTagQuery" when we want "GetAllActorsOfClass"
@@ -388,15 +416,14 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
                             UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found matching spawner for '%s' -> '%s' (node class: %s, function: %s)"), 
                                    *FunctionName, *MatchedName, *NodeClass, *FunctionNameFromNode);
                             
-                            // Create the node using the spawner
-                            NewNode = NodeSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
-                            if (NewNode)
+                            // Track this match for duplicate detection
+                            FString TrackingKey = FunctionNameFromNode.IsEmpty() ? NodeName : FunctionNameFromNode;
+                            if (!MatchingFunctionsByClass.Contains(TrackingKey))
                             {
-                                NodeTitle = NodeName;
-                                NodeType = NodeClass;
-                                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
-                                return true;
+                                MatchingFunctionsByClass.Add(TrackingKey, TArray<FString>());
                             }
+                            MatchingFunctionsByClass[TrackingKey].Add(DetectedClassName);
+                            MatchingSpawners.Add(NodeSpawner);
                         }
                     }
                     // If class doesn't match, DON'T return - continue to next spawner
@@ -405,6 +432,100 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
         }
     }
     
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Finished spawner loop. Processed %d spawners total. Found %d matching spawners."), ProcessedSpawners, MatchingSpawners.Num());
+    
+    // CRITICAL: Check for duplicate function names across classes
+    // If we found multiple functions with the same name but ClassName was not specified, throw error
+    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Checking for duplicates in %d matching functions..."), MatchingFunctionsByClass.Num());
+    
+    if (MatchingSpawners.Num() > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Found %d matching spawners, checking for duplicates..."), MatchingSpawners.Num());
+        
+        // Check if we have multiple classes for the same function
+        bool bHasDuplicates = false;
+        FString DuplicateFunctionName;
+        TArray<FString> DuplicateClasses;
+        
+        for (const auto& Pair : MatchingFunctionsByClass)
+        {
+            // Remove duplicate class names from the array
+            TSet<FString> UniqueClasses(Pair.Value);
+            
+            if (UniqueClasses.Num() > 1)
+            {
+                bHasDuplicates = true;
+                DuplicateFunctionName = Pair.Key;
+                DuplicateClasses = UniqueClasses.Array();
+                break;
+            }
+        }
+        
+        if (bHasDuplicates && ClassName.IsEmpty())
+        {
+            // Build error message listing all available classes
+            FString ErrorMessage = FString::Printf(
+                TEXT("ERROR: Multiple functions found with name '%s' in different classes. You MUST specify 'class_name' parameter to disambiguate.\n\nAvailable classes:\n"),
+                *DuplicateFunctionName
+            );
+            
+            for (const FString& AvailableClass : DuplicateClasses)
+            {
+                ErrorMessage += FString::Printf(TEXT("  - %s\n"), *AvailableClass);
+            }
+            
+            ErrorMessage += FString::Printf(
+                TEXT("\nExample:\n  create_node_by_action_name(\n      function_name=\"%s\",\n      class_name=\"%s\",  # ← REQUIRED!\n      ...\n  )"),
+                *FunctionName,
+                *DuplicateClasses[0]
+            );
+            
+            UE_LOG(LogTemp, Error, TEXT("%s"), *ErrorMessage);
+            
+            // Set error message if caller wants it
+            if (OutErrorMessage)
+            {
+                *OutErrorMessage = ErrorMessage;
+            }
+            
+            // Don't create any node - return false and let the caller handle the error
+            return false;
+        }
+        
+        // If no duplicates, or ClassName was specified and matched, create the first matching node
+        // (by this point, if ClassName was specified, only matching spawners remain in the list)
+        if (MatchingSpawners.Num() > 0)
+        {
+            const UBlueprintNodeSpawner* SelectedSpawner = MatchingSpawners[0];
+            
+            // Get info from the selected spawner for logging
+            if (UEdGraphNode* TemplateNode = SelectedSpawner->GetTemplateNode())
+            {
+                FString NodeName = TEXT("");
+                FString NodeClass = TemplateNode->GetClass()->GetName();
+                
+                if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
+                {
+                    NodeName = K2Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                }
+                
+                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Creating node using selected spawner (name: '%s', class: '%s')"), 
+                       *NodeName, *NodeClass);
+                
+                // Create the node using the spawner
+                NewNode = SelectedSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
+                if (NewNode)
+                {
+                    NodeTitle = NodeName.IsEmpty() ? NodeClass : NodeName;
+                    NodeType = NodeClass;
+                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
+                    return true;
+                }
+            }
+        }
+    }
+    
     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: No matching spawner found for '%s' (tried %d variations)"), *FunctionName, SearchNames.Num());
+    UE_LOG(LogTemp, Warning, TEXT("=== TryCreateNodeUsingBlueprintActionDatabase END (FAILED) ==="));
     return false;
 }

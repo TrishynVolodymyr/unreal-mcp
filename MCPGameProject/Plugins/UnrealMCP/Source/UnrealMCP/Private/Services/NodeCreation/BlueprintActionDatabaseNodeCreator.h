@@ -26,6 +26,7 @@ public:
      * @param NewNode - Created node (if successful)
      * @param NodeTitle - Title of the created node
      * @param NodeType - Type of the created node
+     * @param OutErrorMessage - Optional output parameter for detailed error message
      * @return True if node was created successfully
      */
     static bool TryCreateNodeUsingBlueprintActionDatabase(
@@ -36,6 +37,7 @@ public:
         float PositionY,
         UEdGraphNode*& NewNode,
         FString& NodeTitle,
-        FString& NodeType
+        FString& NodeType,
+        FString* OutErrorMessage = nullptr
     );
 };
