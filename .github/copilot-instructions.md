@@ -8,7 +8,7 @@ alwaysApply: true
 
 ## Core Dual-Component System
 
-The Unreal MCP project enables **natural language control of Unreal Engine 5.6** through a synchronized dual-component architecture:
+The Unreal MCP project enables **natural language control of Unreal Engine 5.7** through a synchronized dual-component architecture:
 
 ### Unreal Engine Source Code Reference (`ues/UnrealEngine-5.6/`)
 - **Complete UE 5.6 Source**: Available as documentation and reference for plugin development

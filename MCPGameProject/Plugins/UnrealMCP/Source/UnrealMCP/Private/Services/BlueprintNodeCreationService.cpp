@@ -872,15 +872,24 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created arithmetic/comparison node '%s'"), *NodeTitle);
     }
     // Universal dynamic node creation using Blueprint Action Database
-    else if (FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, ClassName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created node '%s' using Blueprint Action Database"), *NodeTitle);
-    }
     else
     {
-        // Try to find the function and create a function call node
-        UFunction* TargetFunction = nullptr;
-        TargetClass = nullptr;
+        FString ErrorMessage;
+        if (FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, ClassName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType, &ErrorMessage))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created node '%s' using Blueprint Action Database"), *NodeTitle);
+        }
+        else if (!ErrorMessage.IsEmpty())
+        {
+            // If we got a specific error message (e.g., duplicate functions), return it immediately
+            // Don't try other methods as this is a user error that needs to be fixed
+            return FNodeResultBuilder::BuildNodeResult(false, ErrorMessage);
+        }
+        else
+        {
+            // Try to find the function and create a function call node
+            UFunction* TargetFunction = nullptr;
+            TargetClass = nullptr;
         
         // CRITICAL FIX: Add alternative function name mappings for common issues
         TMap<FString, FString> FunctionMappings;
@@ -944,6 +953,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NewNode = FunctionNode;
         NodeTitle = EffectiveFunctionName;
         NodeType = TEXT("UK2Node_CallFunction");
+        }
     }
     
     if (!NewNode)
