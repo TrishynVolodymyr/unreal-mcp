@@ -7,7 +7,7 @@
  * Main module class for the UnrealMCP plugin
  * 
  * The UnrealMCP plugin provides a comprehensive Model Context Protocol (MCP) integration
- * for Unreal Engine 5.6, enabling AI assistants to control Unreal Engine through
+ * for Unreal Engine 5.7, enabling AI assistants to control Unreal Engine through
  * natural language commands via a layered architecture.
  * 
  * Key Features:

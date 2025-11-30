@@ -331,6 +331,118 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         NodeTitle = EventName;
         NodeType = TEXT("UK2Node_CustomEvent");
     }
+    else if (ParamsObject.IsValid() && ParamsObject->HasField(TEXT("component_name")) && ParamsObject->HasField(TEXT("event_name")))
+    {
+        // Component Bound Event - triggered by presence of component_name and event_name in kwargs
+        FString ComponentName = ParamsObject->GetStringField(TEXT("component_name"));
+        FString DelegateEventName = ParamsObject->GetStringField(TEXT("event_name"));
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Creating component bound event for component '%s', event '%s'"), *ComponentName, *DelegateEventName);
+        
+        // Find the component property in the Blueprint
+        FObjectProperty* ComponentProperty = FindFProperty<FObjectProperty>(Blueprint->GeneratedClass, FName(*ComponentName));
+        if (!ComponentProperty)
+        {
+            FString ErrorMsg = FString::Printf(TEXT("Component '%s' not found in Blueprint '%s'"), *ComponentName, *BlueprintName);
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: %s"), *ErrorMsg);
+            
+            TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
+            ErrorObj->SetBoolField(TEXT("success"), false);
+            ErrorObj->SetStringField(TEXT("error"), ErrorMsg);
+            FString OutputString;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+            FJsonSerializer::Serialize(ErrorObj.ToSharedRef(), Writer);
+            return OutputString;
+        }
+
+        // Get the component class
+        UClass* ComponentClass = ComponentProperty->PropertyClass;
+        if (!ComponentClass)
+        {
+            FString ErrorMsg = FString::Printf(TEXT("Could not get class for component '%s'"), *ComponentName);
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: %s"), *ErrorMsg);
+            
+            TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
+            ErrorObj->SetBoolField(TEXT("success"), false);
+            ErrorObj->SetStringField(TEXT("error"), ErrorMsg);
+            FString OutputString;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+            FJsonSerializer::Serialize(ErrorObj.ToSharedRef(), Writer);
+            return OutputString;
+        }
+
+        // Find the delegate property on the component class
+        FMulticastDelegateProperty* DelegateProperty = FindFProperty<FMulticastDelegateProperty>(ComponentClass, FName(*DelegateEventName));
+        if (!DelegateProperty)
+        {
+            FString ErrorMsg = FString::Printf(TEXT("Event delegate '%s' not found on component class '%s'"), *DelegateEventName, *ComponentClass->GetName());
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: %s"), *ErrorMsg);
+            
+            TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
+            ErrorObj->SetBoolField(TEXT("success"), false);
+            ErrorObj->SetStringField(TEXT("error"), ErrorMsg);
+            FString OutputString;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+            FJsonSerializer::Serialize(ErrorObj.ToSharedRef(), Writer);
+            return OutputString;
+        }
+
+        // Check if this event is already bound
+        TArray<UK2Node_ComponentBoundEvent*> AllBoundEvents;
+        FBlueprintEditorUtils::GetAllNodesOfClass<UK2Node_ComponentBoundEvent>(Blueprint, AllBoundEvents);
+        
+        for (UK2Node_ComponentBoundEvent* ExistingNode : AllBoundEvents)
+        {
+            if (ExistingNode->GetComponentPropertyName() == FName(*ComponentName) && 
+                ExistingNode->DelegatePropertyName == FName(*DelegateEventName))
+            {
+                FString ErrorMsg = FString::Printf(TEXT("Event '%s' is already bound to component '%s'"), *DelegateEventName, *ComponentName);
+                UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: %s"), *ErrorMsg);
+                
+                TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
+                ErrorObj->SetBoolField(TEXT("success"), false);
+                ErrorObj->SetStringField(TEXT("error"), ErrorMsg);
+                FString OutputString;
+                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+                FJsonSerializer::Serialize(ErrorObj.ToSharedRef(), Writer);
+                return OutputString;
+            }
+        }
+
+        // Create the UK2Node_ComponentBoundEvent
+        UK2Node_ComponentBoundEvent* BoundEventNode = NewObject<UK2Node_ComponentBoundEvent>(EventGraph);
+        if (!BoundEventNode)
+        {
+            FString ErrorMsg = TEXT("Failed to create UK2Node_ComponentBoundEvent");
+            UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: %s"), *ErrorMsg);
+            
+            TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
+            ErrorObj->SetBoolField(TEXT("success"), false);
+            ErrorObj->SetStringField(TEXT("error"), ErrorMsg);
+            FString OutputString;
+            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+            FJsonSerializer::Serialize(ErrorObj.ToSharedRef(), Writer);
+            return OutputString;
+        }
+
+        // Initialize the event node
+        BoundEventNode->InitializeComponentBoundEventParams(ComponentProperty, DelegateProperty);
+        BoundEventNode->NodePosX = PositionX;
+        BoundEventNode->NodePosY = PositionY;
+
+        // Add node to graph
+        EventGraph->AddNode(BoundEventNode, true, false);
+        BoundEventNode->CreateNewGuid();
+        BoundEventNode->PostPlacedNewNode();
+        BoundEventNode->AllocateDefaultPins();
+        BoundEventNode->ReconstructNode();
+
+        NewNode = BoundEventNode;
+        NodeTitle = FString::Printf(TEXT("%s (%s)"), *DelegateEventName, *ComponentName);
+        NodeType = TEXT("UK2Node_ComponentBoundEvent");
+        
+        UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created component bound event '%s' for component '%s'"), *DelegateEventName, *ComponentName);
+    }
     else if (EffectiveFunctionName.Equals(TEXT("Cast"), ESearchCase::IgnoreCase) ||
              EffectiveFunctionName.Equals(TEXT("DynamicCast"), ESearchCase::IgnoreCase) ||
              EffectiveFunctionName.Equals(TEXT("UK2Node_DynamicCast"), ESearchCase::IgnoreCase))

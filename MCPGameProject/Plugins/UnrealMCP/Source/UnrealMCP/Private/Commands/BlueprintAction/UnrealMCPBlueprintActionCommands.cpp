@@ -48,6 +48,7 @@
 #include "K2Node_BreakStruct.h"
 #include "K2Node_MakeStruct.h"
 #include "K2Node_ConstructObjectFromClass.h"
+#include "K2Node_ComponentBoundEvent.h"
 #include "K2Node_MacroInstance.h"
 #include "K2Node_MapForEach.h"
 #include "K2Node_SetForEach.h"
@@ -118,6 +119,9 @@ FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString&
     // Delegate to the extracted function in UnrealMCPNodeCreators
     return UnrealMCPNodeCreators::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams);
 }
+
+
+
 
 
 

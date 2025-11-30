@@ -1,7 +1,6 @@
 ---
-description: 
-globs: 
-alwaysApply: true
+description: Unreal engine MCP project for AI usage, architecture and development guidelines
+applyTo: **
 ---
 
 # Unreal MCP Project Architecture
@@ -10,8 +9,8 @@ alwaysApply: true
 
 The Unreal MCP project enables **natural language control of Unreal Engine 5.7** through a synchronized dual-component architecture:
 
-### Unreal Engine Source Code Reference (`ues/UnrealEngine-5.6/`)
-- **Complete UE 5.6 Source**: Available as documentation and reference for plugin development
+### Unreal Engine Source Code Reference (`ues/UnrealEngine-5.7/`)
+- **Complete UE 5.7 Source**: Available as documentation and reference for plugin development
 - **Engine API Reference**: Use for understanding internal systems, subsystems, and implementation patterns
 - **Class Hierarchies**: Reference for proper inheritance and interface implementation
 - **Best Practices**: Study engine code for C++ conventions, memory management, and performance patterns
@@ -57,7 +56,7 @@ The Unreal MCP project enables **natural language control of Unreal Engine 5.7**
 ```
 
 **Build Details**: 
-- `RebuildProject.bat` uses UE 5.6's Build.bat for MCPGameProjectEditor Win64 Development
+- `RebuildProject.bat` uses UE 5.7's Build.bat for MCPGameProjectEditor Win64 Development
 - Automatically terminates existing UnrealEditor.exe processes before compilation
 - `LaunchProject.bat` prevents duplicate editor instances
 

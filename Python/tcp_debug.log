@@ -1,0 +1,558 @@
+
+
+=== RECEIVE START: 2025-11-30 14:17:10.974795 ===
+Calling sock.recv(4096)...
+
+
+=== RECEIVE START: 2025-11-30 14:17:10.975226 ===
+Calling sock.recv(4096)...
+
+
+=== RECEIVE START: 2025-11-30 14:17:10.990607 ===
+Calling sock.recv(4096)...
+Received chunk: 135 bytes
+Total data so far: 135 bytes
+Decoded preview: {"status":"success","result":{"success":true,"struct_name":"DialogueEntry","path":"/Game/Data","full_path":"/Game/Data/DialogueEntry"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"struct_name":"DialogueEntry","path":"/Game/Data","full_path":"/Game/Data/DialogueEntry"}}
+Received chunk: 368 bytes
+Total data so far: 368 bytes
+Decoded preview: {"status":"success","result":{"success":true,"command":"create_datatable","datatable":{"name":"DT_Dialogues","path":"/Game/Data/DT_Dialogues.DT_Dialogues","package":"/Game/Data/DT_Dialogues","row_stru...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"command":"create_datatable","datatable":{"name":"DT_Dialogues","path":"/Game/Data/DT_Dialogues.DT_Dialogues","package":"/Game/Data/DT_Dialogues","row_struct":"DialogueEntry","row_struct_path":"/Game/Data/DialogueEntry.DialogueEntry","row_count":0},"metadata":{"timestamp":"2025-11-30T12:17:12.045Z","operation":"create"}}}
+Received chunk: 128 bytes
+Total data so far: 128 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"WBP_DialogueBox","path":"/Game/UI/WBP_DialogueBox","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"WBP_DialogueBox","path":"/Game/UI/WBP_DialogueBox","already_exists":false}}
+
+
+=== RECEIVE START: 2025-11-30 14:17:20.897421 ===
+Calling sock.recv(4096)...
+Received chunk: 130 bytes
+Total data so far: 130 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"DialogueBorder","component_type":"Border","widget_class":"Border"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"DialogueBorder","component_type":"Border","widget_class":"Border"}}
+
+
+=== RECEIVE START: 2025-11-30 14:17:22.623217 ===
+Calling sock.recv(4096)...
+Received chunk: 137 bytes
+Total data so far: 137 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"SpeakerNameText","component_type":"TextBlock","widget_class":"TextBlock"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"SpeakerNameText","component_type":"TextBlock","widget_class":"TextBlock"}}
+
+
+=== RECEIVE START: 2025-11-30 14:17:26.187169 ===
+Calling sock.recv(4096)...
+Received chunk: 134 bytes
+Total data so far: 134 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"DialogueText","component_type":"TextBlock","widget_class":"TextBlock"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"DialogueText","component_type":"TextBlock","widget_class":"TextBlock"}}
+
+
+=== RECEIVE START: 2025-11-30 14:17:32.782219 ===
+Calling sock.recv(4096)...
+Received chunk: 422 bytes
+Total data so far: 422 bytes
+Decoded preview: {"status":"success","result":{"success":true,"command":"get_datatable_row_names","row_names":[],"field_names":["DialogueID_2_7B824B4C4A79C9225481E0910CCC061E","DialogueText_4_7474F67944AD2973F5FF76B8C...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"command":"get_datatable_row_names","row_names":[],"field_names":["DialogueID_2_7B824B4C4A79C9225481E0910CCC061E","DialogueText_4_7474F67944AD2973F5FF76B8C2DF7CC7","SpeakerName_6_83FF010D47A662737FFA3CA33094E4F2","NextDialogueID_8_E385684B45CAC7E754D570B0C81345A4"],"metadata":{"timestamp":"2025-11-30T12:17:32.991Z","operation":"get_row_names","row_count":0,"field_count":4}}}
+
+
+=== RECEIVE START: 2025-11-30 14:17:45.552616 ===
+Calling sock.recv(4096)...
+Received chunk: 281 bytes
+Total data so far: 281 bytes
+Decoded preview: {"status":"success","result":{"success":true,"command":"add_rows_to_datatable","added_rows":["Greeting_01","Greeting_02","Merchant_01","Merchant_02","Quest_01","Quest_02"],"metadata":{"timestamp":"202...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"command":"add_rows_to_datatable","added_rows":["Greeting_01","Greeting_02","Merchant_01","Merchant_02","Quest_01","Quest_02"],"metadata":{"timestamp":"2025-11-30T12:17:45.830Z","operation":"add_rows","added_count":6,"failed_count":0}}}
+
+
+=== RECEIVE START: 2025-11-30 14:18:19.520380 ===
+Calling sock.recv(4096)...
+Received chunk: 140 bytes
+Total data so far: 140 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"WBP_InteractionPrompt","path":"/Game/UI/WBP_InteractionPrompt","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"WBP_InteractionPrompt","path":"/Game/UI/WBP_InteractionPrompt","already_exists":false}}
+
+
+=== RECEIVE START: 2025-11-30 14:18:25.531923 ===
+Calling sock.recv(4096)...
+Received chunk: 132 bytes
+Total data so far: 132 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"PromptText","component_type":"TextBlock","widget_class":"TextBlock"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"PromptText","component_type":"TextBlock","widget_class":"TextBlock"}}
+
+
+=== RECEIVE START: 2025-11-30 14:18:47.875537 ===
+Calling sock.recv(4096)...
+Received chunk: 849 bytes
+Total data so far: 849 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Cast","node_type":"UK2Node_D...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Cast","node_type":"UK2Node_DynamicCast","class_name":"","node_id":"BEFA289B4F741194BE4E0E91F4E12DA2","node_title":"Cast","is_pure_function":false,"requires_execution_flow":true,"position":{"x":400,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"CastFailed","type":"exec","direction":"output","is_execution":true},{"name":"Object","type":"wildcard","direction":"input","is_execution":false},{"name":"AsBP Dialogue NPC","type":"object","direction":"output","is_execution":false},{"name":"bSuccess","type":"bool","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:18:47.977755 ===
+Calling sock.recv(4096)...
+Received chunk: 683 bytes
+Total data so far: 683 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Nod...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Node_IfThenElse","class_name":"","node_id":"B3EC8FA148776D1ED29E069204F20DCE","node_title":"Branch","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"Condition","type":"bool","direction":"input","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"else","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:18:56.491404 ===
+Calling sock.recv(4096)...
+Received chunk: 1916 bytes
+Total data so far: 1916 bytes
+Decoded preview: {"status":"success","result":{"success":true,"class_name":"SphereComponent","actions":[{"title":"Get Generate Overlap Events","tooltip":"Access the bGenerateOverlapEvents property on SphereComponent",...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"class_name":"SphereComponent","actions":[{"title":"Get Generate Overlap Events","tooltip":"Access the bGenerateOverlapEvents property on SphereComponent","category":"Native Property","variable_name":"bGenerateOverlapEvents","pin_type":"uint8","function_name":"Get Generate Overlap Events","is_native_property":true},{"title":"Get Multi Body Overlap","tooltip":"Access the bMultiBodyOverlap property on SphereComponent","category":"Native Property","variable_name":"bMultiBodyOverlap","pin_type":"uint8","function_name":"Get Multi Body Overlap","is_native_property":true},{"function_name":"SetGenerateOverlapEvents","class_name":"PrimitiveComponent","title":"SetGenerateOverlapEvents","tooltip":"","category":"SphereComponent"},{"function_name":"K2_SphereOverlapComponent","class_name":"PrimitiveComponent","title":"K2_SphereOverlapComponent","tooltip":"","category":"SphereComponent"},{"function_name":"K2_BoxOverlapComponent","class_name":"PrimitiveComponent","title":"K2_BoxOverlapComponent","tooltip":"","category":"SphereComponent"},{"function_name":"IsOverlappingComponent","class_name":"PrimitiveComponent","title":"IsOverlappingComponent","tooltip":"","category":"SphereComponent"},{"function_name":"IsOverlappingActor","class_name":"PrimitiveComponent","title":"IsOverlappingActor","tooltip":"","category":"SphereComponent"},{"function_name":"GetOverlappingComponents","class_name":"PrimitiveComponent","title":"GetOverlappingComponents","tooltip":"","category":"SphereComponent"},{"function_name":"GetOverlappingActors","class_name":"PrimitiveComponent","title":"GetOverlappingActors","tooltip":"","category":"SphereComponent"},{"function_name":"GetGenerateOverlapEvents","class_name":"PrimitiveComponent","title":"GetGenerateOverlapEvents","tooltip":"","category":"SphereComponent"}],"action_count":10,"message":"Found 10 actions for class 'SphereComponent'"}}
+
+
+=== RECEIVE START: 2025-11-30 14:19:01.441404 ===
+Calling sock.recv(4096)...
+Received chunk: 112 bytes
+Total data so far: 112 bytes
+Decoded preview: {"status":"error","error":"Function 'OnComponentBeginOverlap' not found and not a recognized control flow node"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Function 'OnComponentBeginOverlap' not found and not a recognized control flow node"}
+
+
+=== RECEIVE START: 2025-11-30 14:19:05.716707 ===
+Calling sock.recv(4096)...
+Received chunk: 169 bytes
+Total data so far: 169 bytes
+Decoded preview: {"status":"success","result":{"success":true,"class_name":"PrimitiveComponent","actions":[],"action_count":0,"message":"Found 0 actions for class 'PrimitiveComponent'"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"class_name":"PrimitiveComponent","actions":[],"action_count":0,"message":"Found 0 actions for class 'PrimitiveComponent'"}}
+
+
+=== RECEIVE START: 2025-11-30 14:19:09.649097 ===
+Calling sock.recv(4096)...
+Received chunk: 2304 bytes
+Total data so far: 2304 bytes
+Decoded preview: {"status":"success","result":{"success":true,"class_name":"PrimitiveComponent","actions":[{"title":"Get Generate Overlap Events","tooltip":"Access the bGenerateOverlapEvents property on PrimitiveCompo...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"class_name":"PrimitiveComponent","actions":[{"title":"Get Generate Overlap Events","tooltip":"Access the bGenerateOverlapEvents property on PrimitiveComponent","category":"Native Property","variable_name":"bGenerateOverlapEvents","pin_type":"uint8","function_name":"Get Generate Overlap Events","is_native_property":true},{"title":"Get Multi Body Overlap","tooltip":"Access the bMultiBodyOverlap property on PrimitiveComponent","category":"Native Property","variable_name":"bMultiBodyOverlap","pin_type":"uint8","function_name":"Get Multi Body Overlap","is_native_property":true},{"function_name":"SetGenerateOverlapEvents","class_name":"PrimitiveComponent","title":"SetGenerateOverlapEvents","tooltip":"","category":"PrimitiveComponent"},{"function_name":"K2_SphereOverlapComponent","class_name":"PrimitiveComponent","title":"K2_SphereOverlapComponent","tooltip":"","category":"PrimitiveComponent"},{"function_name":"K2_BoxOverlapComponent","class_name":"PrimitiveComponent","title":"K2_BoxOverlapComponent","tooltip":"","category":"PrimitiveComponent"},{"function_name":"IsOverlappingComponent","class_name":"PrimitiveComponent","title":"IsOverlappingComponent","tooltip":"","category":"PrimitiveComponent"},{"function_name":"IsOverlappingActor","class_name":"PrimitiveComponent","title":"IsOverlappingActor","tooltip":"","category":"PrimitiveComponent"},{"function_name":"GetOverlappingComponents","class_name":"PrimitiveComponent","title":"GetOverlappingComponents","tooltip":"","category":"PrimitiveComponent"},{"function_name":"GetOverlappingActors","class_name":"PrimitiveComponent","title":"GetOverlappingActors","tooltip":"","category":"PrimitiveComponent"},{"function_name":"GetGenerateOverlapEvents","class_name":"PrimitiveComponent","title":"GetGenerateOverlapEvents","tooltip":"","category":"PrimitiveComponent"},{"function_name":"GetInstancesOverlappingSphere","class_name":"InstancedStaticMeshComponent","title":"GetInstancesOverlappingSphere","tooltip":"","category":"PrimitiveComponent"},{"function_name":"GetInstancesOverlappingBox","class_name":"InstancedStaticMeshComponent","title":"GetInstancesOverlappingBox","tooltip":"","category":"PrimitiveComponent"}],"action_count":12,"message":"Found 12 actions for class 'PrimitiveComponent'"}}
+
+
+=== RECEIVE START: 2025-11-30 14:19:15.506202 ===
+Calling sock.recv(4096)...
+Received chunk: 86 bytes
+Total data so far: 86 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[],"node_count":0,"node_ids":[]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[],"node_count":0,"node_ids":[]}}
+
+
+=== RECEIVE START: 2025-11-30 14:19:19.360298 ===
+Calling sock.recv(4096)...
+Received chunk: 86 bytes
+Total data so far: 86 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[],"node_count":0,"node_ids":[]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[],"node_count":0,"node_ids":[]}}
+
+
+=== RECEIVE START: 2025-11-30 14:19:23.117833 ===
+Calling sock.recv(4096)...
+Received chunk: 569 bytes
+Total data so far: 569 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveBeginPlay' node (UK2Node_Event)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"ReceiveBeginPlay","nod...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveBeginPlay' node (UK2Node_Event)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"ReceiveBeginPlay","node_type":"UK2Node_Event","class_name":"","node_id":"6A51DBCF40FD8A70AD2B108ACD8C89BC","node_title":"ReceiveBeginPlay","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":500},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:19:29.977729 ===
+Calling sock.recv(4096)...
+Received chunk: 675 bytes
+Total data so far: 675 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Component by Class' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetCompone...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Component by Class' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetComponentByClass","node_type":"K2Node_CallFunction","class_name":"","node_id":"2E0B664A49DA76765711E383BB44E01C","node_title":"Get Component by Class","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":500},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"ComponentClass","type":"class","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:06.955731 ===
+Calling sock.recv(4096)...
+Received chunk: 578 bytes
+Total data so far: 578 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'OnNPCOverlapBegin' node (UK2Node_CustomEvent)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"CustomEvent","n...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'OnNPCOverlapBegin' node (UK2Node_CustomEvent)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"CustomEvent","node_type":"UK2Node_CustomEvent","class_name":"","node_id":"8D9DFC8548D4F3CB836F459916AC89C9","node_title":"OnNPCOverlapBegin","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":300},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:07.295696 ===
+Calling sock.recv(4096)...
+Received chunk: 574 bytes
+Total data so far: 574 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'OnNPCOverlapEnd' node (UK2Node_CustomEvent)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"CustomEvent","nod...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'OnNPCOverlapEnd' node (UK2Node_CustomEvent)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"CustomEvent","node_type":"UK2Node_CustomEvent","class_name":"","node_id":"8BF6954341C76DDAB56E65AE4E4D6AB3","node_title":"OnNPCOverlapEnd","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":700},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:13.976905 ===
+Calling sock.recv(4096)...
+Received chunk: 619 bytes
+Total data so far: 619 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get CurrentInteractableNPC' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get Cu...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get CurrentInteractableNPC' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get CurrentInteractableNPC","node_type":"UK2Node_VariableGet","class_name":"","node_id":"15866D214B0158124664E2804E169C7E","node_title":"Get CurrentInteractableNPC","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":270},"pins":[{"name":"CurrentInteractableNPC","type":"object","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:14.274842 ===
+Calling sock.recv(4096)...
+Received chunk: 675 bytes
+Total data so far: 675 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Component by Class' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetCompone...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Component by Class' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetComponentByClass","node_type":"K2Node_CallFunction","class_name":"","node_id":"8DC5D971465F9F207480BFA323CBE787","node_title":"Get Component by Class","is_pure_function":true,"requires_execution_flow":false,"position":{"x":700,"y":270},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"ComponentClass","type":"class","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:14.691352 ===
+Calling sock.recv(4096)...
+Received chunk: 803 bytes
+Total data so far: 803 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Set Visibility' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"SetVisibility","no...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Set Visibility' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"SetVisibility","node_type":"K2Node_CallFunction","class_name":"","node_id":"BB1890FF4F65173911F09DA352E954F5","node_title":"Set Visibility","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1000,"y":270},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"bNewVisibility","type":"bool","direction":"input","is_execution":false},{"name":"bPropagateToChildren","type":"bool","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:20.687269 ===
+Calling sock.recv(4096)...
+Received chunk: 246 bytes
+Total data so far: 246 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"8DC5D971465F9F207480BFA323CBE787","pin_name":"ComponentClass","value":"WidgetComponent","pin_type":"c...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"8DC5D971465F9F207480BFA323CBE787","pin_name":"ComponentClass","value":"WidgetComponent","pin_type":"class","message":"Pin value set successfully"}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:20.947902 ===
+Calling sock.recv(4096)...
+Received chunk: 234 bytes
+Total data so far: 234 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"BB1890FF4F65173911F09DA352E954F5","pin_name":"bNewVisibility","value":"True","pin_type":"bool","messa...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"BB1890FF4F65173911F09DA352E954F5","pin_name":"bNewVisibility","value":"True","pin_type":"bool","message":"Pin value set successfully"}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:27.175971 ===
+Calling sock.recv(4096)...
+Received chunk: 468 bytes
+Total data so far: 468 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"8D9DFC8548D4F3CB836F459916AC89C9","target_node_id":"BB1890FF4F65173911F09DA352E954F5"},{"success":true,"source_node_id":"1586...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"8D9DFC8548D4F3CB836F459916AC89C9","target_node_id":"BB1890FF4F65173911F09DA352E954F5"},{"success":true,"source_node_id":"15866D214B0158124664E2804E169C7E","target_node_id":"8DC5D971465F9F207480BFA323CBE787"},{"success":true,"source_node_id":"8DC5D971465F9F207480BFA323CBE787","target_node_id":"BB1890FF4F65173911F09DA352E954F5"}],"batch":true,"successful_connections":3,"total_connections":3}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:34.283517 ===
+Calling sock.recv(4096)...
+Received chunk: 619 bytes
+Total data so far: 619 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get CurrentInteractableNPC' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get Cu...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get CurrentInteractableNPC' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get CurrentInteractableNPC","node_type":"UK2Node_VariableGet","class_name":"","node_id":"41A945FC4F42BD6BFC5AFDA607521609","node_title":"Get CurrentInteractableNPC","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":670},"pins":[{"name":"CurrentInteractableNPC","type":"object","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:34.938086 ===
+Calling sock.recv(4096)...
+Received chunk: 675 bytes
+Total data so far: 675 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Component by Class' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetCompone...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Component by Class' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetComponentByClass","node_type":"K2Node_CallFunction","class_name":"","node_id":"B1F627DB4EC13FCEA3EFFC84F5355958","node_title":"Get Component by Class","is_pure_function":true,"requires_execution_flow":false,"position":{"x":700,"y":670},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"ComponentClass","type":"class","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:35.398248 ===
+Calling sock.recv(4096)...
+Received chunk: 803 bytes
+Total data so far: 803 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Set Visibility' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"SetVisibility","no...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Set Visibility' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"SetVisibility","node_type":"K2Node_CallFunction","class_name":"","node_id":"080FFEC34F5D5FC0CB13F8A5E3020754","node_title":"Set Visibility","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1000,"y":670},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"bNewVisibility","type":"bool","direction":"input","is_execution":false},{"name":"bPropagateToChildren","type":"bool","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:35.800242 ===
+Calling sock.recv(4096)...
+Received chunk: 843 bytes
+Total data so far: 843 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Set CurrentInteractableNPC' node (UK2Node_VariableSet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Set Cu...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Set CurrentInteractableNPC' node (UK2Node_VariableSet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Set CurrentInteractableNPC","node_type":"UK2Node_VariableSet","class_name":"","node_id":"600B8CDF4E3DE10E7706DAA24BF81CF5","node_title":"Set CurrentInteractableNPC","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1300,"y":670},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"CurrentInteractableNPC","type":"object","direction":"input","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"Output_Get","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:45.650077 ===
+Calling sock.recv(4096)...
+Received chunk: 246 bytes
+Total data so far: 246 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"B1F627DB4EC13FCEA3EFFC84F5355958","pin_name":"ComponentClass","value":"WidgetComponent","pin_type":"c...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"B1F627DB4EC13FCEA3EFFC84F5355958","pin_name":"ComponentClass","value":"WidgetComponent","pin_type":"class","message":"Pin value set successfully"}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:45.769412 ===
+Calling sock.recv(4096)...
+Received chunk: 235 bytes
+Total data so far: 235 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"080FFEC34F5D5FC0CB13F8A5E3020754","pin_name":"bNewVisibility","value":"False","pin_type":"bool","mess...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"080FFEC34F5D5FC0CB13F8A5E3020754","pin_name":"bNewVisibility","value":"False","pin_type":"bool","message":"Pin value set successfully"}}
+
+
+=== RECEIVE START: 2025-11-30 14:20:45.877309 ===
+Calling sock.recv(4096)...
+Received chunk: 589 bytes
+Total data so far: 589 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"8BF6954341C76DDAB56E65AE4E4D6AB3","target_node_id":"080FFEC34F5D5FC0CB13F8A5E3020754"},{"success":true,"source_node_id":"41A9...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"8BF6954341C76DDAB56E65AE4E4D6AB3","target_node_id":"080FFEC34F5D5FC0CB13F8A5E3020754"},{"success":true,"source_node_id":"41A945FC4F42BD6BFC5AFDA607521609","target_node_id":"B1F627DB4EC13FCEA3EFFC84F5355958"},{"success":true,"source_node_id":"B1F627DB4EC13FCEA3EFFC84F5355958","target_node_id":"080FFEC34F5D5FC0CB13F8A5E3020754"},{"success":true,"source_node_id":"080FFEC34F5D5FC0CB13F8A5E3020754","target_node_id":"600B8CDF4E3DE10E7706DAA24BF81CF5"}],"batch":true,"successful_connections":4,"total_connections":4}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:02.311583 ===
+Calling sock.recv(4096)...
+Received chunk: 507 bytes
+Total data so far: 507 bytes
+Decoded preview: {"status":"success","result":{"success":true,"path":"/Game/ThirdPerson/Input","count":4,"actions":[{"name":"IA_Interact","path":"/Game/ThirdPerson/Input/Actions/IA_Interact.IA_Interact","value_type":"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"path":"/Game/ThirdPerson/Input","count":4,"actions":[{"name":"IA_Interact","path":"/Game/ThirdPerson/Input/Actions/IA_Interact.IA_Interact","value_type":"Digital"},{"name":"IA_Jump","path":"/Game/ThirdPerson/Input/Actions/IA_Jump.IA_Jump","value_type":"Digital"},{"name":"IA_Look","path":"/Game/ThirdPerson/Input/Actions/IA_Look.IA_Look","value_type":"Axis2D"},{"name":"IA_Move","path":"/Game/ThirdPerson/Input/Actions/IA_Move.IA_Move","value_type":"Axis2D"}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:06.701941 ===
+Calling sock.recv(4096)...
+Received chunk: 100 bytes
+Total data so far: 100 bytes
+Decoded preview: {"status":"error","error":"Function 'IA_Interact' not found and not a recognized control flow node"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Function 'IA_Interact' not found and not a recognized control flow node"}
+
+
+=== RECEIVE START: 2025-11-30 14:21:11.035787 ===
+Calling sock.recv(4096)...
+Received chunk: 144 bytes
+Total data so far: 144 bytes
+Decoded preview: {"status":"error","error":"","class_name":"EnhancedInputAction","actions":[],"action_count":0,"message":"Class 'EnhancedInputAction' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"","class_name":"EnhancedInputAction","actions":[],"action_count":0,"message":"Class 'EnhancedInputAction' not found"}
+
+
+=== RECEIVE START: 2025-11-30 14:21:15.073238 ===
+Calling sock.recv(4096)...
+Received chunk: 165 bytes
+Total data so far: 165 bytes
+Decoded preview: {"status":"success","result":{"success":true,"class_name":"PlayerController","actions":[],"action_count":0,"message":"Found 0 actions for class 'PlayerController'"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"class_name":"PlayerController","actions":[],"action_count":0,"message":"Found 0 actions for class 'PlayerController'"}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:20.089195 ===
+Calling sock.recv(4096)...
+Received chunk: 1165 bytes
+Total data so far: 1165 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'EnhancedInputAction IA_Interact' node (K2Node_EnhancedInputAction)","blueprint_name":"BP_ThirdPersonCharacter","function_n...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'EnhancedInputAction IA_Interact' node (K2Node_EnhancedInputAction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"IA_Interact","node_type":"K2Node_EnhancedInputAction","class_name":"","node_id":"8A6D1B5F4841BA01580FDCBA12825612","node_title":"EnhancedInputAction IA_Interact","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":1000},"pins":[{"name":"Triggered","type":"exec","direction":"output","is_execution":true},{"name":"Started","type":"exec","direction":"output","is_execution":true},{"name":"Ongoing","type":"exec","direction":"output","is_execution":true},{"name":"Canceled","type":"exec","direction":"output","is_execution":true},{"name":"Completed","type":"exec","direction":"output","is_execution":true},{"name":"ActionValue","type":"bool","direction":"output","is_execution":false},{"name":"ElapsedSeconds","type":"real","direction":"output","is_execution":false},{"name":"TriggeredSeconds","type":"real","direction":"output","is_execution":false},{"name":"InputAction","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:28.684944 ===
+Calling sock.recv(4096)...
+Received chunk: 620 bytes
+Total data so far: 620 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get CurrentInteractableNPC' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get Cu...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get CurrentInteractableNPC' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get CurrentInteractableNPC","node_type":"UK2Node_VariableGet","class_name":"","node_id":"29911E5B4362D423ECA412B522FFBC58","node_title":"Get CurrentInteractableNPC","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":1000},"pins":[{"name":"CurrentInteractableNPC","type":"object","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:28.850098 ===
+Calling sock.recv(4096)...
+Received chunk: 732 bytes
+Total data so far: 732 bytes
+Decoded preview: {"status":"error","error":"ERROR: Multiple functions found with name 'IsValid' in different classes. You MUST specify 'class_name' parameter to disambiguate.\n\nAvailable classes:\n  - SharedImageCons...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"ERROR: Multiple functions found with name 'IsValid' in different classes. You MUST specify 'class_name' parameter to disambiguate.\n\nAvailable classes:\n  - SharedImageConstRefBlueprintFns\n  - AssetRegistryHelpers\n  - NavigationPath\n  - SubobjectDataBlueprintFunctionLibrary\n  - KismetSystemLibrary\n  - AnimPoseExtensions\n  - MusicalTimeFunctionLibrary\n  - AnimationAttributeIdentifierExtensions\n  - AnimationCurveIdentifierExtensions\n  - RigVMUserWorkflowOptions\n  - CameraRigInstanceFunctions\n  - MovieSceneBindingExtensions\n\nExample:\n  create_node_by_action_name(\n      function_name=\"IsValid\",\n      class_name=\"SharedImageConstRefBlueprintFns\",  # ← REQUIRED!\n      ...\n  )"}
+
+
+=== RECEIVE START: 2025-11-30 14:21:29.276025 ===
+Calling sock.recv(4096)...
+Received chunk: 685 bytes
+Total data so far: 685 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Nod...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Node_IfThenElse","class_name":"","node_id":"6EAE0D5D4D826E47D3791CAA42F396B2","node_title":"Branch","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1000,"y":1000},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"Condition","type":"bool","direction":"input","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"else","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:33.515969 ===
+Calling sock.recv(4096)...
+Received chunk: 627 bytes
+Total data so far: 627 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Is Valid' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"IsValid","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Is Valid' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"IsValid","node_type":"K2Node_CallFunction","class_name":"","node_id":"9AC827954E4F24653BEC488839E4426A","node_title":"Is Valid","is_pure_function":true,"requires_execution_flow":false,"position":{"x":700,"y":1000},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"Object","type":"object","direction":"input","is_execution":false},{"name":"ReturnValue","type":"bool","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:42.625008 ===
+Calling sock.recv(4096)...
+Received chunk: 166 bytes
+Total data so far: 166 bytes
+Decoded preview: {"status":"error","error":"Variable or component 'PlayerController' not found in Blueprint 'BP_ThirdPersonCharacter' and no matching Blueprint Action Database entry"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Variable or component 'PlayerController' not found in Blueprint 'BP_ThirdPersonCharacter' and no matching Blueprint Action Database entry"}
+
+
+=== RECEIVE START: 2025-11-30 14:21:43.106842 ===
+Calling sock.recv(4096)...
+Received chunk: 608 bytes
+Total data so far: 608 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get DialogueWidgetClass' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get Dialo...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get DialogueWidgetClass' node (UK2Node_VariableGet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Get DialogueWidgetClass","node_type":"UK2Node_VariableGet","class_name":"","node_id":"52A4F38F447DA5823F5C029F35B99890","node_title":"Get DialogueWidgetClass","is_pure_function":true,"requires_execution_flow":false,"position":{"x":1300,"y":1100},"pins":[{"name":"DialogueWidgetClass","type":"class","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:43.518714 ===
+Calling sock.recv(4096)...
+Received chunk: 964 bytes
+Total data so far: 964 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Create' node (UK2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Create","node_type":"UK2N...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Create' node (UK2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Create","node_type":"UK2Node_CallFunction","class_name":"WidgetBlueprintLibrary","node_id":"778F719B4F14F3BCE77E3A9AB400D149","node_title":"Create","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1600,"y":1000},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"WidgetType","type":"class","direction":"input","is_execution":false},{"name":"OwningPlayer","type":"object","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:49.957151 ===
+Calling sock.recv(4096)...
+Received chunk: 108 bytes
+Total data so far: 108 bytes
+Decoded preview: {"status":"error","error":"Function 'GetPlayerController' not found and not a recognized control flow node"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Function 'GetPlayerController' not found and not a recognized control flow node"}
+
+
+=== RECEIVE START: 2025-11-30 14:21:50.283335 ===
+Calling sock.recv(4096)...
+Received chunk: 840 bytes
+Total data so far: 840 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Set CurrentDialogueWidget' node (UK2Node_VariableSet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Set Cur...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Set CurrentDialogueWidget' node (UK2Node_VariableSet)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Set CurrentDialogueWidget","node_type":"UK2Node_VariableSet","class_name":"","node_id":"150087F44E173942637DA5AD68FCE5DA","node_title":"Set CurrentDialogueWidget","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1900,"y":1000},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"CurrentDialogueWidget","type":"object","direction":"input","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"Output_Get","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:50.521096 ===
+Calling sock.recv(4096)...
+Received chunk: 710 bytes
+Total data so far: 710 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Add to Viewport' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"AddToViewport","n...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Add to Viewport' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"AddToViewport","node_type":"K2Node_CallFunction","class_name":"","node_id":"7EFD67674E9D272E022F7D9CFBAF1347","node_title":"Add to Viewport","is_pure_function":false,"requires_execution_flow":true,"position":{"x":2200,"y":1000},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"ZOrder","type":"int","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:54.960681 ===
+Calling sock.recv(4096)...
+Received chunk: 2526 bytes
+Total data so far: 2526 bytes
+Decoded preview: {"status":"success","result":{"success":true,"class_name":"Pawn","actions":[{"title":"Get Use Controller Rotation Pitch","tooltip":"Access the bUseControllerRotationPitch property on Pawn","category":...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"class_name":"Pawn","actions":[{"title":"Get Use Controller Rotation Pitch","tooltip":"Access the bUseControllerRotationPitch property on Pawn","category":"Native Property","variable_name":"bUseControllerRotationPitch","pin_type":"uint8","function_name":"Get Use Controller Rotation Pitch","is_native_property":true},{"title":"Get Use Controller Rotation Yaw","tooltip":"Access the bUseControllerRotationYaw property on Pawn","category":"Native Property","variable_name":"bUseControllerRotationYaw","pin_type":"uint8","function_name":"Get Use Controller Rotation Yaw","is_native_property":true},{"title":"Get Use Controller Rotation Roll","tooltip":"Access the bUseControllerRotationRoll property on Pawn","category":"Native Property","variable_name":"bUseControllerRotationRoll","pin_type":"uint8","function_name":"Get Use Controller Rotation Roll","is_native_property":true},{"title":"Get AIController Class","tooltip":"Access the AIControllerClass property on Pawn","category":"Native Property","variable_name":"AIControllerClass","pin_type":"TSubclassOf<AController>","function_name":"Get AIController Class","is_native_property":true},{"title":"Get Last Hit By","tooltip":"Access the LastHitBy property on Pawn","category":"Native Property","variable_name":"LastHitBy","pin_type":"TObjectPtr<AController>","function_name":"Get Last Hit By","is_native_property":true},{"function_name":"GetInstigatorController","class_name":"Actor","title":"GetInstigatorController","tooltip":"","category":"Pawn"},{"function_name":"SpawnDefaultController","class_name":"Pawn","title":"SpawnDefaultController","tooltip":"","category":"Pawn"},{"function_name":"GetLocalViewingPlayerController","class_name":"Pawn","title":"GetLocalViewingPlayerController","tooltip":"","category":"Pawn"},{"function_name":"GetController","class_name":"Pawn","title":"GetController","tooltip":"","category":"Pawn"},{"function_name":"DetachFromControllerPendingDestroy","class_name":"Pawn","title":"DetachFromControllerPendingDestroy","tooltip":"","category":"Pawn"},{"function_name":"AddControllerYawInput","class_name":"Pawn","title":"AddControllerYawInput","tooltip":"","category":"Pawn"},{"function_name":"AddControllerRollInput","class_name":"Pawn","title":"AddControllerRollInput","tooltip":"","category":"Pawn"},{"function_name":"AddControllerPitchInput","class_name":"Pawn","title":"AddControllerPitchInput","tooltip":"","category":"Pawn"}],"action_count":13,"message":"Found 13 actions for class 'Pawn'"}}
+
+
+=== RECEIVE START: 2025-11-30 14:21:59.220628 ===
+Calling sock.recv(4096)...
+Received chunk: 573 bytes
+Total data so far: 573 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Controller' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetController","no...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Controller' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"GetController","node_type":"K2Node_CallFunction","class_name":"","node_id":"FBBA0F6747926ECA188E3182F04BD5A5","node_title":"Get Controller","is_pure_function":true,"requires_execution_flow":false,"position":{"x":1300,"y":1000},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:22:03.951064 ===
+Calling sock.recv(4096)...
+Received chunk: 223 bytes
+Total data so far: 223 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"7EFD67674E9D272E022F7D9CFBAF1347","pin_name":"ZOrder","value":"10","pin_type":"int","message":"Pin va...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"7EFD67674E9D272E022F7D9CFBAF1347","pin_name":"ZOrder","value":"10","pin_type":"int","message":"Pin value set successfully"}}
+
+
+=== RECEIVE START: 2025-11-30 14:22:17.365088 ===
+Calling sock.recv(4096)...
+Received chunk: 1317 bytes
+Total data so far: 1317 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"8A6D1B5F4841BA01580FDCBA12825612","target_node_id":"6EAE0D5D4D826E47D3791CAA42F396B2"},{"success":true,"source_node_id":"2991...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"8A6D1B5F4841BA01580FDCBA12825612","target_node_id":"6EAE0D5D4D826E47D3791CAA42F396B2"},{"success":true,"source_node_id":"29911E5B4362D423ECA412B522FFBC58","target_node_id":"9AC827954E4F24653BEC488839E4426A"},{"success":true,"source_node_id":"9AC827954E4F24653BEC488839E4426A","target_node_id":"6EAE0D5D4D826E47D3791CAA42F396B2"},{"success":true,"source_node_id":"6EAE0D5D4D826E47D3791CAA42F396B2","target_node_id":"778F719B4F14F3BCE77E3A9AB400D149"},{"success":true,"source_node_id":"FBBA0F6747926ECA188E3182F04BD5A5","target_node_id":"778F719B4F14F3BCE77E3A9AB400D149"},{"success":true,"source_node_id":"52A4F38F447DA5823F5C029F35B99890","target_node_id":"778F719B4F14F3BCE77E3A9AB400D149"},{"success":true,"source_node_id":"778F719B4F14F3BCE77E3A9AB400D149","target_node_id":"150087F44E173942637DA5AD68FCE5DA"},{"success":true,"source_node_id":"778F719B4F14F3BCE77E3A9AB400D149","target_node_id":"150087F44E173942637DA5AD68FCE5DA"},{"success":true,"source_node_id":"150087F44E173942637DA5AD68FCE5DA","target_node_id":"7EFD67674E9D272E022F7D9CFBAF1347"},{"success":true,"source_node_id":"150087F44E173942637DA5AD68FCE5DA","target_node_id":"7EFD67674E9D272E022F7D9CFBAF1347"}],"batch":true,"successful_connections":10,"total_connections":10}}
+
+
+=== RECEIVE START: 2025-11-30 14:22:27.382433 ===
+Calling sock.recv(4096)...
+Received chunk: 853 bytes
+Total data so far: 853 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Cast","node_type":"UK2Node_D...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Cast","node_type":"UK2Node_DynamicCast","class_name":"","node_id":"47198EBB4CBBB4E3EDEA578BC423A802","node_title":"Cast","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1450,"y":1000},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"CastFailed","type":"exec","direction":"output","is_execution":true},{"name":"Object","type":"wildcard","direction":"input","is_execution":false},{"name":"AsPlayer Controller","type":"object","direction":"output","is_execution":false},{"name":"bSuccess","type":"bool","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:22:45.220797 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"FBBA0F6747926ECA188E3182F04BD5A5","target_node_id":"47198EBB4CBBB4E3EDEA578BC423A802"},{"success":true,"source_node_id":"4719...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"FBBA0F6747926ECA188E3182F04BD5A5","target_node_id":"47198EBB4CBBB4E3EDEA578BC423A802"},{"success":true,"source_node_id":"47198EBB4CBBB4E3EDEA578BC423A802","target_node_id":"778F719B4F14F3BCE77E3A9AB400D149"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-11-30 14:22:58.640929 ===
+Calling sock.recv(4096)...
+Received chunk: 305 bytes
+Total data so far: 305 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"FBBA0F6747926ECA188E3182F04BD5A5","target_graph":"EventGraph","total_disconnections":2,"disconnected_...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_ThirdPersonCharacter","node_id":"FBBA0F6747926ECA188E3182F04BD5A5","target_graph":"EventGraph","total_disconnections":2,"disconnected_pins":["ReturnValue"],"message":"Disconnected 2 connections from node FBBA0F6747926ECA188E3182F04BD5A5"}}
+
+
+=== RECEIVE START: 2025-11-30 14:23:03.636657 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"FBBA0F6747926ECA188E3182F04BD5A5","target_node_id":"47198EBB4CBBB4E3EDEA578BC423A802"},{"success":true,"source_node_id":"4719...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"FBBA0F6747926ECA188E3182F04BD5A5","target_node_id":"47198EBB4CBBB4E3EDEA578BC423A802"},{"success":true,"source_node_id":"47198EBB4CBBB4E3EDEA578BC423A802","target_node_id":"778F719B4F14F3BCE77E3A9AB400D149"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-11-30 14:23:10.519598 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"6EAE0D5D4D826E47D3791CAA42F396B2","target_node_id":"47198EBB4CBBB4E3EDEA578BC423A802"},{"success":true,"source_node_id":"4719...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"6EAE0D5D4D826E47D3791CAA42F396B2","target_node_id":"47198EBB4CBBB4E3EDEA578BC423A802"},{"success":true,"source_node_id":"47198EBB4CBBB4E3EDEA578BC423A802","target_node_id":"778F719B4F14F3BCE77E3A9AB400D149"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-11-30 14:45:32.195196 ===
+Calling sock.recv(4096)...
+Received chunk: 93 bytes
+Total data so far: 93 bytes
+Decoded preview: {"status":"error","error":"Function 'test' not found and not a recognized control flow node"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Function 'test' not found and not a recognized control flow node"}
+
+
+=== RECEIVE START: 2025-11-30 14:55:37.783022 ===
+Calling sock.recv(4096)...
+Received chunk: 1146 bytes
+Total data so far: 1146 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'OnComponentBeginOverlap (InteractionRadius)' node (UK2Node_ComponentBoundEvent)","blueprint_name":"BP_ThirdPersonCharacter...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'OnComponentBeginOverlap (InteractionRadius)' node (UK2Node_ComponentBoundEvent)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"OnComponentBeginOverlap","node_type":"UK2Node_ComponentBoundEvent","class_name":"","node_id":"B4931F144EB387FF1FB6948AFE2192CC","node_title":"OnComponentBeginOverlap (InteractionRadius)","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":100},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"OverlappedComponent","type":"object","direction":"output","is_execution":false},{"name":"OtherActor","type":"object","direction":"output","is_execution":false},{"name":"OtherComp","type":"object","direction":"output","is_execution":false},{"name":"OtherBodyIndex","type":"int","direction":"output","is_execution":false},{"name":"bFromSweep","type":"bool","direction":"output","is_execution":false},{"name":"SweepResult","type":"struct","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 14:55:42.743470 ===
+Calling sock.recv(4096)...
+Received chunk: 981 bytes
+Total data so far: 981 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'OnComponentEndOverlap (InteractionRadius)' node (UK2Node_ComponentBoundEvent)","blueprint_name":"BP_ThirdPersonCharacter",...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'OnComponentEndOverlap (InteractionRadius)' node (UK2Node_ComponentBoundEvent)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"OnComponentEndOverlap","node_type":"UK2Node_ComponentBoundEvent","class_name":"","node_id":"929BE64245917427CCEF01AF322F606B","node_title":"OnComponentEndOverlap (InteractionRadius)","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":500},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"OverlappedComponent","type":"object","direction":"output","is_execution":false},{"name":"OtherActor","type":"object","direction":"output","is_execution":false},{"name":"OtherComp","type":"object","direction":"output","is_execution":false},{"name":"OtherBodyIndex","type":"int","direction":"output","is_execution":false}]}}

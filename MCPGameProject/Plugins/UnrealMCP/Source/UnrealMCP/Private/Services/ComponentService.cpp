@@ -398,7 +398,7 @@ bool FComponentService::AddComponentToBlueprint(UBlueprint* Blueprint, const FCo
         return false;
     }
     
-    // Get the Subobject Data Subsystem (UE 5.6+ API)
+    // Get the Subobject Data Subsystem (UE 5.7+ API)
     // Note: USubobjectDataSubsystem is a UEngineSubsystem, not UEditorSubsystem
     USubobjectDataSubsystem* SubobjectDataSubsystem = GEngine->GetEngineSubsystem<USubobjectDataSubsystem>();
     if (!SubobjectDataSubsystem)

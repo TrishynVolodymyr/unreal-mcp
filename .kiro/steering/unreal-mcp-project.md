@@ -1,17 +1,17 @@
 # Unreal MCP Project Context
 
 ## Product Overview
-This is an experimental Model Context Protocol (MCP) integration for Unreal Engine 5.6 that enables AI assistants to control Unreal Engine through natural language commands.
+This is an experimental Model Context Protocol (MCP) integration for Unreal Engine 5.7 that enables AI assistants to control Unreal Engine through natural language commands.
 
 ## Tech Stack
-- **Engine**: Unreal Engine 5.6
+- **Engine**: Unreal Engine 5.7
 - **Plugin**: C++ UnrealMCP plugin (TCP server on port 55557)
 - **Python**: 7 MCP servers using FastMCP library
 - **Protocol**: Model Context Protocol for AI assistant integration
 - **Clients**: Claude Desktop, Cursor, Windsurf, Kiro
 
 ## Architecture
-- **MCPGameProject/**: Sample UE 5.6 project with UnrealMCP plugin
+- **MCPGameProject/**: Sample UE 5.7 project with UnrealMCP plugin
 - **Python/**: 7 specialized MCP servers (*_mcp_server.py files)
 - **Docs/**: Comprehensive documentation for each tool category
 

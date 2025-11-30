@@ -113,10 +113,10 @@ UDataTable* FDataTableService::CreateDataTable(const FDataTableCreationParams& P
     
     UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully created DataTable asset at: '%s'"), *NewDataTable->GetPathName());
     
-    // Note: Metadata setting removed for UE 5.6 compatibility
+    // Note: Metadata setting removed for UE 5.7 compatibility
     if (!Params.Description.IsEmpty())
     {
-        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Description provided but metadata setting skipped for UE 5.6 compatibility: '%s'"), *Params.Description);
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Description provided but metadata setting skipped for UE 5.7 compatibility: '%s'"), *Params.Description);
     }
     
     // Save the asset
@@ -240,7 +240,7 @@ bool FDataTableService::AddRowsToDataTable(UDataTable* DataTable, const TArray<F
             }
         }
         
-        // UE 5.6 proper fix: Use JsonAttributesToUStruct for struct array support
+        // UE 5.7 proper fix: Use JsonAttributesToUStruct for struct array support
         bool bJsonConverted = FJsonObjectConverter::JsonAttributesToUStruct(JsonRef->Values, RowStruct, RowMemory);
         
         UE_LOG(LogTemp, Warning, TEXT("MCP DEBUG: JsonAttributesToUStruct result: %s"), bJsonConverted ? TEXT("SUCCESS") : TEXT("FAILED"));
@@ -349,7 +349,7 @@ bool FDataTableService::UpdateRowsInDataTable(UDataTable* DataTable, const TArra
         
         TSharedRef<FJsonObject> JsonRef = StructJson.ToSharedRef();
         
-        // UE 5.6 proper fix: Use JsonAttributesToUStruct for struct array support
+        // UE 5.7 proper fix: Use JsonAttributesToUStruct for struct array support
         bool bJsonConverted = FJsonObjectConverter::JsonAttributesToUStruct(JsonRef->Values, RowStruct, RowMemory);
         
         if (!bJsonConverted)
@@ -424,7 +424,7 @@ bool FDataTableService::DeleteRowsFromDataTable(UDataTable* DataTable, const TAr
         }
     }
     
-    // Use direct row map manipulation to avoid UE 5.6 RemoveRow() crashes
+    // Use direct row map manipulation to avoid UE 5.7 RemoveRow() crashes
     for (const FName& RowFName : ValidRowNames)
     {
         try
