@@ -556,3 +556,183 @@ Total data so far: 981 bytes
 Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'OnComponentEndOverlap (InteractionRadius)' node (UK2Node_ComponentBoundEvent)","blueprint_name":"BP_ThirdPersonCharacter",...
 SUCCESS: Complete JSON received!
 Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'OnComponentEndOverlap (InteractionRadius)' node (UK2Node_ComponentBoundEvent)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"OnComponentEndOverlap","node_type":"UK2Node_ComponentBoundEvent","class_name":"","node_id":"929BE64245917427CCEF01AF322F606B","node_title":"OnComponentEndOverlap (InteractionRadius)","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":500},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"OverlappedComponent","type":"object","direction":"output","is_execution":false},{"name":"OtherActor","type":"object","direction":"output","is_execution":false},{"name":"OtherComp","type":"object","direction":"output","is_execution":false},{"name":"OtherBodyIndex","type":"int","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 16:56:24.332917 ===
+Calling sock.recv(4096)...
+Received chunk: 684 bytes
+Total data so far: 684 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Nod...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Node_IfThenElse","class_name":"","node_id":"B078B51F4AC5E375D169138A1A44FB40","node_title":"Branch","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1000,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"Condition","type":"bool","direction":"input","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"else","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-11-30 16:56:29.866125 ===
+Calling sock.recv(4096)...
+Received chunk: 1175 bytes
+Total data so far: 1175 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"PrintString","node_t...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"02D8C24F4BF4E19D84E8609066665437","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1000,"y":300},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-11-30 16:59:31.400243 ===
+Calling sock.recv(4096)...
+Received chunk: 116 bytes
+Total data so far: 116 bytes
+Decoded preview: {"status":"success","result":{"success":true,"graph_names":["EventGraph","UserConstructionScript"],"graph_count":2}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"graph_names":["EventGraph","UserConstructionScript"],"graph_count":2}}
+
+
+=== RECEIVE START: 2025-11-30 16:59:40.710179 ===
+Calling sock.recv(4096)...
+Received chunk: 684 bytes
+Total data so far: 684 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Nod...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Branch","node_type":"UK2Node_IfThenElse","class_name":"","node_id":"D2FBD5CF4C3524D009A023AD8F102FEB","node_title":"Branch","is_pure_function":false,"requires_execution_flow":true,"position":{"x":1000,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"Condition","type":"bool","direction":"input","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"else","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-11-30 16:59:45.346507 ===
+Calling sock.recv(4096)...
+Received chunk: 654 bytes
+Total data so far: 654 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'String To Integer' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Conv_StringToIn...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'String To Integer' node (K2Node_CallFunction)","blueprint_name":"BP_ThirdPersonCharacter","function_name":"Conv_StringToInt","node_type":"K2Node_CallFunction","class_name":"","node_id":"7DBA064441C39B113C06DA852B07EB94","node_title":"String To Integer","is_pure_function":true,"requires_execution_flow":false,"position":{"x":700,"y":100},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"ReturnValue","type":"int","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-01 20:47:49.074732 ===
+Calling sock.recv(4096)...
+Received chunk: 135 bytes
+Total data so far: 135 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"WBP_RefactorTest","path":"/Game/Widgets/WBP_RefactorTest","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"WBP_RefactorTest","path":"/Game/Widgets/WBP_RefactorTest","already_exists":false}}
+
+
+=== RECEIVE START: 2025-12-01 21:06:49.714630 ===
+Calling sock.recv(4096)...
+Received chunk: 145 bytes
+Total data so far: 145 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"WBP_WidgetServiceTest","path":"/Game/Widgets/WBP_WidgetServiceTest","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"WBP_WidgetServiceTest","path":"/Game/Widgets/WBP_WidgetServiceTest","already_exists":false}}
+
+
+=== RECEIVE START: 2025-12-01 21:08:24.609413 ===
+Calling sock.recv(4096)...
+Received chunk: 131 bytes
+Total data so far: 131 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"TitleText","component_type":"TextBlock","widget_class":"TextBlock"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"TitleText","component_type":"TextBlock","widget_class":"TextBlock"}}
+
+
+=== RECEIVE START: 2025-12-01 21:11:26.589562 ===
+Calling sock.recv(4096)...
+Received chunk: 258 bytes
+Total data so far: 258 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"TitleText","success_properties":["Text","ColorAndOpacity"],"failed_properties":[],"message":"Successfully set 2 properties on component '...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"TitleText","success_properties":["Text","ColorAndOpacity"],"failed_properties":[],"message":"Successfully set 2 properties on component 'TitleText' in widget 'WBP_WidgetServiceTest' (0 failed)"}}
+
+
+=== RECEIVE START: 2025-12-01 21:11:36.316171 ===
+Calling sock.recv(4096)...
+Received chunk: 263 bytes
+Total data so far: 263 bytes
+Decoded preview: {"status":"success","result":{"success":true,"widget_name":"WBP_WidgetServiceTest","component_name":"TitleText","placement":{"position":[200,100],"size":[500,80]},"message":"Successfully set placement...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"widget_name":"WBP_WidgetServiceTest","component_name":"TitleText","placement":{"position":[200,100],"size":[500,80]},"message":"Successfully set placement for component 'TitleText' in widget 'WBP_WidgetServiceTest'"}}
+
+
+=== RECEIVE START: 2025-12-01 21:11:51.517345 ===
+Calling sock.recv(4096)...
+Received chunk: 202 bytes
+Total data so far: 202 bytes
+Decoded preview: {"status":"success","result":{"success":true,"exists":true,"widget_name":"WBP_WidgetServiceTest","component_name":"TitleText","message":"Component 'TitleText' exists in widget 'WBP_WidgetServiceTest'"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"exists":true,"widget_name":"WBP_WidgetServiceTest","component_name":"TitleText","message":"Component 'TitleText' exists in widget 'WBP_WidgetServiceTest'"}}
+
+
+=== RECEIVE START: 2025-12-01 21:12:07.088638 ===
+Calling sock.recv(4096)...
+Received chunk: 230 bytes
+Total data so far: 230 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"WBP_WidgetServiceTest","parent_component_name":"ButtonBorder","child_component_name":"ButtonText","message":"Parent and child widget comp...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"WBP_WidgetServiceTest","parent_component_name":"ButtonBorder","child_component_name":"ButtonText","message":"Parent and child widget components created successfully"}}
+
+
+=== RECEIVE START: 2025-12-01 21:12:18.552415 ===
+Calling sock.recv(4096)...
+Received chunk: 130 bytes
+Total data so far: 130 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"InfoText","component_type":"TextBlock","widget_class":"TextBlock"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"InfoText","component_type":"TextBlock","widget_class":"TextBlock"}}
+
+
+=== RECEIVE START: 2025-12-01 21:12:24.662689 ===
+Calling sock.recv(4096)...
+Received chunk: 222 bytes
+Total data so far: 222 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"WBP_WidgetServiceTest","parent_component_name":"InfoBorder","child_component_name":"InfoText","message":"Child widget component added to ...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"WBP_WidgetServiceTest","parent_component_name":"InfoBorder","child_component_name":"InfoText","message":"Child widget component added to parent successfully"}}
+
+
+=== RECEIVE START: 2025-12-01 21:12:36.143901 ===
+Calling sock.recv(4096)...
+Received chunk: 1020 bytes
+Total data so far: 1020 bytes
+Decoded preview: {"status":"success","result":{"hierarchy":{"name":"CanvasPanel","type":"CanvasPanel","slot_properties":{},"children":[{"name":"TitleText","type":"TextBlock","slot_properties":{"slot_type":"CanvasPanel...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"hierarchy":{"name":"CanvasPanel","type":"CanvasPanel","slot_properties":{},"children":[{"name":"TitleText","type":"TextBlock","slot_properties":{"slot_type":"CanvasPanelSlot","position":[200,100],"size":[500,80],"z_order":0},"children":[]},{"name":"ButtonBorder","type":"Border","slot_properties":{"slot_type":"CanvasPanelSlot","position":[100,200],"size":[200,60],"z_order":0},"children":[{"name":"ButtonText","type":"TextBlock","slot_properties":{"slot_type":"BorderSlot","note":"Panel slot properties available but not fully implemented"},"children":[]}]},{"name":"InfoBorder","type":"Border","slot_properties":{"slot_type":"CanvasPanelSlot","position":[400,200],"size":[350,50],"z_order":0},"children":[{"name":"InfoText","type":"TextBlock","slot_properties":{"slot_type":"BorderSlot","note":"Panel slot properties available but not fully implemented"},"children":[]}]}]},"success":true,"message":"Successfully retrieved widget component layout","widget_name":"WBP_WidgetServiceTest"}}
+
+
+=== RECEIVE START: 2025-12-01 21:13:02.617229 ===
+Calling sock.recv(4096)...
+Received chunk: 291 bytes
+Total data so far: 291 bytes
+Decoded preview: {"status":"success","result":{"success":true,"widget_name":"WBP_WidgetServiceTest","container_name":"CanvasPanel_0","width":1920,"height":1080,"x":0,"y":0,"message":"Successfully retrieved dimensions ...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"widget_name":"WBP_WidgetServiceTest","container_name":"CanvasPanel_0","width":1920,"height":1080,"x":0,"y":0,"message":"Successfully retrieved dimensions for container 'CanvasPanel_0' in widget 'WBP_WidgetServiceTest': 1920.000000x1080.000000"}}
+
+
+=== RECEIVE START: 2025-12-01 21:13:09.947413 ===
+Calling sock.recv(4096)...
+Received chunk: 126 bytes
+Total data so far: 126 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"TestButton","component_type":"Button","widget_class":"Button"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"TestButton","component_type":"Button","widget_class":"Button"}}
+
+
+=== RECEIVE START: 2025-12-01 21:13:14.452491 ===
+Calling sock.recv(4096)...
+Received chunk: 140 bytes
+Total data so far: 140 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"TestButton","event_name":"OnClicked","function_name":"TestButton_OnClicked"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"TestButton","event_name":"OnClicked","function_name":"TestButton_OnClicked"}}
+
+
+=== RECEIVE START: 2025-12-01 21:13:21.130403 ===
+Calling sock.recv(4096)...
+Received chunk: 131 bytes
+Total data so far: 131 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"ScoreText","component_type":"TextBlock","widget_class":"TextBlock"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"ScoreText","component_type":"TextBlock","widget_class":"TextBlock"}}
+
+
+=== RECEIVE START: 2025-12-01 21:13:25.787579 ===
+Calling sock.recv(4096)...
+Received chunk: 216 bytes
+Total data so far: 216 bytes
+Decoded preview: {"status":"success","result":{"success":true,"text_block_name":"ScoreText","binding_property":"PlayerScore","variable_type":"Int","function_name":"GetPlayerScore","message":"Text block binding created...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"text_block_name":"ScoreText","binding_property":"PlayerScore","variable_type":"Int","function_name":"GetPlayerScore","message":"Text block binding created successfully"}}
