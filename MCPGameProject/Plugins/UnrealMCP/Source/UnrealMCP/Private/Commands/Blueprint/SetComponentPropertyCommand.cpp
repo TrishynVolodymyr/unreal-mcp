@@ -149,7 +149,7 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
                                                          TMap<FString, FString>& OutFailedProperties,
                                                          TArray<FString>& OutAvailableProperties) const
 {
-    // Use USubobjectDataSubsystem to find component (UE 5.6+ API)
+    // Use USubobjectDataSubsystem to find component (UE 5.7+ API)
     USubobjectDataSubsystem* SubobjectSubsystem = GEngine->GetEngineSubsystem<USubobjectDataSubsystem>();
     if (!SubobjectSubsystem)
     {

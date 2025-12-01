@@ -2,7 +2,7 @@
 
 ## Overview
 
-Welcome to the UnrealMCP plugin documentation. This plugin provides a comprehensive Model Context Protocol (MCP) integration for Unreal Engine 5.6, enabling AI assistants to control Unreal Engine through natural language commands.
+Welcome to the UnrealMCP plugin documentation. This plugin provides a comprehensive Model Context Protocol (MCP) integration for Unreal Engine 5.7, enabling AI assistants to control Unreal Engine through natural language commands.
 
 ## Documentation Structure
 

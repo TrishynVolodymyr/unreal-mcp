@@ -4,7 +4,7 @@
 
 After the recent C++ refactoring of the UnrealMCP plugin architecture to implement SOLID principles and improve maintainability, many previously working features have been broken or lost functionality. This comprehensive testing specification aims to systematically verify and restore the functionality of all 64 Unreal MCP tools across the 7 main tool categories.
 
-The testing will ensure that each tool works correctly with the new refactored architecture, identify any broken functionality, and provide a clear path to restore full system capability. This is critical for maintaining the natural language AI assistant integration with Unreal Engine 5.6.
+The testing will ensure that each tool works correctly with the new refactored architecture, identify any broken functionality, and provide a clear path to restore full system capability. This is critical for maintaining the natural language AI assistant integration with Unreal Engine 5.7
 
 ## Requirements
 

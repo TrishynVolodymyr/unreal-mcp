@@ -2090,7 +2090,7 @@ TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::GetPinTypeInfo(const FEdGraphPinT
     // Add container type information if it's a container
     if (PinType.IsContainer())
     {
-        TypeInfo->SetStringField(TEXT("container_type"), TEXT("Container")); // Simplified for UE 5.6
+        TypeInfo->SetStringField(TEXT("container_type"), TEXT("Container")); // Simplified for UE 5.7
         TypeInfo->SetStringField(TEXT("value_category"), TEXT("Unknown"));
         TypeInfo->SetStringField(TEXT("value_subcategory"), TEXT("Unknown"));
     }

@@ -4,6 +4,9 @@
 #include "Json.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Components/Widget.h"
+#include "Services/UMG/Widgets/BasicWidgetFactory.h"
+#include "Services/UMG/Widgets/AdvancedWidgetFactory.h"
+#include "Services/UMG/Widgets/LayoutWidgetFactory.h"
 
 // Forward declarations
 class UWidgetBlueprint;
@@ -102,4 +105,9 @@ private:
      * @param WidgetBlueprint - The widget blueprint to save
      */
     void SaveWidgetBlueprint(UWidgetBlueprint* WidgetBlueprint);
+    
+    // Widget factories
+    FBasicWidgetFactory BasicWidgetFactory;
+    FAdvancedWidgetFactory AdvancedWidgetFactory;
+    FLayoutWidgetFactory LayoutWidgetFactory;
 }; 

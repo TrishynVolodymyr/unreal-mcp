@@ -12,10 +12,10 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/AudioComponent.h"
-// #include "Components/ParticleSystemComponent.h" // Not available in UE 5.6
+// #include "Components/ParticleSystemComponent.h" // Not available in UE 5.7
 #include "Camera/CameraComponent.h"
 #include "Components/InputComponent.h"
-// #include "Components/MovementComponent.h" // Not available in UE 5.6
+// #include "Components/MovementComponent.h" // Not available in UE 5.7
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -213,7 +213,7 @@ void FComponentFactory::InitializeDefaultTypes()
     // Audio Components
     RegisterComponentType(TEXT("AudioComponent"), UAudioComponent::StaticClass());
     
-    // Particle Components (UParticleSystemComponent not available in UE 5.6)
+    // Particle Components (UParticleSystemComponent not available in UE 5.7)
     // RegisterComponentType(TEXT("ParticleSystemComponent"), UParticleSystemComponent::StaticClass());
     
     // Camera Components
