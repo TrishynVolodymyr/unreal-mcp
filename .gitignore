@@ -17,7 +17,7 @@ build/
 dist/
 wheels/
 *.egg-info
-./Python/tcp_debug.log
+Python/tcp_debug.log
 
 # Virtual environments
 .venv

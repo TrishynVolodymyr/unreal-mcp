@@ -37,123 +37,40 @@
 #include "UObject/TextProperty.h"
 #include "UObject/StructOnScope.h"
 
-// JSON Utilities
+// JSON Utilities - Delegated to FJsonUtils
 TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateErrorResponse(const FString& Message)
 {
-    TSharedPtr<FJsonObject> ResponseObject = MakeShared<FJsonObject>();
-    ResponseObject->SetBoolField(TEXT("success"), false);
-    ResponseObject->SetStringField(TEXT("error"), Message);
-    return ResponseObject;
+    return FJsonUtils::CreateErrorResponse(Message);
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateSuccessResponse(const FString& Message /* = TEXT("") */)
 {
-    TSharedPtr<FJsonObject> ResponseObject = MakeShared<FJsonObject>();
-    ResponseObject->SetBoolField(TEXT("success"), true);
-    
-    if (!Message.IsEmpty())
-    {
-        ResponseObject->SetStringField(TEXT("message"), Message);
-    }
-    
-    return ResponseObject;
+    return FJsonUtils::CreateSuccessResponse(Message);
 }
 
 void FUnrealMCPCommonUtils::GetIntArrayFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName, TArray<int32>& OutArray)
 {
-    OutArray.Reset();
-    
-    if (!JsonObject->HasField(FieldName))
-    {
-        return;
-    }
-    
-    const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-    if (JsonObject->TryGetArrayField(FieldName, JsonArray))
-    {
-        for (const TSharedPtr<FJsonValue>& Value : *JsonArray)
-        {
-            OutArray.Add((int32)Value->AsNumber());
-        }
-    }
+    FJsonUtils::GetIntArrayFromJson(JsonObject, FieldName, OutArray);
 }
 
 void FUnrealMCPCommonUtils::GetFloatArrayFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName, TArray<float>& OutArray)
 {
-    OutArray.Reset();
-    
-    if (!JsonObject->HasField(FieldName))
-    {
-        return;
-    }
-    
-    const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-    if (JsonObject->TryGetArrayField(FieldName, JsonArray))
-    {
-        for (const TSharedPtr<FJsonValue>& Value : *JsonArray)
-        {
-            OutArray.Add((float)Value->AsNumber());
-        }
-    }
+    FJsonUtils::GetFloatArrayFromJson(JsonObject, FieldName, OutArray);
 }
 
 FVector2D FUnrealMCPCommonUtils::GetVector2DFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName)
 {
-    FVector2D Result(0.0f, 0.0f);
-    
-    if (!JsonObject->HasField(FieldName))
-    {
-        return Result;
-    }
-    
-    const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-    if (JsonObject->TryGetArrayField(FieldName, JsonArray) && JsonArray->Num() >= 2)
-    {
-        Result.X = (float)(*JsonArray)[0]->AsNumber();
-        Result.Y = (float)(*JsonArray)[1]->AsNumber();
-    }
-    
-    return Result;
+    return FJsonUtils::GetVector2DFromJson(JsonObject, FieldName);
 }
 
 FVector FUnrealMCPCommonUtils::GetVectorFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName)
 {
-    FVector Result(0.0f, 0.0f, 0.0f);
-    
-    if (!JsonObject->HasField(FieldName))
-    {
-        return Result;
-    }
-    
-    const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-    if (JsonObject->TryGetArrayField(FieldName, JsonArray) && JsonArray->Num() >= 3)
-    {
-        Result.X = (float)(*JsonArray)[0]->AsNumber();
-        Result.Y = (float)(*JsonArray)[1]->AsNumber();
-        Result.Z = (float)(*JsonArray)[2]->AsNumber();
-    }
-    
-    return Result;
+    return FJsonUtils::GetVectorFromJson(JsonObject, FieldName);
 }
 
 FRotator FUnrealMCPCommonUtils::GetRotatorFromJson(const TSharedPtr<FJsonObject>& JsonObject, const FString& FieldName)
 {
-    FRotator Result(0.0f, 0.0f, 0.0f);
-    
-    if (!JsonObject->HasField(FieldName))
-    {
-        return Result;
-    }
-    
-    const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-    if (JsonObject->TryGetArrayField(FieldName, JsonArray) && JsonArray->Num() >= 3)
-    {
-        Result.Pitch = (float)(*JsonArray)[0]->AsNumber();
-        Result.Yaw = (float)(*JsonArray)[1]->AsNumber();
-        Result.Roll = (float)(*JsonArray)[2]->AsNumber();
-    }
-    
-    return Result;
+    return FJsonUtils::GetRotatorFromJson(JsonObject, FieldName);
 }
 
 // Blueprint Utilities
@@ -465,988 +382,85 @@ UK2Node_Self* FUnrealMCPCommonUtils::CreateSelfReferenceNode(UEdGraph* Graph, co
     return SelfNode;
 }
 
-bool FUnrealMCPCommonUtils::ConnectGraphNodes(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, 
+bool FUnrealMCPCommonUtils::ConnectGraphNodes(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName,
                                            UEdGraphNode* TargetNode, const FString& TargetPinName)
 {
-    if (!Graph || !SourceNode || !TargetNode)
-    {
-        return false;
-    }
-    
-    UEdGraphPin* SourcePin = FindPin(SourceNode, SourcePinName, EGPD_Output);
-    UEdGraphPin* TargetPin = FindPin(TargetNode, TargetPinName, EGPD_Input);
-    
-    if (SourcePin && TargetPin)
-    {
-        SourcePin->MakeLinkTo(TargetPin);
-        return true;
-    }
-    
-    return false;
+    return FGraphUtils::ConnectGraphNodes(Graph, SourceNode, SourcePinName, TargetNode, TargetPinName);
 }
 
 UEdGraphPin* FUnrealMCPCommonUtils::FindPin(UEdGraphNode* Node, const FString& PinName, EEdGraphPinDirection Direction)
 {
-    if (!Node)
-    {
-        return nullptr;
-    }
-    
-    // Log all pins for debugging
-    UE_LOG(LogTemp, Display, TEXT("FindPin: Looking for pin '%s' (Direction: %d) in node '%s'"), 
-           *PinName, (int32)Direction, *Node->GetName());
-    
-    for (UEdGraphPin* Pin : Node->Pins)
-    {
-        UE_LOG(LogTemp, Display, TEXT("  - Available pin: '%s', Direction: %d, Category: %s"), 
-               *Pin->PinName.ToString(), (int32)Pin->Direction, *Pin->PinType.PinCategory.ToString());
-    }
-    
-    // First try exact match
-    for (UEdGraphPin* Pin : Node->Pins)
-    {
-        if (Pin->PinName.ToString() == PinName && (Direction == EGPD_MAX || Pin->Direction == Direction))
-        {
-            UE_LOG(LogTemp, Display, TEXT("  - Found exact matching pin: '%s'"), *Pin->PinName.ToString());
-            return Pin;
-        }
-    }
-    
-    // If no exact match and we're looking for a component reference, try case-insensitive match
-    for (UEdGraphPin* Pin : Node->Pins)
-    {
-        if (Pin->PinName.ToString().Equals(PinName, ESearchCase::IgnoreCase) && 
-            (Direction == EGPD_MAX || Pin->Direction == Direction))
-        {
-            UE_LOG(LogTemp, Display, TEXT("  - Found case-insensitive matching pin: '%s'"), *Pin->PinName.ToString());
-            return Pin;
-        }
-    }
-    
-    // If we're looking for a component output and didn't find it by name, try to find the first data output pin
-    if (Direction == EGPD_Output && Cast<UK2Node_VariableGet>(Node) != nullptr)
-    {
-        for (UEdGraphPin* Pin : Node->Pins)
-        {
-            if (Pin->Direction == EGPD_Output && Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec)
-            {
-                UE_LOG(LogTemp, Display, TEXT("  - Found fallback data output pin: '%s'"), *Pin->PinName.ToString());
-                return Pin;
-            }
-        }
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("  - No matching pin found for '%s'"), *PinName);
-    return nullptr;
+    return FGraphUtils::FindPin(Node, PinName, Direction);
 }
 
 // Actor utilities
 TSharedPtr<FJsonValue> FUnrealMCPCommonUtils::ActorToJson(AActor* Actor)
 {
-    if (!Actor)
-    {
-        return MakeShared<FJsonValueNull>();
-    }
-    
-    TSharedPtr<FJsonObject> ActorObject = MakeShared<FJsonObject>();
-    ActorObject->SetStringField(TEXT("name"), Actor->GetName());
-    ActorObject->SetStringField(TEXT("class"), Actor->GetClass()->GetName());
-    
-    FVector Location = Actor->GetActorLocation();
-    TArray<TSharedPtr<FJsonValue>> LocationArray;
-    LocationArray.Add(MakeShared<FJsonValueNumber>(Location.X));
-    LocationArray.Add(MakeShared<FJsonValueNumber>(Location.Y));
-    LocationArray.Add(MakeShared<FJsonValueNumber>(Location.Z));
-    ActorObject->SetArrayField(TEXT("location"), LocationArray);
-    
-    FRotator Rotation = Actor->GetActorRotation();
-    TArray<TSharedPtr<FJsonValue>> RotationArray;
-    RotationArray.Add(MakeShared<FJsonValueNumber>(Rotation.Pitch));
-    RotationArray.Add(MakeShared<FJsonValueNumber>(Rotation.Yaw));
-    RotationArray.Add(MakeShared<FJsonValueNumber>(Rotation.Roll));
-    ActorObject->SetArrayField(TEXT("rotation"), RotationArray);
-    
-    FVector Scale = Actor->GetActorScale3D();
-    TArray<TSharedPtr<FJsonValue>> ScaleArray;
-    ScaleArray.Add(MakeShared<FJsonValueNumber>(Scale.X));
-    ScaleArray.Add(MakeShared<FJsonValueNumber>(Scale.Y));
-    ScaleArray.Add(MakeShared<FJsonValueNumber>(Scale.Z));
-    ActorObject->SetArrayField(TEXT("scale"), ScaleArray);
-    
-    return MakeShared<FJsonValueObject>(ActorObject);
+    return FActorUtils::ActorToJson(Actor);
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::ActorToJsonObject(AActor* Actor, bool bDetailed)
 {
-    if (!Actor)
-    {
-        return nullptr;
-    }
-    
-    TSharedPtr<FJsonObject> ActorObject = MakeShared<FJsonObject>();
-    ActorObject->SetStringField(TEXT("name"), Actor->GetName());
-    ActorObject->SetStringField(TEXT("class"), Actor->GetClass()->GetName());
-    
-    FVector Location = Actor->GetActorLocation();
-    TArray<TSharedPtr<FJsonValue>> LocationArray;
-    LocationArray.Add(MakeShared<FJsonValueNumber>(Location.X));
-    LocationArray.Add(MakeShared<FJsonValueNumber>(Location.Y));
-    LocationArray.Add(MakeShared<FJsonValueNumber>(Location.Z));
-    ActorObject->SetArrayField(TEXT("location"), LocationArray);
-    
-    FRotator Rotation = Actor->GetActorRotation();
-    TArray<TSharedPtr<FJsonValue>> RotationArray;
-    RotationArray.Add(MakeShared<FJsonValueNumber>(Rotation.Pitch));
-    RotationArray.Add(MakeShared<FJsonValueNumber>(Rotation.Yaw));
-    RotationArray.Add(MakeShared<FJsonValueNumber>(Rotation.Roll));
-    ActorObject->SetArrayField(TEXT("rotation"), RotationArray);
-    
-    FVector Scale = Actor->GetActorScale3D();
-    TArray<TSharedPtr<FJsonValue>> ScaleArray;
-    ScaleArray.Add(MakeShared<FJsonValueNumber>(Scale.X));
-    ScaleArray.Add(MakeShared<FJsonValueNumber>(Scale.Y));
-    ScaleArray.Add(MakeShared<FJsonValueNumber>(Scale.Z));
-    ActorObject->SetArrayField(TEXT("scale"), ScaleArray);
-    
-    return ActorObject;
+    return FActorUtils::ActorToJsonObject(Actor, bDetailed);
 }
 
 UK2Node_Event* FUnrealMCPCommonUtils::FindExistingEventNode(UEdGraph* Graph, const FString& EventName)
 {
-    if (!Graph)
-    {
-        return nullptr;
-    }
-
-    // Look for existing event nodes
-    for (UEdGraphNode* Node : Graph->Nodes)
-    {
-        UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node);
-        if (EventNode && EventNode->EventReference.GetMemberName() == FName(*EventName))
-        {
-            UE_LOG(LogTemp, Display, TEXT("Found existing event node with name: %s"), *EventName);
-            return EventNode;
-        }
-    }
-
-    return nullptr;
+    return FGraphUtils::FindExistingEventNode(Graph, EventName);
 }
 
-bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& PropertyName, 
+bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& PropertyName,
                                      const TSharedPtr<FJsonValue>& Value, FString& OutErrorMessage)
 {
-    if (!Object)
-    {
-        OutErrorMessage = TEXT("Invalid object");
-        return false;
-    }
-
-    FProperty* Property = Object->GetClass()->FindPropertyByName(*PropertyName);
-    if (!Property)
-    {
-        OutErrorMessage = FString::Printf(TEXT("Property not found: %s"), *PropertyName);
-        return false;
-    }
-
-    void* PropertyAddr = Property->ContainerPtrToValuePtr<void>(Object);
-    
-    // Handle different property types
-    if (Property->IsA<FBoolProperty>())
-    {
-        ((FBoolProperty*)Property)->SetPropertyValue(PropertyAddr, Value->AsBool());
-        return true;
-    }
-    else if (Property->IsA<FIntProperty>())
-    {
-        int32 IntValue = static_cast<int32>(Value->AsNumber());
-        FIntProperty* IntProperty = CastField<FIntProperty>(Property);
-        if (IntProperty)
-        {
-            IntProperty->SetPropertyValue_InContainer(Object, IntValue);
-            return true;
-        }
-    }
-    else if (Property->IsA<FFloatProperty>())
-    {
-        ((FFloatProperty*)Property)->SetPropertyValue(PropertyAddr, Value->AsNumber());
-        return true;
-    }
-    else if (Property->IsA<FStrProperty>())
-    {
-        ((FStrProperty*)Property)->SetPropertyValue(PropertyAddr, Value->AsString());
-        return true;
-    }
-    else if (Property->IsA<FByteProperty>())
-    {
-        FByteProperty* ByteProp = CastField<FByteProperty>(Property);
-        UEnum* EnumDef = ByteProp ? ByteProp->GetIntPropertyEnum() : nullptr;
-        
-        // If this is a TEnumAsByte property (has associated enum)
-        if (EnumDef)
-        {
-            // Handle numeric value
-            if (Value->Type == EJson::Number)
-            {
-                uint8 ByteValue = static_cast<uint8>(Value->AsNumber());
-                ByteProp->SetPropertyValue(PropertyAddr, ByteValue);
-                
-                UE_LOG(LogTemp, Display, TEXT("Setting enum property %s to numeric value: %d"), 
-                      *PropertyName, ByteValue);
-                return true;
-            }
-            // Handle string enum value
-            else if (Value->Type == EJson::String)
-            {
-                FString EnumValueName = Value->AsString();
-                
-                // Try to convert numeric string to number first
-                if (EnumValueName.IsNumeric())
-                {
-                    uint8 ByteValue = FCString::Atoi(*EnumValueName);
-                    ByteProp->SetPropertyValue(PropertyAddr, ByteValue);
-                    
-                    UE_LOG(LogTemp, Display, TEXT("Setting enum property %s to numeric string value: %s -> %d"), 
-                          *PropertyName, *EnumValueName, ByteValue);
-                    return true;
-                }
-                
-                // Handle qualified enum names (e.g., "Player0" or "EAutoReceiveInput::Player0")
-                if (EnumValueName.Contains(TEXT("::")))
-                {
-                    EnumValueName.Split(TEXT("::"), nullptr, &EnumValueName);
-                }
-                
-                int64 EnumValue = EnumDef->GetValueByNameString(EnumValueName);
-                if (EnumValue == INDEX_NONE)
-                {
-                    // Try with full name as fallback
-                    EnumValue = EnumDef->GetValueByNameString(Value->AsString());
-                }
-                
-                if (EnumValue != INDEX_NONE)
-                {
-                    ByteProp->SetPropertyValue(PropertyAddr, static_cast<uint8>(EnumValue));
-                    
-                    UE_LOG(LogTemp, Display, TEXT("Setting enum property %s to name value: %s -> %lld"), 
-                          *PropertyName, *EnumValueName, EnumValue);
-                    return true;
-                }
-                else
-                {
-                    // Log all possible enum values for debugging
-                    UE_LOG(LogTemp, Warning, TEXT("Could not find enum value for '%s'. Available options:"), *EnumValueName);
-                    for (int32 i = 0; i < EnumDef->NumEnums(); i++)
-                    {
-                        UE_LOG(LogTemp, Warning, TEXT("  - %s (value: %d)"), 
-                               *EnumDef->GetNameStringByIndex(i), EnumDef->GetValueByIndex(i));
-                    }
-                    
-                    OutErrorMessage = FString::Printf(TEXT("Could not find enum value for '%s'"), *EnumValueName);
-                    return false;
-                }
-            }
-        }
-        else
-        {
-            // Regular byte property
-            uint8 ByteValue = static_cast<uint8>(Value->AsNumber());
-            ByteProp->SetPropertyValue(PropertyAddr, ByteValue);
-            return true;
-        }
-    }
-    else if (Property->IsA<FEnumProperty>())
-    {
-        FEnumProperty* EnumProp = CastField<FEnumProperty>(Property);
-        UEnum* EnumDef = EnumProp ? EnumProp->GetEnum() : nullptr;
-        FNumericProperty* UnderlyingNumericProp = EnumProp ? EnumProp->GetUnderlyingProperty() : nullptr;
-        
-        if (EnumDef && UnderlyingNumericProp)
-        {
-            // Handle numeric value
-            if (Value->Type == EJson::Number)
-            {
-                int64 EnumValue = static_cast<int64>(Value->AsNumber());
-                UnderlyingNumericProp->SetIntPropertyValue(PropertyAddr, EnumValue);
-                
-                UE_LOG(LogTemp, Display, TEXT("Setting enum property %s to numeric value: %lld"), 
-                      *PropertyName, EnumValue);
-                return true;
-            }
-            // Handle string enum value
-            else if (Value->Type == EJson::String)
-            {
-                FString EnumValueName = Value->AsString();
-                
-                // Try to convert numeric string to number first
-                if (EnumValueName.IsNumeric())
-                {
-                    int64 EnumValue = FCString::Atoi64(*EnumValueName);
-                    UnderlyingNumericProp->SetIntPropertyValue(PropertyAddr, EnumValue);
-                    
-                    UE_LOG(LogTemp, Display, TEXT("Setting enum property %s to numeric string value: %s -> %lld"), 
-                          *PropertyName, *EnumValueName, EnumValue);
-                    return true;
-                }
-                
-                // Handle qualified enum names
-                if (EnumValueName.Contains(TEXT("::")))
-                {
-                    EnumValueName.Split(TEXT("::"), nullptr, &EnumValueName);
-                }
-                
-                int64 EnumValue = EnumDef->GetValueByNameString(EnumValueName);
-                if (EnumValue == INDEX_NONE)
-                {
-                    // Try with full name as fallback
-                    EnumValue = EnumDef->GetValueByNameString(Value->AsString());
-                }
-                
-                if (EnumValue != INDEX_NONE)
-                {
-                    UnderlyingNumericProp->SetIntPropertyValue(PropertyAddr, EnumValue);
-                    
-                    UE_LOG(LogTemp, Display, TEXT("Setting enum property %s to name value: %s -> %lld"), 
-                          *PropertyName, *EnumValueName, EnumValue);
-                    return true;
-                }
-                else
-                {
-                    // Log all possible enum values for debugging
-                    UE_LOG(LogTemp, Warning, TEXT("Could not find enum value for '%s'. Available options:"), *EnumValueName);
-                    for (int32 i = 0; i < EnumDef->NumEnums(); i++)
-                    {
-                        UE_LOG(LogTemp, Warning, TEXT("  - %s (value: %d)"), 
-                               *EnumDef->GetNameStringByIndex(i), EnumDef->GetValueByIndex(i));
-                    }
-                    
-                    OutErrorMessage = FString::Printf(TEXT("Could not find enum value for '%s'"), *EnumValueName);
-                    return false;
-                }
-            }
-        }
-    }
-    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
-    {
-        if (Value->Type == EJson::Array)
-        {
-            const TArray<TSharedPtr<FJsonValue>>& Arr = Value->AsArray();
-            bool bStructHandled = false;
-
-            // Handle FVector2D
-            if (StructProp->Struct == TBaseStructure<FVector2D>::Get())
-            {
-                if (Arr.Num() == 2)
-                {
-                    FVector2D Vec2D(Arr[0]->AsNumber(), Arr[1]->AsNumber());
-                    StructProp->CopySingleValue(PropertyAddr, &Vec2D);
-                    UE_LOG(LogTemp, Display, TEXT("Setting FVector2D property %s to (%f, %f)"), 
-                          *PropertyName, Vec2D.X, Vec2D.Y);
-                    bStructHandled = true;
-                }
-                else
-                {
-                    OutErrorMessage = FString::Printf(TEXT("FVector2D property requires 2 values, got %d"), Arr.Num());
-                }
-            }
-            // Handle FLinearColor
-            else if (StructProp->Struct == TBaseStructure<FLinearColor>::Get())
-            {
-                if (Arr.Num() == 4) // RGBA
-                {
-                    FLinearColor Color(
-                        Arr[0]->AsNumber(),
-                        Arr[1]->AsNumber(),
-                        Arr[2]->AsNumber(),
-                        Arr[3]->AsNumber()
-                    );
-                    StructProp->CopySingleValue(PropertyAddr, &Color);
-                    UE_LOG(LogTemp, Display, TEXT("Setting FLinearColor property %s to (R=%f, G=%f, B=%f, A=%f)"), 
-                          *PropertyName, Color.R, Color.G, Color.B, Color.A);
-                    bStructHandled = true;
-                }
-                 else if (Arr.Num() == 3) // RGB, assume A=1
-                {
-                    FLinearColor Color(
-                        Arr[0]->AsNumber(),
-                        Arr[1]->AsNumber(),
-                        Arr[2]->AsNumber(),
-                        1.0f // Default Alpha to 1
-                    );
-                    StructProp->CopySingleValue(PropertyAddr, &Color);
-                    UE_LOG(LogTemp, Display, TEXT("Setting FLinearColor property %s to (R=%f, G=%f, B=%f, A=1.0)"), 
-                          *PropertyName, Color.R, Color.G, Color.B);
-                    bStructHandled = true;
-                }
-                else
-                {
-                    OutErrorMessage = FString::Printf(TEXT("FLinearColor property requires 3 (RGB) or 4 (RGBA) values, got %d"), Arr.Num());
-                }
-            }
-            // Handle FRotator
-            else if (StructProp->Struct == TBaseStructure<FRotator>::Get())
-            {
-                if (Arr.Num() == 3) // Pitch, Yaw, Roll
-                {
-                    FRotator Rotator(
-                        Arr[0]->AsNumber(), // Pitch
-                        Arr[1]->AsNumber(), // Yaw
-                        Arr[2]->AsNumber()  // Roll
-                    );
-                    StructProp->CopySingleValue(PropertyAddr, &Rotator);
-                    UE_LOG(LogTemp, Display, TEXT("Setting FRotator property %s to (P=%f, Y=%f, R=%f)"), 
-                          *PropertyName, Rotator.Pitch, Rotator.Yaw, Rotator.Roll);
-                    bStructHandled = true;
-                }
-                else
-                {
-                    OutErrorMessage = FString::Printf(TEXT("FRotator property requires 3 values (Pitch, Yaw, Roll), got %d"), Arr.Num());
-                }
-            }
-            // NOTE: FVector is handled specifically in HandleSetComponentProperty currently, 
-            // but could be moved here for consistency if desired.
-            
-            if (bStructHandled)
-            {
-                return true; // Successfully handled the struct
-            }
-        }
-        else
-        {
-             OutErrorMessage = FString::Printf(TEXT("Struct property %s requires a JSON array value"), *PropertyName);
-        }
-        // If we reach here, the struct type wasn't handled or input was wrong
-        if (OutErrorMessage.IsEmpty())
-        {
-            OutErrorMessage = FString::Printf(TEXT("Unsupported struct type '%s' for property %s"), 
-                StructProp->Struct ? *StructProp->Struct->GetName() : TEXT("Unknown"), *PropertyName);
-        }
-        return false;
-    }
-    else if (FObjectProperty* ObjectProp = CastField<FObjectProperty>(Property))
-    {
-        // Handle object references (like DataTable, Blueprint classes, etc.)
-        if (Value->Type == EJson::String)
-        {
-            FString AssetPath = Value->AsString();
-            
-            // Remove _C suffix if present (for blueprint classes)
-            AssetPath.RemoveFromEnd(TEXT("_C"));
-            
-            UObject* LoadedObject = nullptr;
-            
-            // Use UEditorAssetLibrary to search and load the asset
-            if (UEditorAssetLibrary::DoesAssetExist(AssetPath))
-            {
-                LoadedObject = UEditorAssetLibrary::LoadAsset(AssetPath);
-            }
-            else
-            {
-                // If direct path doesn't exist, search for it
-                TArray<FString> FoundAssets = UEditorAssetLibrary::ListAssets(TEXT("/Game"), true, false);
-                
-                for (const FString& AssetPathIter : FoundAssets)
-                {
-                    FString AssetName = FPaths::GetBaseFilename(AssetPathIter);
-                    if (AssetName.Equals(AssetPath, ESearchCase::IgnoreCase))
-                    {
-                        LoadedObject = UEditorAssetLibrary::LoadAsset(AssetPathIter);
-                        if (LoadedObject)
-                        {
-                            UE_LOG(LogTemp, Display, TEXT("Found asset by name search: %s at %s"), 
-                                  *AssetPath, *AssetPathIter);
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            if (LoadedObject)
-            {
-                ObjectProp->SetObjectPropertyValue(PropertyAddr, LoadedObject);
-                UE_LOG(LogTemp, Display, TEXT("Set object property %s to %s"), 
-                      *PropertyName, *LoadedObject->GetPathName());
-                return true;
-            }
-            else
-            {
-                OutErrorMessage = FString::Printf(TEXT("Failed to load object from path: %s"), *AssetPath);
-                return false;
-            }
-        }
-        else
-        {
-            OutErrorMessage = FString::Printf(TEXT("Object property %s requires a string path value"), *PropertyName);
-            return false;
-        }
-    }
-    
-    OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"), 
-                                    *Property->GetClass()->GetName(), *PropertyName);
-    return false;
+    return FPropertyUtils::SetObjectProperty(Object, PropertyName, Value, OutErrorMessage);
 }
 
-// Implementation for the new helper function
 bool FUnrealMCPCommonUtils::SetPropertyFromJson(FProperty* Property, void* ContainerPtr, const TSharedPtr<FJsonValue>& JsonValue)
 {
-    if (!Property || !ContainerPtr || !JsonValue.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson: Invalid input parameter(s)."));
-        return false;
-    }
-
-    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Property Name: %s, Type: %s"), *Property->GetName(), *Property->GetCPPType());
-
-    // Handle different property types
-    if (FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
-    {
-        bool Value;
-        if (JsonValue->TryGetBool(Value))
-        {
-            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Bool property to: %s"), Value ? TEXT("true") : TEXT("false"));
-            BoolProperty->SetPropertyValue(ContainerPtr, Value);
-            return true;
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Bool property, incompatible value type"));
-        }
-    }
-    else if (FIntProperty* IntProperty = CastField<FIntProperty>(Property))
-    {
-        int32 Value;
-        if (JsonValue->TryGetNumber(Value))
-        {
-            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Int property to: %d"), Value);
-            IntProperty->SetPropertyValue(ContainerPtr, Value);
-            return true;
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Int property, incompatible value type"));
-        }
-    }
-    else if (FFloatProperty* FloatProperty = CastField<FFloatProperty>(Property))
-    {
-        double Value; // JSON numbers are doubles
-        if (JsonValue->TryGetNumber(Value))
-        {
-            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting Float property to: %f"), static_cast<float>(Value));
-            FloatProperty->SetPropertyValue(ContainerPtr, static_cast<float>(Value));
-            return true;
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to set Float property, incompatible value type"));
-        }
-    }
-    else if (FDoubleProperty* DoubleProperty = CastField<FDoubleProperty>(Property))
-    {
-        double Value;
-        if (JsonValue->TryGetNumber(Value))
-        {
-            DoubleProperty->SetPropertyValue(ContainerPtr, Value);
-            return true;
-        }
-    }
-    else if (FStrProperty* StrProperty = CastField<FStrProperty>(Property))
-    {
-        FString Value;
-        if (JsonValue->TryGetString(Value))
-        {
-            StrProperty->SetPropertyValue(ContainerPtr, Value);
-            return true;
-        }
-    }
-    else if (FNameProperty* NameProperty = CastField<FNameProperty>(Property))
-    {
-        FString Value;
-        if (JsonValue->TryGetString(Value))
-        {
-            NameProperty->SetPropertyValue(ContainerPtr, FName(*Value));
-            return true;
-        }
-    }
-    else if (FTextProperty* TextProperty = CastField<FTextProperty>(Property))
-    {
-        FString Value;
-        if (JsonValue->TryGetString(Value))
-        {
-            TextProperty->SetPropertyValue(ContainerPtr, FText::FromString(Value));
-            return true;
-        }
-    }
-    else if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
-    {
-        UEnum* Enum = EnumProperty->GetEnum();
-        if (!Enum) return false;
-
-        FString StringValue;
-        int64 IntValue;
-
-        if (JsonValue->TryGetString(StringValue)) // Try setting by string name first
-        {
-            IntValue = Enum->GetValueByNameString(StringValue);
-            if (IntValue != INDEX_NONE)
-            {
-                EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(ContainerPtr, IntValue);
-                return true;
-            }
-        }
-        else if (JsonValue->TryGetNumber(IntValue)) // Try setting by integer index
-        {
-             if (Enum->IsValidEnumValue(IntValue))
-             {
-                 EnumProperty->GetUnderlyingProperty()->SetIntPropertyValue(ContainerPtr, IntValue);
-                 return true;
-             }
-        }
-    }
-    else if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-    {
-        UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Found Struct property: %s"), 
-            StructProperty->Struct ? *StructProperty->Struct->GetName() : TEXT("NULL"));
-            
-        const TSharedPtr<FJsonObject>* JsonObject;
-        if (JsonValue->TryGetObject(JsonObject))
-        {
-            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Processing JsonObject for struct"));
-            // Use JsonObjectConverter to convert the JSON object to the struct
-            if (FJsonObjectConverter::JsonObjectToUStruct(JsonObject->ToSharedRef(), StructProperty->Struct, ContainerPtr, 0, 0))
-            {
-                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Successfully converted JsonObject to struct"));
-                return true;
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to convert JsonObject to struct"));
-            }
-        }
-        // Handle common structs specifically if needed (e.g., FVector, FLinearColor from array)
-        else if (StructProperty->Struct == TBaseStructure<FVector>::Get()) 
-        {
-            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Handling FVector struct"));
-            const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-            if (JsonValue->TryGetArray(JsonArray)) 
-            {
-                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got array for FVector with %d elements"), JsonArray->Num());
-                FVector VecValue;
-                if (ParseVector(*JsonArray, VecValue))
-                {
-                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FVector to (%f, %f, %f)"), 
-                        VecValue.X, VecValue.Y, VecValue.Z);
-                    *static_cast<FVector*>(ContainerPtr) = VecValue;
-                    return true;
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to parse Vector from array"));
-                }
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Expected array for Vector but got different type"));
-            }
-        }
-        else if (StructProperty->Struct == TBaseStructure<FLinearColor>::Get())
-        {
-            UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Handling FLinearColor struct"));
-            const TArray<TSharedPtr<FJsonValue>>* JsonArray;
-            if (JsonValue->TryGetArray(JsonArray))
-            {
-                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got array for FLinearColor with %d elements"), JsonArray->Num());
-                FLinearColor ColorValue;
-                if (ParseLinearColor(*JsonArray, ColorValue))
-                {
-                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FLinearColor to (%f, %f, %f, %f)"), 
-                        ColorValue.R, ColorValue.G, ColorValue.B, ColorValue.A);
-                    *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
-                    return true;
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to parse LinearColor from array"));
-                }
-            }
-            // Additional check for string format, like when a string representation of an array is passed
-            else if (JsonValue->Type == EJson::String)
-            {
-                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Got string for FLinearColor: %s"), *JsonValue->AsString());
-                FString ColorString = JsonValue->AsString();
-                
-                // Check if the string looks like an array: "[r, g, b, a]"
-                if (ColorString.StartsWith(TEXT("[")) && ColorString.EndsWith(TEXT("]")))
-                {
-                    // Remove brackets
-                    ColorString = ColorString.Mid(1, ColorString.Len() - 2);
-                    
-                    // Split by commas
-                    TArray<FString> ColorComponents;
-                    ColorString.ParseIntoArray(ColorComponents, TEXT(","), true);
-                    
-                    UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Parsed %d color components from string"), ColorComponents.Num());
-                    
-                    if (ColorComponents.Num() >= 3)
-                    {
-                        float R = FCString::Atof(*ColorComponents[0].TrimStart());
-                        float G = FCString::Atof(*ColorComponents[1].TrimStart());
-                        float B = FCString::Atof(*ColorComponents[2].TrimStart());
-                        float A = ColorComponents.Num() >= 4 ? FCString::Atof(*ColorComponents[3].TrimStart()) : 1.0f;
-                        
-                        FLinearColor ColorValue(R, G, B, A);
-                        UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Setting FLinearColor from string to (%f, %f, %f, %f)"), 
-                            ColorValue.R, ColorValue.G, ColorValue.B, ColorValue.A);
-                        *static_cast<FLinearColor*>(ContainerPtr) = ColorValue;
-                        return true;
-                    }
-                    else
-                    {
-                        UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Not enough color components in string: %s"), *ColorString);
-                    }
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Color string is not in expected format: %s"), *ColorString);
-                }
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Expected array or string for LinearColor but got different type"));
-            }
-        }
-        // ... existing code ...
-    }
-    else if (FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
-    {
-        FString Value;
-        if (JsonValue->TryGetString(Value))
-        {
-            UClass* LoadedClass = LoadObject<UClass>(nullptr, *Value);
-            if (LoadedClass && LoadedClass->IsChildOf(ClassProperty->MetaClass))
-            {
-                ClassProperty->SetPropertyValue(ContainerPtr, LoadedClass);
-                UE_LOG(LogTemp, Log, TEXT("SetPropertyFromJson - Set UClass* property '%s' to '%s'"), *Property->GetName(), *Value);
-                return true;
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson - Failed to load or type mismatch for UClass* property '%s' with value '%s'"), *Property->GetName(), *Value);
-            }
-        }
-    }
-    // ... existing code ...
-
-    // Log failure if no suitable type handler was found
-    UE_LOG(LogTemp, Warning, TEXT("SetPropertyFromJson: Unsupported property type '%s' or invalid JSON value type."), *Property->GetClass()->GetName());
-    return false;
+    return FPropertyUtils::SetPropertyFromJson(Property, ContainerPtr, JsonValue);
 }
 
 // Example implementation for ParseVector (adjust as needed)
 bool FUnrealMCPCommonUtils::ParseVector(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FVector& OutVector)
 {
-    if (JsonArray.Num() == 3) 
-    {
-        double X, Y, Z;
-        if (JsonArray[0]->TryGetNumber(X) && JsonArray[1]->TryGetNumber(Y) && JsonArray[2]->TryGetNumber(Z))
-        {
-            OutVector.X = X;
-            OutVector.Y = Y;
-            OutVector.Z = Z;
-            return true;
-        }
-    }
-    return false;
+    return FGeometryUtils::ParseVector(JsonArray, OutVector);
 }
 
-// Example implementation for ParseLinearColor (adjust as needed)
 bool FUnrealMCPCommonUtils::ParseLinearColor(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FLinearColor& OutColor)
 {
-    UE_LOG(LogTemp, Log, TEXT("ParseLinearColor - Array has %d elements"), JsonArray.Num());
-    
-    if (JsonArray.Num() < 3)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("ParseLinearColor - Array has insufficient elements: %d (need at least 3)"), JsonArray.Num());
-        return false;
-    }
-
-    // Check each element to ensure they are numbers
-    for (int32 i = 0; i < JsonArray.Num() && i < 4; ++i)
-    {
-        if (JsonArray[i]->Type != EJson::Number)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("ParseLinearColor - Element %d is not a number (type: %d)"), i, (int)JsonArray[i]->Type);
-            return false;
-        }
-    }
-
-    // Extract RGB values
-    float R = JsonArray[0]->AsNumber();
-    float G = JsonArray[1]->AsNumber();
-    float B = JsonArray[2]->AsNumber();
-    
-    // Extract Alpha if available, otherwise default to 1.0
-    float A = 1.0f;
-    if (JsonArray.Num() >= 4)
-    {
-        A = JsonArray[3]->AsNumber();
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("ParseLinearColor - Parsed color: R=%f, G=%f, B=%f, A=%f"), R, G, B, A);
-    
-    // Set the output color
-    OutColor = FLinearColor(R, G, B, A);
-    return true;
+    return FGeometryUtils::ParseLinearColor(JsonArray, OutColor);
 }
 
-// Placeholder for ParseRotator if needed
 bool FUnrealMCPCommonUtils::ParseRotator(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FRotator& OutRotator)
 {
-    if (JsonArray.Num() == 3) 
-    {
-        double P, Y, R;
-        if (JsonArray[0]->TryGetNumber(P) && JsonArray[1]->TryGetNumber(Y) && JsonArray[2]->TryGetNumber(R))
-        {
-            OutRotator.Pitch = P;
-            OutRotator.Yaw = Y;
-            OutRotator.Roll = R;
-            return true;
-        }
-    }
-    return false;
+    return FGeometryUtils::ParseRotator(JsonArray, OutRotator);
 }
 
-// FindActorByName implementation might already exist, ensure it's suitable or adapt
 AActor* FUnrealMCPCommonUtils::FindActorByName(const FString& ActorName)
 {
-    UWorld* World = GEditor->GetEditorWorldContext().World();
-    if (!World) return nullptr;
-
-    for (TActorIterator<AActor> It(World); It; ++It)
-    {
-        AActor* Actor = *It;
-        if (Actor && Actor->GetName() == ActorName)
-        {
-            return Actor;
-        }
-    }
-    return nullptr;
+    return FActorUtils::FindActorByName(ActorName);
 }
 
 bool FUnrealMCPCommonUtils::CallFunctionByName(UObject* Target, const FString& FunctionName, const TArray<FString>& StringParams, FString& OutError)
 {
-    if (!Target) {
-        OutError = TEXT("Target is null");
-        return false;
-    }
-    UFunction* Function = Target->FindFunction(FName(*FunctionName));
-    if (!Function) {
-        OutError = FString::Printf(TEXT("Function not found: %s"), *FunctionName);
-        return false;
-    }
-    uint8* Params = (uint8*)FMemory_Alloca(Function->ParmsSize);
-    FMemory::Memzero(Params, Function->ParmsSize);
-
-    int32 ParamIndex = 0;
-    for (TFieldIterator<FProperty> It(Function); It && (It->PropertyFlags & CPF_Parm); ++It)
-    {
-        if (It->IsA<FStrProperty>() && ParamIndex < StringParams.Num())
-        {
-            FStrProperty* StrProp = CastField<FStrProperty>(*It);
-            void* ValuePtr = It->ContainerPtrToValuePtr<void>(Params);
-            StrProp->SetPropertyValue(ValuePtr, StringParams[ParamIndex]);
-            ParamIndex++;
-        }
-        // Extend for other types as needed
-    }
-    Target->ProcessEvent(Function, Params);
-    return true;
+    return FActorUtils::CallFunctionByName(Target, FunctionName, StringParams, OutError);
 }
 
 // ==================== Asset Discovery Implementations ====================
 
 TArray<FString> FUnrealMCPCommonUtils::FindAssetsByType(const FString& AssetType, const FString& SearchPath)
 {
-    TArray<FString> FoundAssets;
-    
-    // Get the Asset Registry
-    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-    
-    // Create filter for asset type
-    FARFilter Filter;
-    Filter.PackagePaths.Add(FName(*SearchPath));
-    Filter.bRecursivePaths = true;
-    Filter.ClassPaths.Add(FTopLevelAssetPath(*AssetType));
-    
-    TArray<FAssetData> AssetDataList;
-    AssetRegistry.GetAssets(Filter, AssetDataList);
-    
-    for (const FAssetData& AssetData : AssetDataList)
-    {
-        FoundAssets.Add(AssetData.GetSoftObjectPath().ToString());
-    }
-    
-    UE_LOG(LogTemp, Display, TEXT("Found %d assets of type '%s' in path '%s'"), FoundAssets.Num(), *AssetType, *SearchPath);
-    return FoundAssets;
+    return FAssetUtils::FindAssetsByType(AssetType, SearchPath);
 }
 
 TArray<FString> FUnrealMCPCommonUtils::FindAssetsByName(const FString& AssetName, const FString& SearchPath)
 {
-    TArray<FString> FoundAssets;
-    
-    // Get the Asset Registry
-    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-    
-    // Create filter for search path
-    FARFilter Filter;
-    Filter.PackagePaths.Add(FName(*SearchPath));
-    Filter.bRecursivePaths = true;
-    
-    TArray<FAssetData> AssetDataList;
-    AssetRegistry.GetAssets(Filter, AssetDataList);
-    
-    for (const FAssetData& AssetData : AssetDataList)
-    {
-        FString AssetBaseName = FPaths::GetBaseFilename(AssetData.AssetName.ToString());
-        if (AssetBaseName.Contains(AssetName, ESearchCase::IgnoreCase) || 
-            AssetData.AssetName.ToString().Contains(AssetName, ESearchCase::IgnoreCase))
-        {
-            FoundAssets.Add(AssetData.GetSoftObjectPath().ToString());
-        }
-    }
-    
-    UE_LOG(LogTemp, Display, TEXT("Found %d assets matching name '%s' in path '%s'"), FoundAssets.Num(), *AssetName, *SearchPath);
-    return FoundAssets;
+    return FAssetUtils::FindAssetsByName(AssetName, SearchPath);
 }
 
 TArray<FString> FUnrealMCPCommonUtils::FindWidgetBlueprints(const FString& WidgetName, const FString& SearchPath)
 {
-    TArray<FString> FoundWidgets;
-    
-    // Get the Asset Registry
-    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-    
-    // Create filter for Widget Blueprints
-    FARFilter Filter;
-    Filter.PackagePaths.Add(FName(*SearchPath));
-    Filter.bRecursivePaths = true;
-    Filter.ClassPaths.Add(FTopLevelAssetPath(TEXT("/Script/UMGEditor"), TEXT("WidgetBlueprint")));
-    
-    TArray<FAssetData> AssetDataList;
-    AssetRegistry.GetAssets(Filter, AssetDataList);
-    
-    for (const FAssetData& AssetData : AssetDataList)
-    {
-        if (WidgetName.IsEmpty() || 
-            AssetData.AssetName.ToString().Contains(WidgetName, ESearchCase::IgnoreCase))
-        {
-            FoundWidgets.Add(AssetData.GetSoftObjectPath().ToString());
-        }
-    }
-    
-    UE_LOG(LogTemp, Display, TEXT("Found %d widget blueprints matching '%s' in path '%s'"), FoundWidgets.Num(), *WidgetName, *SearchPath);
-    return FoundWidgets;
+    return FAssetUtils::FindWidgetBlueprints(WidgetName, SearchPath);
 }
 
 TArray<FString> FUnrealMCPCommonUtils::FindBlueprints(const FString& BlueprintName, const FString& SearchPath)
@@ -1511,369 +525,42 @@ TArray<FString> FUnrealMCPCommonUtils::FindDataTables(const FString& TableName, 
 
 UClass* FUnrealMCPCommonUtils::FindWidgetClass(const FString& WidgetPath)
 {
-    UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Searching for widget class: %s"), *WidgetPath);
-    
-    // Strategy 1: Direct class loading if path looks like a class path
-    if (WidgetPath.Contains(TEXT("_C")) || WidgetPath.StartsWith(TEXT("/Script/")))
-    {
-        UClass* DirectClass = LoadObject<UClass>(nullptr, *WidgetPath);
-        if (DirectClass && DirectClass->IsChildOf(UUserWidget::StaticClass()))
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found class via direct loading: %s"), *DirectClass->GetName());
-            return DirectClass;
-        }
-    }
-    
-    // Strategy 2: Asset-based loading
-    UBlueprint* WidgetBlueprint = FindWidgetBlueprint(WidgetPath);
-    if (WidgetBlueprint && WidgetBlueprint->GeneratedClass)
-    {
-        UClass* GeneratedClass = WidgetBlueprint->GeneratedClass;
-        if (GeneratedClass->IsChildOf(UUserWidget::StaticClass()))
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found class via blueprint: %s"), *GeneratedClass->GetName());
-            return GeneratedClass;
-        }
-    }
-    
-    // Strategy 3: Search using asset discovery
-    TArray<FString> CommonPaths = GetCommonAssetSearchPaths(WidgetPath);
-    for (const FString& SearchPath : CommonPaths)
-    {
-        UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Trying search path: %s"), *SearchPath);
-        
-        // Try loading as blueprint asset first
-        if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
-        {
-            UObject* Asset = UEditorAssetLibrary::LoadAsset(SearchPath);
-            if (UBlueprint* BP = Cast<UBlueprint>(Asset))
-            {
-                if (BP->GeneratedClass && BP->GeneratedClass->IsChildOf(UUserWidget::StaticClass()))
-                {
-                    UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found widget class via asset search: %s"), *BP->GeneratedClass->GetName());
-                    return BP->GeneratedClass;
-                }
-            }
-        }
-        
-        // Try loading as class with _C suffix
-        FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *SearchPath, *FPaths::GetBaseFilename(SearchPath));
-        UClass* Class = LoadObject<UClass>(nullptr, *ClassPath);
-        if (Class && Class->IsChildOf(UUserWidget::StaticClass()))
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindWidgetClass: Found widget class via class path: %s"), *Class->GetName());
-            return Class;
-        }
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("FindWidgetClass: Could not find widget class for: %s"), *WidgetPath);
-    return nullptr;
+    return FAssetUtils::FindWidgetClass(WidgetPath);
 }
 
 UBlueprint* FUnrealMCPCommonUtils::FindWidgetBlueprint(const FString& WidgetPath)
 {
-    UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Searching for widget blueprint: %s"), *WidgetPath);
-    
-    // Strategy 1: Direct asset loading
-    if (UEditorAssetLibrary::DoesAssetExist(WidgetPath))
-    {
-        UObject* Asset = UEditorAssetLibrary::LoadAsset(WidgetPath);
-        if (UBlueprint* BP = Cast<UBlueprint>(Asset))
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found blueprint via direct loading: %s"), *BP->GetName());
-            return BP;
-        }
-    }
-    
-    // Strategy 2: Search using common paths
-    TArray<FString> CommonPaths = GetCommonAssetSearchPaths(WidgetPath);
-    for (const FString& SearchPath : CommonPaths)
-    {
-        UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Trying search path: %s"), *SearchPath);
-        
-        if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
-        {
-            UObject* Asset = UEditorAssetLibrary::LoadAsset(SearchPath);
-            if (UBlueprint* BP = Cast<UBlueprint>(Asset))
-            {
-                UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found blueprint via asset search: %s"), *BP->GetName());
-                return BP;
-            }
-        }
-    }
-    
-    // Strategy 3: Use asset registry search
-    TArray<FString> FoundWidgets = FindWidgetBlueprints(FPaths::GetBaseFilename(WidgetPath));
-    for (const FString& FoundPath : FoundWidgets)
-    {
-        UObject* Asset = UEditorAssetLibrary::LoadAsset(FoundPath);
-        if (UBlueprint* BP = Cast<UBlueprint>(Asset))
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found blueprint via registry search: %s"), *BP->GetName());
-            return BP;
-        }
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("FindWidgetBlueprint: Could not find widget blueprint for: %s"), *WidgetPath);
-    return nullptr;
+    return FAssetUtils::FindWidgetBlueprint(WidgetPath);
 }
 
 UObject* FUnrealMCPCommonUtils::FindAssetByPath(const FString& AssetPath)
 {
-    UE_LOG(LogTemp, Display, TEXT("FindAssetByPath: Searching for asset: %s"), *AssetPath);
-    
-    if (UEditorAssetLibrary::DoesAssetExist(AssetPath))
-    {
-        UObject* Asset = UEditorAssetLibrary::LoadAsset(AssetPath);
-        if (Asset)
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindAssetByPath: Found asset: %s"), *Asset->GetName());
-            return Asset;
-        }
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("FindAssetByPath: Could not find asset: %s"), *AssetPath);
-    return nullptr;
+    return FAssetUtils::FindAssetByPath(AssetPath);
 }
 
 UObject* FUnrealMCPCommonUtils::FindAssetByName(const FString& AssetName, const FString& AssetType)
 {
-    UE_LOG(LogTemp, Display, TEXT("FindAssetByName: Searching for asset '%s' of type '%s'"), *AssetName, *AssetType);
-    
-    TArray<FString> FoundAssets;
-    if (!AssetType.IsEmpty())
-    {
-        FoundAssets = FindAssetsByType(AssetType);
-    }
-    else
-    {
-        FoundAssets = FindAssetsByName(AssetName);
-    }
-    
-    for (const FString& AssetPath : FoundAssets)
-    {
-        if (FPaths::GetBaseFilename(AssetPath).Contains(AssetName, ESearchCase::IgnoreCase))
-        {
-            UObject* Asset = FindAssetByPath(AssetPath);
-            if (Asset)
-            {
-                UE_LOG(LogTemp, Display, TEXT("FindAssetByName: Found matching asset: %s"), *Asset->GetName());
-                return Asset;
-            }
-        }
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("FindAssetByName: Could not find asset '%s'"), *AssetName);
-    return nullptr;
+    return FAssetUtils::FindAssetByName(AssetName, AssetType);
 }
 
 UScriptStruct* FUnrealMCPCommonUtils::FindStructType(const FString& StructPath)
 {
-    UE_LOG(LogTemp, Display, TEXT("FindStructType: Searching for struct: %s"), *StructPath);
-    
-    // Strategy 1: Check built-in struct types first
-    static const TMap<FString, UScriptStruct*> BuiltInStructs = {
-        {TEXT("Vector"), TBaseStructure<FVector>::Get()},
-        {TEXT("Rotator"), TBaseStructure<FRotator>::Get()},
-        {TEXT("Transform"), TBaseStructure<FTransform>::Get()},
-        {TEXT("Color"), TBaseStructure<FLinearColor>::Get()},
-        {TEXT("LinearColor"), TBaseStructure<FLinearColor>::Get()},
-        {TEXT("Vector2D"), TBaseStructure<FVector2D>::Get()},
-        {TEXT("IntPoint"), TBaseStructure<FIntPoint>::Get()},
-        {TEXT("IntVector"), TBaseStructure<FIntVector>::Get()},
-        {TEXT("Guid"), TBaseStructure<FGuid>::Get()},
-        {TEXT("DateTime"), TBaseStructure<FDateTime>::Get()}
-    };
-    
-    // Check for exact built-in match
-    if (const UScriptStruct* const* FoundBuiltIn = BuiltInStructs.Find(StructPath))
-    {
-        UE_LOG(LogTemp, Display, TEXT("FindStructType: Found built-in struct: %s"), *(*FoundBuiltIn)->GetName());
-        return const_cast<UScriptStruct*>(*FoundBuiltIn);
-    }
-    
-    // Strategy 2: Try direct struct loading with various naming conventions
-    TArray<FString> StructNameVariations;
-    StructNameVariations.Add(StructPath);
-    StructNameVariations.Add(FString::Printf(TEXT("F%s"), *StructPath));
-    
-    // If it's already a path, try loading directly
-    if (StructPath.StartsWith(TEXT("/")) || StructPath.Contains(TEXT(".")))
-    {
-        UScriptStruct* DirectStruct = LoadObject<UScriptStruct>(nullptr, *StructPath);
-        if (DirectStruct)
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via direct path: %s"), *DirectStruct->GetName());
-            return DirectStruct;
-        }
-    }
-    
-    // Strategy 3: Search in common struct directories
-    TArray<FString> StructDirectories = {
-        TEXT("/Game/DataStructures/"),
-        TEXT("/Game/Data/"),
-        TEXT("/Game/Blueprints/DataStructures/"),
-        TEXT("/Game/Blueprints/Structs/"),
-        TEXT("/Game/Blueprints/"),
-        TEXT("/Game/Structs/"),
-        TEXT("/Game/")
-    };
-    
-    for (const FString& StructDir : StructDirectories)
-    {
-        for (const FString& StructVariation : StructNameVariations)
-        {
-            // Try as asset path (e.g., /Game/DataStructures/MyStruct.MyStruct)
-            FString AssetPath = FString::Printf(TEXT("%s%s.%s"), *StructDir, *StructVariation, *StructVariation);
-            UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *AssetPath);
-            if (FoundStruct)
-            {
-                UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via asset search: %s"), *FoundStruct->GetName());
-                return FoundStruct;
-            }
-            
-            // Try with base filename only
-            FString BaseFilename = FPaths::GetBaseFilename(StructPath);
-            if (BaseFilename != StructPath)
-            {
-                AssetPath = FString::Printf(TEXT("%s%s.%s"), *StructDir, *BaseFilename, *BaseFilename);
-                FoundStruct = LoadObject<UScriptStruct>(nullptr, *AssetPath);
-                if (FoundStruct)
-                {
-                    UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via base filename search: %s"), *FoundStruct->GetName());
-                    return FoundStruct;
-                }
-            }
-        }
-    }
-    
-    // Strategy 4: Try engine paths for built-in structs
-    for (const FString& StructVariation : StructNameVariations)
-    {
-        FString EnginePath = BuildEnginePath(StructVariation);
-        UScriptStruct* EngineStruct = LoadObject<UScriptStruct>(nullptr, *EnginePath);
-        if (EngineStruct)
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via engine path: %s"), *EngineStruct->GetName());
-            return EngineStruct;
-        }
-        
-        FString CorePath = BuildCorePath(StructVariation);
-        UScriptStruct* CoreStruct = LoadObject<UScriptStruct>(nullptr, *CorePath);
-        if (CoreStruct)
-        {
-            UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via core path: %s"), *CoreStruct->GetName());
-            return CoreStruct;
-        }
-    }
-    
-    // Strategy 5: Use asset registry to find user-defined structs
-    TArray<FString> FoundStructs = FindAssetsByType(TEXT("UserDefinedStruct"));
-    for (const FString& FoundPath : FoundStructs)
-    {
-        if (FPaths::GetBaseFilename(FoundPath).Contains(StructPath, ESearchCase::IgnoreCase) ||
-            FPaths::GetBaseFilename(FoundPath).Contains(FString::Printf(TEXT("F%s"), *StructPath), ESearchCase::IgnoreCase))
-        {
-            UScriptStruct* Struct = Cast<UScriptStruct>(FindAssetByPath(FoundPath));
-            if (Struct)
-            {
-                UE_LOG(LogTemp, Display, TEXT("FindStructType: Found struct via registry search: %s"), *Struct->GetName());
-                return Struct;
-            }
-        }
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("FindStructType: Could not find struct for: %s"), *StructPath);
-    return nullptr;
+    return FAssetUtils::FindStructType(StructPath);
 }
 
 TArray<FString> FUnrealMCPCommonUtils::GetCommonAssetSearchPaths(const FString& AssetName)
 {
-    TArray<FString> SearchPaths;
-    
-    // If AssetName is already a full path (starts with /Game/ or /Script/), just return it
-    if (AssetName.StartsWith(TEXT("/Game/")) || AssetName.StartsWith(TEXT("/Script/")))
-    {
-        SearchPaths.Add(AssetName);
-        return SearchPaths;
-    }
-    
-    // Clean the asset name
-    FString CleanName = NormalizeAssetPath(AssetName);
-    
-    // Remove common prefixes and suffixes for search
-    if (CleanName.StartsWith(TEXT("WBP_")))
-    {
-        CleanName = CleanName.RightChop(4);
-    }
-    if (CleanName.StartsWith(TEXT("BP_")))
-    {
-        CleanName = CleanName.RightChop(3);
-    }
-    
-    // Common widget directories
-    TArray<FString> CommonDirs = {
-        TEXT("/Game/Widgets/"),
-        TEXT("/Game/UI/"),
-        TEXT("/Game/UMG/"),
-        TEXT("/Game/Blueprints/Widgets/"),
-        TEXT("/Game/Blueprints/UI/"),
-        TEXT("/Game/Blueprints/"),
-        TEXT("/Game/")
-    };
-    
-    // Build search paths
-    for (const FString& Dir : CommonDirs)
-    {
-        // Original name
-        SearchPaths.Add(Dir + AssetName);
-        SearchPaths.Add(Dir + CleanName);
-        
-        // With WBP_ prefix
-        if (!AssetName.StartsWith(TEXT("WBP_")))
-        {
-            SearchPaths.Add(Dir + TEXT("WBP_") + AssetName);
-            SearchPaths.Add(Dir + TEXT("WBP_") + CleanName);
-        }
-        
-        // With BP_ prefix
-        if (!AssetName.StartsWith(TEXT("BP_")))
-        {
-            SearchPaths.Add(Dir + TEXT("BP_") + AssetName);
-            SearchPaths.Add(Dir + TEXT("BP_") + CleanName);
-        }
-    }
-    
-    return SearchPaths;
+    return FAssetUtils::GetCommonAssetSearchPaths(AssetName);
 }
 
 FString FUnrealMCPCommonUtils::NormalizeAssetPath(const FString& AssetPath)
 {
-    FString CleanPath = AssetPath;
-    CleanPath.TrimStartAndEndInline();
-    
-    // Remove leading slashes and Game/ prefix for normalization
-    if (CleanPath.StartsWith(TEXT("/")))
-    {
-        CleanPath.RemoveFromStart(TEXT("/"));
-    }
-    if (CleanPath.StartsWith(TEXT("Game/")))
-    {
-        CleanPath.RemoveFromStart(TEXT("Game/"));
-    }
-    
-    // Get just the filename if it's a full path
-    if (CleanPath.Contains(TEXT("/")))
-    {
-        CleanPath = FPaths::GetBaseFilename(CleanPath);
-    }
-    
-    return CleanPath;
+    return FAssetUtils::NormalizeAssetPath(AssetPath);
 }
 
 bool FUnrealMCPCommonUtils::IsValidAssetPath(const FString& AssetPath)
 {
-    return UEditorAssetLibrary::DoesAssetExist(AssetPath);
+    return FAssetUtils::IsValidAssetPath(AssetPath);
 }
 
 // Blueprint Node Creation Functions
