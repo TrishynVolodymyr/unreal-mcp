@@ -71,11 +71,32 @@ public:
      */
     static bool IsValidAssetPath(const FString& AssetPath);
 
+    /**
+     * Find assets by type (e.g., "Blueprint", "WidgetBlueprint")
+     * @param AssetType - Type of asset to search for
+     * @param SearchPath - Path to search in (default: /Game)
+     * @return Array of asset paths
+     */
+    static TArray<FString> FindAssetsByType(const FString& AssetType, const FString& SearchPath = TEXT("/Game"));
+
+    /**
+     * Find assets by name
+     * @param AssetName - Asset name to search for
+     * @param SearchPath - Path to search in (default: /Game)
+     * @return Array of asset paths
+     */
+    static TArray<FString> FindAssetsByName(const FString& AssetName, const FString& SearchPath = TEXT("/Game"));
+
+    /**
+     * Find widget blueprints
+     * @param WidgetName - Optional widget name filter
+     * @param SearchPath - Path to search in (default: /Game)
+     * @return Array of widget blueprint paths
+     */
+    static TArray<FString> FindWidgetBlueprints(const FString& WidgetName = TEXT(""), const FString& SearchPath = TEXT("/Game"));
+
 private:
     // Helper methods used internally
-    static TArray<FString> FindAssetsByType(const FString& AssetType, const FString& SearchPath = TEXT("/Game"));
-    static TArray<FString> FindAssetsByName(const FString& AssetName, const FString& SearchPath = TEXT("/Game"));
-    static TArray<FString> FindWidgetBlueprints(const FString& WidgetName = TEXT(""), const FString& SearchPath = TEXT("/Game"));
     static FString BuildEnginePath(const FString& Path);
     static FString BuildCorePath(const FString& Path);
 };

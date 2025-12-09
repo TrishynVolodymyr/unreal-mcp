@@ -4,7 +4,9 @@
       "Bash(.RebuildProject.bat)",
       "Bash(cmd /c RebuildProject.bat)",
       "Bash(git checkout:*)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

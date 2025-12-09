@@ -736,3 +736,202 @@ Total data so far: 216 bytes
 Decoded preview: {"status":"success","result":{"success":true,"text_block_name":"ScoreText","binding_property":"PlayerScore","variable_type":"Int","function_name":"GetPlayerScore","message":"Text block binding created...
 SUCCESS: Complete JSON received!
 Full response: {"status":"success","result":{"success":true,"text_block_name":"ScoreText","binding_property":"PlayerScore","variable_type":"Int","function_name":"GetPlayerScore","message":"Text block binding created successfully"}}
+
+
+=== RECEIVE START: 2025-12-07 17:57:33.952036 ===
+Calling sock.recv(4096)...
+Received chunk: 145 bytes
+Total data so far: 145 bytes
+Decoded preview: {"status":"success","result":{"name":"TestActor_Location","class":"StaticMeshActor","location":[100,200,300],"rotation":[0,0,0],"scale":[1,1,1]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"name":"TestActor_Location","class":"StaticMeshActor","location":[100,200,300],"rotation":[0,0,0],"scale":[1,1,1]}}
+
+
+=== RECEIVE START: 2025-12-07 17:57:38.239536 ===
+Calling sock.recv(4096)...
+Received chunk: 156 bytes
+Total data so far: 156 bytes
+Decoded preview: {"status":"success","result":{"name":"TestActor_Rotation","class":"StaticMeshActor","location":[0,0,0],"rotation":[0,89.999999999999986,0],"scale":[1,1,1]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"name":"TestActor_Rotation","class":"StaticMeshActor","location":[0,0,0],"rotation":[0,89.999999999999986,0],"scale":[1,1,1]}}
+
+
+=== RECEIVE START: 2025-12-07 17:58:41.684761 ===
+Calling sock.recv(4096)...
+Received chunk: 140 bytes
+Total data so far: 140 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"WBP_TestRefactor","path":"/Game/TestRefactor/WBP_TestRefactor","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"WBP_TestRefactor","path":"/Game/TestRefactor/WBP_TestRefactor","already_exists":false}}
+
+
+=== RECEIVE START: 2025-12-07 17:58:49.676642 ===
+Calling sock.recv(4096)...
+Received chunk: 126 bytes
+Total data so far: 126 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"TestButton","component_type":"Button","widget_class":"Button"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"TestButton","component_type":"Button","widget_class":"Button"}}
+
+
+=== RECEIVE START: 2025-12-07 17:58:59.708276 ===
+Calling sock.recv(4096)...
+Received chunk: 377 bytes
+Total data so far: 377 bytes
+Decoded preview: {"status":"success","result":{"success":true,"command":"create_datatable","datatable":{"name":"DT_TestRefactor","path":"/Game/TestRefactor/DT_TestRefactor.DT_TestRefactor","package":"/Game/TestRefacto...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"command":"create_datatable","datatable":{"name":"DT_TestRefactor","path":"/Game/TestRefactor/DT_TestRefactor.DT_TestRefactor","package":"/Game/TestRefactor/DT_TestRefactor","row_struct":"Vector","row_struct_path":"/Script/CoreUObject.Vector","row_count":0},"metadata":{"timestamp":"2025-12-07T15:59:00.187Z","operation":"create"}}}
+
+
+=== RECEIVE START: 2025-12-07 17:59:13.220834 ===
+Calling sock.recv(4096)...
+Received chunk: 86 bytes
+Total data so far: 86 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[],"node_count":0,"node_ids":[]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[],"node_count":0,"node_ids":[]}}
+
+
+=== RECEIVE START: 2025-12-07 17:59:25.058106 ===
+Calling sock.recv(4096)...
+Received chunk: 556 bytes
+Total data so far: 556 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_TestRefactor","function_name":"Event BeginPlay","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_TestRefactor","function_name":"Event BeginPlay","node_type":"K2Node_Event","class_name":"","node_id":"92A83B77464FC2277C062E95AD4D23C2","node_title":"Event BeginPlay","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":100},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-07 17:59:30.091891 ===
+Calling sock.recv(4096)...
+Received chunk: 1166 bytes
+Total data so far: 1166 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_TestRefactor","function_name":"PrintString","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_TestRefactor","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"5035378544C90416B9BF37A037C85044","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":400,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-07 17:59:35.019075 ===
+Calling sock.recv(4096)...
+Received chunk: 226 bytes
+Total data so far: 226 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"92A83B77464FC2277C062E95AD4D23C2","target_node_id":"5035378544C90416B9BF37A037C85044"}],"batch":true,"successful_connections"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"92A83B77464FC2277C062E95AD4D23C2","target_node_id":"5035378544C90416B9BF37A037C85044"}],"batch":true,"successful_connections":1,"total_connections":1}}
+
+
+=== RECEIVE START: 2025-12-07 17:59:39.775042 ===
+Calling sock.recv(4096)...
+Received chunk: 100 bytes
+Total data so far: 100 bytes
+Decoded preview: {"status":"error","error":"Function 'VariableGet' not found and not a recognized control flow node"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Function 'VariableGet' not found and not a recognized control flow node"}
+
+
+=== RECEIVE START: 2025-12-07 17:59:43.151516 ===
+Calling sock.recv(4096)...
+Received chunk: 4096 bytes
+Total data so far: 4096 bytes
+Decoded preview: {"status":"success","result":{"success":true,"search_query":"Speed","category_filter":"","actions":[{"title":"Get Speed","tooltip":"Get the value of variable Speed","category":"Variables","variable_na...
+Partial JSON (error: Unterminated string starting at: line 1 column 4043 (char 4042)), continuing...
+Calling sock.recv(4096)...
+Received chunk: 4096 bytes
+Total data so far: 8192 bytes
+Decoded preview: {"status":"success","result":{"success":true,"search_query":"Speed","category_filter":"","actions":[{"title":"Get Speed","tooltip":"Get the value of variable Speed","category":"Variables","variable_na...
+Partial JSON (error: Unterminated string starting at: line 1 column 8191 (char 8190)), continuing...
+Calling sock.recv(4096)...
+Received chunk: 762 bytes
+Total data so far: 8954 bytes
+Decoded preview: {"status":"success","result":{"success":true,"search_query":"Speed","category_filter":"","actions":[{"title":"Get Speed","tooltip":"Get the value of variable Speed","category":"Variables","variable_na...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"search_query":"Speed","category_filter":"","actions":[{"title":"Get Speed","tooltip":"Get the value of variable Speed","category":"Variables","variable_name":"Speed","pin_type":"real","function_name":"Get Speed","is_blueprint_variable":true},{"title":"Set Speed","tooltip":"Set the value of variable Speed","category":"Variables","variable_name":"Speed","pin_type":"real","function_name":"Set Speed","is_blueprint_variable":true},{"title":"Get Actor Time Dilation","tooltip":"Get ActorTimeDilation - this can be used for input control or speed control for slomo.\nWe don't want to scale input globally because input can be used for UI, which do not care for TimeDilation.","category":"Actor","function_name":"GetActorTimeDilation","class_name":"Actor"},{"title":"Get","tooltip":"Read the value of variable CustomTimeDilation\nAllow each actor to run at a different time speed. The DeltaTime for a frame is multiplied by the global TimeDilation (in WorldSettings) and this CustomTimeDilation for this actor's tick.","category":"Unknown","function_name":"Get"},{"title":"Set","tooltip":"Set the value of variable CustomTimeDilation\nAllow each actor to run at a different time speed. The DeltaTime for a frame is multiplied by the global TimeDilation (in WorldSettings) and this CustomTimeDilation for this actor's tick.","category":"Unknown","function_name":"Set"},{"title":"Set Playback Speed","tooltip":"Changes the playback rate of a playing animation\n\n@param InAnimation The animation that is already playing\n@param PlaybackRate Playback rate multiplier (1 is default)","category":"User Interface|Animation","function_name":"SetPlaybackSpeed","class_name":"UserWidget"},{"title":"Queue Play Animation Time Range","tooltip":"Plays an animation in this widget a specified number of times stopping at a specified time\n\n@param InAnimation The animation to play\n@param StartAtTime The time in the animation from which to start playing, relative to the start position. For looped animations, this will only affect the first playback of the animation.\n@param EndAtTime The absolute time in the animation where to stop, this is only considered in the last loop.\n@param NumLoopsToPlay The number of times to loop this animation (0 to loop indefinitely)\n@param PlayMode Specifies the playback mode\n@param PlaybackSpeed The speed at which the animation should play\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"QueuePlayAnimationTimeRange","class_name":"UserWidget"},{"title":"Queue Play Animation Reverse","tooltip":"Plays an animation on this widget relative to it's current state in reverse.  You should use this version in situations where\nsay a user can click a button and that causes a panel to slide out, and you want to reverse that same animation to begin sliding\nin the opposite direction.\n\n@param InAnimation The animation to play\n@param PlayMode Specifies the playback mode\n@param PlaybackSpeed The speed at which the animation should play\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"QueuePlayAnimationReverse","class_name":"UserWidget"},{"title":"Queue Play Animation Forward","tooltip":"Plays an animation on this widget relative to it's current state forward.  You should use this version in situations where\nsay a user can click a button and that causes a panel to slide out, and you want to reverse that same animation to begin sliding\nin the opposite direction.\n\n@param InAnimation The animation to play\n@param PlayMode Specifies the playback mode\n@param PlaybackSpeed The speed at which the animation should play\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"QueuePlayAnimationForward","class_name":"UserWidget"},{"title":"Queue Play Animation","tooltip":"Plays an animation in this widget a specified number of times\n\n@param InAnimation The animation to play\n@param StartAtTime The time in the animation from which to start playing, relative to the start position. For looped animations, this will only affect the first playback of the animation.\n@param NumLoopsToPlay The number of times to loop this animation (0 to loop indefinitely)\n@param PlaybackSpeed The speed at which the animation should play\n@param PlayMode Specifies the playback mode\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"QueuePlayAnimation","class_name":"UserWidget"},{"title":"Play Animation Time Range","tooltip":"Plays an animation in this widget a specified number of times stopping at a specified time\n\n@param InAnimation The animation to play\n@param StartAtTime The time in the animation from which to start playing, relative to the start position. For looped animations, this will only affect the first playback of the animation.\n@param EndAtTime The absolute time in the animation where to stop, this is only considered in the last loop.\n@param NumLoopsToPlay The number of times to loop this animation (0 to loop indefinitely)\n@param PlayMode Specifies the playback mode\n@param PlaybackSpeed The speed at which the animation should play\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"PlayAnimationTimeRange","class_name":"UserWidget"},{"title":"Play Animation Reverse","tooltip":"Plays an animation on this widget relative to it's current state in reverse.  You should use this version in situations where\nsay a user can click a button and that causes a panel to slide out, and you want to reverse that same animation to begin sliding\nin the opposite direction.\n\n@param InAnimation The animation to play\n@param PlayMode Specifies the playback mode\n@param PlaybackSpeed The speed at which the animation should play\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"PlayAnimationReverse","class_name":"UserWidget"},{"title":"Play Animation Forward","tooltip":"Plays an animation on this widget relative to it's current state forward.  You should use this version in situations where\nsay a user can click a button and that causes a panel to slide out, and you want to reverse that same animation to begin sliding\nin the opposite direction.\n\n@param InAnimation The animation to play\n@param PlayMode Specifies the playback mode\n@param PlaybackSpeed The speed at which the animation should play\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"PlayAnimationForward","class_name":"UserWidget"},{"title":"Play Animation","tooltip":"Plays an animation in this widget a specified number of times\n\n@param InAnimation The animation to play\n@param StartAtTime The time in the animation from which to start playing, relative to the start position. For looped animations, this will only affect the first playback of the animation.\n@param NumLoopsToPlay The number of times to loop this animation (0 to loop indefinitely)\n@param PlaybackSpeed The speed at which the animation should play\n@param PlayMode Specifies the playback mode\n@param bRestoreState Restores widgets to their pre-animated state when the animation stops","category":"User Interface|Animation","function_name":"PlayAnimation","class_name":"UserWidget"},{"title":"Get","tooltip":"Read the value of variable bEnableMaterialParameterCaching\nWhether or not to cache material parameter to speed up setting scalar or vector value on materials","category":"Unknown","function_name":"Get"},{"title":"Set","tooltip":"Set the value of variable bEnableMaterialParameterCaching\nWhether or not to cache material parameter to speed up setting scalar or vector value on materials","category":"Unknown","function_name":"Set"},{"title":"Get","tooltip":"Read the value of variable ScrollingAnimationInterpolationSpeed\nThe speed to apply when lerping in the scroll animation.","category":"Unknown","function_name":"Get"},{"title":"Set","tooltip":"Set the value of variable ScrollingAnimationInterpolationSpeed\nThe speed to apply when lerping in the scroll animation.","category":"Unknown","function_name":"Set"},{"title":"Set Scroll Animation Interpolation Speed","tooltip":"Set Scroll Animation Interpolation Speed","category":"Scroll","function_name":"SetScrollAnimationInterpolationSpeed","class_name":"ScrollBox"},{"title":"Get","tooltip":"Read the value of variable ScrollAnimationInterpolationSpeed","category":"Unknown","function_name":"Get"}],"action_count":20,"message":"Found 20 actions matching 'Speed'"}}
+
+
+=== RECEIVE START: 2025-12-07 17:59:47.021811 ===
+Calling sock.recv(4096)...
+Received chunk: 541 bytes
+Total data so far: 541 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Speed' node (UK2Node_VariableGet)","blueprint_name":"BP_TestRefactor","function_name":"Get Speed","node_type":"UK2Node...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Speed' node (UK2Node_VariableGet)","blueprint_name":"BP_TestRefactor","function_name":"Get Speed","node_type":"UK2Node_VariableGet","class_name":"","node_id":"C1B0C0224BE4D038B11D87AA06288A08","node_title":"Get Speed","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":200},"pins":[{"name":"Speed","type":"real","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-07 18:00:15.166631 ===
+Calling sock.recv(4096)...
+Received chunk: 158 bytes
+Total data so far: 158 bytes
+Decoded preview: {"status":"success","result":{"actors":[{"name":"TestActor_Location","class":"StaticMeshActor","location":[100,200,300],"rotation":[0,0,0],"scale":[1,1,1]}]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"actors":[{"name":"TestActor_Location","class":"StaticMeshActor","location":[100,200,300],"rotation":[0,0,0],"scale":[1,1,1]}]}}
+
+
+=== RECEIVE START: 2025-12-07 18:00:22.795455 ===
+Calling sock.recv(4096)...
+Received chunk: 2036 bytes
+Total data so far: 2036 bytes
+Decoded preview: {"status":"success","result":{"actors":[{"name":"WorldSettings_1","class":"WorldSettings","location":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"Brush_1","class":"Brush","location":[-90,110,2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"actors":[{"name":"WorldSettings_1","class":"WorldSettings","location":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"Brush_1","class":"Brush","location":[-90,110,20],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"DirectionalLight_0","class":"DirectionalLight","location":[0,0,400],"rotation":[-49.51711035415601,-10.308600787602971,112.36067200001975],"scale":[1,1.0000000149011612,1.0000000149011612]},{"name":"SkyAtmosphere_0","class":"SkyAtmosphere","location":[0,0,-6000],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"SkyLight_0","class":"SkyLight","location":[0,0,600],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"ExponentialHeightFog_0","class":"ExponentialHeightFog","location":[-5600,-50,-6850],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"VolumetricCloud_0","class":"VolumetricCloud","location":[0,0,700],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"PlayerStart_0","class":"PlayerStart","location":[0,0,92],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"StaticMeshActor_0","class":"StaticMeshActor","location":[0,0,0],"rotation":[0,0,0],"scale":[400,400,400]},{"name":"Floor_0","class":"StaticMeshActor","location":[0,0,-0.5],"rotation":[0,0,0],"scale":[8,8,8]},{"name":"TestRefactoredActor","class":"TestRefactoredBP_C","location":[0,0,100],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"DefaultPhysicsVolume_0","class":"DefaultPhysicsVolume","location":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"GameplayDebuggerPlayerManager_0","class":"GameplayDebuggerPlayerManager","location":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"ChaosDebugDrawActor","class":"Actor","location":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"AbstractNavData-Default","class":"AbstractNavData","location":[0,0,0],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"TestActor_Location","class":"StaticMeshActor","location":[100,200,300],"rotation":[0,0,0],"scale":[1,1,1]},{"name":"TestActor_Rotation","class":"StaticMeshActor","location":[0,0,0],"rotation":[0,89.999999999999986,0],"scale":[1,1,1]}]}}
+
+
+=== RECEIVE START: 2025-12-07 18:00:26.743557 ===
+Calling sock.recv(4096)...
+Received chunk: 230 bytes
+Total data so far: 230 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"TestActor_Location","class":"StaticMeshActor","transform":{"location":[100,200,300],"rotation":[0,0,-0],"scale":[1,1,1]},"hidden":false,"mobility":...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"TestActor_Location","class":"StaticMeshActor","transform":{"location":[100,200,300],"rotation":[0,0,-0],"scale":[1,1,1]},"hidden":false,"mobility":"EComponentMobility::Static"}}
+
+
+=== RECEIVE START: 2025-12-07 18:00:41.035962 ===
+Calling sock.recv(4096)...
+Received chunk: 219 bytes
+Total data so far: 219 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Actor transform updated successfully","actor":{"name":"TestActor_Location","class":"StaticMeshActor","location":[150,250,350],"rotation":[0,0,0]...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Actor transform updated successfully","actor":{"name":"TestActor_Location","class":"StaticMeshActor","location":[150,250,350],"rotation":[0,0,0],"scale":[1,1,1]}}}
+
+
+=== RECEIVE START: 2025-12-07 18:00:59.757419 ===
+Calling sock.recv(4096)...
+Received chunk: 559 bytes
+Total data so far: 559 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_IntegrationTest","function_name":"Event BeginPlay","node_type":...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_IntegrationTest","function_name":"Event BeginPlay","node_type":"K2Node_Event","class_name":"","node_id":"9780856841B6B81736F145B20390FC1B","node_title":"Event BeginPlay","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":100},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-07 18:01:05.249050 ===
+Calling sock.recv(4096)...
+Received chunk: 152 bytes
+Total data so far: 152 bytes
+Decoded preview: {"status":"success","result":{"name":"IntegrationTestActor","class":"BP_IntegrationTest_C","location":[200,200,100],"rotation":[0,0,0],"scale":[1,1,1]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"name":"IntegrationTestActor","class":"BP_IntegrationTest_C","location":[200,200,100],"rotation":[0,0,0],"scale":[1,1,1]}}
+
+
+=== RECEIVE START: 2025-12-07 18:01:05.403372 ===
+Calling sock.recv(4096)...
+Received chunk: 165 bytes
+Total data so far: 165 bytes
+Decoded preview: {"status":"success","result":{"actors":[{"name":"IntegrationTestActor","class":"BP_IntegrationTest_C","location":[200,200,100],"rotation":[0,0,0],"scale":[1,1,1]}]}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"actors":[{"name":"IntegrationTestActor","class":"BP_IntegrationTest_C","location":[200,200,100],"rotation":[0,0,0],"scale":[1,1,1]}]}}
+
+
+=== RECEIVE START: 2025-12-07 18:01:20.942018 ===
+Calling sock.recv(4096)...
+Received chunk: 146 bytes
+Total data so far: 146 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"WBP_IntegrationTest","path":"/Game/TestRefactor/WBP_IntegrationTest","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"WBP_IntegrationTest","path":"/Game/TestRefactor/WBP_IntegrationTest","already_exists":false}}
+
+
+=== RECEIVE START: 2025-12-07 18:01:21.176431 ===
+Calling sock.recv(4096)...
+Received chunk: 133 bytes
+Total data so far: 133 bytes
+Decoded preview: {"status":"success","result":{"success":true,"component_name":"IntegrationButton","component_type":"Button","widget_class":"Button"}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"component_name":"IntegrationButton","component_type":"Button","widget_class":"Button"}}
