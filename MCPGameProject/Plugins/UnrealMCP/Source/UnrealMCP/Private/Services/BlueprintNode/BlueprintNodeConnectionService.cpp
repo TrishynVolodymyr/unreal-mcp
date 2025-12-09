@@ -264,10 +264,31 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
         bTargetIsPromotable ? TEXT("YES") : TEXT("NO"));
 
     // Check if we need a cast node BEFORE attempting connection
-    // For object types, check if target requires more specific type than source provides
     bool bNeedsCast = false;
-    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object &&
-        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+
+    // Check for primitive type mismatches that need casting
+    // Int/Float/Bool -> String conversions
+    if ((SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Int ||
+         SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Real ||
+         SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean) &&
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+    {
+        bNeedsCast = true;
+        UE_LOG(LogTemp, Warning, TEXT("Primitive to String cast needed: %s -> String"),
+            *SourcePin->PinType.PinCategory.ToString());
+    }
+    // String -> Int/Float conversions
+    else if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_String &&
+             (TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Int ||
+              TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Real))
+    {
+        bNeedsCast = true;
+        UE_LOG(LogTemp, Warning, TEXT("String to Primitive cast needed: String -> %s"),
+            *TargetPin->PinType.PinCategory.ToString());
+    }
+    // For object types, check if target requires more specific type than source provides
+    else if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object &&
+             TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
     {
         UClass* SourceClass = Cast<UClass>(SourcePin->PinType.PinSubCategoryObject.Get());
         UClass* TargetClass = Cast<UClass>(TargetPin->PinType.PinSubCategoryObject.Get());

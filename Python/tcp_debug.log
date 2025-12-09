@@ -935,3 +935,381 @@ Total data so far: 133 bytes
 Decoded preview: {"status":"success","result":{"success":true,"component_name":"IntegrationButton","component_type":"Button","widget_class":"Button"}}...
 SUCCESS: Complete JSON received!
 Full response: {"status":"success","result":{"success":true,"component_name":"IntegrationButton","component_type":"Button","widget_class":"Button"}}
+
+
+=== RECEIVE START: 2025-12-09 23:02:47.551908 ===
+Calling sock.recv(4096)...
+Received chunk: 116 bytes
+Total data so far: 116 bytes
+Decoded preview: {"status":"success","result":{"success":true,"graph_names":["EventGraph","UserConstructionScript"],"graph_count":2}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"graph_names":["EventGraph","UserConstructionScript"],"graph_count":2}}
+
+
+=== RECEIVE START: 2025-12-09 23:02:53.094976 ===
+Calling sock.recv(4096)...
+Received chunk: 72 bytes
+Total data so far: 72 bytes
+Decoded preview: {"status":"error","error":"Variable 'TestSpeed' not found in Blueprint"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Variable 'TestSpeed' not found in Blueprint"}
+
+
+=== RECEIVE START: 2025-12-09 23:03:01.962477 ===
+Calling sock.recv(4096)...
+Received chunk: 178 bytes
+Total data so far: 178 bytes
+Decoded preview: {"status":"success","result":{"success":true,"variable_type":"real","additional_info":{"variable_name":"TestSpeed","variable_type":"real","is_array":false,"is_reference":false}}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"variable_type":"real","additional_info":{"variable_name":"TestSpeed","variable_type":"real","is_array":false,"is_reference":false}}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:11.279864 ===
+Calling sock.recv(4096)...
+Received chunk: 556 bytes
+Total data so far: 556 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_RefactorTest","function_name":"Event BeginPlay","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_RefactorTest","function_name":"Event BeginPlay","node_type":"K2Node_Event","class_name":"","node_id":"B42871864339F2AC69EB8C979EC350CC","node_title":"Event BeginPlay","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":100},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:12.399587 ===
+Calling sock.recv(4096)...
+Received chunk: 1166 bytes
+Total data so far: 1166 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"2BE43A21412D341ADBE95A96BE626B83","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":400,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:20.559526 ===
+Calling sock.recv(4096)...
+Received chunk: 664 bytes
+Total data so far: 664 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6F...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6FEAAAAFF5C5C","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"B42871864339F2AC69EB8C979EC350CC","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"2BE43A21412D341ADBE95A96BE626B83","title":"Print String","is_pure":false,"has_execution_pins":true}],"node_count":4,"node_ids":["31EC598E4728FF8E2CC3E4AA8823F479","410C50674B59980303B6FEAAAAFF5C5C","B42871864339F2AC69EB8C979EC350CC","2BE43A21412D341ADBE95A96BE626B83"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:25.523549 ===
+Calling sock.recv(4096)...
+Received chunk: 522 bytes
+Total data so far: 522 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6F...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6FEAAAAFF5C5C","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"B42871864339F2AC69EB8C979EC350CC","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true}],"node_count":3,"node_ids":["31EC598E4728FF8E2CC3E4AA8823F479","410C50674B59980303B6FEAAAAFF5C5C","B42871864339F2AC69EB8C979EC350CC"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:25.738849 ===
+Calling sock.recv(4096)...
+Received chunk: 226 bytes
+Total data so far: 226 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"2BE43A21412D341ADBE95A96BE626B83","title":"Print String","is_pure":false,"has_execution_pins":true}],"node_count":1,"node_ids":["2BE43A2141...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"2BE43A21412D341ADBE95A96BE626B83","title":"Print String","is_pure":false,"has_execution_pins":true}],"node_count":1,"node_ids":["2BE43A21412D341ADBE95A96BE626B83"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:38.444880 ===
+Calling sock.recv(4096)...
+Received chunk: 226 bytes
+Total data so far: 226 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"B42871864339F2AC69EB8C979EC350CC","target_node_id":"2BE43A21412D341ADBE95A96BE626B83"}],"batch":true,"successful_connections"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"B42871864339F2AC69EB8C979EC350CC","target_node_id":"2BE43A21412D341ADBE95A96BE626B83"}],"batch":true,"successful_connections":1,"total_connections":1}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:43.392879 ===
+Calling sock.recv(4096)...
+Received chunk: 557 bytes
+Total data so far: 557 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestSpeed' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get TestSpeed","node_type":...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestSpeed' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get TestSpeed","node_type":"UK2Node_VariableGet","class_name":"","node_id":"7AB7482044B7B9575C868FB998898B8D","node_title":"Get TestSpeed","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":250},"pins":[{"name":"TestSpeed","type":"real","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:03:48.724312 ===
+Calling sock.recv(4096)...
+Received chunk: 226 bytes
+Total data so far: 226 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"7AB7482044B7B9575C868FB998898B8D","target_node_id":"2BE43A21412D341ADBE95A96BE626B83"}],"batch":true,"successful_connections"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"7AB7482044B7B9575C868FB998898B8D","target_node_id":"2BE43A21412D341ADBE95A96BE626B83"}],"batch":true,"successful_connections":1,"total_connections":1}}
+
+
+=== RECEIVE START: 2025-12-09 23:04:06.914767 ===
+Calling sock.recv(4096)...
+Received chunk: 556 bytes
+Total data so far: 556 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestCount' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get TestCount","node_type":...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestCount' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get TestCount","node_type":"UK2Node_VariableGet","class_name":"","node_id":"74AF64F64F5B2ABF5F52A8B2988B1F02","node_title":"Get TestCount","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":400},"pins":[{"name":"TestCount","type":"int","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:04:07.089643 ===
+Calling sock.recv(4096)...
+Received chunk: 1166 bytes
+Total data so far: 1166 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"A0347EE440DA7F3D534FFCAB7295A9E1","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":400},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:04:07.583425 ===
+Calling sock.recv(4096)...
+Received chunk: 557 bytes
+Total data so far: 557 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get bIsActive' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get bIsActive","node_type":...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get bIsActive' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get bIsActive","node_type":"UK2Node_VariableGet","class_name":"","node_id":"FB5A2CE24237AF154EC490A517DB4DEE","node_title":"Get bIsActive","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":550},"pins":[{"name":"bIsActive","type":"bool","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:04:07.754833 ===
+Calling sock.recv(4096)...
+Received chunk: 1166 bytes
+Total data so far: 1166 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"BFFB906F4F66AC6F2B71F69C734794D9","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":550},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:04:14.209894 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"74AF64F64F5B2ABF5F52A8B2988B1F02","target_node_id":"A0347EE440DA7F3D534FFCAB7295A9E1"},{"success":true,"source_node_id":"FB5A...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"74AF64F64F5B2ABF5F52A8B2988B1F02","target_node_id":"A0347EE440DA7F3D534FFCAB7295A9E1"},{"success":true,"source_node_id":"FB5A2CE24237AF154EC490A517DB4DEE","target_node_id":"BFFB906F4F66AC6F2B71F69C734794D9"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-12-09 23:04:26.266539 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"2BE43A21412D341ADBE95A96BE626B83","target_node_id":"A0347EE440DA7F3D534FFCAB7295A9E1"},{"success":true,"source_node_id":"A034...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"2BE43A21412D341ADBE95A96BE626B83","target_node_id":"A0347EE440DA7F3D534FFCAB7295A9E1"},{"success":true,"source_node_id":"A0347EE440DA7F3D534FFCAB7295A9E1","target_node_id":"BFFB906F4F66AC6F2B71F69C734794D9"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-12-09 23:04:40.583100 ===
+Calling sock.recv(4096)...
+Received chunk: 1377 bytes
+Total data so far: 1377 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6F...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6FEAAAAFF5C5C","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"B42871864339F2AC69EB8C979EC350CC","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"2BE43A21412D341ADBE95A96BE626B83","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"7AB7482044B7B9575C868FB998898B8D","title":"Get TestSpeed","is_pure":true,"has_execution_pins":false},{"id":"74AF64F64F5B2ABF5F52A8B2988B1F02","title":"Get TestCount","is_pure":true,"has_execution_pins":false},{"id":"A0347EE440DA7F3D534FFCAB7295A9E1","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"FB5A2CE24237AF154EC490A517DB4DEE","title":"Get bIsActive","is_pure":true,"has_execution_pins":false},{"id":"BFFB906F4F66AC6F2B71F69C734794D9","title":"Print String","is_pure":false,"has_execution_pins":true}],"node_count":9,"node_ids":["31EC598E4728FF8E2CC3E4AA8823F479","410C50674B59980303B6FEAAAAFF5C5C","B42871864339F2AC69EB8C979EC350CC","2BE43A21412D341ADBE95A96BE626B83","7AB7482044B7B9575C868FB998898B8D","74AF64F64F5B2ABF5F52A8B2988B1F02","A0347EE440DA7F3D534FFCAB7295A9E1","FB5A2CE24237AF154EC490A517DB4DEE","BFFB906F4F66AC6F2B71F69C734794D9"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:08:43.093325 ===
+Calling sock.recv(4096)...
+Received chunk: 565 bytes
+Total data so far: 565 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get SecondSpeed' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get SecondSpeed","node_ty...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get SecondSpeed' node (UK2Node_VariableGet)","blueprint_name":"BP_RefactorTest","function_name":"Get SecondSpeed","node_type":"UK2Node_VariableGet","class_name":"","node_id":"07C614334F8620DAB91CBABFB6275DDC","node_title":"Get SecondSpeed","is_pure_function":true,"requires_execution_flow":false,"position":{"x":100,"y":700},"pins":[{"name":"SecondSpeed","type":"real","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:08:43.466362 ===
+Calling sock.recv(4096)...
+Received chunk: 723 bytes
+Total data so far: 723 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Add_DoubleDouble' node (UK2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"Add_DoubleDouble","node...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Add_DoubleDouble' node (UK2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"Add_DoubleDouble","node_type":"UK2Node_CallFunction","class_name":"KismetMathLibrary","node_id":"C07128994D60A3DD5E507C851A224030","node_title":"Add_DoubleDouble","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":700},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"A","type":"real","direction":"input","is_execution":false},{"name":"B","type":"real","direction":"input","is_execution":false},{"name":"ReturnValue","type":"real","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:08:49.713541 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"7AB7482044B7B9575C868FB998898B8D","target_node_id":"C07128994D60A3DD5E507C851A224030"},{"success":true,"source_node_id":"07C6...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"7AB7482044B7B9575C868FB998898B8D","target_node_id":"C07128994D60A3DD5E507C851A224030"},{"success":true,"source_node_id":"07C614334F8620DAB91CBABFB6275DDC","target_node_id":"C07128994D60A3DD5E507C851A224030"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-12-09 23:08:59.389944 ===
+Calling sock.recv(4096)...
+Received chunk: 373 bytes
+Total data so far: 373 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"Node_000001BF49FB1180_TestFunction","title":"TestFunction","is_pure":false,"has_execution_pins":true},{"id":"Node_000001BED80D0640_Return_N...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"Node_000001BF49FB1180_TestFunction","title":"TestFunction","is_pure":false,"has_execution_pins":true},{"id":"Node_000001BED80D0640_Return_Node","title":"Return Node","is_pure":false,"has_execution_pins":true}],"node_count":2,"node_ids":["Node_000001BF49FB1180_TestFunction","Node_000001BED80D0640_Return_Node"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:04.545375 ===
+Calling sock.recv(4096)...
+Received chunk: 383 bytes
+Total data so far: 383 bytes
+Decoded preview: {"status":"error","error":"Failed to connect 1 of 1 Blueprint nodes:\nConnection 1 failed: 'InvalidNodeId123'.then -> '2BE43A21412D341ADBE95A96BE626B83'.execute","connection_results":[{"success":false...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Failed to connect 1 of 1 Blueprint nodes:\nConnection 1 failed: 'InvalidNodeId123'.then -> '2BE43A21412D341ADBE95A96BE626B83'.execute","connection_results":[{"success":false,"source_node_id":"InvalidNodeId123","source_pin":"then","target_node_id":"2BE43A21412D341ADBE95A96BE626B83","target_pin":"execute"}],"successful_connections":0,"total_connections":1}
+
+
+=== RECEIVE START: 2025-12-09 23:09:11.687511 ===
+Calling sock.recv(4096)...
+Received chunk: 99 bytes
+Total data so far: 99 bytes
+Decoded preview: {"status":"error","error":"Function 'MakeVector' not found and not a recognized control flow node"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Function 'MakeVector' not found and not a recognized control flow node"}
+
+
+=== RECEIVE START: 2025-12-09 23:09:11.970131 ===
+Calling sock.recv(4096)...
+Received chunk: 629 bytes
+Total data so far: 629 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Absolute (Integer)' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"Abs_Int","node_type":"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Absolute (Integer)' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"Abs_Int","node_type":"K2Node_CallFunction","class_name":"","node_id":"69DDA4BF4A589D15599BEFB6146AFD0F","node_title":"Absolute (Integer)","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":850},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"A","type":"int","direction":"input","is_execution":false},{"name":"ReturnValue","type":"int","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:15.895413 ===
+Calling sock.recv(4096)...
+Received chunk: 1080 bytes
+Total data so far: 1080 bytes
+Decoded preview: {"status":"success","result":{"success":true,"search_query":"Make Vector","category_filter":"","actions":[{"title":"Break Make Vector","tooltip":"Adds a node that breaks a 'Make Vector' into its membe...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"search_query":"Make Vector","category_filter":"","actions":[{"title":"Break Make Vector","tooltip":"Adds a node that breaks a 'Make Vector' into its member fields","category":"Unknown","function_name":"Break Make Vector"},{"title":"Make Vector RK4Spring Interpolator","tooltip":"Adds a node that create a 'Vector RK4Spring Interpolator' from its members","category":"Unknown","function_name":"Make Vector RK4Spring Interpolator"},{"title":"Make Vector Animation Attribute","tooltip":"Adds a node that create a 'Vector Animation Attribute' from its members","category":"Unknown","function_name":"Make Vector Animation Attribute"},{"title":"Make Vector Curve","tooltip":"Adds a node that create a 'Vector Curve' from its members","category":"Unknown","function_name":"Make Vector Curve"},{"title":"Make Vector Spring State","tooltip":"Adds a node that create a 'Vector Spring State' from its members","category":"Unknown","function_name":"Make Vector Spring State"}],"action_count":5,"message":"Found 5 actions matching 'Make Vector'"}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:20.967955 ===
+Calling sock.recv(4096)...
+Received chunk: 833 bytes
+Total data so far: 833 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Actor Array Average Location' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"GetActor...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Actor Array Average Location' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"GetActorArrayAverageLocation","node_type":"K2Node_CallFunction","class_name":"","node_id":"0E65F42F449C5D301B6BE88B4A0866B3","node_title":"Get Actor Array Average Location","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":850},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"Actors","type":"object","direction":"input","is_execution":false},{"name":"ReturnValue","type":"struct","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:26.106475 ===
+Calling sock.recv(4096)...
+Received chunk: 226 bytes
+Total data so far: 226 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"0E65F42F449C5D301B6BE88B4A0866B3","target_node_id":"69DDA4BF4A589D15599BEFB6146AFD0F"}],"batch":true,"successful_connections"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"0E65F42F449C5D301B6BE88B4A0866B3","target_node_id":"69DDA4BF4A589D15599BEFB6146AFD0F"}],"batch":true,"successful_connections":1,"total_connections":1}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:31.481481 ===
+Calling sock.recv(4096)...
+Received chunk: 1166 bytes
+Total data so far: 1166 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"6056CE4F489B7EB20E6FE88D0F8C9F72","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:37.544276 ===
+Calling sock.recv(4096)...
+Received chunk: 226 bytes
+Total data so far: 226 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"B42871864339F2AC69EB8C979EC350CC","target_node_id":"6056CE4F489B7EB20E6FE88D0F8C9F72"}],"batch":true,"successful_connections"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"B42871864339F2AC69EB8C979EC350CC","target_node_id":"6056CE4F489B7EB20E6FE88D0F8C9F72"}],"batch":true,"successful_connections":1,"total_connections":1}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:42.152097 ===
+Calling sock.recv(4096)...
+Received chunk: 2118 bytes
+Total data so far: 2118 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6F...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6FEAAAAFF5C5C","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"B42871864339F2AC69EB8C979EC350CC","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"2BE43A21412D341ADBE95A96BE626B83","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"7AB7482044B7B9575C868FB998898B8D","title":"Get TestSpeed","is_pure":true,"has_execution_pins":false},{"id":"74AF64F64F5B2ABF5F52A8B2988B1F02","title":"Get TestCount","is_pure":true,"has_execution_pins":false},{"id":"A0347EE440DA7F3D534FFCAB7295A9E1","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"FB5A2CE24237AF154EC490A517DB4DEE","title":"Get bIsActive","is_pure":true,"has_execution_pins":false},{"id":"BFFB906F4F66AC6F2B71F69C734794D9","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"07C614334F8620DAB91CBABFB6275DDC","title":"Get SecondSpeed","is_pure":true,"has_execution_pins":false},{"id":"C07128994D60A3DD5E507C851A224030","title":"float + float","is_pure":true,"has_execution_pins":false},{"id":"69DDA4BF4A589D15599BEFB6146AFD0F","title":"Absolute (Integer)","is_pure":true,"has_execution_pins":false},{"id":"0E65F42F449C5D301B6BE88B4A0866B3","title":"Get Actor Array Average Location","is_pure":false,"has_execution_pins":true},{"id":"6056CE4F489B7EB20E6FE88D0F8C9F72","title":"Print String","is_pure":false,"has_execution_pins":true}],"node_count":14,"node_ids":["31EC598E4728FF8E2CC3E4AA8823F479","410C50674B59980303B6FEAAAAFF5C5C","B42871864339F2AC69EB8C979EC350CC","2BE43A21412D341ADBE95A96BE626B83","7AB7482044B7B9575C868FB998898B8D","74AF64F64F5B2ABF5F52A8B2988B1F02","A0347EE440DA7F3D534FFCAB7295A9E1","FB5A2CE24237AF154EC490A517DB4DEE","BFFB906F4F66AC6F2B71F69C734794D9","07C614334F8620DAB91CBABFB6275DDC","C07128994D60A3DD5E507C851A224030","69DDA4BF4A589D15599BEFB6146AFD0F","0E65F42F449C5D301B6BE88B4A0866B3","6056CE4F489B7EB20E6FE88D0F8C9F72"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:09:51.309647 ===
+Calling sock.recv(4096)...
+Received chunk: 131 bytes
+Total data so far: 131 bytes
+Decoded preview: {"status":"success","result":{"success":true,"graph_names":["EventGraph","UserConstructionScript","TestFunction"],"graph_count":3}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"graph_names":["EventGraph","UserConstructionScript","TestFunction"],"graph_count":3}}
+
+
+=== RECEIVE START: 2025-12-09 23:11:38.323620 ===
+Calling sock.recv(4096)...
+Received chunk: 748 bytes
+Total data so far: 748 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Player Controller' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"GetPlayerController...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Player Controller' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"GetPlayerController","node_type":"K2Node_CallFunction","class_name":"","node_id":"83551A334CCA589C331C2AB4A871CC31","node_title":"Get Player Controller","is_pure_function":true,"requires_execution_flow":false,"position":{"x":100,"y":1000},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"PlayerIndex","type":"int","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:11:38.452309 ===
+Calling sock.recv(4096)...
+Received chunk: 745 bytes
+Total data so far: 745 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Player Character' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"GetPlayerCharacter",...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Player Character' node (K2Node_CallFunction)","blueprint_name":"BP_RefactorTest","function_name":"GetPlayerCharacter","node_type":"K2Node_CallFunction","class_name":"","node_id":"0E6B304E40F8771D6A8B27A55CD982A1","node_title":"Get Player Character","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":1000},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"PlayerIndex","type":"int","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:11:44.555241 ===
+Calling sock.recv(4096)...
+Received chunk: 836 bytes
+Total data so far: 836 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"BP_RefactorTest","function_name":"Cast","node_type":"UK2Node_DynamicCa...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"BP_RefactorTest","function_name":"Cast","node_type":"UK2Node_DynamicCast","class_name":"","node_id":"5FB9085E4B5E0090AC5F25960E2EE6BC","node_title":"Cast","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":1000},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"CastFailed","type":"exec","direction":"output","is_execution":true},{"name":"Object","type":"wildcard","direction":"input","is_execution":false},{"name":"AsCharacter","type":"object","direction":"output","is_execution":false},{"name":"bSuccess","type":"bool","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:11:50.104830 ===
+Calling sock.recv(4096)...
+Received chunk: 226 bytes
+Total data so far: 226 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"83551A334CCA589C331C2AB4A871CC31","target_node_id":"5FB9085E4B5E0090AC5F25960E2EE6BC"}],"batch":true,"successful_connections"...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"83551A334CCA589C331C2AB4A871CC31","target_node_id":"5FB9085E4B5E0090AC5F25960E2EE6BC"}],"batch":true,"successful_connections":1,"total_connections":1}}
+
+
+=== RECEIVE START: 2025-12-09 23:13:43.220655 ===
+Calling sock.recv(4096)...
+Received chunk: 3011 bytes
+Total data so far: 3011 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6F...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"31EC598E4728FF8E2CC3E4AA8823F479","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"410C50674B59980303B6FEAAAAFF5C5C","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"B42871864339F2AC69EB8C979EC350CC","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"2BE43A21412D341ADBE95A96BE626B83","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"7AB7482044B7B9575C868FB998898B8D","title":"Get TestSpeed","is_pure":true,"has_execution_pins":false},{"id":"74AF64F64F5B2ABF5F52A8B2988B1F02","title":"Get TestCount","is_pure":true,"has_execution_pins":false},{"id":"A0347EE440DA7F3D534FFCAB7295A9E1","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"FB5A2CE24237AF154EC490A517DB4DEE","title":"Get bIsActive","is_pure":true,"has_execution_pins":false},{"id":"BFFB906F4F66AC6F2B71F69C734794D9","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"07C614334F8620DAB91CBABFB6275DDC","title":"Get SecondSpeed","is_pure":true,"has_execution_pins":false},{"id":"C07128994D60A3DD5E507C851A224030","title":"float + float","is_pure":true,"has_execution_pins":false},{"id":"69DDA4BF4A589D15599BEFB6146AFD0F","title":"Absolute (Integer)","is_pure":true,"has_execution_pins":false},{"id":"0E65F42F449C5D301B6BE88B4A0866B3","title":"Get Actor Array Average Location","is_pure":false,"has_execution_pins":true},{"id":"6056CE4F489B7EB20E6FE88D0F8C9F72","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"0161B4E44687F1052D9ECD92845A2B75","title":"To String (Float)","is_pure":true,"has_execution_pins":false},{"id":"AE7FB4D541FF7799EE5A8FA08F9FFFFF","title":"To String (Integer)","is_pure":true,"has_execution_pins":false},{"id":"DDB8366E4AEDEE8B18E20BA8F5F135BF","title":"To String (Boolean)","is_pure":true,"has_execution_pins":false},{"id":"83551A334CCA589C331C2AB4A871CC31","title":"Get Player Controller","is_pure":true,"has_execution_pins":false},{"id":"0E6B304E40F8771D6A8B27A55CD982A1","title":"Get Player Character","is_pure":true,"has_execution_pins":false},{"id":"5FB9085E4B5E0090AC5F25960E2EE6BC","title":"Cast To Character","is_pure":false,"has_execution_pins":true}],"node_count":20,"node_ids":["31EC598E4728FF8E2CC3E4AA8823F479","410C50674B59980303B6FEAAAAFF5C5C","B42871864339F2AC69EB8C979EC350CC","2BE43A21412D341ADBE95A96BE626B83","7AB7482044B7B9575C868FB998898B8D","74AF64F64F5B2ABF5F52A8B2988B1F02","A0347EE440DA7F3D534FFCAB7295A9E1","FB5A2CE24237AF154EC490A517DB4DEE","BFFB906F4F66AC6F2B71F69C734794D9","07C614334F8620DAB91CBABFB6275DDC","C07128994D60A3DD5E507C851A224030","69DDA4BF4A589D15599BEFB6146AFD0F","0E65F42F449C5D301B6BE88B4A0866B3","6056CE4F489B7EB20E6FE88D0F8C9F72","0161B4E44687F1052D9ECD92845A2B75","AE7FB4D541FF7799EE5A8FA08F9FFFFF","DDB8366E4AEDEE8B18E20BA8F5F135BF","83551A334CCA589C331C2AB4A871CC31","0E6B304E40F8771D6A8B27A55CD982A1","5FB9085E4B5E0090AC5F25960E2EE6BC"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:20:08.011183 ===
+Calling sock.recv(4096)...
+Received chunk: 552 bytes
+Total data so far: 552 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_CastTest","function_name":"Event BeginPlay","node_type":"K2Node...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Event BeginPlay' node (K2Node_Event)","blueprint_name":"BP_CastTest","function_name":"Event BeginPlay","node_type":"K2Node_Event","class_name":"","node_id":"3C5CEDE2486F3E3BE587FC9205BFE2E7","node_title":"Event BeginPlay","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":100},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:20:09.065683 ===
+Calling sock.recv(4096)...
+Received chunk: 698 bytes
+Total data so far: 698 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Add_IntInt' node (UK2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"Add_IntInt","node_type":"UK2Node_...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Add_IntInt' node (UK2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"Add_IntInt","node_type":"UK2Node_CallFunction","class_name":"KismetMathLibrary","node_id":"814AE7CD4D229883CFED83BA2AA1C914","node_title":"Add_IntInt","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":100},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"A","type":"int","direction":"input","is_execution":false},{"name":"B","type":"int","direction":"input","is_execution":false},{"name":"ReturnValue","type":"int","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:20:09.691842 ===
+Calling sock.recv(4096)...
+Received chunk: 1162 bytes
+Total data so far: 1162 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"PrintString","node_type":"K2Node...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"D8981D434AAFEF6D7DF6B998E40E0895","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:21:37.185095 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"3C5CEDE2486F3E3BE587FC9205BFE2E7","target_node_id":"D8981D434AAFEF6D7DF6B998E40E0895"},{"success":true,"source_node_id":"814A...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"3C5CEDE2486F3E3BE587FC9205BFE2E7","target_node_id":"D8981D434AAFEF6D7DF6B998E40E0895"},{"success":true,"source_node_id":"814AE7CD4D229883CFED83BA2AA1C914","target_node_id":"D8981D434AAFEF6D7DF6B998E40E0895"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-12-09 23:21:42.761221 ===
+Calling sock.recv(4096)...
+Received chunk: 966 bytes
+Total data so far: 966 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDE...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDEA84B540F395","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"3C5CEDE2486F3E3BE587FC9205BFE2E7","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"814AE7CD4D229883CFED83BA2AA1C914","title":"int + int","is_pure":true,"has_execution_pins":false},{"id":"D8981D434AAFEF6D7DF6B998E40E0895","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"Node_000001C3F312DB00_To_String_Integer","title":"To String (Integer)","is_pure":true,"has_execution_pins":false}],"node_count":6,"node_ids":["DEC18F14402BEAA4963117B3A166C472","9453FA9C4D25F25FA9CDEA84B540F395","3C5CEDE2486F3E3BE587FC9205BFE2E7","814AE7CD4D229883CFED83BA2AA1C914","D8981D434AAFEF6D7DF6B998E40E0895","Node_000001C3F312DB00_To_String_Integer"]}}
