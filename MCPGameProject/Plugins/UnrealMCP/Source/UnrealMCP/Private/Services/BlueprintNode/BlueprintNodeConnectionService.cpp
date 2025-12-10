@@ -11,8 +11,10 @@
 #include "K2Node_DynamicCast.h"
 #include "K2Node_PromotableOperator.h"
 
-// Helper function to generate safe Node IDs (copy from BlueprintNodeService.cpp)
-static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
+namespace
+{
+// Helper function to generate safe Node IDs
+FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
 {
     if (!Node)
     {
@@ -29,6 +31,8 @@ static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
 
     return NodeId;
 }
+
+} // anonymous namespace
 
 FBlueprintNodeConnectionService& FBlueprintNodeConnectionService::Get()
 {

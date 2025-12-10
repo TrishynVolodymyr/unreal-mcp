@@ -11,8 +11,10 @@
 #include "K2Node_VariableSet.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 
-// PROBLEM 2 FIX: Helper function to generate safe Node IDs
-static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
+namespace
+{
+// Helper function to generate safe Node IDs
+FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
 {
     if (!Node)
     {
@@ -116,6 +118,8 @@ static bool IsNodePure(UEdGraphNode* Node)
 
     return true; // No execution pins found, it's pure
 }
+
+} // anonymous namespace
 
 FBlueprintNodeQueryService& FBlueprintNodeQueryService::Get()
 {

@@ -1313,3 +1313,273 @@ Total data so far: 966 bytes
 Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDE...
 SUCCESS: Complete JSON received!
 Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDEA84B540F395","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"3C5CEDE2486F3E3BE587FC9205BFE2E7","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"814AE7CD4D229883CFED83BA2AA1C914","title":"int + int","is_pure":true,"has_execution_pins":false},{"id":"D8981D434AAFEF6D7DF6B998E40E0895","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"Node_000001C3F312DB00_To_String_Integer","title":"To String (Integer)","is_pure":true,"has_execution_pins":false}],"node_count":6,"node_ids":["DEC18F14402BEAA4963117B3A166C472","9453FA9C4D25F25FA9CDEA84B540F395","3C5CEDE2486F3E3BE587FC9205BFE2E7","814AE7CD4D229883CFED83BA2AA1C914","D8981D434AAFEF6D7DF6B998E40E0895","Node_000001C3F312DB00_To_String_Integer"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:21:57.251191 ===
+Calling sock.recv(4096)...
+Received chunk: 719 bytes
+Total data so far: 719 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Add_DoubleDouble' node (UK2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"Add_DoubleDouble","node_typ...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Add_DoubleDouble' node (UK2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"Add_DoubleDouble","node_type":"UK2Node_CallFunction","class_name":"KismetMathLibrary","node_id":"6DD3C965474EADE238CFA6A3AD40888A","node_title":"Add_DoubleDouble","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":250},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"A","type":"real","direction":"input","is_execution":false},{"name":"B","type":"real","direction":"input","is_execution":false},{"name":"ReturnValue","type":"real","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:21:57.637953 ===
+Calling sock.recv(4096)...
+Received chunk: 1162 bytes
+Total data so far: 1162 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"PrintString","node_type":"K2Node...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"BCBDF4CC4FF6CDE686D8FA8F3CD1B481","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":250},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:21:57.970699 ===
+Calling sock.recv(4096)...
+Received chunk: 732 bytes
+Total data so far: 732 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'AND Boolean' node (K2Node_CommutativeAssociativeBinaryOperator)","blueprint_name":"BP_CastTest","function_name":"BooleanAN...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'AND Boolean' node (K2Node_CommutativeAssociativeBinaryOperator)","blueprint_name":"BP_CastTest","function_name":"BooleanAND","node_type":"K2Node_CommutativeAssociativeBinaryOperator","class_name":"","node_id":"44BC49A54B6259F5E14140A2D85C70BD","node_title":"AND Boolean","is_pure_function":true,"requires_execution_flow":false,"position":{"x":400,"y":400},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"A","type":"bool","direction":"input","is_execution":false},{"name":"B","type":"bool","direction":"input","is_execution":false},{"name":"ReturnValue","type":"bool","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:21:58.312842 ===
+Calling sock.recv(4096)...
+Received chunk: 1162 bytes
+Total data so far: 1162 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"PrintString","node_type":"K2Node...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"BP_CastTest","function_name":"PrintString","node_type":"K2Node_CallFunction","class_name":"","node_id":"C973373548457DCAA987C3B383D8719C","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":700,"y":400},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-09 23:22:03.827194 ===
+Calling sock.recv(4096)...
+Received chunk: 347 bytes
+Total data so far: 347 bytes
+Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"6DD3C965474EADE238CFA6A3AD40888A","target_node_id":"BCBDF4CC4FF6CDE686D8FA8F3CD1B481"},{"success":true,"source_node_id":"44BC...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"6DD3C965474EADE238CFA6A3AD40888A","target_node_id":"BCBDF4CC4FF6CDE686D8FA8F3CD1B481"},{"success":true,"source_node_id":"44BC49A54B6259F5E14140A2D85C70BD","target_node_id":"C973373548457DCAA987C3B383D8719C"}],"batch":true,"successful_connections":2,"total_connections":2}}
+
+
+=== RECEIVE START: 2025-12-09 23:22:07.571291 ===
+Calling sock.recv(4096)...
+Received chunk: 1698 bytes
+Total data so far: 1698 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDE...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDEA84B540F395","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"3C5CEDE2486F3E3BE587FC9205BFE2E7","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"814AE7CD4D229883CFED83BA2AA1C914","title":"int + int","is_pure":true,"has_execution_pins":false},{"id":"D8981D434AAFEF6D7DF6B998E40E0895","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"Node_000001C3F312DB00_To_String_Integer","title":"To String (Integer)","is_pure":true,"has_execution_pins":false},{"id":"6DD3C965474EADE238CFA6A3AD40888A","title":"float + float","is_pure":true,"has_execution_pins":false},{"id":"BCBDF4CC4FF6CDE686D8FA8F3CD1B481","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"44BC49A54B6259F5E14140A2D85C70BD","title":"AND Boolean","is_pure":true,"has_execution_pins":false},{"id":"C973373548457DCAA987C3B383D8719C","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"Node_000001C40F2DA680_To_String_Boolean","title":"To String (Boolean)","is_pure":true,"has_execution_pins":false}],"node_count":11,"node_ids":["DEC18F14402BEAA4963117B3A166C472","9453FA9C4D25F25FA9CDEA84B540F395","3C5CEDE2486F3E3BE587FC9205BFE2E7","814AE7CD4D229883CFED83BA2AA1C914","D8981D434AAFEF6D7DF6B998E40E0895","Node_000001C3F312DB00_To_String_Integer","6DD3C965474EADE238CFA6A3AD40888A","BCBDF4CC4FF6CDE686D8FA8F3CD1B481","44BC49A54B6259F5E14140A2D85C70BD","C973373548457DCAA987C3B383D8719C","Node_000001C40F2DA680_To_String_Boolean"]}}
+
+
+=== RECEIVE START: 2025-12-09 23:22:23.414452 ===
+Calling sock.recv(4096)...
+Received chunk: 1698 bytes
+Total data so far: 1698 bytes
+Decoded preview: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDE...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"nodes":[{"id":"DEC18F14402BEAA4963117B3A166C472","title":"Event ActorBeginOverlap","is_pure":false,"has_execution_pins":true},{"id":"9453FA9C4D25F25FA9CDEA84B540F395","title":"Event Tick","is_pure":false,"has_execution_pins":true},{"id":"3C5CEDE2486F3E3BE587FC9205BFE2E7","title":"Event BeginPlay","is_pure":false,"has_execution_pins":true},{"id":"814AE7CD4D229883CFED83BA2AA1C914","title":"int + int","is_pure":true,"has_execution_pins":false},{"id":"D8981D434AAFEF6D7DF6B998E40E0895","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"Node_000001C3F312DB00_To_String_Integer","title":"To String (Integer)","is_pure":true,"has_execution_pins":false},{"id":"6DD3C965474EADE238CFA6A3AD40888A","title":"float + float","is_pure":true,"has_execution_pins":false},{"id":"BCBDF4CC4FF6CDE686D8FA8F3CD1B481","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"44BC49A54B6259F5E14140A2D85C70BD","title":"AND Boolean","is_pure":true,"has_execution_pins":false},{"id":"C973373548457DCAA987C3B383D8719C","title":"Print String","is_pure":false,"has_execution_pins":true},{"id":"Node_000001C40F2DA680_To_String_Boolean","title":"To String (Boolean)","is_pure":true,"has_execution_pins":false}],"node_count":11,"node_ids":["DEC18F14402BEAA4963117B3A166C472","9453FA9C4D25F25FA9CDEA84B540F395","3C5CEDE2486F3E3BE587FC9205BFE2E7","814AE7CD4D229883CFED83BA2AA1C914","D8981D434AAFEF6D7DF6B998E40E0895","Node_000001C3F312DB00_To_String_Integer","6DD3C965474EADE238CFA6A3AD40888A","BCBDF4CC4FF6CDE686D8FA8F3CD1B481","44BC49A54B6259F5E14140A2D85C70BD","C973373548457DCAA987C3B383D8719C","Node_000001C40F2DA680_To_String_Boolean"]}}
+
+
+=== RECEIVE START: 2025-12-10 18:12:36.448199 ===
+Calling sock.recv(4096)...
+Received chunk: 666 bytes
+Total data so far: 666 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"TestBP","function_name":"Branch","node_type":"UK2Node_IfThenElse","cl...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Branch' node (UK2Node_IfThenElse)","blueprint_name":"TestBP","function_name":"Branch","node_type":"UK2Node_IfThenElse","class_name":"","node_id":"73B0A0CA46BD61F30C900C92F1C3DC93","node_title":"Branch","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"Condition","type":"bool","direction":"input","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"else","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:12:36.594821 ===
+Calling sock.recv(4096)...
+Received chunk: 614 bytes
+Total data so far: 614 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Sequence' node (UK2Node_ExecutionSequence)","blueprint_name":"TestBP","function_name":"Sequence","node_type":"UK2Node_Exec...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Sequence' node (UK2Node_ExecutionSequence)","blueprint_name":"TestBP","function_name":"Sequence","node_type":"UK2Node_ExecutionSequence","class_name":"","node_id":"DECBE80A4D327E25A1C71081B222BE4A","node_title":"Sequence","is_pure_function":false,"requires_execution_flow":true,"position":{"x":200,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then_0","type":"exec","direction":"output","is_execution":true},{"name":"then_1","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:12:36.927982 ===
+Calling sock.recv(4096)...
+Received chunk: 549 bytes
+Total data so far: 549 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'MyTestEvent' node (UK2Node_CustomEvent)","blueprint_name":"TestBP","function_name":"CustomEvent","node_type":"UK2Node_Cust...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'MyTestEvent' node (UK2Node_CustomEvent)","blueprint_name":"TestBP","function_name":"CustomEvent","node_type":"UK2Node_CustomEvent","class_name":"","node_id":"D3455226453B31E6876DA5A9BD254771","node_title":"MyTestEvent","is_pure_function":false,"requires_execution_flow":true,"position":{"x":300,"y":100},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:12:37.260402 ===
+Calling sock.recv(4096)...
+Received chunk: 822 bytes
+Total data so far: 822 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"TestBP","function_name":"Cast","node_type":"UK2Node_DynamicCast","clas...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Cast' node (UK2Node_DynamicCast)","blueprint_name":"TestBP","function_name":"Cast","node_type":"UK2Node_DynamicCast","class_name":"","node_id":"8C280D23490E0C79939103890E73613B","node_title":"Cast","is_pure_function":false,"requires_execution_flow":true,"position":{"x":400,"y":100},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"CastFailed","type":"exec","direction":"output","is_execution":true},{"name":"Object","type":"wildcard","direction":"input","is_execution":false},{"name":"AsActor","type":"object","direction":"output","is_execution":false},{"name":"bSuccess","type":"bool","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:12:44.971565 ===
+Calling sock.recv(4096)...
+Received chunk: 545 bytes
+Total data so far: 545 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveBeginPlay' node (UK2Node_Event)","blueprint_name":"TestBP","function_name":"BeginPlay","node_type":"UK2Node_Event",...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveBeginPlay' node (UK2Node_Event)","blueprint_name":"TestBP","function_name":"BeginPlay","node_type":"UK2Node_Event","class_name":"","node_id":"81B6A3694BB5FFD068D4F68A5B278618","node_title":"ReceiveBeginPlay","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":300},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:12:45.261470 ===
+Calling sock.recv(4096)...
+Received chunk: 610 bytes
+Total data so far: 610 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveTick' node (UK2Node_Event)","blueprint_name":"TestBP","function_name":"Tick","node_type":"UK2Node_Event","class_nam...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveTick' node (UK2Node_Event)","blueprint_name":"TestBP","function_name":"Tick","node_type":"UK2Node_Event","class_name":"","node_id":"00FD37344F7CCEF3348523AD2B332674","node_title":"ReceiveTick","is_pure_function":false,"requires_execution_flow":true,"position":{"x":200,"y":300},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"DeltaSeconds","type":"real","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:12:45.595347 ===
+Calling sock.recv(4096)...
+Received chunk: 649 bytes
+Total data so far: 649 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveActorBeginOverlap' node (UK2Node_Event)","blueprint_name":"TestBP","function_name":"ActorBeginOverlap","node_type":...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'ReceiveActorBeginOverlap' node (UK2Node_Event)","blueprint_name":"TestBP","function_name":"ActorBeginOverlap","node_type":"UK2Node_Event","class_name":"","node_id":"597D7A9145F0CF12C65142BA82E780F6","node_title":"ReceiveActorBeginOverlap","is_pure_function":false,"requires_execution_flow":true,"position":{"x":300,"y":300},"pins":[{"name":"OutputDelegate","type":"delegate","direction":"output","is_execution":false},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"OtherActor","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:04.391220 ===
+Calling sock.recv(4096)...
+Received chunk: 559 bytes
+Total data so far: 559 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestVariable' node (UK2Node_VariableGet)","blueprint_name":"TestBP","function_name":"Get TestVariable","node_type":"UK...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestVariable' node (UK2Node_VariableGet)","blueprint_name":"TestBP","function_name":"Get TestVariable","node_type":"UK2Node_VariableGet","class_name":"","node_id":"A671E63E4FB4581A78759BA1B33382D8","node_title":"Get TestVariable","is_pure_function":true,"requires_execution_flow":false,"position":{"x":100,"y":500},"pins":[{"name":"TestVariable","type":"int","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:04.621960 ===
+Calling sock.recv(4096)...
+Received chunk: 779 bytes
+Total data so far: 779 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Set TestVariable' node (UK2Node_VariableSet)","blueprint_name":"TestBP","function_name":"Set TestVariable","node_type":"UK...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Set TestVariable' node (UK2Node_VariableSet)","blueprint_name":"TestBP","function_name":"Set TestVariable","node_type":"UK2Node_VariableSet","class_name":"","node_id":"883E594749B42878922040A3C89E2266","node_title":"Set TestVariable","is_pure_function":false,"requires_execution_flow":true,"position":{"x":200,"y":500},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"TestVariable","type":"int","direction":"input","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"Output_Get","type":"int","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:04.932586 ===
+Calling sock.recv(4096)...
+Received chunk: 559 bytes
+Total data so far: 559 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestVariable' node (UK2Node_VariableGet)","blueprint_name":"TestBP","function_name":"Get TestVariable","node_type":"UK...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get TestVariable' node (UK2Node_VariableGet)","blueprint_name":"TestBP","function_name":"Get TestVariable","node_type":"UK2Node_VariableGet","class_name":"","node_id":"D6E9EFA841B825093BEB868E456D2F35","node_title":"Get TestVariable","is_pure_function":true,"requires_execution_flow":false,"position":{"x":300,"y":500},"pins":[{"name":"TestVariable","type":"int","direction":"output","is_execution":false},{"name":"self","type":"object","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:15.634396 ===
+Calling sock.recv(4096)...
+Received chunk: 669 bytes
+Total data so far: 669 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Make Vector' node (UK2Node_MakeStruct)","blueprint_name":"TestBP","function_name":"MakeStruct","node_type":"UK2Node_MakeSt...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Make Vector' node (UK2Node_MakeStruct)","blueprint_name":"TestBP","function_name":"MakeStruct","node_type":"UK2Node_MakeStruct","class_name":"","node_id":"CBAFB01E4AD65E04E68B09A405823114","node_title":"Make Vector","is_pure_function":true,"requires_execution_flow":false,"position":{"x":100,"y":700},"pins":[{"name":"Vector","type":"struct","direction":"output","is_execution":false},{"name":"X","type":"real","direction":"input","is_execution":false},{"name":"Y","type":"real","direction":"input","is_execution":false},{"name":"Z","type":"real","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:15.960150 ===
+Calling sock.recv(4096)...
+Received chunk: 676 bytes
+Total data so far: 676 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Break Vector' node (UK2Node_BreakStruct)","blueprint_name":"TestBP","function_name":"BreakStruct","node_type":"UK2Node_Bre...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Break Vector' node (UK2Node_BreakStruct)","blueprint_name":"TestBP","function_name":"BreakStruct","node_type":"UK2Node_BreakStruct","class_name":"","node_id":"9E59D70D4B1A90C81041978FC1A2637A","node_title":"Break Vector","is_pure_function":true,"requires_execution_flow":false,"position":{"x":200,"y":700},"pins":[{"name":"Vector","type":"struct","direction":"input","is_execution":false},{"name":"X","type":"real","direction":"output","is_execution":false},{"name":"Y","type":"real","direction":"output","is_execution":false},{"name":"Z","type":"real","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:16.285862 ===
+Calling sock.recv(4096)...
+Received chunk: 682 bytes
+Total data so far: 682 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Make Rotator' node (UK2Node_MakeStruct)","blueprint_name":"TestBP","function_name":"Make Struct","node_type":"UK2Node_Make...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Make Rotator' node (UK2Node_MakeStruct)","blueprint_name":"TestBP","function_name":"Make Struct","node_type":"UK2Node_MakeStruct","class_name":"","node_id":"AEB669824D4B256B14D271A29D520BF3","node_title":"Make Rotator","is_pure_function":true,"requires_execution_flow":false,"position":{"x":300,"y":700},"pins":[{"name":"Rotator","type":"struct","direction":"output","is_execution":false},{"name":"Pitch","type":"real","direction":"input","is_execution":false},{"name":"Yaw","type":"real","direction":"input","is_execution":false},{"name":"Roll","type":"real","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:24.095323 ===
+Calling sock.recv(4096)...
+Received chunk: 1158 bytes
+Total data so far: 1158 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"TestBP","function_name":"Print String","node_type":"K2Node_Cal...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Print String' node (K2Node_CallFunction)","blueprint_name":"TestBP","function_name":"Print String","node_type":"K2Node_CallFunction","class_name":"","node_id":"74F9CEC24852530BFD747BB4A64A7F54","node_title":"Print String","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":900},"pins":[{"name":"execute","type":"exec","direction":"input","is_execution":true},{"name":"then","type":"exec","direction":"output","is_execution":true},{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"InString","type":"string","direction":"input","is_execution":false},{"name":"bPrintToScreen","type":"bool","direction":"input","is_execution":false},{"name":"bPrintToLog","type":"bool","direction":"input","is_execution":false},{"name":"TextColor","type":"struct","direction":"input","is_execution":false},{"name":"Duration","type":"real","direction":"input","is_execution":false},{"name":"Key","type":"name","direction":"input","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:25.205619 ===
+Calling sock.recv(4096)...
+Received chunk: 620 bytes
+Total data so far: 620 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Vector Length' node (K2Node_CallFunction)","blueprint_name":"TestBP","function_name":"Vector Length","node_type":"K2Node_C...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Vector Length' node (K2Node_CallFunction)","blueprint_name":"TestBP","function_name":"Vector Length","node_type":"K2Node_CallFunction","class_name":"","node_id":"81D7E8E246FA1737CEDEB6BEEC68E30D","node_title":"Vector Length","is_pure_function":true,"requires_execution_flow":false,"position":{"x":200,"y":900},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"A","type":"struct","direction":"input","is_execution":false},{"name":"ReturnValue","type":"real","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:25.613804 ===
+Calling sock.recv(4096)...
+Received chunk: 720 bytes
+Total data so far: 720 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Player Pawn' node (K2Node_CallFunction)","blueprint_name":"TestBP","function_name":"GetPlayerPawn","node_type":"K2Node...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Get Player Pawn' node (K2Node_CallFunction)","blueprint_name":"TestBP","function_name":"GetPlayerPawn","node_type":"K2Node_CallFunction","class_name":"","node_id":"00C9EBB34DFA5EE5F5E04F8B5623FBFA","node_title":"Get Player Pawn","is_pure_function":true,"requires_execution_flow":false,"position":{"x":300,"y":900},"pins":[{"name":"self","type":"object","direction":"input","is_execution":false},{"name":"WorldContextObject","type":"object","direction":"input","is_execution":false},{"name":"PlayerIndex","type":"int","direction":"input","is_execution":false},{"name":"ReturnValue","type":"object","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:32.923370 ===
+Calling sock.recv(4096)...
+Received chunk: 608 bytes
+Total data so far: 608 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Add' node (K2Node_PromotableOperator)","blueprint_name":"TestBP","function_name":"Add","node_type":"K2Node_PromotableOpera...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Add' node (K2Node_PromotableOperator)","blueprint_name":"TestBP","function_name":"Add","node_type":"K2Node_PromotableOperator","class_name":"","node_id":"6F7635D9459970E170872FA6C218F37E","node_title":"Add","is_pure_function":true,"requires_execution_flow":false,"position":{"x":100,"y":1100},"pins":[{"name":"A","type":"wildcard","direction":"input","is_execution":false},{"name":"B","type":"wildcard","direction":"input","is_execution":false},{"name":"ReturnValue","type":"wildcard","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:33.234848 ===
+Calling sock.recv(4096)...
+Received chunk: 628 bytes
+Total data so far: 628 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'Greater ( > )' node (K2Node_PromotableOperator)","blueprint_name":"TestBP","function_name":"Greater","node_type":"K2Node_P...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'Greater ( > )' node (K2Node_PromotableOperator)","blueprint_name":"TestBP","function_name":"Greater","node_type":"K2Node_PromotableOperator","class_name":"","node_id":"70A660C4415049C73679089B95178F12","node_title":"Greater ( > )","is_pure_function":true,"requires_execution_flow":false,"position":{"x":200,"y":1100},"pins":[{"name":"A","type":"wildcard","direction":"input","is_execution":false},{"name":"B","type":"wildcard","direction":"input","is_execution":false},{"name":"ReturnValue","type":"bool","direction":"output","is_execution":false}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:39.409121 ===
+Calling sock.recv(4096)...
+Received chunk: 863 bytes
+Total data so far: 863 bytes
+Decoded preview: {"status":"success","result":{"success":true,"message":"Successfully created 'For Each Loop' node (UK2Node_MacroInstance)","blueprint_name":"TestBP","function_name":"For Each Loop","node_type":"UK2Nod...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"message":"Successfully created 'For Each Loop' node (UK2Node_MacroInstance)","blueprint_name":"TestBP","function_name":"For Each Loop","node_type":"UK2Node_MacroInstance","class_name":"","node_id":"729F39D4409A0E420C87EA8DB1F32402","node_title":"For Each Loop","is_pure_function":false,"requires_execution_flow":true,"position":{"x":100,"y":1300},"pins":[{"name":"Exec","type":"exec","direction":"input","is_execution":true},{"name":"Array","type":"wildcard","direction":"input","is_execution":false},{"name":"LoopBody","type":"exec","direction":"output","is_execution":true},{"name":"Array Element","type":"wildcard","direction":"output","is_execution":false},{"name":"Array Index","type":"int","direction":"output","is_execution":false},{"name":"Completed","type":"exec","direction":"output","is_execution":true}]}}
+
+
+=== RECEIVE START: 2025-12-10 18:13:48.356437 ===
+Calling sock.recv(4096)...
+Received chunk: 64 bytes
+Total data so far: 64 bytes
+Decoded preview: {"status":"error","error":"Blueprint 'NonExistentBP' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Blueprint 'NonExistentBP' not found"}
+
+
+=== RECEIVE START: 2025-12-10 18:13:48.566516 ===
+Calling sock.recv(4096)...
+Received chunk: 113 bytes
+Total data so far: 113 bytes
+Decoded preview: {"status":"error","error":"Function 'ThisFunctionDoesNotExist' not found and not a recognized control flow node"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Function 'ThisFunctionDoesNotExist' not found and not a recognized control flow node"}
+
+
+=== RECEIVE START: 2025-12-10 18:13:49.033875 ===
+Calling sock.recv(4096)...
+Received chunk: 152 bytes
+Total data so far: 152 bytes
+Decoded preview: {"status":"error","error":"Variable or component 'NonExistentVariable' not found in Blueprint 'TestBP' and no matching Blueprint Action Database entry"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Variable or component 'NonExistentVariable' not found in Blueprint 'TestBP' and no matching Blueprint Action Database entry"}
+
+
+=== RECEIVE START: 2025-12-10 18:13:49.466782 ===
+Calling sock.recv(4096)...
+Received chunk: 69 bytes
+Total data so far: 69 bytes
+Decoded preview: {"status":"error","error":"Struct type not found: InvalidStructType"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Struct type not found: InvalidStructType"}

@@ -6,7 +6,9 @@
       "Bash(git checkout:*)",
       "Bash(powershell -Command:*)",
       "Bash(tasklist:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(cat:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
