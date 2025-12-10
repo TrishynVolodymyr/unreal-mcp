@@ -13,8 +13,8 @@
 
 namespace
 {
-// Helper function to generate safe Node IDs
-FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
+// Helper function to generate safe Node IDs for query service
+static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
 {
     if (!Node)
     {

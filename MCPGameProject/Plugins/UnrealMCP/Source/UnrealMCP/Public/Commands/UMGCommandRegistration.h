@@ -37,7 +37,8 @@ private:
     static void RegisterSetWidgetPlacementCommand();
     static void RegisterGetWidgetContainerDimensionsCommand();
     static void RegisterGetWidgetComponentLayoutCommand();
-    
+    static void RegisterCaptureWidgetScreenshotCommand();
+
     // Widget-specific add commands
     static void RegisterAddWidgetSwitcherCommand();
     static void RegisterAddThrobberCommand();

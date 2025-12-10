@@ -69,7 +69,10 @@ public class UnrealMCP : ModuleRules
 				"StructUtils",
 				"PropertyEditor",
 				"BlueprintEditorLibrary",
-				"SubobjectDataInterface"  // For UE 5.7 USubobjectDataSubsystem API
+				"SubobjectDataInterface",  // For UE 5.7 USubobjectDataSubsystem API
+				"ImageWrapper",            // For PNG/JPEG compression
+				"RenderCore",              // For render targets
+				"RHI"                      // For reading pixels from GPU
 			}
 		);
 		

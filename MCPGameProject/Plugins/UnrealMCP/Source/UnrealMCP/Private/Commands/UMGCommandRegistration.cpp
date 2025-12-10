@@ -11,6 +11,7 @@
 #include "Commands/UMG/SetWidgetPlacementCommand.h"
 #include "Commands/UMG/GetWidgetContainerDimensionsCommand.h"
 #include "Commands/UMG/GetWidgetComponentLayoutCommand.h"
+#include "Commands/UMG/CaptureWidgetScreenshotCommand.h"
 #include "Services/UMG/UMGService.h"
 
 // Static member definition
@@ -35,7 +36,8 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterSetWidgetPlacementCommand();
     RegisterGetWidgetContainerDimensionsCommand();
     RegisterGetWidgetComponentLayoutCommand();
-    
+    RegisterCaptureWidgetScreenshotCommand();
+
     // TODO: Register remaining 22 UMG commands when their classes are implemented
     // For now, we'll register the core commands that exist
     
@@ -248,6 +250,14 @@ void FUMGCommandRegistration::RegisterAddChildWidgetCommand()
 void FUMGCommandRegistration::RegisterCreateParentChildWidgetCommand()
 {
     TSharedPtr<FCreateParentChildWidgetCommand> Command = MakeShared<FCreateParentChildWidgetCommand>(FUMGService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FUMGCommandRegistration::RegisterCaptureWidgetScreenshotCommand()
+{
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FCaptureWidgetScreenshotCommand> Command = MakeShared<FCaptureWidgetScreenshotCommand>(UMGServicePtr);
     RegisterAndTrackCommand(Command);
 }
 

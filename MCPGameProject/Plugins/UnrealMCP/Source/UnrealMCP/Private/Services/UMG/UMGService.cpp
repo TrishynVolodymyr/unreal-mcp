@@ -25,6 +25,16 @@
 #include "Serialization/JsonSerializer.h"
 #include "Dom/JsonObject.h"
 
+// Includes for screenshot capture
+#include "Slate/WidgetRenderer.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Misc/Base64.h"
+#include "ImageUtils.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Engine/World.h"
+#include "Editor.h"
+
 FUMGService& FUMGService::Get()
 {
     static FUMGService Instance;
@@ -1104,6 +1114,136 @@ TSharedPtr<FJsonObject> FUMGService::BuildWidgetHierarchy(UWidget* Widget) const
     }
     
     WidgetInfo->SetArrayField(TEXT("children"), ChildrenArray);
-    
+
     return WidgetInfo;
+}
+
+bool FUMGService::CaptureWidgetScreenshot(const FString& BlueprintName, int32 Width, int32 Height,
+                                         const FString& Format, TSharedPtr<FJsonObject>& OutScreenshotData)
+{
+    UE_LOG(LogTemp, Log, TEXT("FUMGService::CaptureWidgetScreenshot - Capturing screenshot for '%s' at %dx%d"),
+           *BlueprintName, Width, Height);
+
+    // Find the widget blueprint
+    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
+    if (!WidgetBlueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - Widget blueprint '%s' not found"), *BlueprintName);
+        return false;
+    }
+
+    // Verify the widget has a generated class
+    if (!WidgetBlueprint->GeneratedClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - Widget blueprint '%s' has no generated class"), *BlueprintName);
+        return false;
+    }
+
+    // Get the editor world
+    UWorld* EditorWorld = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+    if (!EditorWorld)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - No editor world available"));
+        return false;
+    }
+
+    // Create a preview instance of the widget
+    UClass* GeneratedClass = WidgetBlueprint->GeneratedClass;
+    if (!GeneratedClass || !GeneratedClass->IsChildOf(UUserWidget::StaticClass()))
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - Invalid or incompatible generated class"));
+        return false;
+    }
+    UUserWidget* PreviewWidget = CreateWidget<UUserWidget>(EditorWorld, GeneratedClass);
+    if (!PreviewWidget)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - Failed to create widget preview instance"));
+        return false;
+    }
+
+    // Get the Slate widget
+    TSharedPtr<SWidget> SlateWidget = PreviewWidget->TakeWidget();
+    if (!SlateWidget.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - Failed to get Slate widget"));
+        PreviewWidget->RemoveFromParent();
+        PreviewWidget->MarkAsGarbage();
+        return false;
+    }
+
+    // Create render target
+    UTextureRenderTarget2D* RenderTarget = NewObject<UTextureRenderTarget2D>();
+    RenderTarget->InitCustomFormat(Width, Height, PF_B8G8R8A8, true);
+    RenderTarget->UpdateResourceImmediate(true);
+
+    // Render widget to texture
+    FWidgetRenderer WidgetRenderer(true, false);
+    WidgetRenderer.DrawWidget(
+        RenderTarget,
+        SlateWidget.ToSharedRef(),
+        FVector2D(Width, Height),
+        0.0f);
+
+    // Flush rendering commands to ensure texture is ready
+    FlushRenderingCommands();
+
+    // Read pixels from render target
+    FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
+    if (!RTResource)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - Failed to get render target resource"));
+        PreviewWidget->RemoveFromParent();
+        PreviewWidget->MarkAsGarbage();
+        return false;
+    }
+
+    TArray<FColor> OutPixels;
+    if (!RTResource->ReadPixels(OutPixels))
+    {
+        UE_LOG(LogTemp, Error, TEXT("FUMGService::CaptureWidgetScreenshot - Failed to read pixels from render target"));
+        PreviewWidget->RemoveFromParent();
+        PreviewWidget->MarkAsGarbage();
+        return false;
+    }
+
+    // Compress to PNG or JPEG
+    TArray<uint8> CompressedImage;
+    FString ActualFormat = Format.ToLower();
+
+    if (ActualFormat == TEXT("jpg") || ActualFormat == TEXT("jpeg"))
+    {
+        // JPEG compression - use thumbnail compression for JPEG
+        FImageUtils::ThumbnailCompressImageArray(Width, Height, OutPixels, CompressedImage);
+    }
+    else
+    {
+        // PNG compression (default)
+        ActualFormat = TEXT("png");
+        TArray64<uint8> CompressedImage64;
+        FImageUtils::PNGCompressImageArray(Width, Height, TArrayView64<const FColor>(OutPixels), CompressedImage64);
+        // Convert from TArray64 to TArray
+        CompressedImage.Append(CompressedImage64.GetData(), CompressedImage64.Num());
+    }
+
+    // Encode as base64
+    FString Base64Image = FBase64::Encode(CompressedImage);
+
+    // Build response
+    OutScreenshotData = MakeShareable(new FJsonObject);
+    OutScreenshotData->SetBoolField(TEXT("success"), true);
+    OutScreenshotData->SetStringField(TEXT("image_base64"), Base64Image);
+    OutScreenshotData->SetNumberField(TEXT("width"), Width);
+    OutScreenshotData->SetNumberField(TEXT("height"), Height);
+    OutScreenshotData->SetStringField(TEXT("format"), ActualFormat);
+    OutScreenshotData->SetNumberField(TEXT("image_size_bytes"), CompressedImage.Num());
+
+    // Clean up
+    PreviewWidget->RemoveFromParent();
+    PreviewWidget->MarkAsGarbage();
+    RenderTarget->MarkAsGarbage();
+
+    UE_LOG(LogTemp, Log, TEXT("FUMGService::CaptureWidgetScreenshot - Screenshot captured successfully, %d bytes"),
+           CompressedImage.Num());
+
+    return true;
 }

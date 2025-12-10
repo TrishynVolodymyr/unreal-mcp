@@ -158,4 +158,17 @@ public:
      * @return true if layout information was retrieved successfully
      */
     virtual bool GetWidgetComponentLayout(const FString& BlueprintName, TSharedPtr<FJsonObject>& OutLayoutInfo) = 0;
+
+    /**
+     * Capture a screenshot of a widget blueprint preview
+     * Renders the widget to a texture and returns as base64-encoded image data
+     * @param BlueprintName - Name of the target widget blueprint
+     * @param Width - Width of the screenshot in pixels
+     * @param Height - Height of the screenshot in pixels
+     * @param Format - Image format ("png" or "jpg")
+     * @param OutScreenshotData - Output JSON object containing base64-encoded image and metadata
+     * @return true if screenshot was captured successfully
+     */
+    virtual bool CaptureWidgetScreenshot(const FString& BlueprintName, int32 Width, int32 Height,
+                                        const FString& Format, TSharedPtr<FJsonObject>& OutScreenshotData) = 0;
 };
