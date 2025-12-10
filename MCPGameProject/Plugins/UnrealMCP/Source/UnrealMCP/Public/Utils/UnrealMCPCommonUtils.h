@@ -6,6 +6,12 @@
 #include "Dom/JsonValue.h"
 #include "UObject/Object.h"
 #include "UObject/UnrealType.h"
+#include "Utils/JsonUtils.h"
+#include "Utils/GeometryUtils.h"
+#include "Utils/PropertyUtils.h"
+#include "Utils/AssetUtils.h"
+#include "Utils/GraphUtils.h"
+#include "Utils/ActorUtils.h"
 
 // Forward declarations
 class AActor;

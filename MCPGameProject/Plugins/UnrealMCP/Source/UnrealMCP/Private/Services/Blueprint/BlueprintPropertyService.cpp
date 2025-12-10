@@ -1,0 +1,384 @@
+#include "Services/Blueprint/BlueprintPropertyService.h"
+#include "Services/Blueprint/BlueprintCacheService.h"
+#include "Services/PropertyService.h"
+#include "Services/ComponentService.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "EdGraphSchema_K2.h"
+#include "GameFramework/Pawn.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
+#include "Components/ActorComponent.h"
+
+bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, const FString& VariableName, const FString& VariableType, bool bIsExposed, FBlueprintCache& Cache)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddVariableToBlueprint: Invalid blueprint"));
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::AddVariableToBlueprint: Adding variable '%s' of type '%s' to blueprint '%s'"),
+        *VariableName, *VariableType, *Blueprint->GetName());
+
+    // Resolve variable type
+    UObject* TypeObject = ResolveVariableType(VariableType);
+    if (!TypeObject)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddVariableToBlueprint: Unknown variable type '%s'"), *VariableType);
+        return false;
+    }
+
+    // Create variable description
+    FBPVariableDescription NewVar;
+    NewVar.VarName = *VariableName;
+    NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Object; // Default, will be adjusted based on type
+
+    // Set type based on resolved type object
+    if (UClass* ClassType = Cast<UClass>(TypeObject))
+    {
+        NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Object;
+        NewVar.VarType.PinSubCategoryObject = ClassType;
+    }
+    else if (UScriptStruct* StructType = Cast<UScriptStruct>(TypeObject))
+    {
+        NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+        NewVar.VarType.PinSubCategoryObject = StructType;
+    }
+    else
+    {
+        // Handle basic types
+        if (VariableType == TEXT("Boolean") || VariableType == TEXT("bool"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+        }
+        else if (VariableType == TEXT("Integer") || VariableType == TEXT("int") || VariableType == TEXT("int32"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Int;
+        }
+        else if (VariableType == TEXT("Float") || VariableType == TEXT("float"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Real;
+            NewVar.VarType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+        }
+        else if (VariableType == TEXT("String") || VariableType == TEXT("FString"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_String;
+        }
+        else if (VariableType == TEXT("Vector") || VariableType == TEXT("FVector"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+            NewVar.VarType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+        }
+        else if (VariableType == TEXT("Rotator") || VariableType == TEXT("FRotator"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+            NewVar.VarType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddVariableToBlueprint: Unsupported basic type '%s'"), *VariableType);
+            return false;
+        }
+    }
+
+    // Set exposure
+    if (bIsExposed)
+    {
+        NewVar.PropertyFlags |= CPF_BlueprintVisible;
+        NewVar.PropertyFlags |= CPF_Edit;
+    }
+
+    // Add variable to blueprint
+    FBlueprintEditorUtils::AddMemberVariable(Blueprint, NewVar.VarName, NewVar.VarType);
+
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+
+    // Invalidate cache since blueprint was modified
+    Cache.InvalidateBlueprint(Blueprint->GetName());
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::AddVariableToBlueprint: Successfully added variable '%s'"), *VariableName);
+    return true;
+}
+
+bool FBlueprintPropertyService::SetBlueprintProperty(UBlueprint* Blueprint, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutErrorMessage, FBlueprintCache& Cache)
+{
+    if (!Blueprint)
+    {
+        OutErrorMessage = TEXT("Invalid blueprint");
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: %s"), *OutErrorMessage);
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetBlueprintProperty: Setting property '%s' on blueprint '%s'"),
+        *PropertyName, *Blueprint->GetName());
+
+    // Get the blueprint's default object
+    UObject* DefaultObject = Blueprint->GeneratedClass ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
+    if (!DefaultObject)
+    {
+        OutErrorMessage = FString::Printf(TEXT("No default object available for blueprint '%s'. Try compiling the blueprint first."), *Blueprint->GetName());
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: %s"), *OutErrorMessage);
+        return false;
+    }
+
+    // Set the property using PropertyService
+    if (!FPropertyService::Get().SetObjectProperty(DefaultObject, PropertyName, PropertyValue, OutErrorMessage))
+    {
+        // OutErrorMessage is already set by PropertyService
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetBlueprintProperty: Failed to set property - %s"), *OutErrorMessage);
+        return false;
+    }
+
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+
+    // Invalidate cache since blueprint was modified
+    Cache.InvalidateBlueprint(Blueprint->GetName());
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetBlueprintProperty: Successfully set property '%s'"), *PropertyName);
+    return true;
+}
+
+bool FBlueprintPropertyService::SetPhysicsProperties(UBlueprint* Blueprint, const FString& ComponentName, const TMap<FString, float>& PhysicsParams, FBlueprintCache& Cache)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetPhysicsProperties: Invalid blueprint"));
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetPhysicsProperties: Setting physics properties on component '%s' in blueprint '%s'"),
+        *ComponentName, *Blueprint->GetName());
+
+    // Convert TMap to JSON object for ComponentService
+    TSharedPtr<FJsonObject> PhysicsJsonParams = MakeShared<FJsonObject>();
+    for (const auto& Param : PhysicsParams)
+    {
+        PhysicsJsonParams->SetNumberField(Param.Key, Param.Value);
+    }
+
+    // Delegate to ComponentService for physics operations
+    bool bResult = FComponentService::Get().SetPhysicsProperties(Blueprint, ComponentName, PhysicsJsonParams);
+
+    if (bResult)
+    {
+        // Invalidate cache since blueprint was modified
+        Cache.InvalidateBlueprint(Blueprint->GetName());
+    }
+
+    return bResult;
+}
+
+bool FBlueprintPropertyService::GetBlueprintComponents(UBlueprint* Blueprint, TArray<TPair<FString, FString>>& OutComponents)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::GetBlueprintComponents: Invalid blueprint"));
+        return false;
+    }
+
+    UE_LOG(LogTemp, Verbose, TEXT("FBlueprintService::GetBlueprintComponents: Getting components for blueprint '%s'"), *Blueprint->GetName());
+
+    OutComponents.Empty();
+
+    // Get components from Simple Construction Script
+    if (Blueprint->SimpleConstructionScript)
+    {
+        for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+        {
+            if (Node && Node->ComponentTemplate)
+            {
+                FString ComponentName = Node->GetVariableName().ToString();
+                FString ComponentType = Node->ComponentTemplate->GetClass()->GetName();
+                OutComponents.Add(TPair<FString, FString>(ComponentName, ComponentType));
+            }
+        }
+    }
+
+    // Get inherited components from CDO
+    if (Blueprint->GeneratedClass)
+    {
+        UObject* DefaultObject = Blueprint->GeneratedClass->GetDefaultObject();
+        AActor* DefaultActor = Cast<AActor>(DefaultObject);
+        if (DefaultActor)
+        {
+            TArray<UActorComponent*> AllComponents;
+            DefaultActor->GetComponents(AllComponents);
+            for (UActorComponent* Component : AllComponents)
+            {
+                if (Component)
+                {
+                    FString ComponentName = Component->GetName();
+                    FString ComponentType = Component->GetClass()->GetName();
+
+                    // Check if already added from SCS
+                    bool bAlreadyAdded = false;
+                    for (const auto& ExistingComponent : OutComponents)
+                    {
+                        if (ExistingComponent.Key == ComponentName)
+                        {
+                            bAlreadyAdded = true;
+                            break;
+                        }
+                    }
+
+                    if (!bAlreadyAdded)
+                    {
+                        OutComponents.Add(TPair<FString, FString>(ComponentName, ComponentType));
+                    }
+                }
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::GetBlueprintComponents: Found %d components"), OutComponents.Num());
+    return true;
+}
+
+bool FBlueprintPropertyService::SetStaticMeshProperties(UBlueprint* Blueprint, const FString& ComponentName, const FString& StaticMeshPath, FBlueprintCache& Cache)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetStaticMeshProperties: Invalid blueprint"));
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetStaticMeshProperties: Setting static mesh '%s' on component '%s' in blueprint '%s'"),
+        *StaticMeshPath, *ComponentName, *Blueprint->GetName());
+
+    // Delegate to ComponentService for static mesh operations
+    bool bResult = FComponentService::Get().SetStaticMeshProperties(Blueprint, ComponentName, StaticMeshPath);
+
+    if (bResult)
+    {
+        // Invalidate cache since blueprint was modified
+        Cache.InvalidateBlueprint(Blueprint->GetName());
+    }
+
+    return bResult;
+}
+
+bool FBlueprintPropertyService::SetPawnProperties(UBlueprint* Blueprint, const TMap<FString, FString>& PawnParams, FBlueprintCache& Cache)
+{
+    if (!Blueprint)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetPawnProperties: Invalid blueprint"));
+        return false;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetPawnProperties: Setting pawn properties on blueprint '%s'"), *Blueprint->GetName());
+
+    // Get the blueprint's default object
+    UObject* DefaultObject = Blueprint->GeneratedClass ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
+    APawn* DefaultPawn = Cast<APawn>(DefaultObject);
+    if (!DefaultPawn)
+    {
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::SetPawnProperties: Blueprint is not a Pawn or Character"));
+        return false;
+    }
+
+    // Set pawn properties
+    for (const auto& Param : PawnParams)
+    {
+        const FString& PropertyName = Param.Key;
+        const FString& PropertyValue = Param.Value;
+
+        if (PropertyName == TEXT("auto_possess_player"))
+        {
+            // Handle auto possess player setting
+            EAutoReceiveInput::Type AutoPossessType = EAutoReceiveInput::Disabled;
+            if (PropertyValue == TEXT("Player0"))
+            {
+                AutoPossessType = EAutoReceiveInput::Player0;
+            }
+            else if (PropertyValue == TEXT("Player1"))
+            {
+                AutoPossessType = EAutoReceiveInput::Player1;
+            }
+            DefaultPawn->AutoPossessPlayer = AutoPossessType;
+        }
+        else if (PropertyName == TEXT("use_controller_rotation_yaw"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->bUseControllerRotationYaw = bValue;
+        }
+        else if (PropertyName == TEXT("use_controller_rotation_pitch"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->bUseControllerRotationPitch = bValue;
+        }
+        else if (PropertyName == TEXT("use_controller_rotation_roll"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->bUseControllerRotationRoll = bValue;
+        }
+        else if (PropertyName == TEXT("can_be_damaged"))
+        {
+            bool bValue = PropertyValue.ToBool();
+            DefaultPawn->SetCanBeDamaged(bValue);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::SetPawnProperties: Unknown pawn property '%s'"), *PropertyName);
+        }
+    }
+
+    // Mark blueprint as modified
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+
+    // Invalidate cache since blueprint was modified
+    Cache.InvalidateBlueprint(Blueprint->GetName());
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintService::SetPawnProperties: Successfully set pawn properties"));
+    return true;
+}
+
+// Private helper methods
+UObject* FBlueprintPropertyService::ResolveVariableType(const FString& TypeString) const
+{
+    // Handle basic types (these don't need UObject resolution)
+    if (TypeString == TEXT("Boolean") || TypeString == TEXT("bool") ||
+        TypeString == TEXT("Integer") || TypeString == TEXT("int") || TypeString == TEXT("int32") ||
+        TypeString == TEXT("Float") || TypeString == TEXT("float") ||
+        TypeString == TEXT("String") || TypeString == TEXT("FString") ||
+        TypeString == TEXT("Vector") || TypeString == TEXT("FVector") ||
+        TypeString == TEXT("Rotator") || TypeString == TEXT("FRotator"))
+    {
+        return reinterpret_cast<UObject*>(1); // Non-null placeholder for basic types
+    }
+
+    // Try to find as a class
+    if (UClass* FoundClass = FindFirstObject<UClass>(*TypeString, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("ResolveVariableType")))
+    {
+        return FoundClass;
+    }
+
+    // Try to find as a struct
+    if (UScriptStruct* FoundStruct = FindFirstObject<UScriptStruct>(*TypeString, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("ResolveVariableType")))
+    {
+        return FoundStruct;
+    }
+
+    // Try loading from common paths
+    TArray<FString> SearchPaths = {
+        FString::Printf(TEXT("/Script/Engine.%s"), *TypeString),
+        FString::Printf(TEXT("/Script/CoreUObject.%s"), *TypeString),
+        FString::Printf(TEXT("/Game/Blueprints/%s"), *TypeString)
+    };
+
+    for (const FString& SearchPath : SearchPaths)
+    {
+        if (UClass* LoadedClass = LoadClass<UObject>(nullptr, *SearchPath))
+        {
+            return LoadedClass;
+        }
+
+        if (UScriptStruct* LoadedStruct = LoadObject<UScriptStruct>(nullptr, *SearchPath))
+        {
+            return LoadedStruct;
+        }
+    }
+
+    return nullptr;
+}

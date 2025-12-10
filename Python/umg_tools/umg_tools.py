@@ -21,6 +21,9 @@ from utils.widgets.widget_components import (
     get_widget_component_layout_impl,  # Import the new _impl function
     set_text_block_widget_component_binding as set_text_block_widget_component_binding_impl
 )
+from utils.widgets.widget_screenshot import (
+    capture_widget_screenshot_impl
+)
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -560,6 +563,61 @@ def register_umg_tools(mcp: FastMCP):
         """
         # Call the implementation function from the utils module
         return get_widget_component_layout_impl(ctx, widget_name)
+
+    @mcp.tool()
+    def capture_widget_screenshot(
+        ctx: Context,
+        widget_name: str,
+        width: int = 800,
+        height: int = 600,
+        format: str = "png"
+    ) -> Dict[str, Any]:
+        """
+        Capture a screenshot of a UMG Widget Blueprint preview.
+
+        This renders the widget to an image and returns it as base64-encoded data that AI can view.
+        This is the BEST way for AI to understand widget layout visually.
+
+        Args:
+            widget_name: Name of the widget blueprint to capture
+            width: Screenshot width in pixels (default: 800, range: 1-8192)
+            height: Screenshot height in pixels (default: 600, range: 1-8192)
+            format: Image format - "png" (default) or "jpg"
+
+        Returns:
+            Dict containing:
+                - success: Whether the screenshot was captured
+                - image_base64: Base64-encoded image data (viewable by AI)
+                - width: Actual image width
+                - height: Actual image height
+                - format: Image format used
+                - image_size_bytes: Size of the compressed image
+                - message: Success or error message
+
+        Examples:
+            # Capture a widget screenshot
+            result = capture_widget_screenshot(widget_name="WBP_MainMenu")
+            if result["success"]:
+                print(f"Screenshot captured: {result['width']}x{result['height']}, "
+                      f"{result['image_size_bytes']} bytes")
+                # AI can now view the widget layout visually
+
+            # Capture at higher resolution
+            result = capture_widget_screenshot(
+                widget_name="WBP_LoginScreen",
+                width=1920,
+                height=1080
+            )
+
+            # Capture as JPEG (smaller file size)
+            result = capture_widget_screenshot(
+                widget_name="WBP_Settings",
+                width=1024,
+                height=768,
+                format="jpg"
+            )
+        """
+        return capture_widget_screenshot_impl(ctx, widget_name, width, height, format)
 
     logger.info("UMG tools registered successfully")
 

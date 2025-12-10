@@ -165,7 +165,7 @@ TArray<FString> FProjectService::ListFolderContents(const FString& FolderPath, b
             Contents.Add(FString::Printf(TEXT("FOLDER: %s"), *SubPath));
         }
         
-        // Get assets (UE 5.6 compatible)
+        // Get assets (UE 5.7 compatible)
         TArray<FString> Assets = UEditorAssetLibrary::ListAssets(AssetPath, false, false);
         for (const FString& Asset : Assets)
         {
@@ -197,7 +197,7 @@ TArray<FString> FProjectService::ListFolderContents(const FString& FolderPath, b
         
         FPlatformFileManager::Get().GetPlatformFile().FindFiles(FoundFiles, *FullPath, TEXT("*"));
         
-        // Use IterateDirectory to find subdirectories (UE 5.6 compatible)
+        // Use IterateDirectory to find subdirectories (UE 5.7 compatible)
         FPlatformFileManager::Get().GetPlatformFile().IterateDirectory(*FullPath, [&Contents](const TCHAR* FilenameOrDirectory, bool bIsDirectory) -> bool
         {
             if (bIsDirectory)

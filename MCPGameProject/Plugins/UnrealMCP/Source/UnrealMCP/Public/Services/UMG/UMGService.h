@@ -61,6 +61,9 @@ public:
 
     virtual bool GetWidgetComponentLayout(const FString& BlueprintName, TSharedPtr<FJsonObject>& OutLayoutInfo) override;
 
+    virtual bool CaptureWidgetScreenshot(const FString& BlueprintName, int32 Width, int32 Height,
+                                        const FString& Format, TSharedPtr<FJsonObject>& OutScreenshotData) override;
+
 private:
     /** Private constructor for singleton pattern */
     FUMGService();
