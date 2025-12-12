@@ -1,49 +1,199 @@
 # Unreal Engine MCP Documentation
 
-Welcome to the documentation for the Unreal Engine Model Context Protocol (MCP) integration. This documentation will help you understand, set up, and use the MCP system with Unreal Engine through natural language commands with AI assistants.
+Welcome! This is your comprehensive guide to controlling **Unreal Engine 5.7** through natural language using AI assistants via the Model Context Protocol (MCP).
 
-## Overview
+## 🚀 Quick Start
 
-The Unreal MCP system provides powerful tools for controlling Unreal Engine through natural language commands. Instead of learning complex editor interfaces, you can simply describe what you want to accomplish and let the AI assistant handle the technical implementation.
+**New to Unreal MCP?** Start here:
 
-## Documentation Sections
+### [📘 Quick Start Guide](Quick-Start-Guide.md)
+Get up and running in 15 minutes! This guide walks you through:
+- Installing and configuring the system
+- Connecting your AI assistant
+- Creating your first Blueprint with natural language
+- Building visual scripting logic
+- Spawning characters in the scene
 
-### Core Tools Documentation
+**Perfect for:** First-time users, testing the system, learning the basics
 
-- **[Blueprint Tools](Blueprint-Tools.md)** - Create and manage Blueprint classes, components, variables, physics, and compilation
-- **[Blueprint Action Tools](Blueprint-Action-Tools.md)** - Dynamically discover available Blueprint actions and create nodes using Unreal's action database
-- **[Editor Tools](Editor-Tools.md)** - Control the Unreal Engine editor, manage actors, transforms, and scene objects  
-- **[Node Tools](Node-Tools.md)** - Build Blueprint visual scripting logic, event nodes, and node connections
-- **[UMG Tools](UMG-Tools.md)** - Create user interfaces, widgets, layouts, and interactive UI elements
-- **[DataTable Tools](DataTable-Tools.md)** - Manage structured game data, create tables, and perform CRUD operations
-- **[Project Tools](Project-Tools.md)** - Organize projects, manage input systems, create structs, and handle project structure
+---
 
-### Additional Resources
+## 📚 Core Tool Documentation
 
-- **[Tools](Tools/README.md)** - Technical implementation details and tool references
+Comprehensive guides for each tool category. Each guide includes natural language examples, advanced patterns, and real-world workflows.
 
-## Getting Started
+### 🎮 [Blueprint Tools](Blueprint-Tools.md)
+Create and manage Blueprint classes, components, variables, and game logic
+- Create Blueprints with custom parent classes
+- Add and configure components (meshes, lights, cameras, physics)
+- Manage variables, properties, and interfaces
+- Configure physics simulation and collision
+- Compile and test Blueprints
 
-1. **Choose Your Focus Area**: Start with the documentation section that matches your immediate needs
-2. **Use Natural Language**: All examples show how to request functionality using plain English
-3. **Follow the Patterns**: Each section includes progressive examples from basic to advanced usage
-4. **Combine Tools**: Many workflows use multiple tool categories together for complete functionality
+### 🔍 [Blueprint Action Tools](Blueprint-Action-Tools.md)
+Dynamically discover available Blueprint actions using Unreal's action database
+- Search for available actions by pin type
+- Discover class-specific functionality
+- Explore inheritance hierarchies
+- Create nodes dynamically based on action discovery
+- Query pin requirements and types
 
-## Key Features
+### 🎯 [Node Tools](Node-Tools.md)
+Build Blueprint visual scripting logic, event chains, and node connections
+- Create event nodes (BeginPlay, Tick, custom events)
+- Add function calls and variable references
+- Connect nodes with execution and data flow
+- Smart node replacement with connection preservation
+- Graph manipulation (disconnect, delete, replace)
 
-- **Natural Language Interface**: Control Unreal Engine using conversational commands
-- **Comprehensive Coverage**: Tools for all major Unreal Engine systems and workflows
-- **Progressive Examples**: From simple tasks to complex game development scenarios
-- **Best Practices**: Recommended approaches and common patterns
-- **Error Handling**: Troubleshooting guides and common solutions
+### 🖼️ [UMG Tools](UMG-Tools.md)
+Design user interfaces, widgets, layouts, and interactive UI elements
+- Create Widget Blueprints
+- Add UI components (text, buttons, images, progress bars)
+- Build nested layouts with containers
+- Bind events and properties for dynamic UI
+- Capture widget screenshots for AI inspection
+- Export enhanced JSON metadata
 
-## Example Workflows
+### 🎬 [Editor Tools](Editor-Tools.md)
+Control the Unreal Engine editor, manage actors, transforms, and scene objects
+- Spawn and delete actors (primitives, lights, cameras)
+- Transform actors (position, rotation, scale)
+- Find actors by name patterns
+- Configure light properties
+- Control viewport camera
+- Query and modify actor properties
 
-**Creating a Complete Character**: Use Blueprint Tools to create the character class, Editor Tools to spawn instances, Node Tools to add behavior logic, and UMG Tools for health bars.
+### 📊 [DataTable Tools](DataTable-Tools.md)
+Manage structured game data, create tables, and perform CRUD operations
+- Create DataTables with custom structs
+- Add, update, delete, and query rows
+- Bulk operations on multiple rows
+- Map properties using GUID automation
+- List row names and struct fields
 
-**Building Game Data**: Use Project Tools to create structs, DataTable Tools to manage item/character data, and Blueprint Tools to reference that data in gameplay systems.
+### 📁 [Project Tools](Project-Tools.md)
+Organize projects, manage input systems, create structs, and handle project structure
+- Create and organize content folders
+- Enhanced Input System (UE 5.5+)
+  - Create Input Actions with value types
+  - Create Input Mapping Contexts
+  - Map keys with modifiers (Shift, Ctrl, Alt)
+- Create and update custom structs
+- Manage project folder structure
 
-**Setting Up UI Systems**: Use UMG Tools to create interfaces, Node Tools to connect UI events to gameplay, and Project Tools to organize input actions.
+---
 
-Each documentation section provides detailed examples and patterns for these integrated workflows.
+## 🎓 Learning Paths
+
+### For Beginners
+1. Start with the [Quick Start Guide](Quick-Start-Guide.md)
+2. Learn [Blueprint Tools](Blueprint-Tools.md) to create game objects
+3. Explore [Editor Tools](Editor-Tools.md) to manage your scene
+4. Try [Node Tools](Node-Tools.md) for gameplay logic
+
+### For Intermediate Users
+1. Master [UMG Tools](UMG-Tools.md) for user interfaces
+2. Use [DataTable Tools](DataTable-Tools.md) for game data
+3. Explore [Blueprint Action Tools](Blueprint-Action-Tools.md) for advanced node discovery
+4. Dive into [Project Tools](Project-Tools.md) for project organization
+
+### For Advanced Users
+- Combine multiple tool categories for complex workflows
+- Use Blueprint Action discovery for dynamic node creation
+- Implement smart node replacement for refactoring
+- Build complete game systems using integrated workflows
+
+---
+
+## 💡 How to Use This Documentation
+
+### Natural Language First
+All examples show **natural language commands** you can use with your AI assistant. No need to learn specific syntax or APIs - just describe what you want!
+
+**Example:**
+```
+"Create a Blueprint called BP_Enemy that inherits from Character"
+"Add a sphere collision component called TriggerZone"
+"Enable physics simulation with gravity"
+```
+
+### Progressive Examples
+Each guide follows a progression:
+1. **Basic Operations** - Simple, single-step tasks
+2. **Common Patterns** - Frequently used combinations
+3. **Advanced Workflows** - Complex, multi-step scenarios
+4. **Real-World Examples** - Complete game systems
+
+### Cross-Tool Integration
+Many workflows combine multiple tools:
+
+**Example: Complete Character with UI**
+1. Use **Blueprint Tools** to create the character class
+2. Use **Node Tools** to add behavior logic
+3. Use **UMG Tools** to create a health bar
+4. Use **Editor Tools** to spawn and test
+
+---
+
+## 📖 Additional Resources
+
+### Technical Documentation
+- **[Tools](Tools/README.md)** - Technical implementation details and API reference
+- **[Architecture Guide](../MCPGameProject/Plugins/UnrealMCP/Documentation/Architecture_Guide.md)** - C++ plugin architecture
+- **[CLAUDE.md](../CLAUDE.md)** - Developer guidance for contributing
+
+### Reference Materials
+- **[Main README](../README.md)** - Project overview and setup
+- **[Python README](../Python/README.md)** - Python server setup and testing
+- **Example Scripts** - `Python/scripts/` directory for Python test examples
+
+---
+
+## 🎯 Common Use Cases
+
+### Game Development
+- **Character Creation**: Blueprints → Components → Physics → Logic → UI
+- **Level Design**: Editor → Actors → Lights → Camera → Testing
+- **UI Systems**: UMG → Widgets → Events → Bindings → Display
+- **Data Management**: Structs → DataTables → CRUD → Game Logic
+
+### Prototyping
+- Quickly test gameplay ideas using natural language
+- Iterate on designs without deep Unreal knowledge
+- Experiment with different approaches rapidly
+
+### Learning Unreal Engine
+- Learn by doing with immediate feedback
+- Understand concepts through natural language
+- Explore Unreal's capabilities conversationally
+
+### Automation
+- Batch create and configure assets
+- Standardize project setups
+- Automate repetitive tasks
+
+---
+
+## 🤝 Getting Help
+
+### Troubleshooting
+Each tool guide includes common issues and solutions. Also see:
+- [Quick Start Troubleshooting](Quick-Start-Guide.md#troubleshooting)
+- [Main README Troubleshooting](../README.md#-troubleshooting)
+
+### Community
+- **GitHub Issues**: [Report bugs or request features](https://github.com/TrishynVolodymyr/unreal-mcp/issues)
+- **Discussions**: Share workflows and ask questions
+
+### Contributing
+See [CLAUDE.md](../CLAUDE.md) for:
+- Architecture guidelines
+- Development workflow
+- Adding new features
+- Synchronization requirements
+
+---
+
+**Happy building with Unreal MCP!** 🎮 Start with the [Quick Start Guide](Quick-Start-Guide.md) to begin your journey.
 

@@ -162,3 +162,6 @@ Backup/
 UNREAL/Source/
 UNREAL/SOURCE/
 ues
+
+build_output.txt
+Python/tcp_debug.log
