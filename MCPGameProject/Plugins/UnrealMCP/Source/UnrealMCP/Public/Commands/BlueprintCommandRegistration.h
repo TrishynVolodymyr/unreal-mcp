@@ -42,7 +42,8 @@ private:
     static void RegisterCreateBlueprintInterfaceCommand();
     static void RegisterAddInterfaceToBlueprintCommand();
     static void RegisterCreateCustomBlueprintFunctionCommand();
-    
+    static void RegisterGetBlueprintMetadataCommand();
+
     /**
      * Helper to register a command and track it for cleanup
      * @param Command - Command to register

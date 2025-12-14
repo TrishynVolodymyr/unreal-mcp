@@ -11,10 +11,8 @@
 #include "K2Node_VariableSet.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 
-namespace
-{
-// Helper function to generate safe Node IDs for query service
-static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
+// Helper function to generate safe Node IDs for query service (not in namespace to avoid unity build conflicts)
+static FString GetSafeNodeIdForQuery(UEdGraphNode* Node, const FString& NodeTitle)
 {
     if (!Node)
     {
@@ -32,6 +30,8 @@ static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
     return NodeId;
 }
 
+namespace
+{
 // Helper function to collect pin information from a node
 static TArray<FBlueprintPinInfo> GetNodePinInfo(UEdGraphNode* Node)
 {
@@ -180,7 +180,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                     NodeTitle = GetCleanTypePromotionTitle(Node, NodeTitle);
 
                     // PROBLEM 2 FIX: Use safe Node ID generation
-                    FString NodeId = GetSafeNodeId(Node, NodeTitle);
+                    FString NodeId = GetSafeNodeIdForQuery(Node, NodeTitle);
 
                     // Get node type
                     FString NodeType = Node->GetClass()->GetName();
@@ -217,7 +217,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                             NodeTitle = GetCleanTypePromotionTitle(Node, NodeTitle);
 
                             // PROBLEM 2 FIX: Use safe Node ID generation
-                            FString NodeId = GetSafeNodeId(Node, NodeTitle);
+                            FString NodeId = GetSafeNodeIdForQuery(Node, NodeTitle);
 
                             // Get node type
                             FString NodeType = Node->GetClass()->GetName();
@@ -297,7 +297,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                     if (EventNode->EventReference.GetMemberName() == FName(*EventType))
                     {
                         FString NodeTitle = EventNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                        FBlueprintNodeInfo NodeInfo(GetSafeNodeId(EventNode, NodeTitle), NodeTitle);
+                        FBlueprintNodeInfo NodeInfo(GetSafeNodeIdForQuery(EventNode, NodeTitle), NodeTitle);
                         NodeInfo.IsPure = IsNodePure(EventNode);
                         OutNodeInfos.Add(NodeInfo);
                     }
@@ -306,7 +306,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                 {
                     // Add all event nodes
                     FString NodeTitle = EventNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                    OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(EventNode, NodeTitle), NodeTitle));
+                    OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeIdForQuery(EventNode, NodeTitle), NodeTitle));
                 }
             }
         }
@@ -320,7 +320,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
             if (FunctionNode)
             {
                 FString NodeTitle = FunctionNode->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                FBlueprintNodeInfo NodeInfo(GetSafeNodeId(FunctionNode, NodeTitle), NodeTitle);
+                FBlueprintNodeInfo NodeInfo(GetSafeNodeIdForQuery(FunctionNode, NodeTitle), NodeTitle);
                 NodeInfo.IsPure = IsNodePure(FunctionNode);
                 OutNodeInfos.Add(NodeInfo);
             }
@@ -336,7 +336,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
             if (VarGetNode || VarSetNode)
             {
                 FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeId(Node, NodeTitle), NodeTitle));
+                OutNodeInfos.Add(FBlueprintNodeInfo(GetSafeNodeIdForQuery(Node, NodeTitle), NodeTitle));
             }
         }
     }
@@ -351,7 +351,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                 if (NodeClassName.Contains(NodeType))
                 {
                     FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-                    FBlueprintNodeInfo NodeInfo(GetSafeNodeId(Node, NodeTitle), NodeTitle);
+                    FBlueprintNodeInfo NodeInfo(GetSafeNodeIdForQuery(Node, NodeTitle), NodeTitle);
                     NodeInfo.IsPure = IsNodePure(Node);
                     OutNodeInfos.Add(NodeInfo);
                 }

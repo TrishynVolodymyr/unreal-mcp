@@ -421,12 +421,12 @@ def call_blueprint_function(
     string_params: List[str] = None
 ) -> Dict[str, Any]:
     """Implementation for calling a BlueprintCallable function by name.
-    
+
     Args:
         target_name: Name of the target object to call the function on
         function_name: Name of the BlueprintCallable function to execute
         string_params: List of string parameters to pass to the function
-        
+
     Returns:
         Dictionary containing the function call result and success status
     """
@@ -435,5 +435,31 @@ def call_blueprint_function(
         "function_name": function_name,
         "string_params": string_params or []
     }
-    
+
     return send_unreal_command("call_blueprint_function", params)
+
+def get_blueprint_metadata(
+    ctx: Context,
+    blueprint_name: str,
+    fields: List[str] = None
+) -> Dict[str, Any]:
+    """Implementation for getting comprehensive metadata about a Blueprint.
+
+    Args:
+        blueprint_name: Name or path of the Blueprint
+        fields: List of metadata fields to retrieve. If None or ["*"], returns all.
+                Options: "parent_class", "interfaces", "variables", "functions",
+                        "components", "graphs", "status", "metadata",
+                        "timelines", "asset_info"
+
+    Returns:
+        Dictionary containing requested metadata fields
+    """
+    params = {
+        "blueprint_name": blueprint_name
+    }
+
+    if fields is not None:
+        params["fields"] = fields
+
+    return send_unreal_command("get_blueprint_metadata", params)

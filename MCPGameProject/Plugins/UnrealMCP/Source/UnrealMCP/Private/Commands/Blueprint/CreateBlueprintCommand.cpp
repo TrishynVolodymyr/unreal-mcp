@@ -10,6 +10,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "Components/ActorComponent.h"
 #include "Components/SceneComponent.h"
+#include "Services/AssetDiscoveryService.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 FCreateBlueprintCommand::FCreateBlueprintCommand(IBlueprintService& InBlueprintService)
     : BlueprintService(InBlueprintService)
@@ -141,9 +143,17 @@ UClass* FCreateBlueprintCommand::ResolveParentClass(const FString& ParentClassNa
     {
         return AActor::StaticClass(); // Default
     }
-    
+
+    // First, try to find a Blueprint parent
+    UClass* BlueprintParentClass = FindBlueprintParentClass(ParentClassName);
+    if (BlueprintParentClass)
+    {
+        return BlueprintParentClass;
+    }
+
+    // Fall back to native C++ class resolution
     FString ClassName = ParentClassName;
-    
+
     // Add appropriate prefix if not present
     if (!ClassName.StartsWith(TEXT("A")) && !ClassName.StartsWith(TEXT("U")))
     {
@@ -156,7 +166,7 @@ UClass* FCreateBlueprintCommand::ResolveParentClass(const FString& ParentClassNa
             ClassName = TEXT("A") + ClassName;
         }
     }
-    
+
     // Try direct StaticClass lookup for common classes
     if (ClassName == TEXT("APawn"))
     {
@@ -186,7 +196,7 @@ UClass* FCreateBlueprintCommand::ResolveParentClass(const FString& ParentClassNa
     {
         return USceneComponent::StaticClass();
     }
-    
+
     // Try loading from common module paths
     TArray<FString> ModulePaths = {
         TEXT("/Script/Engine"),
@@ -195,7 +205,7 @@ UClass* FCreateBlueprintCommand::ResolveParentClass(const FString& ParentClassNa
         TEXT("/Script/Game"),
         TEXT("/Script/CoreUObject")
     };
-    
+
     for (const FString& ModulePath : ModulePaths)
     {
         const FString ClassPath = FString::Printf(TEXT("%s.%s"), *ModulePath, *ClassName);
@@ -204,9 +214,70 @@ UClass* FCreateBlueprintCommand::ResolveParentClass(const FString& ParentClassNa
             return FoundClass;
         }
     }
-    
+
     UE_LOG(LogTemp, Warning, TEXT("FCreateBlueprintCommand::ResolveParentClass: Could not resolve parent class '%s'"), *ParentClassName);
     return AActor::StaticClass(); // Fallback to Actor
+}
+
+UClass* FCreateBlueprintCommand::FindBlueprintParentClass(const FString& ParentClassName) const
+{
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+    // Handle full path (e.g., /Game/Blueprints/BP_Base or /Game/Blueprints/BP_Base.BP_Base_C)
+    if (ParentClassName.StartsWith(TEXT("/Game/")) || ParentClassName.StartsWith(TEXT("/Script/")))
+    {
+        UBlueprint* BP = nullptr;
+
+        // Try to load directly first (handles both package path and object path)
+        BP = LoadObject<UBlueprint>(nullptr, *ParentClassName);
+
+        if (!BP)
+        {
+            // If that failed and path doesn't have the _C suffix, try constructing the full object path
+            if (!ParentClassName.Contains(TEXT(".")))
+            {
+                // Extract the asset name from the path
+                FString AssetName;
+                if (ParentClassName.Split(TEXT("/"), nullptr, &AssetName, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+                {
+                    // Construct full object path: /Game/Path/AssetName.AssetName_C
+                    const FString FullObjectPath = FString::Printf(TEXT("%s.%s_C"), *ParentClassName, *AssetName);
+                    BP = LoadObject<UBlueprint>(nullptr, *FullObjectPath);
+
+                    if (BP)
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("Found Blueprint parent by constructing object path: %s -> %s"), *ParentClassName, *FullObjectPath);
+                    }
+                }
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Log, TEXT("Found Blueprint parent by direct load: %s"), *ParentClassName);
+        }
+
+        // Validate and return
+        if (BP && BP->BlueprintType == BPTYPE_Normal && BP->GeneratedClass)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Resolved Blueprint parent: %s -> %s"), *ParentClassName, *BP->GeneratedClass->GetName());
+            return BP->GeneratedClass;
+        }
+    }
+
+    // Handle simple name (e.g., BP_Base) - use FAssetDiscoveryService
+    TArray<FString> FoundBlueprints = FAssetDiscoveryService::Get().FindBlueprints(ParentClassName);
+    if (FoundBlueprints.Num() > 0)
+    {
+        UBlueprint* BP = LoadObject<UBlueprint>(nullptr, *FoundBlueprints[0]);
+        if (BP && BP->BlueprintType == BPTYPE_Normal && BP->GeneratedClass)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Found Blueprint parent by name: %s -> %s (path: %s)"),
+                *ParentClassName, *BP->GeneratedClass->GetName(), *FoundBlueprints[0]);
+            return BP->GeneratedClass;
+        }
+    }
+
+    return nullptr;
 }
 
 

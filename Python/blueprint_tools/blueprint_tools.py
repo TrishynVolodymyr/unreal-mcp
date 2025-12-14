@@ -22,7 +22,8 @@ from utils.blueprints.blueprint_operations import (
     create_blueprint_interface as create_blueprint_interface_impl,
     list_blueprint_components as list_blueprint_components_impl,
     create_custom_blueprint_function as create_custom_blueprint_function_impl,
-    call_blueprint_function as call_blueprint_function_impl
+    call_blueprint_function as call_blueprint_function_impl,
+    get_blueprint_metadata as get_blueprint_metadata_impl
 )
 
 # Get logger
@@ -39,25 +40,36 @@ def register_blueprint_tools(mcp: FastMCP):
         folder_path: str = ""
     ) -> Dict[str, Any]:
         """
-        Create a new Blueprint class.
-        
+        Create a new Blueprint class with support for both native C++ and Blueprint parents.
+
         Args:
             name: Name of the new Blueprint class (can include path with "/")
-            parent_class: Parent class for the Blueprint (e.g., "Actor", "Pawn")
+            parent_class: Parent class for the Blueprint. Supports:
+                         - Native C++ classes: "Actor", "Pawn", "Character", etc.
+                         - Blueprint classes: "BP_MyBaseClass" or "/Game/Blueprints/BP_MyBaseClass"
             folder_path: Optional folder path where the blueprint should be created
-                         If name contains a path (e.g. "System/Blueprints/my_bp"), 
+                         If name contains a path (e.g. "System/Blueprints/my_bp"),
                          folder_path is ignored unless explicitly specified
-                         
+
         Returns:
             Dictionary containing information about the created Blueprint including path and success status
-        
+
         Examples:
-            # Create blueprint directly in Content folder
+            # Create blueprint with native C++ parent
             create_blueprint(name="MyBlueprint", parent_class="Actor")
-            
+
+            # Create blueprint extending another Blueprint (by name)
+            create_blueprint(name="BP_EnemyMelee", parent_class="BP_EnemyBase")
+
+            # Create blueprint extending another Blueprint (by path)
+            create_blueprint(
+                name="BP_EnemyMelee",
+                parent_class="/Game/Blueprints/BP_EnemyBase"
+            )
+
             # Create blueprint with path in name (creates in Content/System/Blueprints)
             create_blueprint(name="System/Blueprints/my_bp", parent_class="Actor")
-            
+
             # Create blueprint in Content/Success folder
             create_blueprint(name="MyBlueprint", parent_class="Actor", folder_path="Success")
         """
@@ -542,15 +554,55 @@ def register_blueprint_tools(mcp: FastMCP):
             )
         """
         return create_custom_blueprint_function_impl(
-            ctx, 
-            blueprint_name, 
-            function_name, 
-            inputs, 
-            outputs, 
-            is_pure, 
-            is_const, 
-            access_specifier, 
+            ctx,
+            blueprint_name,
+            function_name,
+            inputs,
+            outputs,
+            is_pure,
+            is_const,
+            access_specifier,
             category
         )
-    
+
+    @mcp.tool()
+    def get_blueprint_metadata(
+        ctx: Context,
+        blueprint_name: str,
+        fields: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get comprehensive metadata about a Blueprint with selective field querying.
+
+        Args:
+            blueprint_name: Name or path of the Blueprint
+            fields: List of metadata fields to retrieve. If None or ["*"], returns all.
+                    Options: "parent_class", "interfaces", "variables", "functions",
+                            "components", "graphs", "status", "metadata",
+                            "timelines", "asset_info"
+
+        Returns:
+            Dictionary containing requested metadata fields
+
+        Examples:
+            # Get all metadata
+            get_blueprint_metadata(ctx, blueprint_name="BP_MyActor")
+
+            # Get only parent class and interfaces
+            get_blueprint_metadata(
+                ctx,
+                blueprint_name="BP_MyActor",
+                fields=["parent_class", "interfaces"]
+            )
+
+            # Get interface implementation status
+            result = get_blueprint_metadata(
+                ctx,
+                blueprint_name="BP_InteractableActor",
+                fields=["interfaces"]
+            )
+            # Result will include interface functions and implementation status
+        """
+        return get_blueprint_metadata_impl(ctx, blueprint_name, fields)
+
     logger.info("Blueprint tools registered successfully")
