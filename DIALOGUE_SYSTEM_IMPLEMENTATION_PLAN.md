@@ -12,6 +12,28 @@
 
 ---
 
+## 🔄 REVISED PLAN: ZERO C++ FILES
+
+**This plan has been updated to eliminate ALL manual C++ file creation:**
+
+### What Changed:
+- ❌ **REMOVED**: Manual creation of `DialogueStructs.h` (C++ header)
+- ❌ **REMOVED**: Manual creation of `DialogueComponent.h/.cpp` (C++ component)
+- ✅ **REPLACED WITH**: `create_struct` MCP tool for DialogueAnswer and DialogueRow structs
+- ✅ **REPLACED WITH**: Blueprint-only dialogue logic in BP_DialogueNPC using Blueprint variables and functions
+- ✅ **REPLACED WITH**: `add_blueprint_variable` for all dialogue state (NPCName, DialogueTable, InteractionRadius, bDialogueActive)
+- ✅ **REPLACED WITH**: `create_custom_blueprint_function` and `node_tools` for StartDialogue/EndDialogue logic
+
+### Why This Matters:
+The original plan included C++ files which would require:
+1. Manual file creation outside of MCP tools
+2. Manual plugin compilation
+3. Violating the "100% MCP tools only" requirement
+
+**This revised plan proves that complex gameplay systems can be built entirely through MCP tools without any manual C++ coding.**
+
+---
+
 ## Overview
 A simple dialogue system for testing the Unreal MCP plugin. Allows the Third Person Character to interact with NPCs by pressing E key when within interaction radius. Shows a dialogue widget with NPC name and multiple answer options.
 
@@ -29,62 +51,57 @@ A simple dialogue system for testing the Unreal MCP plugin. Allows the Third Per
 
 ## Phase 1: Data Structure & DataTable
 
-### 1.1 Create Dialogue Row Structure
+### 1.1 Create Dialogue Answer Structure
 
-**File**: `MCPGameProject/Source/MCPGameProject/Public/DialogueStructs.h`
+**Using MCP Tool**: `create_struct`
 
-```cpp
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataTable.h"
-#include "DialogueStructs.generated.h"
-
-/**
- * Represents a single answer option in a dialogue
- */
-USTRUCT(BlueprintType)
-struct FDialogueAnswer
-{
-    GENERATED_BODY()
-
-    // The text displayed for this answer option
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue")
-    FText AnswerText;
-
-    // Optional: ID for future expansion (branching, actions, etc.)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue")
-    FName AnswerID;
-
-    FDialogueAnswer()
-        : AnswerText(FText::FromString("Default Answer"))
-        , AnswerID(NAME_None)
-    {}
-};
-
-/**
- * Represents a dialogue entry (NPC question/statement + player answer options)
- */
-USTRUCT(BlueprintType)
-struct FDialogueRow : public FTableRowBase
-{
-    GENERATED_BODY()
-
-    // The NPC's dialogue text (question or statement)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue")
-    FText NPCText;
-
-    // List of answer options the player can choose from
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue")
-    TArray<FDialogueAnswer> PlayerAnswers;
-
-    FDialogueRow()
-        : NPCText(FText::FromString("Hello, traveler!"))
-    {}
-};
+```python
+# MCP command (AI MUST execute this - NO manual creation allowed)
+create_struct(
+    struct_name="DialogueAnswer",
+    properties=[
+        {
+            "name": "AnswerText",
+            "type": "String",
+            "description": "The text displayed for this answer option"
+        },
+        {
+            "name": "AnswerID",
+            "type": "Name",
+            "description": "Optional ID for future expansion (branching, actions, etc.)"
+        }
+    ],
+    path="/Game/Dialogue/Structs",
+    description="Represents a single answer option in a dialogue"
+)
 ```
 
-### 1.2 Create DataTable Asset
+### 1.2 Create Dialogue Row Structure
+
+**Using MCP Tool**: `create_struct`
+
+```python
+# MCP command (AI MUST execute this - NO manual creation allowed)
+create_struct(
+    struct_name="DialogueRow",
+    properties=[
+        {
+            "name": "NPCText",
+            "type": "String",
+            "description": "The NPC's dialogue text (question or statement)"
+        },
+        {
+            "name": "PlayerAnswers",
+            "type": "DialogueAnswer[]",
+            "description": "List of answer options the player can choose from"
+        }
+    ],
+    path="/Game/Dialogue/Structs",
+    description="Represents a dialogue entry (NPC question/statement + player answer options)"
+)
+```
+
+### 1.3 Create DataTable Asset
 
 **Using MCP Tool**: `create_datatable`
 
@@ -99,7 +116,7 @@ create_datatable(
 
 **NO MANUAL SETUP ALLOWED - MCP TOOLS ONLY**
 
-### 1.3 Populate Sample Dialogue Data
+### 1.4 Populate Sample Dialogue Data
 
 Add rows to `DT_TestNPCDialogue`:
 
@@ -110,209 +127,11 @@ Add rows to `DT_TestNPCDialogue`:
 
 ---
 
-## Phase 2: Dialogue Actor Component (C++)
+## Phase 2: Base NPC Blueprint with Dialogue Logic
 
-### 2.1 Create Dialogue Component Class
+**NOTE**: Instead of creating a C++ DialogueComponent, we'll implement dialogue logic entirely in Blueprint using MCP tools. This proves the MCP plugin can handle complex gameplay systems without manual C++ coding.
 
-**File**: `MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/Public/Components/DialogueComponent.h`
-
-```cpp
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Components/ActorComponent.h"
-#include "Engine/DataTable.h"
-#include "DialogueStructs.h"
-#include "DialogueComponent.generated.h"
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueStarted, const FDialogueRow&, DialogueData);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDialogueEnded);
-
-/**
- * Component that enables an actor to have dialogue functionality
- * Attach to any actor to make it interactable for dialogue
- */
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class UNREALMCP_API UDialogueComponent : public UActorComponent
-{
-    GENERATED_BODY()
-
-public:
-    UDialogueComponent();
-
-    // The DataTable containing this NPC's dialogue
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue")
-    UDataTable* DialogueTable;
-
-    // The name of the NPC (displayed in dialogue widget)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue")
-    FText NPCName;
-
-    // The interaction radius (distance player must be within)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue")
-    float InteractionRadius;
-
-    // Reference to the interaction indicator widget component (set in BP)
-    UPROPERTY(BlueprintReadWrite, Category = "Dialogue")
-    class UWidgetComponent* InteractionWidgetComponent;
-
-    // Events
-    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
-    FOnDialogueStarted OnDialogueStarted;
-
-    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
-    FOnDialogueEnded OnDialogueEnded;
-
-    // Start dialogue (called when player presses E)
-    UFUNCTION(BlueprintCallable, Category = "Dialogue")
-    void StartDialogue();
-
-    // End dialogue (called when player selects answer)
-    UFUNCTION(BlueprintCallable, Category = "Dialogue")
-    void EndDialogue();
-
-    // Check if player is within interaction range
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Dialogue")
-    bool IsPlayerInRange() const;
-
-    // Get the current dialogue row (for now, just return first row)
-    UFUNCTION(BlueprintCallable, Category = "Dialogue")
-    bool GetDialogueData(FDialogueRow& OutDialogueRow);
-
-protected:
-    virtual void BeginPlay() override;
-    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-private:
-    // Track if dialogue is currently active
-    bool bDialogueActive;
-
-    // Cache player character reference
-    ACharacter* PlayerCharacter;
-
-    // Update interaction widget visibility based on player distance
-    void UpdateInteractionWidgetVisibility();
-};
-```
-
-**File**: `MCPGameProject/Plugins/UnrealMCP/Source/UnrealMCP/Private/Components/DialogueComponent.cpp`
-
-```cpp
-#include "Components/DialogueComponent.h"
-#include "GameFramework/Character.h"
-#include "Kismet/GameplayStatics.h"
-#include "Components/WidgetComponent.h"
-
-UDialogueComponent::UDialogueComponent()
-{
-    PrimaryComponentTick.bCanEverTick = true;
-    InteractionRadius = 300.0f; // 3 meters
-    NPCName = FText::FromString("NPC");
-    bDialogueActive = false;
-    PlayerCharacter = nullptr;
-}
-
-void UDialogueComponent::BeginPlay()
-{
-    Super::BeginPlay();
-
-    // Cache player character reference
-    PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-
-    // Hide interaction widget initially
-    if (InteractionWidgetComponent)
-    {
-        InteractionWidgetComponent->SetVisibility(false);
-    }
-}
-
-void UDialogueComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-    // Update interaction widget visibility based on player distance
-    if (!bDialogueActive)
-    {
-        UpdateInteractionWidgetVisibility();
-    }
-}
-
-void UDialogueComponent::UpdateInteractionWidgetVisibility()
-{
-    if (!InteractionWidgetComponent || !PlayerCharacter)
-        return;
-
-    bool bInRange = IsPlayerInRange();
-    InteractionWidgetComponent->SetVisibility(bInRange);
-}
-
-bool UDialogueComponent::IsPlayerInRange() const
-{
-    if (!PlayerCharacter)
-        return false;
-
-    float Distance = FVector::Dist(GetOwner()->GetActorLocation(), PlayerCharacter->GetActorLocation());
-    return Distance <= InteractionRadius;
-}
-
-void UDialogueComponent::StartDialogue()
-{
-    if (!DialogueTable || bDialogueActive)
-        return;
-
-    FDialogueRow DialogueData;
-    if (GetDialogueData(DialogueData))
-    {
-        bDialogueActive = true;
-
-        // Hide interaction widget during dialogue
-        if (InteractionWidgetComponent)
-        {
-            InteractionWidgetComponent->SetVisibility(false);
-        }
-
-        // Broadcast event to create and show dialogue widget
-        OnDialogueStarted.Broadcast(DialogueData);
-    }
-}
-
-void UDialogueComponent::EndDialogue()
-{
-    bDialogueActive = false;
-    OnDialogueEnded.Broadcast();
-}
-
-bool UDialogueComponent::GetDialogueData(FDialogueRow& OutDialogueRow)
-{
-    if (!DialogueTable)
-        return false;
-
-    // For now, just get the first row
-    // Future: support row selection by name/ID
-    TArray<FName> RowNames = DialogueTable->GetRowNames();
-    if (RowNames.Num() == 0)
-        return false;
-
-    FDialogueRow* Row = DialogueTable->FindRow<FDialogueRow>(RowNames[0], TEXT("GetDialogueData"));
-    if (!Row)
-        return false;
-
-    OutDialogueRow = *Row;
-    return true;
-}
-```
-
-### 2.2 Add DialogueComponent to UnrealMCP Plugin
-
-- Add `DialogueComponent.h` and `DialogueComponent.cpp` to UnrealMCP plugin
-- Add `DialogueStructs.h` to game project source
-- Update plugin's `.Build.cs` if needed
-
----
-
-## Phase 3: Base NPC Blueprint
-
-### 3.1 Create BP_DialogueNPC Blueprint
+### 2.1 Create BP_DialogueNPC Blueprint
 
 **Using MCP Tool**: `create_blueprint`
 
@@ -324,287 +143,403 @@ create_blueprint(
 )
 ```
 
-### 3.2 Configure BP_DialogueNPC
+### 2.2 Add Blueprint Variables
 
-**Components to Add**:
-1. **Static Mesh Component** (Root)
-   - Use simple placeholder mesh (cube or capsule)
-   - Scale: (1, 1, 2) to represent humanoid
+**Using MCP Tool**: `add_blueprint_variable`
 
-2. **Dialogue Component**
-   - Attached to root
-   - Set `NPCName` to "Test NPC"
-   - Set `InteractionRadius` to 300
-   - Assign `DialogueTable` to `DT_TestNPCDialogue`
+```python
+# NPC Name variable
+add_blueprint_variable(
+    blueprint_name="BP_DialogueNPC",
+    variable_name="NPCName",
+    variable_type="String",
+    is_exposed=True
+)
 
-3. **Widget Component** (Interaction Indicator)
-   - Name: "InteractionWidget"
-   - Attached to root
-   - Location: (0, 0, 120) - above NPC head
-   - Widget Class: `WBP_InteractionIndicator` (create next)
-   - Draw Size: (100, 50)
-   - Space: Screen
+# Dialogue DataTable reference
+add_blueprint_variable(
+    blueprint_name="BP_DialogueNPC",
+    variable_name="DialogueTable",
+    variable_type="DataTable",
+    is_exposed=True
+)
 
-### 3.3 Link Widget Component to Dialogue Component
+# Interaction radius
+add_blueprint_variable(
+    blueprint_name="BP_DialogueNPC",
+    variable_name="InteractionRadius",
+    variable_type="Float",
+    is_exposed=True
+)
 
-**Event Graph**:
+# Is dialogue active flag
+add_blueprint_variable(
+    blueprint_name="BP_DialogueNPC",
+    variable_name="bDialogueActive",
+    variable_type="Boolean",
+    is_exposed=False
+)
 ```
-Event BeginPlay
-  → Get Component by Class (DialogueComponent)
-  → Set Interaction Widget Component (self.InteractionWidget)
+
+### 2.3 Add Components to BP_DialogueNPC
+
+**Using MCP Tool**: `add_component_to_blueprint`
+
+```python
+# Static Mesh Component (Root) - representing the NPC body
+add_component_to_blueprint(
+    blueprint_name="BP_DialogueNPC",
+    component_type="StaticMeshComponent",
+    component_name="NPCMesh",
+    location=[0, 0, 0],
+    rotation=[0, 0, 0],
+    scale=[1, 1, 2]  # Tall to represent humanoid
+)
+
+# Set the mesh to a simple cube
+set_static_mesh_properties(
+    blueprint_name="BP_DialogueNPC",
+    component_name="NPCMesh",
+    static_mesh="/Engine/BasicShapes/Cube.Cube"
+)
+
+# Sphere Component for interaction detection
+add_component_to_blueprint(
+    blueprint_name="BP_DialogueNPC",
+    component_type="SphereComponent",
+    component_name="InteractionSphere",
+    location=[0, 0, 0],
+    rotation=[0, 0, 0],
+    scale=[1, 1, 1]
+)
+
+# Set sphere radius to match interaction radius (300cm)
+set_component_property(
+    blueprint_name="BP_DialogueNPC",
+    component_name="InteractionSphere",
+    kwargs='{"SphereRadius": 300.0}'
+)
+
+# Widget Component for "Press E" indicator
+add_component_to_blueprint(
+    blueprint_name="BP_DialogueNPC",
+    component_type="WidgetComponent",
+    component_name="InteractionWidget",
+    location=[0, 0, 120],  # Above NPC head
+    rotation=[0, 0, 0],
+    scale=[1, 1, 1]
+)
 ```
+
+### 2.4 Blueprint Event Graph Logic
+
+**NOTE**: The following Blueprint node graph logic will need to be created using `node_tools` MCP commands. This includes:
+
+**Event BeginPlay**:
+- Set InteractionWidget visibility to false
+- Get Player Character and store as variable
+- Set default values (InteractionRadius = 300, NPCName = "Test NPC")
+
+**Event Tick**:
+- If NOT bDialogueActive:
+  - Get distance between player and self
+  - If distance <= InteractionRadius: Show InteractionWidget
+  - Else: Hide InteractionWidget
+
+**Custom Function: StartDialogue**:
+- Check if DialogueTable is valid
+- Check if NOT bDialogueActive
+- If valid: Set bDialogueActive = true, Hide InteractionWidget, Get first row from DialogueTable, Broadcast OnDialogueStarted event
+
+**Custom Function: EndDialogue**:
+- Set bDialogueActive = false
+- Show InteractionWidget if player still in range
+
+**NOTE**: Detailed node creation will be added in implementation phase using `create_node`, `connect_nodes`, etc.
 
 ---
 
-## Phase 4: Widget Blueprints
+## Phase 3: Widget Blueprints
 
-### 4.1 Create Interaction Indicator Widget
+### 3.1 Create Interaction Indicator Widget
 
-**File**: `WBP_InteractionIndicator`
-**Location**: `/Game/Dialogue/UI/`
+**Using MCP Tool**: `create_widget_blueprint`
 
-**Widget Hierarchy**:
-```
-Canvas Panel
-└── Vertical Box
-    └── Text Block
-        - Text: "Press E to Talk"
-        - Font Size: 18
-        - Color: White
-        - Justification: Center
+```python
+# Create the widget blueprint
+create_widget_blueprint(
+    name="WBP_InteractionIndicator",
+    folder_path="/Game/Dialogue/UI"
+)
+
+# Add Canvas Panel (root)
+add_widget_to_blueprint(
+    blueprint_name="WBP_InteractionIndicator",
+    widget_type="CanvasPanel",
+    widget_name="CanvasPanel_Root"
+)
+
+# Add Text Block for "Press E to Talk"
+add_widget_to_blueprint(
+    blueprint_name="WBP_InteractionIndicator",
+    widget_type="TextBlock",
+    widget_name="TXT_InteractionPrompt",
+    parent_name="CanvasPanel_Root"
+)
+
+# Set text properties
+set_widget_property(
+    blueprint_name="WBP_InteractionIndicator",
+    widget_name="TXT_InteractionPrompt",
+    properties={
+        "Text": "Press E to Talk",
+        "FontSize": 18,
+        "Justification": "Center"
+    }
+)
 ```
 
 **Simple Design**: Just centered text, no fancy styling needed for testing.
 
-### 4.2 Create Dialogue Widget
+### 3.2 Create Dialogue Widget
 
-**File**: `WBP_DialogueWindow`
-**Location**: `/Game/Dialogue/UI/`
-
-**Widget Hierarchy**:
-```
-Canvas Panel (Full Screen Overlay)
-└── Border (Background Dimming)
-    - Brush Color: (0, 0, 0, 0.7) - semi-transparent black
-    └── Vertical Box (Centered)
-        - Alignment: Center Center
-        - Size: 800x600
-        └── Border (Dialogue Container)
-            - Background: (0.1, 0.1, 0.1, 0.95) - dark panel
-            - Padding: 20
-            └── Vertical Box
-                ├── Text Block (NPC Name)
-                │   - Name: "TXT_NPCName"
-                │   - Font Size: 24
-                │   - Color: Yellow
-                │   - Margin: (0, 0, 0, 10)
-                ├── Border (Separator Line)
-                │   - Size: Fill x 2
-                │   - Color: Gray
-                │   - Margin: (0, 0, 0, 10)
-                ├── Text Block (NPC Dialogue Text)
-                │   - Name: "TXT_NPCDialogue"
-                │   - Font Size: 18
-                │   - Color: White
-                │   - Auto Wrap: True
-                │   - Margin: (0, 0, 0, 20)
-                └── Scroll Box (Answer List Container)
-                    - Name: "ScrollBox_Answers"
-                    - Size: Fill
-```
-
-### 4.3 Create Answer Button Widget
-
-**File**: `WBP_AnswerButton`
-**Location**: `/Game/Dialogue/UI/`
-
-**Widget Hierarchy**:
-```
-Button
-- Name: "BTN_Answer"
-- Style: Normal (0.2, 0.2, 0.2), Hovered (0.4, 0.4, 0.4), Pressed (0.15, 0.15, 0.15)
-- Padding: (10, 5, 10, 5)
-└── Text Block
-    - Name: "TXT_AnswerText"
-    - Font Size: 16
-    - Color: White
-```
-
-**Variables**:
-- `AnswerIndex` (Integer) - Which answer this button represents
-- `DialogueWidget` (WBP_DialogueWindow Reference) - Parent widget reference
-
-**Event - On Clicked**:
-```
-BTN_Answer.OnClicked
-  → DialogueWidget.OnAnswerSelected(AnswerIndex)
-```
-
-### 4.4 Implement Dialogue Widget Logic
-
-**WBP_DialogueWindow Variables**:
-- `DialogueComponent` (UDialogueComponent Reference) - The NPC's dialogue component
-- `AnswerButtonClass` (Class Reference) - WBP_AnswerButton class
-
-**WBP_DialogueWindow Functions**:
-
-**Function: Initialize Dialogue**
-```
-Inputs:
-  - InDialogueComponent (DialogueComponent Reference)
-  - DialogueData (FDialogueRow)
-
-Logic:
-  1. Store DialogueComponent reference
-  2. Set TXT_NPCName text to DialogueComponent.NPCName
-  3. Set TXT_NPCDialogue text to DialogueData.NPCText
-  4. Clear ScrollBox_Answers
-  5. For Each (DialogueData.PlayerAnswers)
-     → Create Widget (WBP_AnswerButton)
-     → Set AnswerText to Answer.AnswerText
-     → Set AnswerIndex to loop index
-     → Set DialogueWidget reference to self
-     → Add to ScrollBox_Answers
-  6. Set input mode to UI Only
-  7. Set focus to first answer button
-```
-
-**Function: On Answer Selected**
-```
-Inputs:
-  - AnswerIndex (Integer)
-
-Logic:
-  1. (Optional) Log selected answer for debugging
-  2. Call DialogueComponent.EndDialogue()
-  3. Remove from Parent (close widget)
-  4. Set input mode back to Game Only
-  5. Show mouse cursor = false
-```
-
----
-
-## Phase 5: Player Interaction Setup
-
-### 5.1 Check Existing Enhanced Input Mappings
-
-**Using MCP Tool**: `list_input_mappings`
+**Using MCP Tool**: `create_widget_blueprint` (via UMG tools)
 
 ```python
-# AI should execute this to see existing mappings
-list_input_mappings()
+# Create main dialogue widget
+create_widget_blueprint(
+    name="WBP_DialogueWindow",
+    folder_path="/Game/Dialogue/UI"
+)
+
+# Add widget hierarchy using umg_tools
+# Canvas Panel → Border → Vertical Box → Text blocks and Scroll Box
+# (Detailed widget hierarchy creation via MCP tools to be done during implementation)
 ```
 
-**Look for**: An "Interact" or "Use" action mapped to E key
+**Widget Structure** (to be created with MCP tools):
+- Canvas Panel (root)
+  - Border (background dimming)
+    - Vertical Box
+      - Text Block: TXT_NPCName (Font Size: 24)
+      - Text Block: TXT_NPCDialogue (Font Size: 18, Auto Wrap)
+      - Scroll Box: ScrollBox_Answers (for answer buttons)
 
-### 5.2 Add Interact Input Action (if not exists)
+### 3.3 Create Answer Button Widget
 
-**Using MCP Tool**: `add_input_action_mapping`
+**Using MCP Tool**: `create_widget_blueprint`
 
 ```python
-# If E key interaction doesn't exist
-add_input_action_mapping(
-    context_name="IMC_Default", # or appropriate context
-    action_name="IA_Interact",
-    key="E",
-    folder_path="/Game/Input"
+# Create answer button widget
+create_widget_blueprint(
+    name="WBP_AnswerButton",
+    folder_path="/Game/Dialogue/UI"
+)
+
+# Add Button component with Text Block child
+# (Detailed widget creation via MCP tools to be done during implementation)
+
+# Add variables
+add_blueprint_variable(
+    blueprint_name="WBP_AnswerButton",
+    variable_name="AnswerIndex",
+    variable_type="Integer",
+    is_exposed=False
+)
+
+add_blueprint_variable(
+    blueprint_name="WBP_AnswerButton",
+    variable_name="DialogueWidget",
+    variable_type="WBP_DialogueWindow",
+    is_exposed=False
 )
 ```
 
-### 5.3 Implement Interaction in Third Person Character
+**Widget Structure** (to be created with MCP tools):
+- Button: BTN_Answer
+  - Text Block: TXT_AnswerText (Font Size: 16)
 
-**Blueprint**: `BP_ThirdPersonCharacter` (or similar)
-**Location**: `/Game/ThirdPerson/Blueprints/` (or wherever player BP is)
+**Event Graph** (to be created with node_tools):
+- BTN_Answer.OnClicked → Call DialogueWidget.OnAnswerSelected(AnswerIndex)
 
-**Event Graph Setup**:
+### 3.4 Add Variables to Dialogue Widget
 
-```
-Enhanced Input Action: IA_Interact (Triggered)
-  → Line Trace for Dialogue Component
-     - Start: Player Camera Location
-     - End: Camera Forward * 400 (slightly longer than interaction radius)
-     - Object Type: WorldDynamic
-     - Trace Complex: False
-  → Break Hit Result
-  → Get Component by Class (DialogueComponent) from Hit Actor
-  → Branch (Is Valid?)
-     TRUE:
-       → Is Player In Range? (DialogueComponent)
-       → Branch (In Range?)
-          TRUE:
-            → Start Dialogue (DialogueComponent)
-          FALSE:
-            → (Do nothing)
-     FALSE:
-       → (Do nothing)
-```
+**Using MCP Tool**: `add_blueprint_variable`
 
-**Alternative Simpler Approach** (Sphere Overlap):
-```
-Enhanced Input Action: IA_Interact (Triggered)
-  → Get Actor Location (Self)
-  → Sphere Overlap Actors
-     - Location: Self Location
-     - Radius: 350
-     - Object Types: WorldDynamic
-  → For Each (Overlapped Actors)
-     → Get Component by Class (DialogueComponent)
-     → Branch (Is Valid?)
-        TRUE:
-          → Start Dialogue (DialogueComponent)
-          → Break (stop loop after first valid NPC)
+```python
+# Reference to the NPC Blueprint
+add_blueprint_variable(
+    blueprint_name="WBP_DialogueWindow",
+    variable_name="NPCReference",
+    variable_type="BP_DialogueNPC",
+    is_exposed=False
+)
+
+# Reference to answer button class
+add_blueprint_variable(
+    blueprint_name="WBP_DialogueWindow",
+    variable_name="AnswerButtonClass",
+    variable_type="Class<WBP_AnswerButton>",
+    is_exposed=True
+)
+
+# Dialogue data
+add_blueprint_variable(
+    blueprint_name="WBP_DialogueWindow",
+    variable_name="CurrentDialogueData",
+    variable_type="DialogueRow",
+    is_exposed=False
+)
 ```
 
-### 5.4 Connect Dialogue Component Events
+### 3.5 Implement Widget Functions
 
-**In BP_ThirdPersonCharacter or Game Mode**:
+**Using MCP Tool**: `create_custom_blueprint_function` and `node_tools`
 
-**Option A: Create Dialogue Widget on Event**
-```
-Event: Get all Actors with DialogueComponent on BeginPlay
-  → For Each DialogueComponent
-     → Bind Event to OnDialogueStarted
-        → Create Widget (WBP_DialogueWindow)
-        → Add to Viewport
-        → Initialize Dialogue (Component, DialogueData from event)
+```python
+# Create Initialize Dialogue function
+create_custom_blueprint_function(
+    blueprint_name="WBP_DialogueWindow",
+    function_name="InitializeDialogue",
+    inputs=[
+        {"name": "NPCRef", "type": "BP_DialogueNPC"},
+        {"name": "DialogueData", "type": "DialogueRow"}
+    ]
+)
+
+# Create On Answer Selected function
+create_custom_blueprint_function(
+    blueprint_name="WBP_DialogueWindow",
+    function_name="OnAnswerSelected",
+    inputs=[
+        {"name": "AnswerIndex", "type": "Integer"}
+    ]
+)
 ```
 
-**Option B: Simpler - Bind in DialogueComponent BeginPlay**
-In `BP_DialogueNPC` Event Graph:
-```
-Event BeginPlay
-  → Get DialogueComponent
-  → Bind Event to OnDialogueStarted
-     → Create Widget (WBP_DialogueWindow)
-     → Add to Viewport (Z-Order: 100)
-     → Initialize Dialogue (self.DialogueComponent, DialogueData)
-```
+**Function Logic** (to be implemented with node_tools during implementation):
+
+**InitializeDialogue**:
+1. Store NPCRef and DialogueData
+2. Set TXT_NPCName text from NPCRef.NPCName
+3. Set TXT_NPCDialogue text from DialogueData.NPCText
+4. Clear ScrollBox_Answers
+5. For Each PlayerAnswer: Create WBP_AnswerButton widget and add to ScrollBox
+6. Set input mode to UI Only
+
+**OnAnswerSelected**:
+1. Call NPCReference.EndDialogue()
+2. Remove widget from parent
+3. Set input mode to Game Only
 
 ---
 
-## Phase 6: Testing Checklist
+## Phase 4: Player Interaction Setup
 
-### 6.1 DataTable Test
-- [ ] DataTable created with FDialogueRow structure
+### 4.1 Check Existing Enhanced Input Mappings
+
+**Using MCP Tool**: `list_input_actions` and `list_input_mapping_contexts`
+
+```python
+# Check what Input Actions exist
+list_input_actions(path="/Game")
+
+# Check what Input Mapping Contexts exist
+list_input_mapping_contexts(path="/Game")
+```
+
+### 4.2 Create Enhanced Input Action (if not exists)
+
+**Using MCP Tool**: `create_enhanced_input_action`
+
+```python
+# Create Interact action
+create_enhanced_input_action(
+    action_name="IA_Interact",
+    path="/Game/Input/Actions",
+    value_type="Digital"
+)
+```
+
+### 4.3 Create or Update Input Mapping Context
+
+**Using MCP Tool**: `create_input_mapping_context` and `add_mapping_to_context`
+
+```python
+# Create mapping context (if doesn't exist)
+create_input_mapping_context(
+    context_name="IMC_Default",
+    path="/Game/Input"
+)
+
+# Add E key mapping to the context
+add_mapping_to_context(
+    context_path="/Game/Input/IMC_Default",
+    action_path="/Game/Input/Actions/IA_Interact",
+    key="E"
+)
+```
+
+### 4.4 Implement Interaction in Player Character
+
+**Using MCP Tool**: `node_tools` (create nodes in player Blueprint)
+
+**Location**: Find player character blueprint using `list_folder_contents` or search
+
+**Event Graph Logic** (to be created with node_tools):
+
+**Enhanced Input Action Event: IA_Interact (Triggered)**:
+1. Get Actor Location (Self)
+2. Sphere Overlap Actors (Radius: 350, Object Types: WorldDynamic)
+3. For Each Overlapped Actor:
+   - Check if actor has BP_DialogueNPC class
+   - If yes: Call StartDialogue() on that actor
+   - Break loop
+
+**NOTE**: Detailed node creation commands will be provided during implementation phase.
+
+### 4.5 Connect Dialogue Events in BP_DialogueNPC
+
+**Using MCP Tool**: `node_tools`
+
+**Event Graph additions** (to be created with node_tools):
+
+**Custom Event: OnDialogueStartedInternal**:
+1. Create Widget (WBP_DialogueWindow)
+2. Add to Viewport (Z-Order: 100)
+3. Call InitializeDialogue(self, DialogueData)
+
+**Function: StartDialogue** (call this event when player presses E):
+1. Check if DialogueTable is valid
+2. Get first row from DialogueTable
+3. Trigger OnDialogueStartedInternal event with row data
+
+---
+
+## Phase 5: Testing Checklist
+
+### 5.1 DataTable Test
+- [ ] DialogueAnswer struct created via MCP tool
+- [ ] DialogueRow struct created via MCP tool
+- [ ] DataTable created with DialogueRow structure via MCP tool
 - [ ] At least one dialogue entry with 2+ answer options
 - [ ] Row data displays correctly in editor
 
-### 6.2 Component Test
-- [ ] DialogueComponent compiles without errors
-- [ ] Component properties visible in Blueprint editor
-- [ ] NPCName and InteractionRadius configurable
-
-### 6.3 Blueprint Test
+### 5.2 Blueprint Test
+- [ ] BP_DialogueNPC created via MCP tool
+- [ ] All variables added via MCP tool (NPCName, DialogueTable, InteractionRadius, bDialogueActive)
+- [ ] All components added via MCP tool (NPCMesh, InteractionSphere, InteractionWidget)
 - [ ] BP_DialogueNPC spawnable in level
-- [ ] DialogueComponent present and configured
-- [ ] InteractionWidget component attached and positioned above NPC
+- [ ] Components visible and configured correctly
 
-### 6.4 Widget Test
-- [ ] WBP_InteractionIndicator shows "Press E to Talk"
-- [ ] WBP_DialogueWindow displays correctly (NPC name, text, answers)
-- [ ] WBP_AnswerButton responds to hover/click
+### 5.3 Widget Test
+- [ ] WBP_InteractionIndicator created via MCP tool
+- [ ] Shows "Press E to Talk" text
+- [ ] WBP_DialogueWindow created via MCP tool
+- [ ] WBP_AnswerButton created via MCP tool
+- [ ] Widget hierarchies correct
 
-### 6.5 Interaction Test
+### 5.4 Interaction Test
 - [ ] Walk near NPC (within 3 meters) → Interaction indicator appears
 - [ ] Walk away → Interaction indicator disappears
 - [ ] Press E when in range → Dialogue widget opens
@@ -614,15 +549,27 @@ Event BeginPlay
 - [ ] Click answer → Dialogue closes
 - [ ] After closing → Can walk normally, mouse hidden
 
-### 6.6 Input Test
-- [ ] E key mapped correctly in Enhanced Input
+### 5.5 Input Test
+- [ ] Enhanced Input Action created via MCP tool
+- [ ] Input Mapping Context created via MCP tool
+- [ ] E key mapped correctly via MCP tool
 - [ ] Pressing E outside range does nothing
 - [ ] Pressing E with no NPC nearby does nothing
 - [ ] Input mode switches correctly (game → UI → game)
 
+### 5.6 MCP Tools Verification
+- [ ] **ZERO manual file creation** - everything done via MCP tools
+- [ ] **ZERO C++ files created manually**
+- [ ] **ZERO Unreal Editor manual asset creation**
+- [ ] All structs created via `create_struct`
+- [ ] All blueprints created via `create_blueprint`
+- [ ] All components added via `add_component_to_blueprint`
+- [ ] All widgets created via UMG MCP tools
+- [ ] All nodes created via `node_tools`
+
 ---
 
-## Phase 7: Future Expansion Points
+## Phase 6: Future Expansion Points
 
 This simple implementation has clear extension points for future features:
 
@@ -665,79 +612,123 @@ This simple implementation has clear extension points for future features:
 
 ## Implementation Order Summary
 
-**Recommended sequence for AI implementing this**:
+**Recommended sequence for AI implementing this (100% MCP TOOLS ONLY)**:
 
-1. **Compile Foundation** (30 min)
-   - Create DialogueStructs.h with FDialogueAnswer and FDialogueRow
-   - Create and compile DialogueComponent.h/.cpp
-   - Rebuild project
+1. **Create Data Structures** (Phase 1)
+   - Create DialogueAnswer struct via `create_struct`
+   - Create DialogueRow struct via `create_struct`
+   - Create DT_TestNPCDialogue DataTable via `create_datatable`
+   - Populate sample dialogue rows (manually in editor or via datatable_tools)
 
-2. **Create Data** (10 min)
-   - Create DT_TestNPCDialogue DataTable
-   - Add 2-3 sample dialogue rows with multiple answers
+2. **Build NPC Blueprint** (Phase 2)
+   - Create BP_DialogueNPC via `create_blueprint`
+   - Add variables via `add_blueprint_variable`
+   - Add components via `add_component_to_blueprint`
+   - Configure component properties via `set_component_property`
+   - Create custom functions via `create_custom_blueprint_function`
+   - Implement event graph logic via `node_tools`
 
-3. **Build Widgets** (20 min)
-   - Create WBP_InteractionIndicator (simple text)
-   - Create WBP_AnswerButton (button + text)
-   - Create WBP_DialogueWindow (full UI)
-   - Implement InitializeDialogue and OnAnswerSelected functions
+3. **Build Widget Blueprints** (Phase 3)
+   - Create WBP_InteractionIndicator via UMG MCP tools
+   - Create WBP_DialogueWindow via UMG MCP tools
+   - Create WBP_AnswerButton via UMG MCP tools
+   - Add widget variables via `add_blueprint_variable`
+   - Create widget functions via `create_custom_blueprint_function`
+   - Implement widget event graphs via `node_tools`
 
-4. **Setup NPC** (15 min)
-   - Create BP_DialogueNPC
-   - Add components (mesh, DialogueComponent, WidgetComponent)
-   - Configure DialogueComponent properties
-   - Bind OnDialogueStarted event to create dialogue widget
+4. **Setup Input System** (Phase 4)
+   - Check existing inputs via `list_input_actions` and `list_input_mapping_contexts`
+   - Create IA_Interact via `create_enhanced_input_action`
+   - Create/update IMC_Default via `create_input_mapping_context`
+   - Map E key via `add_mapping_to_context`
+   - Add interaction logic to player BP via `node_tools`
 
-5. **Player Interaction** (15 min)
-   - Check/add Enhanced Input mapping for E key
-   - Add interaction logic to player character BP
-   - Test sphere overlap or line trace approach
+5. **Connect Everything** (Phase 4 continued)
+   - Add dialogue event handling to BP_DialogueNPC via `node_tools`
+   - Wire up widget creation and initialization via `node_tools`
+   - Compile all blueprints via `compile_blueprint`
 
-6. **Test & Debug** (20 min)
+6. **Test & Debug** (Phase 5)
    - Place BP_DialogueNPC in test level
-   - Test interaction range
-   - Test dialogue opening/closing
-   - Verify input mode switching
-   - Check answer selection
+   - Verify all functionality via checklist
+   - Document any MCP tool limitations discovered
 
-**Total Estimated Time**: ~2 hours
+**Total Estimated Time**: ~3-4 hours (accounting for Blueprint node creation via MCP tools)
 
 ---
 
-## MCP Tools Needed
+## MCP Tools Required
 
-The implementing AI will need these MCP tools:
+The implementing AI will use these MCP tools exclusively:
 
-1. **create_struct** - Create FDialogueAnswer and FDialogueRow
-2. **create_datatable** - Create DT_TestNPCDialogue
-3. **create_blueprint** - Create BP_DialogueNPC, WBP_DialogueWindow, WBP_AnswerButton, WBP_InteractionIndicator
-4. **add_component_to_blueprint** - Add DialogueComponent, WidgetComponent, StaticMesh to BP_DialogueNPC
-5. **list_input_mappings** - Check existing Enhanced Input mappings
-6. **add_input_action_mapping** - Add IA_Interact if needed (optional)
-7. **compile_blueprint** - Compile blueprints after setup
+### Project & Structure Tools
+1. **create_folder** - Create content folders
+2. **create_struct** - Create DialogueAnswer and DialogueRow structs
+3. **list_folder_contents** - Navigate project structure
+
+### DataTable Tools
+4. **create_datatable** - Create DT_TestNPCDialogue
+5. **add_datatable_row** - Populate dialogue data (if available)
+
+### Blueprint Tools
+6. **create_blueprint** - Create BP_DialogueNPC
+7. **add_blueprint_variable** - Add variables to blueprints
+8. **add_component_to_blueprint** - Add mesh, sphere, widget components
+9. **set_component_property** - Configure component properties
+10. **set_static_mesh_properties** - Set mesh asset
+11. **create_custom_blueprint_function** - Create StartDialogue, EndDialogue, etc.
+12. **compile_blueprint** - Compile blueprints after changes
+
+### UMG Widget Tools
+13. **create_widget_blueprint** - Create WBP_* widgets
+14. **add_widget_to_blueprint** - Build widget hierarchies
+15. **set_widget_property** - Configure widget properties
+
+### Blueprint Node Tools
+16. **create_node** - Create Blueprint nodes (events, functions, variables, etc.)
+17. **connect_nodes** - Wire nodes together
+18. **set_node_property** - Configure node parameters
+
+### Input Tools
+19. **list_input_actions** - Check existing input actions
+20. **list_input_mapping_contexts** - Check existing input contexts
+21. **create_enhanced_input_action** - Create IA_Interact
+22. **create_input_mapping_context** - Create IMC_Default
+23. **add_mapping_to_context** - Map E key to IA_Interact
 
 ---
 
 ## Notes for Implementing AI
 
-- ⚠️ **MCP TOOLS ONLY**: Every single asset, blueprint, widget, component, and line of code MUST be created using MCP tools
+- ⚠️ **MCP TOOLS ONLY**: Every single asset, blueprint, widget, component, struct, and node MUST be created using MCP tools
 - ⚠️ **NO MANUAL WORKAROUNDS**: If an MCP tool doesn't exist or fails, document it and stop - don't open Unreal Editor manually
+- ⚠️ **NO C++ FILES**: Do NOT create DialogueComponent.h/.cpp or DialogueStructs.h manually - use `create_struct` and Blueprint-based logic
 - ⚠️ **TEST THE PLUGIN**: This is about validating MCP tool coverage, not just building a dialogue system
-- **Keep it simple**: No fancy UI, no animations, no complex logic
-- **Test incrementally**: Compile after each major component using MCP tools
-- **Use placeholder assets**: Gray boxes for NPC mesh, simple text for UI
+- **Keep it simple**: No fancy UI, no animations, minimal Blueprint node graphs
+- **Test incrementally**: Compile after each blueprint using `compile_blueprint` MCP tool
+- **Use placeholder assets**: `/Engine/BasicShapes/Cube.Cube` for NPC mesh, simple text for UI
 - **Focus on functionality**: Get it working first, polish never (this is a test)
-- **Log everything**: Add print statements for debugging
-- **Error handling**: Check for null references (DialogueTable, PlayerCharacter, etc.)
+- **Blueprint-only logic**: All dialogue logic lives in BP_DialogueNPC, no C++ component needed
 - **Document MCP gaps**: If any functionality can't be completed via MCP, report it as a plugin limitation
+- **Node creation**: Use `node_tools` for all Blueprint graph logic - Event BeginPlay, Event Tick, custom functions, etc.
+
+## MCP Tool Limitations to Watch For
+
+During implementation, document if any of these are missing or broken:
+
+1. **Struct array support**: Can `create_struct` handle `DialogueAnswer[]` type?
+2. **DataTable row editing**: Can we populate DataTable rows via MCP or only manually in editor?
+3. **Widget hierarchy creation**: Are all UMG widget types supported in `add_widget_to_blueprint`?
+4. **Blueprint node creation**: Can `node_tools` create all needed node types (events, branches, loops, casts)?
+5. **Component property setting**: Can `set_component_property` handle all needed properties (SphereRadius, WidgetClass, etc.)?
+6. **Widget event binding**: Can we bind button OnClicked events via MCP tools?
 
 ## Questions to Ask User If Issues Arise
 
-1. "Should I use the existing ThirdPersonCharacter BP or create a new test character?"
-2. "Where is the Enhanced Input context located? (e.g., IMC_Default path)"
-3. "Do you want the interaction widget to always face the camera (billboard)?"
-4. "Should dialogue widget dim/blur the background?"
-5. "What should happen if DataTable is empty or missing answers?"
+1. "Which player character blueprint should I modify? (e.g., BP_ThirdPersonCharacter path)"
+2. "If `node_tools` cannot create certain Blueprint nodes, should I document the gap and continue with what's possible?"
+3. "If DataTable row population isn't available via MCP, is manual editor input acceptable for this test?"
+4. "Should the interaction widget be billboard (always face camera) or world-space?"
 
 ---
 
