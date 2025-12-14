@@ -14,6 +14,7 @@
 #include "Commands/Blueprint/CreateBlueprintInterfaceCommand.h"
 #include "Commands/Blueprint/AddInterfaceToBlueprintCommand.h"
 #include "Commands/Blueprint/CreateCustomBlueprintFunctionCommand.h"
+#include "Commands/Blueprint/GetBlueprintMetadataCommand.h"
 #include "Services/BlueprintService.h"
 
 // Static member definition
@@ -34,15 +35,16 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     RegisterCompileBlueprintCommand();
     RegisterSetPhysicsPropertiesCommand();
     RegisterSetBlueprintPropertyCommand();
-    RegisterListBlueprintComponentsCommand();
+    // RegisterListBlueprintComponentsCommand(); // Deprecated: Use get_blueprint_metadata with fields=["components"] instead
     RegisterSetStaticMeshPropertiesCommand();
     RegisterSetPawnPropertiesCommand();
     RegisterCallBlueprintFunctionCommand();
     RegisterCreateBlueprintInterfaceCommand();
     RegisterAddInterfaceToBlueprintCommand();
     RegisterCreateCustomBlueprintFunctionCommand();
-    
-    UE_LOG(LogTemp, Log, TEXT("FBlueprintCommandRegistration::RegisterAllBlueprintCommands: Registered %d Blueprint commands"), 
+    RegisterGetBlueprintMetadataCommand();
+
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintCommandRegistration::RegisterAllBlueprintCommands: Registered %d Blueprint commands"),
         RegisteredCommandNames.Num());
 }
 
@@ -148,6 +150,12 @@ void FBlueprintCommandRegistration::RegisterAddInterfaceToBlueprintCommand()
 void FBlueprintCommandRegistration::RegisterCreateCustomBlueprintFunctionCommand()
 {
     TSharedPtr<FCreateCustomBlueprintFunctionCommand> Command = MakeShared<FCreateCustomBlueprintFunctionCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterGetBlueprintMetadataCommand()
+{
+    TSharedPtr<FGetBlueprintMetadataCommand> Command = MakeShared<FGetBlueprintMetadataCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

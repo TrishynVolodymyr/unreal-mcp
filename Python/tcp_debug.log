@@ -2617,3 +2617,111 @@ Total data so far: 833 bytes
 Decoded preview: {"status":"success","result":{"results":[{"success":true,"source_node_id":"Node_000002158275FA00_EndDialogue","target_node_id":"7538939A49E592C1685160A8F5CEFDB4"},{"success":true,"source_node_id":"FA0...
 SUCCESS: Complete JSON received!
 Full response: {"status":"success","result":{"results":[{"success":true,"source_node_id":"Node_000002158275FA00_EndDialogue","target_node_id":"7538939A49E592C1685160A8F5CEFDB4"},{"success":true,"source_node_id":"FA098C9B4B821462BC8F409BD2D8C1E5","target_node_id":"7538939A49E592C1685160A8F5CEFDB4"},{"success":true,"source_node_id":"7538939A49E592C1685160A8F5CEFDB4","target_node_id":"68C267624C034709A52815B9606CB523"},{"success":true,"source_node_id":"069AF22E4E43676AD9FC17A17765783C","target_node_id":"68C267624C034709A52815B9606CB523"},{"success":true,"source_node_id":"7642F2FC413BF6354E48E59A811BE6B4","target_node_id":"68C267624C034709A52815B9606CB523"},{"success":true,"source_node_id":"68C267624C034709A52815B9606CB523","target_node_id":"Node_000002158C78B7C0_Return_Node"}],"batch":true,"successful_connections":6,"total_connections":6}}
+
+
+=== RECEIVE START: 2025-12-14 18:51:31.294744 ===
+Calling sock.recv(4096)...
+Received chunk: 67 bytes
+Total data so far: 67 bytes
+Decoded preview: {"status":"error","error":"Interface 'BPI_Interactable' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Interface 'BPI_Interactable' not found"}
+
+
+=== RECEIVE START: 2025-12-14 18:51:32.720335 ===
+Calling sock.recv(4096)...
+Received chunk: 65 bytes
+Total data so far: 65 bytes
+Decoded preview: {"status":"error","error":"Interface 'BPI_Damageable' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Interface 'BPI_Damageable' not found"}
+
+
+=== RECEIVE START: 2025-12-14 18:51:38.844616 ===
+Calling sock.recv(4096)...
+Received chunk: 92 bytes
+Total data so far: 92 bytes
+Decoded preview: {"status":"error","error":"Interface '/Game/Testing/Interfaces/BPI_Interactable' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Interface '/Game/Testing/Interfaces/BPI_Interactable' not found"}
+
+
+=== RECEIVE START: 2025-12-14 18:51:39.076554 ===
+Calling sock.recv(4096)...
+Received chunk: 82 bytes
+Total data so far: 82 bytes
+Decoded preview: {"status":"error","error":"Interface '/Game/Interfaces/BPI_Damageable' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Interface '/Game/Interfaces/BPI_Damageable' not found"}
+
+
+=== RECEIVE START: 2025-12-14 18:51:56.775118 ===
+Calling sock.recv(4096)...
+Received chunk: 134 bytes
+Total data so far: 134 bytes
+Decoded preview: {"status":"error","error":"Blueprint Interface 'BPI_Interactable' already exists at path '/Game/Testing/Interfaces/BPI_Interactable'"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Blueprint Interface 'BPI_Interactable' already exists at path '/Game/Testing/Interfaces/BPI_Interactable'"}
+
+
+=== RECEIVE START: 2025-12-14 18:51:57.075645 ===
+Calling sock.recv(4096)...
+Received chunk: 139 bytes
+Total data so far: 139 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"BPI_Damageable","path":"/Game/Game/Interfaces/BPI_Damageable","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"BPI_Damageable","path":"/Game/Game/Interfaces/BPI_Damageable","already_exists":false}}
+
+
+=== RECEIVE START: 2025-12-14 18:52:03.369575 ===
+Calling sock.recv(4096)...
+Received chunk: 92 bytes
+Total data so far: 92 bytes
+Decoded preview: {"status":"error","error":"Interface '/Game/Testing/Interfaces/BPI_Interactable' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Interface '/Game/Testing/Interfaces/BPI_Interactable' not found"}
+
+
+=== RECEIVE START: 2025-12-14 18:52:03.770687 ===
+Calling sock.recv(4096)...
+Received chunk: 87 bytes
+Total data so far: 87 bytes
+Decoded preview: {"status":"error","error":"Interface '/Game/Game/Interfaces/BPI_Damageable' not found"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"Interface '/Game/Game/Interfaces/BPI_Damageable' not found"}
+
+
+=== RECEIVE START: 2025-12-14 18:52:11.902953 ===
+Calling sock.recv(4096)...
+Received chunk: 118 bytes
+Total data so far: 118 bytes
+Decoded preview: {"status":"error","error":"'/Game/Testing/Interfaces/BPI_Interactable.BPI_Interactable' is not a Blueprint Interface"}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"error","error":"'/Game/Testing/Interfaces/BPI_Interactable.BPI_Interactable' is not a Blueprint Interface"}
+
+
+=== RECEIVE START: 2025-12-14 18:52:12.081003 ===
+Calling sock.recv(4096)...
+Received chunk: 284 bytes
+Total data so far: 284 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_DamageableActor","interface_name":"/Game/Game/Interfaces/BPI_Damageable.BPI_Damageable","message":"Successfully added interface '/Game...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_DamageableActor","interface_name":"/Game/Game/Interfaces/BPI_Damageable.BPI_Damageable","message":"Successfully added interface '/Game/Game/Interfaces/BPI_Damageable.BPI_Damageable' to blueprint 'BP_DamageableActor'"}}
+
+
+=== RECEIVE START: 2025-12-14 18:52:30.181400 ===
+Calling sock.recv(4096)...
+Received chunk: 148 bytes
+Total data so far: 148 bytes
+Decoded preview: {"status":"success","result":{"success":true,"name":"BPI_Interactable2","path":"/Game/Testing/Interfaces/BPI_Interactable2","already_exists":false}}...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"name":"BPI_Interactable2","path":"/Game/Testing/Interfaces/BPI_Interactable2","already_exists":false}}
+
+
+=== RECEIVE START: 2025-12-14 18:52:30.428210 ===
+Calling sock.recv(4096)...
+Received chunk: 288 bytes
+Total data so far: 288 bytes
+Decoded preview: {"status":"success","result":{"success":true,"blueprint_name":"BP_TestBase","interface_name":"/Game/Testing/Interfaces/BPI_Interactable2.BPI_Interactable2","message":"Successfully added interface '/Ga...
+SUCCESS: Complete JSON received!
+Full response: {"status":"success","result":{"success":true,"blueprint_name":"BP_TestBase","interface_name":"/Game/Testing/Interfaces/BPI_Interactable2.BPI_Interactable2","message":"Successfully added interface '/Game/Testing/Interfaces/BPI_Interactable2.BPI_Interactable2' to blueprint 'BP_TestBase'"}}

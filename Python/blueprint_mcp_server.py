@@ -231,23 +231,6 @@ async def modify_blueprint_component_properties(
     return await send_tcp_command("modify_blueprint_component_properties", params)
 
 @app.tool()
-async def list_blueprint_components(blueprint_name: str) -> Dict[str, Any]:
-    """
-    List all components in a Blueprint class.
-    
-    Args:
-        blueprint_name: Name of the target Blueprint
-    
-    Returns:
-        Dictionary with a list of component names and types
-    """
-    params = {
-        "blueprint_name": blueprint_name
-    }
-    
-    return await send_tcp_command("list_blueprint_components", params)
-
-@app.tool()
 async def create_custom_blueprint_function(
     blueprint_name: str,
     function_name: str,
@@ -315,10 +298,10 @@ async def set_blueprint_variable_value(
 ) -> Dict[str, Any]:
     """
     Set the default value of a Blueprint variable.
-    
+
     This sets the value on the Blueprint's Class Default Object (CDO), which means
     it becomes the default value for all instances of this Blueprint.
-    
+
     Args:
         blueprint_name: Name of the target Blueprint
         variable_name: Name of the variable to modify
@@ -328,10 +311,10 @@ async def set_blueprint_variable_value(
             - For string: text values
             - For arrays: list of values
             - For structs: dictionary with field names as keys
-            
+
     Returns:
         Dictionary containing success status
-        
+
     Examples:
         # Set a float variable
         set_blueprint_variable_value(
@@ -339,14 +322,14 @@ async def set_blueprint_variable_value(
             variable_name="InteractionRadius",
             value=500.0
         )
-        
+
         # Set a string variable
         set_blueprint_variable_value(
             blueprint_name="BP_Character",
             variable_name="CharacterName",
             value="Hero"
         )
-        
+
         # Set a boolean variable
         set_blueprint_variable_value(
             blueprint_name="BP_Door",
@@ -359,8 +342,79 @@ async def set_blueprint_variable_value(
         "property_name": variable_name,
         "property_value": value
     }
-    
+
     return await send_tcp_command("set_blueprint_property", params)
+
+
+@app.tool()
+async def get_blueprint_metadata(
+    blueprint_name: str,
+    fields: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Get comprehensive metadata about a Blueprint with selective field querying.
+
+    This unified command replaces multiple separate commands:
+    - list_blueprint_components (use fields=["components"])
+    - get parent class info (use fields=["parent_class"])
+    - get Blueprint variables (use fields=["variables"])
+    - get Blueprint functions (use fields=["functions"])
+
+    Args:
+        blueprint_name: Name or path of the Blueprint
+        fields: List of metadata fields to retrieve. If None or ["*"], returns all.
+                Options:
+                - "parent_class": Parent class name and path
+                - "interfaces": Implemented interfaces and their functions
+                - "variables": Blueprint variables with types and default values
+                - "functions": Custom Blueprint functions
+                - "components": All components with names and types (replaces list_blueprint_components)
+                - "graphs": Event graphs and function graphs
+                - "status": Compilation status and error state
+                - "metadata": Asset metadata and tags
+                - "timelines": Timeline components
+                - "asset_info": Asset path, size, and modification date
+
+    Returns:
+        Dictionary containing requested metadata fields
+
+    Examples:
+        # Get all metadata
+        get_blueprint_metadata(blueprint_name="BP_MyActor")
+
+        # Get only components (replaces list_blueprint_components)
+        get_blueprint_metadata(
+            blueprint_name="BP_MyActor",
+            fields=["components"]
+        )
+
+        # Get only parent class and interfaces
+        get_blueprint_metadata(
+            blueprint_name="BP_MyActor",
+            fields=["parent_class", "interfaces"]
+        )
+
+        # Get interface implementation status
+        result = get_blueprint_metadata(
+            blueprint_name="BP_InteractableActor",
+            fields=["interfaces"]
+        )
+        # Result will include interface functions and implementation status
+
+        # Get components and variables together
+        get_blueprint_metadata(
+            blueprint_name="BP_Character",
+            fields=["components", "variables"]
+        )
+    """
+    params = {
+        "blueprint_name": blueprint_name
+    }
+
+    if fields is not None:
+        params["fields"] = fields
+
+    return await send_tcp_command("get_blueprint_metadata", params)
 
 
 if __name__ == "__main__":

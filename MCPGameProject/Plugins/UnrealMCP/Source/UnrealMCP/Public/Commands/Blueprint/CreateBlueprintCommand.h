@@ -51,9 +51,16 @@ private:
     FString CreateErrorResponse(const FString& ErrorMessage) const;
     
     /**
-     * Resolve parent class from string name
+     * Resolve parent class from string name (supports both native C++ and Blueprint parents)
      * @param ParentClassName - Name of the parent class
      * @return Resolved UClass or nullptr if not found
      */
     UClass* ResolveParentClass(const FString& ParentClassName) const;
+
+    /**
+     * Find Blueprint parent class from string name or path
+     * @param ParentClassName - Name or path of the Blueprint parent class
+     * @return GeneratedClass of the Blueprint or nullptr if not found
+     */
+    UClass* FindBlueprintParentClass(const FString& ParentClassName) const;
 };
