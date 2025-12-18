@@ -351,7 +351,7 @@ bool FUMGService::SetTextBlockBinding(const FString& BlueprintName, const FStrin
         FBlueprintEditorUtils::AddMemberVariable(WidgetBlueprint, FName(*BindingName), PinType);
     }
 
-    return CreateTextBlockBindingFunction(WidgetBlueprint, BindingName, VariableType);
+    return CreateTextBlockBindingFunction(WidgetBlueprint, TextBlockName, BindingName, VariableType);
 }
 
 bool FUMGService::DoesWidgetComponentExist(const FString& BlueprintName, const FString& ComponentName)
@@ -823,113 +823,163 @@ bool FUMGService::CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget*
     return true;
 }
 
-bool FUMGService::CreateTextBlockBindingFunction(UWidgetBlueprint* WidgetBlueprint, const FString& BindingName, const FString& VariableType) const
+bool FUMGService::CreateTextBlockBindingFunction(UWidgetBlueprint* WidgetBlueprint, const FString& TextBlockName, const FString& BindingName, const FString& VariableType) const
 {
     const FString FunctionName = FString::Printf(TEXT("Get%s"), *BindingName);
 
     // Check if function already exists
+    bool bFunctionExists = false;
     for (UEdGraph* Graph : WidgetBlueprint->FunctionGraphs)
     {
         if (Graph && Graph->GetName() == FunctionName)
         {
-            return true; // Function already exists
-        }
-    }
-
-    // Create binding function
-    UEdGraph* FuncGraph = FBlueprintEditorUtils::CreateNewGraph(
-        WidgetBlueprint,
-        FName(*FunctionName),
-        UEdGraph::StaticClass(),
-        UEdGraphSchema_K2::StaticClass()
-    );
-
-    if (!FuncGraph)
-    {
-        return false;
-    }
-
-    FBlueprintEditorUtils::AddFunctionGraph<UClass>(WidgetBlueprint, FuncGraph, false, nullptr);
-
-    // Find or create entry node
-    UK2Node_FunctionEntry* EntryNode = nullptr;
-    for (UEdGraphNode* Node : FuncGraph->Nodes)
-    {
-        EntryNode = Cast<UK2Node_FunctionEntry>(Node);
-        if (EntryNode)
-        {
+            bFunctionExists = true;
             break;
         }
     }
 
-    if (!EntryNode)
+    // Check if binding already exists
+    bool bBindingExists = false;
+    for (const FDelegateEditorBinding& ExistingBinding : WidgetBlueprint->Bindings)
     {
-        EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
-        FuncGraph->AddNode(EntryNode, false, false);
-        EntryNode->NodePosX = 0;
-        EntryNode->NodePosY = 0;
-        EntryNode->FunctionReference.SetExternalMember(FName(*FunctionName), WidgetBlueprint->GeneratedClass);
-        EntryNode->AllocateDefaultPins();
+        if (ExistingBinding.ObjectName == TextBlockName && ExistingBinding.PropertyName == TEXT("Text"))
+        {
+            bBindingExists = true;
+            break;
+        }
     }
 
-    // Create get variable node
-    UK2Node_VariableGet* GetVarNode = NewObject<UK2Node_VariableGet>(FuncGraph);
-    GetVarNode->VariableReference.SetSelfMember(FName(*BindingName));
-    FuncGraph->AddNode(GetVarNode, false, false);
-    GetVarNode->NodePosX = 200;
-    GetVarNode->NodePosY = 0;
-    GetVarNode->AllocateDefaultPins();
-
-    // Create function result node
-    UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
-    FuncGraph->AddNode(ResultNode, false, false);
-    ResultNode->NodePosX = 400;
-    ResultNode->NodePosY = 0;
-    ResultNode->UserDefinedPins.Empty();
-
-    // Set up return pin type
-    FEdGraphPinType ReturnPinType;
-    if (VariableType == TEXT("Text"))
+    // If both function and binding exist, we're done
+    if (bFunctionExists && bBindingExists)
     {
-        ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
-    }
-    else if (VariableType == TEXT("String"))
-    {
-        ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_String;
-    }
-    else if (VariableType == TEXT("Int") || VariableType == TEXT("Integer"))
-    {
-        ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-    }
-    else if (VariableType == TEXT("Float"))
-    {
-        ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Real;
-        ReturnPinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
-    }
-    else if (VariableType == TEXT("Boolean") || VariableType == TEXT("Bool"))
-    {
-        ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
-    }
-    else
-    {
-        ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+        return true;
     }
 
-    // Add return value pin
-    TSharedPtr<FUserPinInfo> ReturnPin = MakeShared<FUserPinInfo>();
-    ReturnPin->PinName = TEXT("ReturnValue");
-    ReturnPin->PinType = ReturnPinType;
-    ReturnPin->DesiredPinDirection = EGPD_Output;
-    ResultNode->UserDefinedPins.Add(ReturnPin);
-    ResultNode->ReconstructNode();
-
-    // Connect the nodes
-    UEdGraphPin* GetVarOutputPin = GetVarNode->FindPin(FName(*BindingName), EGPD_Output);
-    UEdGraphPin* ResultInputPin = ResultNode->FindPin(TEXT("ReturnValue"), EGPD_Input);
-    
-    if (GetVarOutputPin && ResultInputPin)
+    // If only function exists but binding doesn't, we still need to create the binding
+    if (!bFunctionExists)
     {
-        GetVarOutputPin->MakeLinkTo(ResultInputPin);
+        // Create binding function
+        UEdGraph* FuncGraph = FBlueprintEditorUtils::CreateNewGraph(
+            WidgetBlueprint,
+            FName(*FunctionName),
+            UEdGraph::StaticClass(),
+            UEdGraphSchema_K2::StaticClass()
+        );
+
+        if (!FuncGraph)
+        {
+            return false;
+        }
+
+            FBlueprintEditorUtils::AddFunctionGraph<UClass>(WidgetBlueprint, FuncGraph, false, nullptr);
+
+        // Find or create entry node
+        UK2Node_FunctionEntry* EntryNode = nullptr;
+        for (UEdGraphNode* Node : FuncGraph->Nodes)
+        {
+            EntryNode = Cast<UK2Node_FunctionEntry>(Node);
+            if (EntryNode)
+            {
+                break;
+            }
+        }
+
+        if (!EntryNode)
+        {
+            EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
+            FuncGraph->AddNode(EntryNode, false, false);
+            EntryNode->NodePosX = 0;
+            EntryNode->NodePosY = 0;
+            EntryNode->FunctionReference.SetExternalMember(FName(*FunctionName), WidgetBlueprint->GeneratedClass);
+            EntryNode->AllocateDefaultPins();
+        }
+
+        // Create get variable node
+        UK2Node_VariableGet* GetVarNode = NewObject<UK2Node_VariableGet>(FuncGraph);
+        GetVarNode->VariableReference.SetSelfMember(FName(*BindingName));
+        FuncGraph->AddNode(GetVarNode, false, false);
+        GetVarNode->NodePosX = 200;
+        GetVarNode->NodePosY = 0;
+        GetVarNode->AllocateDefaultPins();
+
+        // Create function result node
+        UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
+        FuncGraph->AddNode(ResultNode, false, false);
+        ResultNode->NodePosX = 400;
+        ResultNode->NodePosY = 0;
+        ResultNode->UserDefinedPins.Empty();
+
+        // Set up return pin type
+        FEdGraphPinType ReturnPinType;
+        if (VariableType == TEXT("Text"))
+        {
+            ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+        }
+        else if (VariableType == TEXT("String"))
+        {
+            ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_String;
+        }
+        else if (VariableType == TEXT("Int") || VariableType == TEXT("Integer"))
+        {
+            ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+        }
+        else if (VariableType == TEXT("Float"))
+        {
+            ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+            ReturnPinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+        }
+        else if (VariableType == TEXT("Boolean") || VariableType == TEXT("Bool"))
+        {
+            ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+        }
+        else
+        {
+            ReturnPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+        }
+
+        // Add return value pin
+        TSharedPtr<FUserPinInfo> ReturnPin = MakeShared<FUserPinInfo>();
+        ReturnPin->PinName = TEXT("ReturnValue");
+        ReturnPin->PinType = ReturnPinType;
+        ReturnPin->DesiredPinDirection = EGPD_Output;
+        ResultNode->UserDefinedPins.Add(ReturnPin);
+        ResultNode->ReconstructNode();
+
+        // Connect the nodes
+        UEdGraphPin* GetVarOutputPin = GetVarNode->FindPin(FName(*BindingName), EGPD_Output);
+        UEdGraphPin* ResultInputPin = ResultNode->FindPin(TEXT("ReturnValue"), EGPD_Input);
+
+        if (GetVarOutputPin && ResultInputPin)
+        {
+            GetVarOutputPin->MakeLinkTo(ResultInputPin);
+        }
+    } // End of if (!bFunctionExists)
+
+    // CRITICAL FIX: Add the binding entry to WidgetBlueprint->Bindings array
+    // This is what makes the binding visible in the UI and connects it at runtime
+    if (!bBindingExists)
+    {
+        FDelegateEditorBinding NewBinding;
+        NewBinding.ObjectName = TextBlockName;      // The widget component name (e.g., "TextBlock_1")
+        NewBinding.PropertyName = TEXT("Text");     // The property being bound (always "Text" for text blocks)
+        NewBinding.FunctionName = FName(*FunctionName);  // The getter function name (e.g., "GetMyVariable")
+        NewBinding.SourceProperty = FName(*BindingName); // The source variable name (e.g., "MyVariable")
+        NewBinding.Kind = EBindingKind::Function;   // Binding to a function, not a property
+
+        // Get the function's GUID for rename tracking
+        for (UEdGraph* Graph : WidgetBlueprint->FunctionGraphs)
+        {
+            if (Graph && Graph->GetName() == FunctionName)
+            {
+                NewBinding.MemberGuid = Graph->GraphGuid;
+                break;
+            }
+        }
+
+        WidgetBlueprint->Bindings.Add(NewBinding);
+
+        UE_LOG(LogTemp, Log, TEXT("UMGService: Added binding entry for '%s.Text' -> '%s()' (source: '%s')"),
+               *TextBlockName, *FunctionName, *BindingName);
     }
 
     // Save the blueprint

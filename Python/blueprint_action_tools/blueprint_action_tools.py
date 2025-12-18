@@ -290,6 +290,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
             function_name: Name of the function to create a node for (from discovered actions).
                           For Enhanced Input Actions, use the action name (e.g., "IA_Interact")
+                          For variable getters: "Get VariableName" or just "VariableName"
             class_name: Class name for the function (REQUIRED when multiple classes have the same function).
                        Supports both short names like "ActorComponent" and full paths like "/Script/Engine.ActorComponent".
                        For Enhanced Input Actions, you can optionally use "EnhancedInputAction"
@@ -297,7 +298,12 @@ def register_blueprint_action_tools(mcp: FastMCP):
             target_graph: Optional name of the specific graph to place the node in (e.g., "CanInteract", "GetSpeaker").
                          If not specified, defaults to "EventGraph". This allows creating nodes in custom functions.
                          Can be passed either as a direct parameter or as a keyword argument.
-            **kwargs: Additional parameters for special nodes (e.g., target_type="PlayerController" for Cast nodes)
+            **kwargs: Additional parameters for special nodes:
+                     - target_type: For Cast nodes (e.g., target_type="PlayerController")
+                     - scope: For variable getter/setter nodes:
+                       * "function" - Search function parameters only (use in function graphs)
+                       * "blueprint" - Search Blueprint variables only
+                       * "auto" (default) - Smart search: checks function params first, then Blueprint vars
 
         Returns:
             Dict containing:
@@ -400,9 +406,38 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 blueprint_name="BP_MyActor",
                 function_name="GetActorLocation"
             )
-            
+
+            # Use this when you need to access function parameters in a function graph
+            create_node_by_action_name(
+                blueprint_name="WBP_DialogueWindow",
+                function_name="Get NPCRef",
+                target_graph="InitializeDialogue",
+                scope="function",  # Explicitly search function parameters only
+                node_position=[200, 100]
+            )
+
+            # Create Blueprint variable getter (scope="blueprint")
+            # Use this when you want to ensure you're getting a Blueprint variable, not a function parameter
+            create_node_by_action_name(
+                blueprint_name="BP_DialogueComponent",
+                function_name="Get PlayerName",
+                scope="blueprint",  # Explicitly search Blueprint variables only
+                node_position=[300, 200]
+            )
+
+            # Auto scope (default) - smart search
+            # In function graphs: checks function params first, then Blueprint vars
+            # In EventGraph: checks Blueprint vars only
+            create_node_by_action_name(
+                blueprint_name="WBP_DialogueWindow",
+                function_name="Get DialogueData",
+                target_graph="InitializeDialogue",
+                # scope="auto" is default - will find function parameter automatically
+                node_position=[400, 100]
+            )
+
             # Find correct function names using search first:
-            # search_blueprint_actions(search_query="float", category="Math") 
+            # search_blueprint_actions(search_query="float", category="Math")
             # Then use the discovered function names
         """
         return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, target_graph=target_graph, **kwargs)

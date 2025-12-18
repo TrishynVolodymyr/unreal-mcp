@@ -5,13 +5,17 @@
 #include "BlueprintNodeSpawner.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_EnhancedInputAction.h"
+#include "K2Node_VariableGet.h"
+#include "K2Node_VariableSet.h"
 #include "InputAction.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "NodeCreationHelpers.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraphSchema_K2.h"
-#include "K2Node_VariableGet.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
 
 // Helper function to normalize function names by removing common UE prefixes
 static FString NormalizeFunctionName(const FString& Name)
@@ -516,6 +520,94 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
                 NewNode = SelectedSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
                 if (NewNode)
                 {
+                    // POST-CREATION FIX: Check if this is a variable get/set node and fix the reference if needed
+                    // Problem: Blueprint Action Database creates variable getters/setters with SetExternalMember()
+                    // which adds an unnecessary "Target" pin. For self variables, we need SetSelfMember() instead.
+                    if (UK2Node_VariableGet* GetNode = Cast<UK2Node_VariableGet>(NewNode))
+                    {
+                        // Check if this variable belongs to the current Blueprint (self member)
+                        UBlueprint* Blueprint = FBlueprintEditorUtils::FindBlueprintForGraph(EventGraph);
+                        if (Blueprint)
+                        {
+                            // Check if the variable exists in this Blueprint's variable list
+                            FName VarName = GetNode->GetVarName();
+                            TArray<FBPVariableDescription> Variables = Blueprint->NewVariables;
+
+                            bool bIsSelfVariable = false;
+                            for (const FBPVariableDescription& VarDesc : Variables)
+                            {
+                                if (VarDesc.VarName == VarName)
+                                {
+                                    bIsSelfVariable = true;
+                                    break;
+                                }
+                            }
+
+                            // Also check component variables (SCS nodes)
+                            if (!bIsSelfVariable && Blueprint->SimpleConstructionScript)
+                            {
+                                const TArray<USCS_Node*>& AllNodes = Blueprint->SimpleConstructionScript->GetAllNodes();
+                                for (USCS_Node* Node : AllNodes)
+                                {
+                                    if (Node && Node->GetVariableName() == VarName)
+                                    {
+                                        bIsSelfVariable = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (bIsSelfVariable)
+                            {
+                                // This is a self variable! Fix the reference to use SetSelfMember
+                                UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Converting variable getter '%s' from external to self member"), *VarName.ToString());
+                                GetNode->VariableReference.SetSelfMember(VarName);
+                                GetNode->ReconstructNode(); // Rebuild pins to remove the "Target" pin
+                            }
+                        }
+                    }
+                    else if (UK2Node_VariableSet* SetNode = Cast<UK2Node_VariableSet>(NewNode))
+                    {
+                        // Same fix for setters
+                        UBlueprint* Blueprint = FBlueprintEditorUtils::FindBlueprintForGraph(EventGraph);
+                        if (Blueprint)
+                        {
+                            FName VarName = SetNode->GetVarName();
+                            TArray<FBPVariableDescription> Variables = Blueprint->NewVariables;
+
+                            bool bIsSelfVariable = false;
+                            for (const FBPVariableDescription& VarDesc : Variables)
+                            {
+                                if (VarDesc.VarName == VarName)
+                                {
+                                    bIsSelfVariable = true;
+                                    break;
+                                }
+                            }
+
+                            // Also check component variables (SCS nodes)
+                            if (!bIsSelfVariable && Blueprint->SimpleConstructionScript)
+                            {
+                                const TArray<USCS_Node*>& AllNodes = Blueprint->SimpleConstructionScript->GetAllNodes();
+                                for (USCS_Node* Node : AllNodes)
+                                {
+                                    if (Node && Node->GetVariableName() == VarName)
+                                    {
+                                        bIsSelfVariable = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (bIsSelfVariable)
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Converting variable setter '%s' from external to self member"), *VarName.ToString());
+                                SetNode->VariableReference.SetSelfMember(VarName);
+                                SetNode->ReconstructNode(); // Rebuild pins to remove the "Target" pin
+                            }
+                        }
+                    }
+
                     NodeTitle = NodeName.IsEmpty() ? NodeClass : NodeName;
                     NodeType = NodeClass;
                     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);

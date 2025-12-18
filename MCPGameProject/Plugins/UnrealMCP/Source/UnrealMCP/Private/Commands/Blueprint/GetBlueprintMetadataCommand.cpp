@@ -93,7 +93,16 @@ UBlueprint* FGetBlueprintMetadataCommand::FindBlueprint(const FString& Blueprint
     // Handle full path
     if (BlueprintName.StartsWith(TEXT("/Game/")) || BlueprintName.StartsWith(TEXT("/Script/")))
     {
-        FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(BlueprintName));
+        FString ObjectPath = BlueprintName;
+
+        // If path doesn't contain '.', append the asset name (e.g., /Game/Foo/Bar -> /Game/Foo/Bar.Bar)
+        if (!ObjectPath.Contains(TEXT(".")))
+        {
+            FString AssetName = FPaths::GetBaseFilename(ObjectPath);
+            ObjectPath = ObjectPath + TEXT(".") + AssetName;
+        }
+
+        FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(ObjectPath));
         if (AssetData.IsValid())
         {
             return Cast<UBlueprint>(AssetData.GetAsset());
@@ -263,12 +272,79 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildFunctionsInfo(UBluepr
 
     for (UEdGraph* Graph : Blueprint->FunctionGraphs)
     {
-        if (Graph)
+        if (!Graph)
         {
-            TSharedPtr<FJsonObject> FuncObj = MakeShared<FJsonObject>();
-            FuncObj->SetStringField(TEXT("name"), Graph->GetName());
-            FunctionsList.Add(MakeShared<FJsonValueObject>(FuncObj));
+            continue;
         }
+
+        TSharedPtr<FJsonObject> FuncObj = MakeShared<FJsonObject>();
+        FuncObj->SetStringField(TEXT("name"), Graph->GetName());
+
+        // Find the function entry node to get detailed info
+        UK2Node_FunctionEntry* EntryNode = nullptr;
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            EntryNode = Cast<UK2Node_FunctionEntry>(Node);
+            if (EntryNode)
+            {
+                break;
+            }
+        }
+
+        if (EntryNode)
+        {
+            // Get function flags
+            FuncObj->SetBoolField(TEXT("is_pure"), EntryNode->GetFunctionFlags() & FUNC_BlueprintPure);
+            FuncObj->SetBoolField(TEXT("is_const"), EntryNode->GetFunctionFlags() & FUNC_Const);
+
+            // Get access specifier
+            FString AccessSpecifier = TEXT("Public");
+            if (EntryNode->GetFunctionFlags() & FUNC_Protected)
+            {
+                AccessSpecifier = TEXT("Protected");
+            }
+            else if (EntryNode->GetFunctionFlags() & FUNC_Private)
+            {
+                AccessSpecifier = TEXT("Private");
+            }
+            FuncObj->SetStringField(TEXT("access"), AccessSpecifier);
+
+            // Get category if available
+            FuncObj->SetStringField(TEXT("category"), EntryNode->MetaData.Category.ToString());
+        }
+
+        // Get inputs and outputs from the generated function (if compiled)
+        if (Blueprint->GeneratedClass)
+        {
+            UFunction* Function = Blueprint->GeneratedClass->FindFunctionByName(Graph->GetFName());
+            if (Function)
+            {
+                TArray<TSharedPtr<FJsonValue>> InputsList;
+                TArray<TSharedPtr<FJsonValue>> OutputsList;
+
+                for (TFieldIterator<FProperty> PropIt(Function); PropIt; ++PropIt)
+                {
+                    FProperty* Prop = *PropIt;
+                    TSharedPtr<FJsonObject> ParamObj = MakeShared<FJsonObject>();
+                    ParamObj->SetStringField(TEXT("name"), Prop->GetName());
+                    ParamObj->SetStringField(TEXT("type"), Prop->GetCPPType());
+
+                    if (Prop->HasAnyPropertyFlags(CPF_ReturnParm) || Prop->HasAnyPropertyFlags(CPF_OutParm))
+                    {
+                        OutputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
+                    }
+                    else if (Prop->HasAnyPropertyFlags(CPF_Parm))
+                    {
+                        InputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
+                    }
+                }
+
+                FuncObj->SetArrayField(TEXT("inputs"), InputsList);
+                FuncObj->SetArrayField(TEXT("outputs"), OutputsList);
+            }
+        }
+
+        FunctionsList.Add(MakeShared<FJsonValueObject>(FuncObj));
     }
 
     FunctionsInfo->SetArrayField(TEXT("functions"), FunctionsList);
