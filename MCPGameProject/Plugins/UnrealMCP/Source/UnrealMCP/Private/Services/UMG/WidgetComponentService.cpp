@@ -580,8 +580,14 @@ bool FWidgetComponentService::AddWidgetToTree(UWidgetBlueprint* WidgetBlueprint,
             Slot->SetPosition(Position);
             Slot->SetSize(Size);
             Slot->SetAlignment(FVector2D(0.0f, 0.0f)); // Top-left alignment
-            
-            UE_LOG(LogTemp, Log, TEXT("Added widget '%s' to canvas panel at position [%f, %f] with size [%f, %f]"), 
+
+            // CRITICAL FIX: Automatically expose widget as variable so it can be referenced in Blueprint graphs
+            // This solves the issue where widget components cannot be accessed by node_tools because
+            // they're not marked as variables by default
+            Widget->bIsVariable = true;
+            UE_LOG(LogTemp, Log, TEXT("Exposed widget '%s' as variable (bIsVariable = true)"), *Widget->GetName());
+
+            UE_LOG(LogTemp, Log, TEXT("Added widget '%s' to canvas panel at position [%f, %f] with size [%f, %f]"),
                 *Widget->GetName(), Position.X, Position.Y, Size.X, Size.Y);
             return true;
         }

@@ -119,11 +119,12 @@ private:
     /**
      * Create a text block binding function
      * @param WidgetBlueprint - Widget blueprint containing the text block
-     * @param BindingName - Name of the binding property
+     * @param TextBlockName - Name of the text block widget component
+     * @param BindingName - Name of the variable to bind to
      * @param VariableType - Type of the binding variable
      * @return true if the binding was created successfully
      */
-    bool CreateTextBlockBindingFunction(UWidgetBlueprint* WidgetBlueprint, const FString& BindingName, const FString& VariableType) const;
+    bool CreateTextBlockBindingFunction(UWidgetBlueprint* WidgetBlueprint, const FString& TextBlockName, const FString& BindingName, const FString& VariableType) const;
 
     /**
      * Set widget placement in canvas panel slot
