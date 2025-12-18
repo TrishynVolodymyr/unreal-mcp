@@ -6,6 +6,7 @@
 #include "K2Node_MacroInstance.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
+#include "K2Node_FunctionEntry.h"
 #include "K2Node_BreakStruct.h"
 #include "K2Node_MakeStruct.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -13,6 +14,8 @@
 #include "Engine/SCS_Node.h"
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
+#include "BlueprintVariableNodeSpawner.h"
+#include "BlueprintNodeBinder.h"
 
 // Include refactored node creation helpers
 #include "Services/NodeCreation/BlueprintActionDatabaseNodeCreator.h"
@@ -311,11 +314,170 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 		// Log getter/setter detection and variable name
 		UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: EffectiveFunctionName='%s', bIsGetter=%d, bIsSetter=%d, VarName='%s'"), *FunctionName, (int)bIsGetter, (int)bIsGetter, *VarName);
 
+		// Extract optional scope parameter from kwargs
+		FString Scope = TEXT("auto");  // Default: smart search
+		if (ParamsObject.IsValid())
+		{
+			// Check at root level
+			if (!ParamsObject->TryGetStringField(TEXT("scope"), Scope))
+			{
+				// Check nested under kwargs object
+				const TSharedPtr<FJsonObject>* KwargsObject;
+				if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+				{
+					(*KwargsObject)->TryGetStringField(TEXT("scope"), Scope);
+				}
+			}
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Variable scope='%s', VarName='%s'"), *Scope, *VarName);
+
 		// Try to find the variable or component in the Blueprint
 		bool bFound = false;
 
-		// Diagnostic logging: List all user variables and what we're searching for
-		UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Blueprint '%s' has %d user variables. Looking for '%s'."), *Blueprint->GetName(), Blueprint->NewVariables.Num(), *VarName);
+		// NEW FEATURE: Support function parameters when scope="function" or scope="auto"
+		// Function parameters are local variables in function graphs
+		bool bShouldCheckFunctionParams = Scope.Equals(TEXT("function"), ESearchCase::IgnoreCase) ||
+		                                  Scope.Equals(TEXT("auto"), ESearchCase::IgnoreCase);
+
+		UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: bShouldCheckFunctionParams=%d, bIsGetter=%d, EventGraph=%s"),
+			(int)bShouldCheckFunctionParams, (int)bIsGetter, EventGraph ? *EventGraph->GetName() : TEXT("NULL"));
+
+		if (bShouldCheckFunctionParams && bIsGetter && EventGraph)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Entering function parameter check. Blueprint has %d function graphs."), Blueprint->FunctionGraphs.Num());
+			// Check if the EventGraph is a function graph
+			for (UEdGraph* FuncGraph : Blueprint->FunctionGraphs)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Comparing FuncGraph='%s' with EventGraph='%s'"),
+					FuncGraph ? *FuncGraph->GetName() : TEXT("NULL"),
+					EventGraph ? *EventGraph->GetName() : TEXT("NULL"));
+
+				if (FuncGraph == EventGraph)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: MATCH! Searching for function parameter '%s'"), *VarName);
+
+					// STEP 1: Try to find function INPUT PARAMETERS from UFunction properties
+					// Function input parameters are stored as FProperty in the UFunction, not as LocalVariables
+					UFunction* SkeletonFunction = FindUField<UFunction>(Blueprint->SkeletonGeneratedClass, EventGraph->GetFName());
+					if (SkeletonFunction)
+					{
+						UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found SkeletonFunction '%s', searching parameters..."), *SkeletonFunction->GetName());
+
+						// List all function parameters for debugging
+						for (TFieldIterator<FProperty> ParamIt(SkeletonFunction); ParamIt && (ParamIt->PropertyFlags & CPF_Parm); ++ParamIt)
+						{
+							FProperty* Param = *ParamIt;
+							const bool bIsFunctionInput = !Param->HasAnyPropertyFlags(CPF_ReturnParm) && (!Param->HasAnyPropertyFlags(CPF_OutParm) || Param->HasAnyPropertyFlags(CPF_ReferenceParm));
+							UE_LOG(LogTemp, Warning, TEXT("  - Function param: '%s' (isInput=%d)"), *Param->GetName(), (int)bIsFunctionInput);
+						}
+
+						// Search for the specific parameter
+						for (TFieldIterator<FProperty> ParamIt(SkeletonFunction); ParamIt && (ParamIt->PropertyFlags & CPF_Parm); ++ParamIt)
+						{
+							FProperty* Param = *ParamIt;
+							const bool bIsFunctionInput = !Param->HasAnyPropertyFlags(CPF_ReturnParm) && (!Param->HasAnyPropertyFlags(CPF_OutParm) || Param->HasAnyPropertyFlags(CPF_ReferenceParm));
+
+							if (bIsFunctionInput && Param->GetName().Equals(VarName, ESearchCase::IgnoreCase))
+							{
+								UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found matching function input parameter '%s'"), *Param->GetName());
+
+								// Use UBlueprintVariableNodeSpawner to create the node properly
+								// This is exactly how Unreal creates these nodes in the Blueprint Action Database
+								UBlueprintVariableNodeSpawner* Spawner = UBlueprintVariableNodeSpawner::CreateFromMemberOrParam(
+									UK2Node_VariableGet::StaticClass(),
+									Param,
+									EventGraph  // VarContext - the function graph
+								);
+
+								if (Spawner)
+								{
+									// Invoke the spawner to create the node - this handles all the proper setup
+									OutNode = Spawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
+
+									if (OutNode)
+									{
+										OutNodeTitle = FString::Printf(TEXT("Get %s"), *Param->GetName());
+										OutNodeType = TEXT("UK2Node_VariableGet");
+										bFound = true;
+
+										UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created function input parameter getter for '%s' using spawner"), *Param->GetName());
+
+										// If scope is explicitly "function", we're done
+										if (Scope.Equals(TEXT("function"), ESearchCase::IgnoreCase))
+										{
+											return true;
+										}
+									}
+									else
+									{
+										UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Spawner->Invoke returned null for parameter '%s'"), *Param->GetName());
+									}
+								}
+								else
+								{
+									UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to create spawner for parameter '%s'"), *Param->GetName());
+								}
+								break;
+							}
+						}
+					}
+					else
+					{
+						UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: SkeletonFunction not found for graph '%s'"), *EventGraph->GetName());
+					}
+
+					// STEP 2: If not found as function parameter, try LOCAL VARIABLES
+					// Local variables are explicitly created inside functions and stored in UK2Node_FunctionEntry::LocalVariables
+					if (!bFound)
+					{
+						FGuid LocalVarGuid = FBlueprintEditorUtils::FindLocalVariableGuidByName(
+							Blueprint,
+							EventGraph,
+							FName(*VarName));
+
+						UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: FindLocalVariableGuidByName returned GUID valid=%d"), (int)LocalVarGuid.IsValid());
+
+						if (LocalVarGuid.IsValid())
+						{
+							// Found local variable!
+							UK2Node_VariableGet* LocalVarGetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+							LocalVarGetterNode->VariableReference.SetLocalMember(
+								FName(*VarName),
+								EventGraph->GetName(),
+								LocalVarGuid);
+							LocalVarGetterNode->NodePosX = PositionX;
+							LocalVarGetterNode->NodePosY = PositionY;
+							LocalVarGetterNode->CreateNewGuid();
+							EventGraph->AddNode(LocalVarGetterNode, true, true);
+							LocalVarGetterNode->PostPlacedNewNode();
+							LocalVarGetterNode->AllocateDefaultPins();
+							OutNode = LocalVarGetterNode;
+							OutNodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
+							OutNodeType = TEXT("UK2Node_VariableGet");
+							bFound = true;
+
+							UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created local variable getter for '%s'"), *VarName);
+
+							// If scope is explicitly "function", we're done
+							if (Scope.Equals(TEXT("function"), ESearchCase::IgnoreCase))
+							{
+								return true;
+							}
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		// Only check Blueprint variables if scope allows it
+		bool bShouldCheckBlueprintVars = !Scope.Equals(TEXT("function"), ESearchCase::IgnoreCase);
+
+		if (!bFound && bShouldCheckBlueprintVars)
+		{
+			// Diagnostic logging: List all user variables and what we're searching for
+			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Blueprint '%s' has %d user variables. Looking for '%s'."), *Blueprint->GetName(), Blueprint->NewVariables.Num(), *VarName);
 		for (const FBPVariableDescription& VarDesc : Blueprint->NewVariables)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found variable '%s' (type: %s)"), *VarDesc.VarName.ToString(), *VarDesc.VarType.PinCategory.ToString());
@@ -381,6 +543,7 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 				}
 			}
 		}
+		}  // End of if (!bFound && bShouldCheckBlueprintVars)
 
 		if (!bFound)
 		{

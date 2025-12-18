@@ -403,6 +403,103 @@ Then add the struct variable:
 5. Array variables are created by appending `[]` to the base type
 6. Custom struct variables require the struct to exist before creating the variable
 
+### create_node_by_action_name
+
+Create Blueprint nodes in graphs dynamically, including function calls, control flow nodes, variable getters/setters, and more.
+
+**Parameters:**
+- `blueprint_name` (string) - Name of the target Blueprint
+- `function_name` (string) - Name of the function/action to create a node for
+- `class_name` (string, optional) - Class name for the function (required when multiple classes have the same function name)
+- `node_position` (array, optional) - [X, Y] position in the graph, defaults to [0, 0]
+- `target_graph` (string, optional) - Name of the graph to place the node in, defaults to "EventGraph"
+- `scope` (string, optional, via kwargs) - For variable getter/setter nodes only:
+  - `"function"` - Search function parameters only (use in function graphs)
+  - `"blueprint"` - Search Blueprint variables only
+  - `"auto"` (default) - Smart search: checks function params first, then Blueprint vars
+
+**Returns:**
+- Result containing success status, node_id, node_type, pins, position, and message
+
+**Examples:**
+
+1. **Function Parameter Getter (NEW)**:
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "WBP_DialogueWindow",
+    "function_name": "Get NPCRef",
+    "target_graph": "InitializeDialogue",
+    "kwargs": {
+      "scope": "function"
+    },
+    "node_position": [200, 100]
+  }
+}
+```
+
+2. **Blueprint Variable Getter**:
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "function_name": "Get PlayerHealth",
+    "kwargs": {
+      "scope": "blueprint"
+    },
+    "node_position": [300, 200]
+  }
+}
+```
+
+3. **Auto Scope (Default - Recommended)**:
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "WBP_DialogueWindow",
+    "function_name": "Get DialogueData",
+    "target_graph": "InitializeDialogue",
+    "node_position": [400, 100]
+  }
+}
+```
+The `scope` parameter defaults to `"auto"`, which automatically finds function parameters in function graphs.
+
+4. **Function Call**:
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "function_name": "GetActorLocation",
+    "class_name": "Actor",
+    "node_position": [500, 300]
+  }
+}
+```
+
+5. **Control Flow Node**:
+```json
+{
+  "command": "create_node_by_action_name",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "function_name": "Branch",
+    "target_graph": "EventGraph",
+    "node_position": [600, 400]
+  }
+}
+```
+
+**Notes:**
+1. **Function Parameters**: When creating variable getters in function graphs, the system can now automatically detect function parameters using `scope="function"` or `scope="auto"`
+2. **Disambiguation**: Use `scope="blueprint"` when you have both a function parameter AND a Blueprint variable with the same name and you want the Blueprint variable
+3. The `scope` parameter is only relevant for variable getter/setter nodes - it's ignored for other node types
+4. For function calls with ambiguous names (same function in multiple classes), always specify `class_name`
+
 ## Error Handling
 
 All command responses include a "success" field indicating whether the operation succeeded, and a "message" field with details in case of failure.
