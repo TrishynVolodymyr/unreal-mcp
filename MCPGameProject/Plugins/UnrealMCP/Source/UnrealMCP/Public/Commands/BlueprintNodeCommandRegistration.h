@@ -30,7 +30,7 @@ private:
      */
     static void RegisterConnectBlueprintNodesCommand();
     // static void RegisterAddBlueprintInputActionNodeCommand();  // REMOVED: Use create_node_by_action_name instead
-    static void RegisterGetBlueprintGraphsCommand();
+    // static void RegisterGetBlueprintGraphsCommand();  // REMOVED: Use get_blueprint_metadata with fields=["graphs"] instead
     static void RegisterFindBlueprintNodesCommand();
     static void RegisterAddBlueprintVariableCommand();
     static void RegisterGetVariableInfoCommand();

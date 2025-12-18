@@ -101,17 +101,19 @@ TArray<FString> FAssetDiscoveryService::FindWidgetBlueprints(const FString& Widg
 TArray<FString> FAssetDiscoveryService::FindBlueprints(const FString& BlueprintName, const FString& SearchPath)
 {
     TArray<FString> FoundBlueprints;
-    
+
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
     TArray<FAssetData> AssetDataList;
-    
+
     FARFilter Filter;
+    // Include both regular Blueprints and Widget Blueprints
     Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+    Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
     Filter.PackagePaths.Add(FName(*SearchPath));
     Filter.bRecursivePaths = true;
-    
+
     AssetRegistryModule.Get().GetAssets(Filter, AssetDataList);
-    
+
     for (const FAssetData& AssetData : AssetDataList)
     {
         if (BlueprintName.IsEmpty() || AssetData.AssetName.ToString().Contains(BlueprintName))
@@ -119,7 +121,7 @@ TArray<FString> FAssetDiscoveryService::FindBlueprints(const FString& BlueprintN
             FoundBlueprints.Add(AssetData.GetObjectPathString());
         }
     }
-    
+
     return FoundBlueprints;
 }
 
@@ -416,7 +418,29 @@ UClass* FAssetDiscoveryService::ResolveObjectClass(const FString& ClassName)
         BuildGamePath(ClassName),
         BuildGamePath(FString::Printf(TEXT("Blueprints/%s"), *ClassName))
     };
-    
+
+    // CRITICAL FIX: For Blueprint classes, also try appending the _C suffix
+    // Blueprint generated classes use format: /Game/Path/To/BP_Name.BP_Name_C
+    TArray<FString> BlueprintPaths;
+    for (const FString& SearchPath : SearchPaths)
+    {
+        // Only try Blueprint class format for /Game/ paths
+        if (SearchPath.StartsWith(TEXT("/Game/")))
+        {
+            FString AssetName = FPaths::GetBaseFilename(SearchPath);
+
+            // If the path doesn't already have the _C suffix, try adding it
+            if (!SearchPath.EndsWith(TEXT("_C")))
+            {
+                // Format: /Game/Path/To/BP_Name.BP_Name_C
+                BlueprintPaths.Add(FString::Printf(TEXT("%s.%s_C"), *SearchPath, *AssetName));
+            }
+        }
+    }
+
+    // Combine both search path lists
+    SearchPaths.Append(BlueprintPaths);
+
     for (const FString& SearchPath : SearchPaths)
     {
         UClass* FoundClass = LoadObject<UClass>(nullptr, *SearchPath);
@@ -426,8 +450,13 @@ UClass* FAssetDiscoveryService::ResolveObjectClass(const FString& ClassName)
             return FoundClass;
         }
     }
-    
+
     UE_LOG(LogTemp, Warning, TEXT("AssetDiscoveryService: Could not resolve object class: %s"), *ClassName);
+    UE_LOG(LogTemp, Warning, TEXT("AssetDiscoveryService: Tried the following paths:"));
+    for (const FString& SearchPath : SearchPaths)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("  - %s"), *SearchPath);
+    }
     return nullptr;
 }
 
