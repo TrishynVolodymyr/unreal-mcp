@@ -358,7 +358,6 @@ The following tools have been removed and replaced by `get_widget_blueprint_meta
 - **check_widget_component_exists** - Use `get_widget_blueprint_metadata` with `fields=["components"]` and check for component in results
 - **get_widget_container_component_dimensions** - Use `get_widget_blueprint_metadata` with `fields=["dimensions"]`
 - **get_widget_component_layout** - Use `get_widget_blueprint_metadata` with `fields=["layout"]`
-- **add_widget_to_viewport** - Deprecated, use regular Blueprint functionality
 
 ## Common Usage Patterns
 

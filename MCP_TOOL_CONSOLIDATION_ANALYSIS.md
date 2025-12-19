@@ -133,10 +133,10 @@ search_blueprint_actions(
 | Tool | Type | Status |
 |------|------|--------|
 | `get_project_metadata` | **QUERY** | ✅ NEW - Consolidated metadata tool |
-| `list_input_actions` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["input_actions"])` |
-| `list_input_mapping_contexts` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["input_contexts"])` |
-| `show_struct_variables` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["structs"], struct_name=...)` |
-| `list_folder_contents` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["folder_contents"], folder_path=...)` |
+| ~~`list_input_actions`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["input_actions"])` |
+| ~~`list_input_mapping_contexts`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["input_contexts"])` |
+| ~~`show_struct_variables`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["structs"], struct_name=...)` |
+| ~~`list_folder_contents`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["folder_contents"], folder_path=...)` |
 | `create_input_mapping` | setter | keep |
 | `create_enhanced_input_action` | setter | keep |
 | `create_input_mapping_context` | setter | keep |
@@ -147,7 +147,7 @@ search_blueprint_actions(
 
 **Completed:**
 - ✅ Created `get_project_metadata` with fields: `input_actions`, `input_contexts`, `structs`, `folder_contents`, `*`
-- Old tools kept for backwards compatibility but consolidated functionality available
+- ✅ Removed 4 deprecated tools and their C++ command implementations
 
 **Usage:**
 ```python

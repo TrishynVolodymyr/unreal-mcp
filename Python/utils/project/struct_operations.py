@@ -78,47 +78,6 @@ def update_struct(
     return send_unreal_command("update_struct", params)
 
 
-def show_struct_variables(
-    ctx: Context,
-    struct_name: str,
-    path: str = "/Game/Blueprints"
-) -> Dict[str, Any]:
-    """
-    Show variables and types of a struct in Unreal Engine.
-    Args:
-        ctx: The MCP context
-        struct_name: Name of the struct to inspect
-        path: Path where the struct exists (default: /Game/Blueprints)
-    Returns:
-        Dictionary with struct variable info
-    """
-    params = {
-        "struct_name": struct_name,
-        "path": path
-    }
-    logger.info(f"Showing struct variables for: {struct_name} at {path}")
-    return send_unreal_command("show_struct_variables", params)
-
-
-def list_folder_contents(
-    ctx: Context,
-    folder_path: str
-) -> Dict[str, Any]:
-    """
-    List the contents of a folder in the Unreal project (content or regular folder).
-    Args:
-        ctx: The MCP context
-        folder_path: Path to the folder (e.g., "/Game/Blueprints" or "Content/MyFolder" or "Intermediate/MyTools")
-    Returns:
-        Dictionary with arrays of subfolders and files/assets
-    """
-    params = {
-        "folder_path": folder_path
-    }
-    logger.info(f"Listing folder contents for: {folder_path}")
-    return send_unreal_command("list_folder_contents", params)
-
-
 def get_project_metadata(
     ctx: Context,
     fields: List[str] = None,

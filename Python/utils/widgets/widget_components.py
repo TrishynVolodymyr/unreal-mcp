@@ -52,10 +52,6 @@ def bind_widget_component_event(
     logger.info(f"Binding event '{event_name}' on component '{widget_component_name}' in widget '{widget_name}' to function '{func_name}'")
     return send_unreal_command("bind_widget_component_event", params)
 
-# NOTE: add_widget_to_viewport removed – functionality superseded by regular Blueprint usage.
-def add_widget_to_viewport(*args, **kwargs):
-    """Deprecated – command removed."""
-    raise RuntimeError("add_widget_to_viewport MCP command has been removed.")
 
 def set_text_block_widget_component_binding(
     ctx: Context,

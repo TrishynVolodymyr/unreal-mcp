@@ -9,8 +9,6 @@ from typing import Dict, Any, List
 from mcp.server.fastmcp import FastMCP, Context
 from utils.project.struct_operations import create_struct as create_struct_impl
 from utils.project.struct_operations import update_struct as update_struct_impl
-from utils.project.struct_operations import show_struct_variables as show_struct_variables_impl
-from utils.project.struct_operations import list_folder_contents as list_folder_contents_impl
 from utils.project.struct_operations import get_project_metadata as get_project_metadata_impl
 
 # Get logger
@@ -239,94 +237,6 @@ def register_project_tools(mcp: FastMCP):
             return {"success": False, "message": error_msg}
 
     @mcp.tool()
-    def list_input_actions(
-        ctx: Context,
-        path: str = "/Game"
-    ) -> Dict[str, Any]:
-        """
-        List all Enhanced Input Action assets in the project.
-        
-        Args:
-            path: Path to search for Input Actions (searches recursively)
-            
-        Returns:
-            Response with list of Input Action assets and their details
-        
-        Example:
-            list_input_actions(path="/Game/Input")
-        """
-        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "path": path
-            }
-            
-            logger.info(f"Listing Input Actions in path '{path}'")
-            response = unreal.send_command("list_input_actions", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"List Input Actions response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error listing Input Actions: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
-    def list_input_mapping_contexts(
-        ctx: Context,
-        path: str = "/Game"
-    ) -> Dict[str, Any]:
-        """
-        List all Input Mapping Context assets in the project.
-        
-        Args:
-            path: Path to search for Input Mapping Contexts (searches recursively)
-            
-        Returns:
-            Response with list of Input Mapping Context assets and their details
-        
-        Example:
-            list_input_mapping_contexts(path="/Game/Input")
-        """
-        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-        
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
-            params = {
-                "path": path
-            }
-            
-            logger.info(f"Listing Input Mapping Contexts in path '{path}'")
-            response = unreal.send_command("list_input_mapping_contexts", params)
-            
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-            
-            logger.info(f"List Input Mapping Contexts response: {response}")
-            return response
-            
-        except Exception as e:
-            error_msg = f"Error listing Input Mapping Contexts: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
     def create_folder(
         ctx: Context,
         folder_path: str
@@ -437,38 +347,6 @@ def register_project_tools(mcp: FastMCP):
             Dictionary with the update status and struct path
         """
         return update_struct_impl(ctx, struct_name, properties, path, description)
-
-    @mcp.tool()
-    def show_struct_variables(
-        ctx: Context,
-        struct_name: str,
-        path: str = "/Game/Blueprints"
-    ) -> Dict[str, Any]:
-        """
-        Show variables and types of a struct in Unreal Engine.
-        Args:
-            struct_name: Name of the struct to inspect
-            path: Path where the struct exists (default: /Game/Blueprints)
-        Returns:
-            Dictionary with struct variable info
-        """
-        return show_struct_variables_impl(ctx, struct_name, path)
-
-    @mcp.tool()
-    def list_folder_contents(
-        ctx: Context,
-        folder_path: str
-    ) -> Dict[str, Any]:
-        """
-        List the contents of a folder in the Unreal project (content or regular folder).
-        Args:
-            folder_path: Path to the folder (e.g., "/Game/Blueprints" or "Content/MyFolder" or "Intermediate/MyTools")
-        Returns:
-            Dictionary with arrays of subfolders and files/assets
-        Example:
-            list_folder_contents(folder_path="/Game/Blueprints")
-        """
-        return list_folder_contents_impl(ctx, folder_path)
 
     @mcp.tool()
     def get_project_metadata(
