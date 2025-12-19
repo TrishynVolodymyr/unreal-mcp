@@ -107,14 +107,15 @@ private:
     bool SetWidgetProperty(UWidget* Widget, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue) const;
 
     /**
-     * Create an event binding for a widget component
+     * Create an event binding for a widget component using UK2Node_ComponentBoundEvent
      * @param WidgetBlueprint - Widget blueprint containing the component
      * @param Widget - Widget component to bind event to
-     * @param EventName - Name of the event to bind
+     * @param WidgetVarName - Variable name of the widget (must be exposed as variable)
+     * @param EventName - Name of the event to bind (e.g., "OnClicked")
      * @param FunctionName - Name of the function to create/bind
      * @return true if the event was bound successfully
      */
-    bool CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FString& EventName, const FString& FunctionName) const;
+    bool CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FString& WidgetVarName, const FString& EventName, const FString& FunctionName) const;
 
     /**
      * Create a text block binding function

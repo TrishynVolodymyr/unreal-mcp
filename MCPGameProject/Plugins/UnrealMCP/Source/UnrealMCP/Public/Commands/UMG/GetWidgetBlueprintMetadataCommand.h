@@ -64,6 +64,9 @@ private:
 	/** Helper to build widget info for a single widget */
 	TSharedPtr<FJsonObject> BuildWidgetInfo(class UWidget* Widget) const;
 
+	/** Helper to get available delegate events for a widget */
+	TArray<FString> GetAvailableDelegateEvents(class UWidget* Widget) const;
+
 	/** Response builders */
 	TSharedPtr<FJsonObject> CreateSuccessResponse(const TSharedPtr<FJsonObject>& MetadataObj) const;
 	TSharedPtr<FJsonObject> CreateErrorResponse(const FString& ErrorMessage) const;

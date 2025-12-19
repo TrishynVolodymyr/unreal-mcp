@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
 #include "Dom/JsonObject.h"
+#include "EdGraph/EdGraphPin.h"
 
 class UBlueprint;
 class IBlueprintService;
@@ -83,4 +84,11 @@ private:
      * @return True if field should be included
      */
     bool ShouldIncludeField(const FString& FieldName, const TArray<FString>& RequestedFields) const;
+
+    /**
+     * Convert FEdGraphPinType to a human-readable string
+     * @param PinType - The pin type to convert
+     * @return String representation of the type (e.g., "BP_DialogueNPC", "float", "FVector")
+     */
+    FString GetPinTypeAsString(const FEdGraphPinType& PinType) const;
 };

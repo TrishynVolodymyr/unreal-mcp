@@ -28,6 +28,7 @@
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
 #include "K2Node_VariableGet.h"
+#include "K2Node_ComponentBoundEvent.h"
 #include "UObject/TextProperty.h"
 #include "UObject/EnumProperty.h"
 #include "Serialization/JsonSerializer.h"
@@ -284,11 +285,17 @@ bool FUMGService::BindWidgetEvent(const FString& BlueprintName, const FString& C
         return false;
     }
 
-
+    // Ensure the widget is exposed as a variable - required for event binding
+    if (!Widget->bIsVariable)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Widget '%s' is not exposed as variable. Exposing it now."), *ComponentName);
+        Widget->bIsVariable = true;
+        WidgetBlueprint->MarkPackageDirty();
+    }
 
     OutActualFunctionName = FunctionName.IsEmpty() ? (ComponentName + TEXT("_") + EventName) : FunctionName;
-    
-    return CreateEventBinding(WidgetBlueprint, Widget, EventName, OutActualFunctionName);
+
+    return CreateEventBinding(WidgetBlueprint, Widget, ComponentName, EventName, OutActualFunctionName);
 }
 
 bool FUMGService::SetTextBlockBinding(const FString& BlueprintName, const FString& TextBlockName, 
@@ -758,7 +765,7 @@ bool FUMGService::SetWidgetProperty(UWidget* Widget, const FString& PropertyName
     return bSuccess;
 }
 
-bool FUMGService::CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FString& EventName, const FString& FunctionName) const
+bool FUMGService::CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FString& WidgetVarName, const FString& EventName, const FString& FunctionName) const
 {
     UEdGraph* EventGraph = FBlueprintEditorUtils::FindEventGraph(WidgetBlueprint);
     if (!EventGraph)
@@ -768,52 +775,88 @@ bool FUMGService::CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget*
     }
 
     FName EventFName(*EventName);
-    
-    // Check if event node already exists
-    TArray<UK2Node_Event*> AllEventNodes;
-    FBlueprintEditorUtils::GetAllNodesOfClass<UK2Node_Event>(WidgetBlueprint, AllEventNodes);
-    
-    for (UK2Node_Event* Node : AllEventNodes)
+    FName WidgetVarFName(*WidgetVarName);
+
+    // Find the widget's variable property in the generated class
+    // Widget Blueprints expose widgets as FObjectProperty pointing to the widget class
+    FObjectProperty* WidgetProperty = nullptr;
+    if (WidgetBlueprint->GeneratedClass)
     {
-        UClass* NodeEventParentClass = Node->EventReference.GetMemberParentClass();
-        if (Node->EventReference.GetMemberName() == EventFName && NodeEventParentClass == Widget->GetClass())
+        WidgetProperty = FindFProperty<FObjectProperty>(WidgetBlueprint->GeneratedClass, WidgetVarFName);
+    }
+
+    if (!WidgetProperty)
+    {
+        // Widget variable not found - this can happen if the widget was just exposed
+        // Need to compile the blueprint first
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Widget property '%s' not found in GeneratedClass. Compiling blueprint first."), *WidgetVarName);
+        FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+
+        // Try again after compilation
+        if (WidgetBlueprint->GeneratedClass)
         {
-            // Event already bound
-            return true;
+            WidgetProperty = FindFProperty<FObjectProperty>(WidgetBlueprint->GeneratedClass, WidgetVarFName);
+        }
+
+        if (!WidgetProperty)
+        {
+            UE_LOG(LogTemp, Error, TEXT("UMGService: Widget property '%s' still not found after compilation"), *WidgetVarName);
+            return false;
         }
     }
 
     // Find the delegate property on the widget's class
-    FProperty* FoundProperty = Widget->GetClass()->FindPropertyByName(EventFName);
-    FMulticastDelegateProperty* DelegateProperty = CastField<FMulticastDelegateProperty>(FoundProperty);
-    
+    FMulticastDelegateProperty* DelegateProperty = FindFProperty<FMulticastDelegateProperty>(Widget->GetClass(), EventFName);
     if (!DelegateProperty)
     {
         UE_LOG(LogTemp, Error, TEXT("UMGService: Could not find delegate property '%s' on class '%s'"), *EventName, *Widget->GetClass()->GetName());
         return false;
     }
 
+    // Check if this event binding already exists
+    TArray<UK2Node_ComponentBoundEvent*> AllBoundEvents;
+    FBlueprintEditorUtils::GetAllNodesOfClass<UK2Node_ComponentBoundEvent>(WidgetBlueprint, AllBoundEvents);
+
+    for (UK2Node_ComponentBoundEvent* ExistingNode : AllBoundEvents)
+    {
+        if (ExistingNode->GetComponentPropertyName() == WidgetVarFName &&
+            ExistingNode->DelegatePropertyName == EventFName)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UMGService: Event '%s' is already bound to widget '%s'"), *EventName, *WidgetVarName);
+            return true; // Already bound, consider it success
+        }
+    }
+
     // Calculate position for new node
     float MaxHeight = 0.0f;
     for (UEdGraphNode* Node : EventGraph->Nodes)
     {
-        MaxHeight = FMath::Max(MaxHeight, Node->NodePosY);
+        MaxHeight = FMath::Max(MaxHeight, (float)Node->NodePosY);
     }
-    const FVector2D NodePos(200, MaxHeight + 200);
+    const int32 NodePosX = 200;
+    const int32 NodePosY = static_cast<int32>(MaxHeight + 200);
 
-    // Create the event node
-    UK2Node_Event* EventNode = NewObject<UK2Node_Event>(EventGraph);
-    EventNode->EventReference.SetExternalDelegateMember(DelegateProperty->GetFName());
-    EventNode->bOverrideFunction = true;
-    EventNode->CustomFunctionName = FName(*FunctionName);
-    EventNode->NodePosX = NodePos.X;
-    EventNode->NodePosY = NodePos.Y;
-    
-    EventGraph->AddNode(EventNode, true);
-    EventNode->CreateNewGuid();
-    EventNode->PostPlacedNewNode();
-    EventNode->AllocateDefaultPins();
-    EventNode->ReconstructNode();
+    // Create UK2Node_ComponentBoundEvent - this is the correct node type for widget event bindings
+    UK2Node_ComponentBoundEvent* BoundEventNode = NewObject<UK2Node_ComponentBoundEvent>(EventGraph);
+    if (!BoundEventNode)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create UK2Node_ComponentBoundEvent"));
+        return false;
+    }
+
+    // Initialize the component bound event with the widget property and delegate
+    BoundEventNode->InitializeComponentBoundEventParams(WidgetProperty, DelegateProperty);
+    BoundEventNode->NodePosX = NodePosX;
+    BoundEventNode->NodePosY = NodePosY;
+
+    // Add node to graph and set it up
+    EventGraph->AddNode(BoundEventNode, true, false);
+    BoundEventNode->CreateNewGuid();
+    BoundEventNode->PostPlacedNewNode();
+    BoundEventNode->AllocateDefaultPins();
+    BoundEventNode->ReconstructNode();
+
+    UE_LOG(LogTemp, Log, TEXT("UMGService: Successfully created event binding '%s' for widget '%s'"), *EventName, *WidgetVarName);
 
     // Save the blueprint
     WidgetBlueprint->MarkPackageDirty();

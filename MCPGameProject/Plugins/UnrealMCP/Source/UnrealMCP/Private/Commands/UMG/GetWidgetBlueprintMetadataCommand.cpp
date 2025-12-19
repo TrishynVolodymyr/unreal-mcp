@@ -23,6 +23,7 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "UObject/UnrealType.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGetWidgetBlueprintMetadata, Log, All);
 
@@ -317,6 +318,18 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::BuildComponentsInfo(
 
 		// Check if it's a panel (container) widget
 		ComponentObj->SetBoolField(TEXT("is_container"), Widget->IsA<UPanelWidget>());
+
+		// Add available delegate events for this widget
+		TArray<FString> DelegateEvents = GetAvailableDelegateEvents(Widget);
+		if (DelegateEvents.Num() > 0)
+		{
+			TArray<TSharedPtr<FJsonValue>> EventsArray;
+			for (const FString& EventName : DelegateEvents)
+			{
+				EventsArray.Add(MakeShared<FJsonValueString>(EventName));
+			}
+			ComponentObj->SetArrayField(TEXT("available_events"), EventsArray);
+		}
 
 		ComponentsList.Add(MakeShared<FJsonValueObject>(ComponentObj));
 	}
@@ -779,4 +792,37 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::CreateErrorResponse(
 	ResponseObj->SetBoolField(TEXT("success"), false);
 	ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
 	return ResponseObj;
+}
+
+TArray<FString> FGetWidgetBlueprintMetadataCommand::GetAvailableDelegateEvents(UWidget* Widget) const
+{
+	TArray<FString> DelegateEvents;
+
+	if (!Widget)
+	{
+		return DelegateEvents;
+	}
+
+	// Iterate through all properties of the widget class looking for multicast delegates
+	for (TFieldIterator<FProperty> PropIt(Widget->GetClass()); PropIt; ++PropIt)
+	{
+		FProperty* Property = *PropIt;
+		if (!Property)
+		{
+			continue;
+		}
+
+		// Check if it's a multicast delegate property (these are bindable events)
+		if (FMulticastDelegateProperty* DelegateProp = CastField<FMulticastDelegateProperty>(Property))
+		{
+			// Skip internal/private delegates that start with underscore
+			FString PropName = Property->GetName();
+			if (!PropName.StartsWith(TEXT("_")))
+			{
+				DelegateEvents.Add(PropName);
+			}
+		}
+	}
+
+	return DelegateEvents;
 }

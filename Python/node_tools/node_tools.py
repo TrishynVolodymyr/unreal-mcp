@@ -364,3 +364,51 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 "success": False,
                 "message": f"Failed to set pin value: {str(e)}"
             }
+
+    # ========== Graph Layout Tools ==========
+
+    @mcp.tool()
+    def auto_arrange_nodes(
+        ctx: Context,
+        blueprint_name: str,
+        graph_name: str = "EventGraph"
+    ) -> Dict[str, Any]:
+        """
+        Auto-arrange nodes in a Blueprint graph for better readability.
+        Uses connection-aware horizontal flow layout:
+        - Event/entry nodes placed on the left
+        - Connected nodes flow left-to-right following execution order
+        - Pure nodes (getters, math) positioned near their consumers
+
+        Args:
+            blueprint_name: Name or path of the Blueprint
+            graph_name: Name of the graph to arrange (default: "EventGraph")
+
+        Returns:
+            Dict containing:
+            - success: Boolean indicating success
+            - arranged_count: Number of nodes that were arranged
+            - graph_name: Name of the graph that was arranged
+
+        Examples:
+            # Arrange EventGraph nodes
+            auto_arrange_nodes(ctx, blueprint_name="BP_MyActor")
+
+            # Arrange a specific function graph
+            auto_arrange_nodes(ctx, blueprint_name="BP_MyActor", graph_name="UpdateHealth")
+        """
+        try:
+            params = {
+                "blueprint_name": blueprint_name,
+                "graph_name": graph_name
+            }
+
+            result = send_unreal_command("auto_arrange_nodes", params)
+            return result
+
+        except Exception as e:
+            logger.error(f"Error auto-arranging nodes: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to auto-arrange nodes: {str(e)}"
+            }
