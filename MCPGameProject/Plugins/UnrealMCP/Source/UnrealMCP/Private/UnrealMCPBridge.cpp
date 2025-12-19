@@ -268,7 +268,6 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("call_function_by_name"),
                     TEXT("add_interface_to_blueprint"),
                     TEXT("create_blueprint_interface"),
-                    TEXT("list_blueprint_components"),
                     TEXT("create_custom_blueprint_function")
                 };
                 

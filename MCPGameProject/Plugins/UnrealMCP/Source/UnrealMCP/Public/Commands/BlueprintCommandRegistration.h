@@ -35,7 +35,6 @@ private:
     static void RegisterCompileBlueprintCommand();
     static void RegisterSetPhysicsPropertiesCommand();
     static void RegisterSetBlueprintPropertyCommand();
-    static void RegisterListBlueprintComponentsCommand();
     static void RegisterSetStaticMeshPropertiesCommand();
     static void RegisterSetPawnPropertiesCommand();
     static void RegisterCallBlueprintFunctionCommand();

@@ -357,7 +357,7 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildComponentsInfo(UBluep
 {
     TSharedPtr<FJsonObject> ComponentsInfo = MakeShared<FJsonObject>();
 
-    // Use BlueprintService to get comprehensive component list (same as list_blueprint_components)
+    // Use BlueprintService to get comprehensive component list
     TArray<TPair<FString, FString>> Components;
     if (BlueprintService.GetBlueprintComponents(Blueprint, Components))
     {

@@ -20,7 +20,6 @@ from utils.blueprints.blueprint_operations import (
     add_blueprint_variable as add_blueprint_variable_impl,
     add_interface_to_blueprint as add_interface_to_blueprint_impl,
     create_blueprint_interface as create_blueprint_interface_impl,
-    list_blueprint_components as list_blueprint_components_impl,
     create_custom_blueprint_function as create_custom_blueprint_function_impl,
     call_blueprint_function as call_blueprint_function_impl,
     get_blueprint_metadata as get_blueprint_metadata_impl
@@ -490,22 +489,6 @@ def register_blueprint_tools(mcp: FastMCP):
             create_blueprint_interface(name="MyInterface", folder_path="Blueprints")
         """
         return create_blueprint_interface_impl(ctx, name, folder_path)
-    
-    @mcp.tool()
-    def list_blueprint_components(
-        ctx: Context,
-        blueprint_name: str
-    ) -> Dict[str, Any]:
-        """
-        List all components in a Blueprint class.
-        Args:
-            blueprint_name: Name of the target Blueprint
-        Returns:
-            Dictionary with a list of component names and types
-        Example:
-            list_blueprint_components(ctx, blueprint_name="BP_ThirdPersonCharacter")
-        """
-        return list_blueprint_components_impl(ctx, blueprint_name)
     
     @mcp.tool()
     def create_custom_blueprint_function(

@@ -366,11 +366,6 @@ def create_blueprint_interface(
     }
     return send_unreal_command("create_blueprint_interface", params)
 
-def list_blueprint_components(ctx: Context, blueprint_name: str) -> Dict[str, Any]:
-    """Implementation for listing components in a blueprint."""
-    params = {"blueprint_name": blueprint_name}
-    return send_unreal_command("list_blueprint_components", params)
-
 def create_custom_blueprint_function(
     ctx: Context,
     blueprint_name: str,

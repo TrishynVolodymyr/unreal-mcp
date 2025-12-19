@@ -122,12 +122,6 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprintInterf
     return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("create_blueprint_interface"), Params);
 }
 
-TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleListBlueprintComponents(const TSharedPtr<FJsonObject>& Params)
-{
-    // Route through new architecture - all Blueprint commands now use the service layer and command registry
-    return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("list_blueprint_components"), Params);
-}
-
 // Helper function to convert string type to FEdGraphPinType
 FEdGraphPinType GetTypeFromString(const FString& TypeString)
 {
