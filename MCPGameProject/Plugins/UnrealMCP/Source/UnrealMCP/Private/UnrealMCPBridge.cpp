@@ -242,18 +242,17 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
             {
                 // Define command arrays for better maintenance
                 static const TArray<FString> EditorCommands = {
-                    TEXT("get_actors_in_level"), 
-                    TEXT("find_actors_by_name"),
                     TEXT("spawn_actor"),
                     TEXT("create_actor"),
-                    TEXT("delete_actor"), 
+                    TEXT("delete_actor"),
                     TEXT("set_actor_transform"),
                     TEXT("get_actor_properties"),
                     TEXT("set_actor_property"),
                     TEXT("set_light_property"),
                     TEXT("spawn_blueprint_actor"),
-                    TEXT("focus_viewport"), 
-                    TEXT("take_screenshot")
+                    TEXT("focus_viewport"),
+                    TEXT("take_screenshot"),
+                    TEXT("get_level_metadata")
                 };
                 
                 static const TArray<FString> BlueprintCommandsList = {

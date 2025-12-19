@@ -3,8 +3,6 @@
 #include "Services/EditorService.h"
 
 // Include all editor command headers
-#include "Commands/Editor/GetActorsInLevelCommand.h"
-#include "Commands/Editor/FindActorsByNameCommand.h"
 #include "Commands/Editor/SpawnActorCommand.h"
 #include "Commands/Editor/DeleteActorCommand.h"
 #include "Commands/Editor/SpawnBlueprintActorCommand.h"
@@ -12,6 +10,7 @@
 #include "Commands/Editor/GetActorPropertiesCommand.h"
 #include "Commands/Editor/SetActorPropertyCommand.h"
 #include "Commands/Editor/SetLightPropertyCommand.h"
+#include "Commands/Editor/GetLevelMetadataCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -23,8 +22,6 @@ void FEditorCommandRegistration::RegisterAllCommands()
     IEditorService& EditorService = FEditorService::Get();
     
     // Register actor manipulation commands
-    RegisterAndTrackCommand(MakeShared<FGetActorsInLevelCommand>(EditorService));
-    RegisterAndTrackCommand(MakeShared<FFindActorsByNameCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FSpawnActorCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FDeleteActorCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FSpawnBlueprintActorCommand>(EditorService));
@@ -32,7 +29,10 @@ void FEditorCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FGetActorPropertiesCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FSetActorPropertyCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FSetLightPropertyCommand>(EditorService));
-    
+
+    // Register consolidated metadata command (replaces get_actors_in_level, find_actors_by_name)
+    RegisterAndTrackCommand(MakeShared<FGetLevelMetadataCommand>(EditorService));
+
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:
     // - SetActorTransformCommand, GetActorPropertiesCommand, etc.

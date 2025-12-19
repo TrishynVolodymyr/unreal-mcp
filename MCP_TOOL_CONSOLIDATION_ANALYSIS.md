@@ -98,12 +98,13 @@ search_blueprint_actions(
 
 ---
 
-### 4. EDITOR_TOOLS (editor_mcp_server.py)
+### ✅ 4. EDITOR_TOOLS (editor_mcp_server.py) - DONE
 
-| Tool | Type | Recommendation |
-|------|------|----------------|
-| `get_actors_in_level` | **QUERY** | ⚠️ Consider merge → `get_level_metadata(fields=["actors"])` |
-| `find_actors_by_name` | **QUERY** | ⚠️ Consider merge → `get_level_metadata(filter=...)` |
+| Tool | Type | Status |
+|------|------|--------|
+| `get_level_metadata` | **QUERY** | ✅ NEW - Consolidated metadata tool |
+| ~~`get_actors_in_level`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_level_metadata(fields=["actors"])` |
+| ~~`find_actors_by_name`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_level_metadata(actor_filter=...)` |
 | `get_actor_properties` | **QUERY** | ✅ KEEP - Actor-specific, needs actor name |
 | `spawn_actor` | setter | keep |
 | `delete_actor` | setter | keep |
@@ -113,18 +114,20 @@ search_blueprint_actions(
 | `focus_viewport` | setter | keep (buggy) |
 | `spawn_blueprint_actor` | setter | keep |
 
-**Action Items:**
-1. **Create `get_level_metadata`** - Consolidate `get_actors_in_level` + `find_actors_by_name`
-   ```python
-   get_level_metadata(
-       fields: List[str] = ["actors"],  # Future: "world_settings", "lighting", etc.
-       actor_filter: str = None          # Pattern for name matching
-   )
-   ```
+**Completed:**
+- ✅ Created `get_level_metadata` with fields: `actors`, `*`
+- ✅ Supports `actor_filter` for pattern matching (replaces `find_actors_by_name`)
 
-**Trade-offs:**
-- Minor consolidation (2 → 1 tool)
-- Worth doing for API consistency
+**Usage:**
+```python
+# Get all actors in level
+get_level_metadata(fields=["actors"])
+
+# Get actors matching a pattern
+get_level_metadata(actor_filter="*PointLight*")
+```
+
+**Removed:** Old tools (`get_actors_in_level`, `find_actors_by_name`) have been removed
 
 ---
 
@@ -196,15 +199,12 @@ get_project_metadata(fields=["folder_contents"], folder_path="/Game/Blueprints")
 
 2. ~~**Create `get_project_metadata`** in PROJECT_TOOLS~~ ✅ DONE
 
-3. **Add `names_only` to `get_datatable_rows`** in DATATABLE_TOOLS
+3. ~~**Create `get_level_metadata`** in EDITOR_TOOLS~~ ✅ DONE
+
+4. **Add `names_only` to `get_datatable_rows`** in DATATABLE_TOOLS
    - Eliminates `get_datatable_row_names`
    - Risk: Very low
    - Effort: ~1 hour
-
-4. **Create `get_level_metadata`** in EDITOR_TOOLS
-   - Consolidates 2 query tools
-   - Risk: Low
-   - Effort: ~2 hours
 
 ### 🟢 Lower Priority (Consider but not essential)
 
@@ -228,7 +228,7 @@ get_project_metadata(fields=["folder_contents"], folder_path="/Game/Blueprints")
 | BLUEPRINT_TOOLS | 1 | 1 | 1 (DONE ✅) |
 | NODE_TOOLS | 2 | 0-2 | 0-2 (optional) |
 | BLUEPRINT_ACTION_TOOLS | 5 | 5 | 0 (keep separate) |
-| EDITOR_TOOLS | 3 | 2 | 1 |
+| EDITOR_TOOLS | 3 | 2 | 2 (DONE ✅) |
 | PROJECT_TOOLS | 5 (1 new + 4 deprecated) | 1 | 4 (DONE ✅) |
 | DATATABLE_TOOLS | 2 | 1 | 1 |
 | **TOTAL** | **19** | **11-13** | **9-11** |

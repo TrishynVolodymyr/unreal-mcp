@@ -272,15 +272,15 @@ def set_light_property(
     property_value
 ) -> Dict[str, Any]:
     """Implementation for setting properties on a light actor.
-    
+
     This function specifically handles properties of light actors by using
     specific property names that correspond to light component methods.
-    
+
     Args:
         name: Name of the light actor
         property_name: Name of the property to set (Intensity, LightColor, AttenuationRadius)
         property_value: Value to set the property to
-        
+
     Returns:
         Dict containing response from Unreal
     """
@@ -290,5 +290,36 @@ def set_light_property(
         "property_name": property_name,
         "property_value": property_value
     }
-    
+
     return send_unreal_command("set_light_property", params)
+
+
+def get_level_metadata(
+    ctx: Context,
+    fields: List[str] = None,
+    actor_filter: str = None
+) -> Dict[str, Any]:
+    """Get level metadata with selective field querying.
+
+    Consolidates: get_actors_in_level, find_actors_by_name
+
+    Args:
+        ctx: The MCP context
+        fields: List of fields to include. Options:
+            - "actors": All actors in the level
+            - "*": All fields (default if None)
+        actor_filter: Optional pattern for actor name filtering (supports wildcards *)
+
+    Returns:
+        Dictionary with requested level metadata
+    """
+    params = {}
+
+    if fields:
+        params["fields"] = fields
+
+    if actor_filter:
+        params["actor_filter"] = actor_filter
+
+    logger.info(f"Getting level metadata with fields: {fields}, filter: {actor_filter}")
+    return send_unreal_command("get_level_metadata", params)
