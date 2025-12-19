@@ -404,7 +404,7 @@ Test through AI assistant:
 | Blueprint | 15+ | `create_blueprint`, `add_component`, `compile_blueprint` |
 | Node | 12+ | `add_event_node`, `connect_nodes`, `create_node_by_action_name` |
 | UMG | 10+ | `create_widget_blueprint`, `add_widget_component`, `set_widget_property` |
-| Editor | 8+ | `spawn_actor`, `set_actor_transform`, `find_actors_by_name` |
+| Editor | 8+ | `spawn_actor`, `set_actor_transform`, `get_level_metadata` |
 | DataTable | 7+ | `create_datatable`, `add_rows`, `get_datatable_rows` |
 | Project | 9+ | `create_enhanced_input_action`, `create_folder`, `create_struct` |
 | Blueprint Action | 5+ | `search_blueprint_actions`, `get_actions_for_class` |
