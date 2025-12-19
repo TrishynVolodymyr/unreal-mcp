@@ -12,6 +12,7 @@
 #include "Commands/Project/UpdateStructCommand.h"
 #include "Commands/Project/ShowStructVariablesCommand.h"
 #include "Commands/Project/ListFolderContentsCommand.h"
+#include "Commands/Project/GetProjectMetadataCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -45,6 +46,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     Registry.RegisterCommand(MakeShared<FUpdateStructCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FShowStructVariablesCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FListFolderContentsCommand>(ProjectService));
+
+    // Register consolidated metadata command
+    Registry.RegisterCommand(MakeShared<FGetProjectMetadataCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }

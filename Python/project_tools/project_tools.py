@@ -11,6 +11,7 @@ from utils.project.struct_operations import create_struct as create_struct_impl
 from utils.project.struct_operations import update_struct as update_struct_impl
 from utils.project.struct_operations import show_struct_variables as show_struct_variables_impl
 from utils.project.struct_operations import list_folder_contents as list_folder_contents_impl
+from utils.project.struct_operations import get_project_metadata as get_project_metadata_impl
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -468,5 +469,60 @@ def register_project_tools(mcp: FastMCP):
             list_folder_contents(folder_path="/Game/Blueprints")
         """
         return list_folder_contents_impl(ctx, folder_path)
+
+    @mcp.tool()
+    def get_project_metadata(
+        ctx: Context,
+        fields: List[str] = None,
+        path: str = "/Game",
+        folder_path: str = None,
+        struct_name: str = None
+    ) -> Dict[str, Any]:
+        """
+        Get project metadata with selective field querying.
+
+        This tool consolidates multiple project query tools into one flexible interface.
+
+        Args:
+            fields: List of metadata fields to retrieve. Options:
+                - "input_actions": Enhanced Input Action assets in path
+                - "input_contexts": Input Mapping Context assets in path
+                - "structs": Struct variables (requires struct_name parameter)
+                - "folder_contents": Folder contents (requires folder_path parameter)
+                - "*": All available fields (default if None)
+            path: Base path for searching input actions/contexts (default: /Game)
+            folder_path: Required for "folder_contents" field - path to list
+            struct_name: Required for "structs" field - name of struct to inspect
+
+        Returns:
+            Dictionary with requested project metadata
+
+        Examples:
+            # Get all input-related metadata
+            get_project_metadata(
+                ctx,
+                fields=["input_actions", "input_contexts"],
+                path="/Game/Input"
+            )
+
+            # Get struct variables
+            get_project_metadata(
+                ctx,
+                fields=["structs"],
+                struct_name="PlayerStats",
+                path="/Game/DataStructures"
+            )
+
+            # Get folder contents
+            get_project_metadata(
+                ctx,
+                fields=["folder_contents"],
+                folder_path="/Game/Blueprints"
+            )
+
+            # Get everything (input actions and contexts in /Game)
+            get_project_metadata(ctx)
+        """
+        return get_project_metadata_impl(ctx, fields, path, folder_path, struct_name)
 
     logger.info("Project tools registered successfully")

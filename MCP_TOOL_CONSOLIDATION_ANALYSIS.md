@@ -128,14 +128,15 @@ search_blueprint_actions(
 
 ---
 
-### 5. PROJECT_TOOLS (project_mcp_server.py)
+### ✅ 5. PROJECT_TOOLS (project_mcp_server.py) - DONE
 
-| Tool | Type | Recommendation |
-|------|------|----------------|
-| `list_input_actions` | **QUERY** | ⚠️ Consider merge |
-| `list_input_mapping_contexts` | **QUERY** | ⚠️ Consider merge |
-| `show_struct_variables` | **QUERY** | ⚠️ Consider merge |
-| `list_folder_contents` | **QUERY** | ⚠️ Consider merge |
+| Tool | Type | Status |
+|------|------|--------|
+| `get_project_metadata` | **QUERY** | ✅ NEW - Consolidated metadata tool |
+| `list_input_actions` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["input_actions"])` |
+| `list_input_mapping_contexts` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["input_contexts"])` |
+| `show_struct_variables` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["structs"], struct_name=...)` |
+| `list_folder_contents` | **QUERY** | ⚠️ Deprecated - Use `get_project_metadata(fields=["folder_contents"], folder_path=...)` |
 | `create_input_mapping` | setter | keep |
 | `create_enhanced_input_action` | setter | keep |
 | `create_input_mapping_context` | setter | keep |
@@ -144,19 +145,21 @@ search_blueprint_actions(
 | `create_struct` | setter | keep |
 | `update_struct` | setter | keep |
 
-**Action Items:**
-1. **Create `get_project_metadata`** - Consolidates 4 query tools
-   ```python
-   get_project_metadata(
-       fields: List[str] = ["*"],  # "input_actions", "input_contexts", "structs", "folders"
-       folder_path: str = "/Game",  # For folder listing
-       struct_name: str = None      # For specific struct info
-   )
-   ```
+**Completed:**
+- ✅ Created `get_project_metadata` with fields: `input_actions`, `input_contexts`, `structs`, `folder_contents`, `*`
+- Old tools kept for backwards compatibility but consolidated functionality available
 
-**Trade-offs:**
-- Good consolidation (4 → 1 tool)
-- Different query targets but all are "project-level" metadata
+**Usage:**
+```python
+# Get all input-related metadata
+get_project_metadata(fields=["input_actions", "input_contexts"], path="/Game/Input")
+
+# Get struct variables
+get_project_metadata(fields=["structs"], struct_name="PlayerStats", path="/Game/DataStructures")
+
+# Get folder contents
+get_project_metadata(fields=["folder_contents"], folder_path="/Game/Blueprints")
+```
 
 ---
 
@@ -191,10 +194,7 @@ search_blueprint_actions(
 
 ### 🟡 Medium Priority (Good consolidation, moderate effort)
 
-2. **Create `get_project_metadata`** in PROJECT_TOOLS
-   - Consolidates 4 query tools
-   - Risk: Low - new tool, deprecate old ones
-   - Effort: ~2-3 hours
+2. ~~**Create `get_project_metadata`** in PROJECT_TOOLS~~ ✅ DONE
 
 3. **Add `names_only` to `get_datatable_rows`** in DATATABLE_TOOLS
    - Eliminates `get_datatable_row_names`
@@ -229,7 +229,7 @@ search_blueprint_actions(
 | NODE_TOOLS | 2 | 0-2 | 0-2 (optional) |
 | BLUEPRINT_ACTION_TOOLS | 5 | 5 | 0 (keep separate) |
 | EDITOR_TOOLS | 3 | 2 | 1 |
-| PROJECT_TOOLS | 4 | 1 | 3 |
+| PROJECT_TOOLS | 5 (1 new + 4 deprecated) | 1 | 4 (DONE ✅) |
 | DATATABLE_TOOLS | 2 | 1 | 1 |
 | **TOTAL** | **19** | **11-13** | **9-11** |
 
