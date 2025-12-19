@@ -4,6 +4,8 @@ Python/unreal_mcp.log
 # AI-related files
 .cursorrules
 .cursorignore
+.claude/settings.local.json
+.kiro/
 
 # Code-copy related files
 .codeignore

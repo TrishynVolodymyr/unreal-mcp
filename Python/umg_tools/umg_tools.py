@@ -7,19 +7,16 @@ This module provides tools for creating and manipulating UMG Widget Blueprints i
 import logging
 from typing import Any, Dict, List, Union
 from mcp.server.fastmcp import FastMCP, Context
-# Use _impl aliases for implementation functions
 from utils.widgets.widget_components import (
     create_widget_blueprint as create_widget_blueprint_impl,
     bind_widget_component_event as bind_widget_component_event_impl,
     add_child_widget_component_to_parent as add_child_widget_component_to_parent_impl,
     create_parent_and_child_widget_components as create_parent_and_child_widget_components_impl,
-    check_widget_component_exists as check_widget_component_exists_impl,
     set_widget_component_placement as set_widget_component_placement_impl,
-    get_widget_container_component_dimensions as get_widget_container_component_dimensions_impl,
     add_widget_component_to_widget as add_widget_component_to_widget_impl,
     set_widget_component_property as set_widget_component_property_impl,
-    get_widget_component_layout_impl,  # Import the new _impl function
-    set_text_block_widget_component_binding as set_text_block_widget_component_binding_impl
+    set_text_block_widget_component_binding as set_text_block_widget_component_binding_impl,
+    get_widget_blueprint_metadata_impl
 )
 from utils.widgets.widget_screenshot import (
     capture_widget_screenshot_impl
@@ -286,32 +283,6 @@ def register_umg_tools(mcp: FastMCP):
         )
 
     @mcp.tool()
-    def check_widget_component_exists(
-        ctx: Context,
-        widget_name: str,
-        component_name: str
-    ) -> Dict[str, object]:
-        """
-        Check if a component exists in the specified widget blueprint.
-        
-        Args:
-            widget_name: Name of the target Widget Blueprint
-            component_name: Name of the component to check
-            
-        Returns:
-            Dict containing existence status of the component
-            
-        Examples:
-            # Check if a component exists
-            check_widget_component_exists(
-                widget_name="MyWidget",
-                component_name="HeaderText"
-            )
-        """
-        # Call aliased implementation
-        return check_widget_component_exists_impl(ctx, widget_name, component_name)
-
-    @mcp.tool()
     def set_widget_component_placement(
         ctx: Context,
         widget_name: str,
@@ -358,46 +329,6 @@ def register_umg_tools(mcp: FastMCP):
         """
         # Call aliased implementation
         return set_widget_component_placement_impl(ctx, widget_name, component_name, position, size, alignment)
-        
-    @mcp.tool()
-    def get_widget_container_component_dimensions(
-        ctx: Context,
-        widget_name: str,
-        container_name: str = "CanvasPanel_0"
-    ) -> Dict[str, object]:
-        """
-        Get the dimensions of a container widget in a UMG Widget Blueprint.
-        
-        Args:
-            widget_name: Name of the target Widget Blueprint
-            container_name: Name of the container widget (defaults to "CanvasPanel_0" for the root canvas panel)
-            
-        Returns:
-            Dict containing the container dimensions and position
-            
-        Examples:
-            # Get dimensions of the root canvas
-            dimensions = get_widget_container_component_dimensions(
-                widget_name="MainMenu"
-            )
-            
-            # Get dimensions of a specific container
-            dimensions = get_widget_container_component_dimensions(
-                widget_name="InventoryScreen",
-                container_name="ItemsContainer"
-            )
-            
-            # Use the dimensions to place a widget in the top-right corner with a 10px margin
-            dimensions = get_widget_container_component_dimensions(widget_name="HUD")
-            set_widget_component_placement(
-                widget_name="HUD",
-                component_name="CloseButton",
-                position=[dimensions["width"] - 10, 10],
-                alignment=[1.0, 0.0]
-            )
-        """
-        # Call aliased implementation
-        return get_widget_container_component_dimensions_impl(ctx, widget_name, container_name)
 
     @mcp.tool()
     def add_widget_component_to_widget(
@@ -513,56 +444,84 @@ def register_umg_tools(mcp: FastMCP):
             raise
 
     @mcp.tool()
-    def get_widget_component_layout(ctx: Context, widget_name: str) -> dict:
+    def get_widget_blueprint_metadata(
+        ctx: Context,
+        widget_name: str,
+        fields: List[str] = None,
+        container_name: str = "CanvasPanel_0"
+    ) -> Dict[str, Any]:
         """
-        Get hierarchical layout information for all components within a UMG Widget Blueprint.
+        Get comprehensive metadata about a Widget Blueprint.
 
-        This includes component name, type, and layout properties derived from its slot
-        (e.g., position, size for CanvasPanelSlot; padding, alignment for BoxSlots).
-        The result is returned as a hierarchical tree structure that mirrors the actual
-        parent-child relationships in the widget.
+        This is the consolidated metadata tool that replaces:
+        - check_widget_component_exists → fields=["components"] then check component name
+        - get_widget_component_layout → fields=["layout"]
+        - get_widget_container_component_dimensions → fields=["dimensions"]
 
         Args:
-            widget_name: Name of the target Widget Blueprint (e.g., "WBP_MainMenu", "/Game/UI/MyWidget").
+            widget_name: Name of the target Widget Blueprint (e.g., "WBP_MainMenu", "/Game/UI/MyWidget")
+            fields: List of fields to include. If not specified, returns all fields. Options:
+                - "components" - List all widget components with basic info (name, type, is_variable, is_visible)
+                - "layout" - Full hierarchical layout with positions, sizes, anchors, slot properties
+                - "dimensions" - Container dimensions (width, height)
+                - "hierarchy" - Simplified parent/child widget tree (names and types only)
+                - "bindings" - Property bindings for dynamic content
+                - "events" - Bound events and delegates
+                - "variables" - Blueprint variables
+                - "functions" - Blueprint functions with inputs/outputs
+                - "*" - Return all fields (default)
+            container_name: Container name for dimensions field (default: "CanvasPanel_0")
 
         Returns:
             Dict containing:
-                - success (bool): True if the operation succeeded.
-                - message (str): Status message.
-                - hierarchy (dict): Root component with the following structure:
-                    - name (str): Component name.
-                    - type (str): Component class name (e.g., "TextBlock", "Button").
-                    - slot_properties (dict): Layout properties based on the slot type.
-                        - position (list[float]): [X, Y] (for CanvasPanelSlot)
-                        - size (list[float]): [Width, Height] (for CanvasPanelSlot)
-                        - padding (list[float]): [L, T, R, B] (for BoxSlot, BorderSlot, etc.)
-                        - horizontal_alignment (str): e.g., "HAlign_Fill" (for BoxSlot, BorderSlot, etc.)
-                        - vertical_alignment (str): e.g., "VAlign_Center" (for BoxSlot, BorderSlot, etc.)
-                        - size_rule (str): e.g., "Fill" (for BoxSlot size)
-                        - size_value (float): Value associated with size_rule (for BoxSlot size)
-                        - z_order (int): (for CanvasPanelSlot)
-                        - slot_type (str): Type of slot (e.g., "CanvasPanelSlot", "VerticalBoxSlot")
-                    - children (list[dict]): List of child components with the same structure.
+                - success (bool): True if the operation succeeded
+                - widget_name (str): Name of the widget blueprint
+                - asset_path (str): Full asset path
+                - parent_class (str): Parent class name
+                - components (dict): Component list with count (if requested)
+                - layout (dict): Hierarchical layout info (if requested)
+                - dimensions (dict): Container dimensions (if requested)
+                - hierarchy (dict): Simple widget tree (if requested)
+                - bindings (dict): Property bindings (if requested)
+                - events (dict): Event bindings (if requested)
+                - variables (dict): Blueprint variables (if requested)
+                - functions (dict): Blueprint functions (if requested)
+                - error (str): Error message if failed
 
         Examples:
-            # Get layout info for a widget
-            layout = get_widget_component_layout(widget_name="WBP_PricingPage")
-            if layout.get("success"):
-                hierarchy = layout.get("hierarchy", {})
-                print(f"Root component: {hierarchy.get('name')} ({hierarchy.get('type')})")
-                
-                # Process children recursively
-                def process_children(component, depth=0):
-                    indent = "  " * depth
-                    children = component.get("children", [])
-                    for child in children:
-                        print(f"{indent}- {child['name']} ({child['type']})")
-                        process_children(child, depth + 1)
-                
-                process_children(hierarchy)
+            # Get all metadata
+            metadata = get_widget_blueprint_metadata(widget_name="WBP_MainMenu")
+
+            # Check if a component exists (replaces check_widget_component_exists)
+            metadata = get_widget_blueprint_metadata(
+                widget_name="WBP_MainMenu",
+                fields=["components"]
+            )
+            exists = any(c["name"] == "HeaderText" for c in metadata.get("components", {}).get("components", []))
+
+            # Get layout info (replaces get_widget_component_layout)
+            metadata = get_widget_blueprint_metadata(
+                widget_name="WBP_MainMenu",
+                fields=["layout"]
+            )
+            layout = metadata.get("layout", {})
+
+            # Get container dimensions (replaces get_widget_container_component_dimensions)
+            metadata = get_widget_blueprint_metadata(
+                widget_name="WBP_MainMenu",
+                fields=["dimensions"],
+                container_name="CanvasPanel_0"
+            )
+            width = metadata.get("dimensions", {}).get("width", 1920)
+            height = metadata.get("dimensions", {}).get("height", 1080)
+
+            # Get multiple specific fields
+            metadata = get_widget_blueprint_metadata(
+                widget_name="WBP_MainMenu",
+                fields=["components", "variables", "bindings"]
+            )
         """
-        # Call the implementation function from the utils module
-        return get_widget_component_layout_impl(ctx, widget_name)
+        return get_widget_blueprint_metadata_impl(ctx, widget_name, fields, container_name)
 
     @mcp.tool()
     def capture_widget_screenshot(

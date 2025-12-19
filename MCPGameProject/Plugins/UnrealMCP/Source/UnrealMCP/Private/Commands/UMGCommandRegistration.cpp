@@ -7,11 +7,9 @@
 #include "Commands/UMG/SetWidgetPropertyCommand.h"
 #include "Commands/UMG/AddChildWidgetCommand.h"
 #include "Commands/UMG/CreateParentChildWidgetCommand.h"
-#include "Commands/UMG/CheckWidgetComponentExistsCommand.h"
 #include "Commands/UMG/SetWidgetPlacementCommand.h"
-#include "Commands/UMG/GetWidgetContainerDimensionsCommand.h"
-#include "Commands/UMG/GetWidgetComponentLayoutCommand.h"
 #include "Commands/UMG/CaptureWidgetScreenshotCommand.h"
+#include "Commands/UMG/GetWidgetBlueprintMetadataCommand.h"
 #include "Services/UMG/UMGService.h"
 
 // Static member definition
@@ -32,11 +30,9 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterSetWidgetPropertyCommand();
     RegisterAddChildWidgetCommand();
     RegisterCreateParentChildWidgetCommand();
-    RegisterCheckWidgetComponentExistsCommand();
     RegisterSetWidgetPlacementCommand();
-    RegisterGetWidgetContainerDimensionsCommand();
-    RegisterGetWidgetComponentLayoutCommand();
     RegisterCaptureWidgetScreenshotCommand();
+    RegisterGetWidgetBlueprintMetadataCommand();
 
     // TODO: Register remaining 22 UMG commands when their classes are implemented
     // For now, we'll register the core commands that exist
@@ -104,14 +100,6 @@ void FUMGCommandRegistration::RegisterSetTextBlockBindingCommand()
     RegisterAndTrackCommand(Command);
 }
 
-void FUMGCommandRegistration::RegisterCheckWidgetComponentExistsCommand()
-{
-    // Create shared pointer to the UMG service singleton for the new architecture
-    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
-    TSharedPtr<FCheckWidgetComponentExistsCommand> Command = MakeShared<FCheckWidgetComponentExistsCommand>(UMGServicePtr);
-    RegisterAndTrackCommand(Command);
-}
-
 void FUMGCommandRegistration::RegisterSetWidgetPlacementCommand()
 {
     // Create shared pointer to the UMG service singleton for the new architecture
@@ -120,19 +108,11 @@ void FUMGCommandRegistration::RegisterSetWidgetPlacementCommand()
     RegisterAndTrackCommand(Command);
 }
 
-void FUMGCommandRegistration::RegisterGetWidgetContainerDimensionsCommand()
+void FUMGCommandRegistration::RegisterGetWidgetBlueprintMetadataCommand()
 {
     // Create shared pointer to the UMG service singleton for the new architecture
     TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
-    TSharedPtr<FGetWidgetContainerDimensionsCommand> Command = MakeShared<FGetWidgetContainerDimensionsCommand>(UMGServicePtr);
-    RegisterAndTrackCommand(Command);
-}
-
-void FUMGCommandRegistration::RegisterGetWidgetComponentLayoutCommand()
-{
-    // Create shared pointer to the UMG service singleton for the new architecture
-    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
-    TSharedPtr<FGetWidgetComponentLayoutCommand> Command = MakeShared<FGetWidgetComponentLayoutCommand>(UMGServicePtr);
+    TSharedPtr<FGetWidgetBlueprintMetadataCommand> Command = MakeShared<FGetWidgetBlueprintMetadataCommand>(UMGServicePtr);
     RegisterAndTrackCommand(Command);
 }
 

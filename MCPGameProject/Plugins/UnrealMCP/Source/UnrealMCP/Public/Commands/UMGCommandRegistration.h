@@ -33,11 +33,9 @@ private:
     static void RegisterSetTextBlockBindingCommand();
     static void RegisterAddWidgetComponentCommand();
     static void RegisterSetWidgetPropertyCommand();
-    static void RegisterCheckWidgetComponentExistsCommand();
     static void RegisterSetWidgetPlacementCommand();
-    static void RegisterGetWidgetContainerDimensionsCommand();
-    static void RegisterGetWidgetComponentLayoutCommand();
     static void RegisterCaptureWidgetScreenshotCommand();
+    static void RegisterGetWidgetBlueprintMetadataCommand();
 
     // Widget-specific add commands
     static void RegisterAddWidgetSwitcherCommand();
