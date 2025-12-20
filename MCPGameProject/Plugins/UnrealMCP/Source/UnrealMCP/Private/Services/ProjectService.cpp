@@ -609,13 +609,29 @@ bool FProjectService::CreateStruct(const FString& StructName, const FString& Pat
 bool FProjectService::UpdateStruct(const FString& StructName, const FString& Path, const FString& Description, const TArray<TSharedPtr<FJsonObject>>& Properties, FString& OutError)
 {
     // Create the struct asset path
-    FString AssetName = StructName;
-    FString PackagePath = Path;
-    if (!PackagePath.EndsWith(TEXT("/")))
+    // If StructName already contains a full path (starts with /), use it directly
+    FString PackageName;
+    if (StructName.StartsWith(TEXT("/")))
     {
-        PackagePath += TEXT("/");
+        // StructName is a full path - use it directly
+        // Remove any trailing asset name duplication (e.g., "/Game/Structs/MyStruct.MyStruct" -> "/Game/Structs/MyStruct")
+        PackageName = StructName;
+        int32 DotIndex;
+        if (PackageName.FindLastChar('.', DotIndex))
+        {
+            PackageName = PackageName.Left(DotIndex);
+        }
     }
-    FString PackageName = PackagePath + AssetName;
+    else
+    {
+        // StructName is just a name - combine with Path
+        FString PackagePath = Path;
+        if (!PackagePath.EndsWith(TEXT("/")))
+        {
+            PackagePath += TEXT("/");
+        }
+        PackageName = PackagePath + StructName;
+    }
 
     // Check if the struct exists
     if (!UEditorAssetLibrary::DoesAssetExist(PackageName))

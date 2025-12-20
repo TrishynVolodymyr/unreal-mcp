@@ -154,6 +154,7 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     FString NodeTitle = TEXT("Unknown");
     FString NodeType = TEXT("Unknown");
     UClass* TargetClass = nullptr;
+    FString WarningMessage; // For warnings like WidgetBlueprintLibrary usage in non-Widget Blueprints
     
     // After parameter parsing and before any node type handling
     // --- PATCH: Rewrite 'Get'/'Set' with variable_name before any node type handling ---
@@ -262,9 +263,15 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         else
         {
             FString DatabaseErrorMessage;
-            if (FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, ClassName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType, &DatabaseErrorMessage))
+            FString DatabaseWarningMessage;
+            if (FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(EffectiveFunctionName, ClassName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType, &DatabaseErrorMessage, &DatabaseWarningMessage))
             {
                 UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Successfully created node '%s' using Blueprint Action Database"), *NodeTitle);
+                // Store warning for later inclusion in result
+                if (!DatabaseWarningMessage.IsEmpty())
+                {
+                    WarningMessage = DatabaseWarningMessage;
+                }
             }
             else if (!DatabaseErrorMessage.IsEmpty())
             {
@@ -355,9 +362,9 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     // Mark blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     
-    // Return success result
+    // Return success result (include warning if present)
     return FNodeResultBuilder::BuildNodeResult(true, FString::Printf(TEXT("Successfully created '%s' node (%s)"), *NodeTitle, *NodeType),
-                          BlueprintName, EffectiveFunctionName, NewNode, NodeTitle, NodeType, TargetClass, PositionX, PositionY);
+                          BlueprintName, EffectiveFunctionName, NewNode, NodeTitle, NodeType, TargetClass, PositionX, PositionY, WarningMessage);
 }
 
 bool FBlueprintNodeCreationService::ParseJsonParameters(const FString& JsonParams, TSharedPtr<FJsonObject>& OutParamsObject, TSharedPtr<FJsonObject>& OutResultObj)
