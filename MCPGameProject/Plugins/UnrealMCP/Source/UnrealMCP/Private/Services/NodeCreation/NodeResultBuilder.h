@@ -40,6 +40,7 @@ public:
         const FString& NodeType = TEXT(""),
         UClass* TargetClass = nullptr,
         int32 PositionX = 0,
-        int32 PositionY = 0
+        int32 PositionY = 0,
+        const FString& Warning = TEXT("")
     );
 };
