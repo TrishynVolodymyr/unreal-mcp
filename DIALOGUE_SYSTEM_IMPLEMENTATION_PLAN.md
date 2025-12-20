@@ -12,28 +12,6 @@
 
 ---
 
-## 🔄 REVISED PLAN: ZERO C++ FILES
-
-**This plan has been updated to eliminate ALL manual C++ file creation:**
-
-### What Changed:
-- ❌ **REMOVED**: Manual creation of `DialogueStructs.h` (C++ header)
-- ❌ **REMOVED**: Manual creation of `DialogueComponent.h/.cpp` (C++ component)
-- ✅ **REPLACED WITH**: `create_struct` MCP tool for DialogueAnswer and DialogueRow structs
-- ✅ **REPLACED WITH**: Blueprint-only dialogue logic in BP_DialogueNPC using Blueprint variables and functions
-- ✅ **REPLACED WITH**: `add_blueprint_variable` for all dialogue state (NPCName, DialogueTable, InteractionRadius, bDialogueActive)
-- ✅ **REPLACED WITH**: `create_custom_blueprint_function` and `node_tools` for StartDialogue/EndDialogue logic
-
-### Why This Matters:
-The original plan included C++ files which would require:
-1. Manual file creation outside of MCP tools
-2. Manual plugin compilation
-3. Violating the "100% MCP tools only" requirement
-
-**This revised plan proves that complex gameplay systems can be built entirely through MCP tools without any manual C++ coding.**
-
----
-
 ## Overview
 A simple dialogue system for testing the Unreal MCP plugin. Allows the Third Person Character to interact with NPCs by pressing E key when within interaction radius. Shows a dialogue widget with NPC name and multiple answer options.
 
@@ -257,6 +235,29 @@ add_component_to_blueprint(
 
 **NOTE**: Detailed node creation will be added in implementation phase using `create_node`, `connect_nodes`, etc.
 
+### 2.5 ⚠️ COMPILATION CHECKPOINT #1
+
+**CRITICAL**: After completing all node creation and connections for BP_DialogueNPC, compile the blueprint immediately.
+
+```python
+# Compile BP_DialogueNPC to verify all nodes and connections are valid
+compile_blueprint(blueprint_name="BP_DialogueNPC")
+```
+
+**Verify**:
+- [ ] Compilation succeeds without errors
+- [ ] No "unconnected pin" warnings for required pins
+- [ ] No type mismatch errors between connected pins
+- [ ] All custom functions compile correctly
+
+**If compilation fails**:
+1. Document the specific error message
+2. Identify which node or connection caused the issue
+3. Fix the problem before proceeding to Phase 3
+4. Re-compile until successful
+
+**DO NOT proceed to Phase 3 until BP_DialogueNPC compiles successfully.**
+
 ---
 
 ## Phase 3: Widget Blueprints
@@ -300,6 +301,17 @@ set_widget_property(
 ```
 
 **Simple Design**: Just centered text, no fancy styling needed for testing.
+
+### 3.1.1 ⚠️ COMPILATION CHECKPOINT #2a
+
+```python
+# Compile WBP_InteractionIndicator to verify widget structure
+compile_blueprint(blueprint_name="WBP_InteractionIndicator")
+```
+
+**Verify**:
+- [ ] Widget compiles without errors
+- [ ] Widget hierarchy is valid (CanvasPanel → TextBlock)
 
 ### 3.2 Create Dialogue Widget
 
@@ -361,6 +373,18 @@ add_blueprint_variable(
 
 **Event Graph** (to be created with node_tools):
 - BTN_Answer.OnClicked → Call DialogueWidget.OnAnswerSelected(AnswerIndex)
+
+### 3.3.1 ⚠️ COMPILATION CHECKPOINT #2b
+
+```python
+# Compile WBP_AnswerButton to verify widget structure and event binding
+compile_blueprint(blueprint_name="WBP_AnswerButton")
+```
+
+**Verify**:
+- [ ] Widget compiles without errors
+- [ ] Button OnClicked event is properly bound
+- [ ] Widget hierarchy is valid (Button → TextBlock)
 
 ### 3.4 Add Variables to Dialogue Widget
 
@@ -432,6 +456,28 @@ create_custom_blueprint_function(
 2. Remove widget from parent
 3. Set input mode to Game Only
 
+### 3.6 ⚠️ COMPILATION CHECKPOINT #2c
+
+```python
+# Compile WBP_DialogueWindow to verify all functions and widget bindings
+compile_blueprint(blueprint_name="WBP_DialogueWindow")
+```
+
+**Verify**:
+- [ ] Widget compiles without errors
+- [ ] InitializeDialogue function compiles correctly
+- [ ] OnAnswerSelected function compiles correctly
+- [ ] All variable types are valid (NPCReference, AnswerButtonClass, CurrentDialogueData)
+- [ ] Widget hierarchy is valid
+
+**If any widget compilation fails**:
+1. Document the specific error message
+2. Check widget hierarchy parent-child relationships
+3. Verify variable types match expected Blueprint/Struct types
+4. Fix issues before proceeding to Phase 4
+
+**DO NOT proceed to Phase 4 until ALL widget blueprints compile successfully.**
+
 ---
 
 ## Phase 4: Player Interaction Setup
@@ -498,6 +544,24 @@ add_mapping_to_context(
 
 **NOTE**: Detailed node creation commands will be provided during implementation phase.
 
+### 4.4.1 ⚠️ COMPILATION CHECKPOINT #3
+
+```python
+# Compile the player character blueprint after adding interaction logic
+compile_blueprint(blueprint_name="BP_ThirdPersonCharacter")  # or actual player BP name
+```
+
+**Verify**:
+- [ ] Player blueprint compiles without errors
+- [ ] IA_Interact Enhanced Input event is properly bound
+- [ ] Sphere overlap and cast nodes are correctly connected
+- [ ] Call to BP_DialogueNPC.StartDialogue() has correct pin connections
+
+**If compilation fails**:
+1. Check that IA_Interact Input Action exists and is valid
+2. Verify cast target class matches BP_DialogueNPC exactly
+3. Ensure all execution pins are connected in the flow
+
 ### 4.5 Connect Dialogue Events in BP_DialogueNPC
 
 **Using MCP Tool**: `node_tools`
@@ -513,6 +577,48 @@ add_mapping_to_context(
 1. Check if DialogueTable is valid
 2. Get first row from DialogueTable
 3. Trigger OnDialogueStartedInternal event with row data
+
+### 4.6 ⚠️ COMPILATION CHECKPOINT #4 (FINAL)
+
+**CRITICAL**: This is the final compilation checkpoint before testing. ALL blueprints must compile successfully.
+
+```python
+# Final compilation of BP_DialogueNPC with all dialogue event logic
+compile_blueprint(blueprint_name="BP_DialogueNPC")
+
+# Re-verify all widget blueprints still compile (in case of cross-references)
+compile_blueprint(blueprint_name="WBP_InteractionIndicator")
+compile_blueprint(blueprint_name="WBP_AnswerButton")
+compile_blueprint(blueprint_name="WBP_DialogueWindow")
+
+# Re-verify player blueprint
+compile_blueprint(blueprint_name="BP_ThirdPersonCharacter")  # or actual player BP name
+```
+
+**Verify ALL of the following**:
+- [ ] BP_DialogueNPC compiles without errors
+- [ ] OnDialogueStartedInternal custom event works correctly
+- [ ] Widget creation and AddToViewport nodes are valid
+- [ ] InitializeDialogue call has correct parameters
+- [ ] WBP_InteractionIndicator compiles without errors
+- [ ] WBP_AnswerButton compiles without errors
+- [ ] WBP_DialogueWindow compiles without errors
+- [ ] Player character blueprint compiles without errors
+
+**Common issues to check at this stage**:
+1. **Type mismatches**: Variable types between blueprints don't match
+2. **Missing connections**: Required execution or data pins not connected
+3. **Invalid references**: Widget class references point to non-existent assets
+4. **Circular dependencies**: Blueprints referencing each other incorrectly
+
+**If ANY compilation fails**:
+1. Document the specific error message and blueprint
+2. Trace back to identify the root cause
+3. Fix the issue in the appropriate blueprint
+4. Re-compile ALL blueprints to ensure fix didn't break others
+5. Repeat until all compilations succeed
+
+**DO NOT proceed to Phase 5 (Testing) until ALL blueprints compile successfully with ZERO errors.**
 
 ---
 
@@ -614,11 +720,14 @@ This simple implementation has clear extension points for future features:
 
 **Recommended sequence for AI implementing this (100% MCP TOOLS ONLY)**:
 
+⚠️ **CRITICAL**: Each phase must end with a compilation checkpoint. Do NOT proceed to the next phase until all blueprints compile successfully. This catches errors early when they are easier to diagnose and fix.
+
 1. **Create Data Structures** (Phase 1)
    - Create DialogueAnswer struct via `create_struct`
    - Create DialogueRow struct via `create_struct`
    - Create DT_TestNPCDialogue DataTable via `create_datatable`
    - Populate sample dialogue rows (manually in editor or via datatable_tools)
+   - *(No compilation checkpoint - structs/datatables don't compile)*
 
 2. **Build NPC Blueprint** (Phase 2)
    - Create BP_DialogueNPC via `create_blueprint`
@@ -627,14 +736,22 @@ This simple implementation has clear extension points for future features:
    - Configure component properties via `set_component_property`
    - Create custom functions via `create_custom_blueprint_function`
    - Implement event graph logic via `node_tools`
+   - **Connect all nodes in event graph**
+   - ⚠️ **CHECKPOINT #1**: `compile_blueprint(BP_DialogueNPC)` - MUST PASS before Phase 3
 
 3. **Build Widget Blueprints** (Phase 3)
    - Create WBP_InteractionIndicator via UMG MCP tools
-   - Create WBP_DialogueWindow via UMG MCP tools
+   - ⚠️ **CHECKPOINT #2a**: `compile_blueprint(WBP_InteractionIndicator)` - MUST PASS
    - Create WBP_AnswerButton via UMG MCP tools
+   - Add button event graph logic via `node_tools`
+   - **Connect all nodes**
+   - ⚠️ **CHECKPOINT #2b**: `compile_blueprint(WBP_AnswerButton)` - MUST PASS
+   - Create WBP_DialogueWindow via UMG MCP tools
    - Add widget variables via `add_blueprint_variable`
    - Create widget functions via `create_custom_blueprint_function`
    - Implement widget event graphs via `node_tools`
+   - **Connect all nodes in functions**
+   - ⚠️ **CHECKPOINT #2c**: `compile_blueprint(WBP_DialogueWindow)` - MUST PASS before Phase 4
 
 4. **Setup Input System** (Phase 4)
    - Check existing inputs via `list_input_actions` and `list_input_mapping_contexts`
@@ -642,16 +759,32 @@ This simple implementation has clear extension points for future features:
    - Create/update IMC_Default via `create_input_mapping_context`
    - Map E key via `add_mapping_to_context`
    - Add interaction logic to player BP via `node_tools`
+   - **Connect all nodes**
+   - ⚠️ **CHECKPOINT #3**: `compile_blueprint(PlayerCharacter)` - MUST PASS
 
 5. **Connect Everything** (Phase 4 continued)
    - Add dialogue event handling to BP_DialogueNPC via `node_tools`
    - Wire up widget creation and initialization via `node_tools`
-   - Compile all blueprints via `compile_blueprint`
+   - **Connect all nodes**
+   - ⚠️ **CHECKPOINT #4 (FINAL)**: Compile ALL blueprints:
+     - `compile_blueprint(BP_DialogueNPC)`
+     - `compile_blueprint(WBP_InteractionIndicator)`
+     - `compile_blueprint(WBP_AnswerButton)`
+     - `compile_blueprint(WBP_DialogueWindow)`
+     - `compile_blueprint(PlayerCharacter)`
+   - **ALL must pass with ZERO errors before testing**
 
 6. **Test & Debug** (Phase 5)
    - Place BP_DialogueNPC in test level
    - Verify all functionality via checklist
    - Document any MCP tool limitations discovered
+
+**Why Compilation Checkpoints Matter**:
+- Catches type mismatches between connected pins immediately
+- Identifies missing required connections before they cascade
+- Validates that AI-created node logic is syntactically correct
+- Proves MCP tools are creating valid, compilable Blueprint graphs
+- Makes debugging easier by isolating issues to specific phases
 
 **Total Estimated Time**: ~3-4 hours (accounting for Blueprint node creation via MCP tools)
 
@@ -704,6 +837,11 @@ The implementing AI will use these MCP tools exclusively:
 - ⚠️ **NO MANUAL WORKAROUNDS**: If an MCP tool doesn't exist or fails, document it and stop - don't open Unreal Editor manually
 - ⚠️ **NO C++ FILES**: Do NOT create DialogueComponent.h/.cpp or DialogueStructs.h manually - use `create_struct` and Blueprint-based logic
 - ⚠️ **TEST THE PLUGIN**: This is about validating MCP tool coverage, not just building a dialogue system
+- ⚠️ **COMPILATION CHECKPOINTS ARE MANDATORY**: After each phase where nodes are created and connected, you MUST compile the blueprint and verify it succeeds before proceeding. This is crucial for:
+  - Catching type mismatches early
+  - Identifying missing connections before they cascade into larger problems
+  - Validating that MCP-created nodes form valid Blueprint logic
+  - Proving the MCP plugin creates production-quality, compilable code
 - **Keep it simple**: No fancy UI, no animations, minimal Blueprint node graphs
 - **Test incrementally**: Compile after each blueprint using `compile_blueprint` MCP tool
 - **Use placeholder assets**: `/Engine/BasicShapes/Cube.Cube` for NPC mesh, simple text for UI
@@ -711,6 +849,7 @@ The implementing AI will use these MCP tools exclusively:
 - **Blueprint-only logic**: All dialogue logic lives in BP_DialogueNPC, no C++ component needed
 - **Document MCP gaps**: If any functionality can't be completed via MCP, report it as a plugin limitation
 - **Node creation**: Use `node_tools` for all Blueprint graph logic - Event BeginPlay, Event Tick, custom functions, etc.
+- **Connect nodes before compiling**: Always connect ALL nodes in a graph before running compilation checkpoint - unconnected required pins will cause compilation errors
 
 ## MCP Tool Limitations to Watch For
 

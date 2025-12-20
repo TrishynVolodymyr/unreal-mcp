@@ -3,11 +3,14 @@
 #include "Services/PropertyService.h"
 #include "Services/ComponentService.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 #include "EdGraphSchema_K2.h"
 #include "GameFramework/Pawn.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "Components/ActorComponent.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Engine/Blueprint.h"
 
 bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, const FString& VariableName, const FString& VariableType, bool bIsExposed, FBlueprintCache& Cache)
 {
@@ -93,6 +96,10 @@ bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, co
 
     // Mark blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+
+    // Compile blueprint so the variable is immediately available on the CDO
+    // This is necessary for set_blueprint_variable_value to work right after adding a variable
+    FKismetEditorUtilities::CompileBlueprint(Blueprint);
 
     // Invalidate cache since blueprint was modified
     Cache.InvalidateBlueprint(Blueprint->GetName());
@@ -348,7 +355,7 @@ UObject* FBlueprintPropertyService::ResolveVariableType(const FString& TypeStrin
         return reinterpret_cast<UObject*>(1); // Non-null placeholder for basic types
     }
 
-    // Try to find as a class
+    // Try to find as a native C++ class first
     if (UClass* FoundClass = FindFirstObject<UClass>(*TypeString, EFindFirstObjectOptions::None, ELogVerbosity::Warning, TEXT("ResolveVariableType")))
     {
         return FoundClass;
@@ -360,11 +367,10 @@ UObject* FBlueprintPropertyService::ResolveVariableType(const FString& TypeStrin
         return FoundStruct;
     }
 
-    // Try loading from common paths
+    // Try loading from common paths for native types
     TArray<FString> SearchPaths = {
         FString::Printf(TEXT("/Script/Engine.%s"), *TypeString),
-        FString::Printf(TEXT("/Script/CoreUObject.%s"), *TypeString),
-        FString::Printf(TEXT("/Game/Blueprints/%s"), *TypeString)
+        FString::Printf(TEXT("/Script/CoreUObject.%s"), *TypeString)
     };
 
     for (const FString& SearchPath : SearchPaths)
@@ -380,5 +386,63 @@ UObject* FBlueprintPropertyService::ResolveVariableType(const FString& TypeStrin
         }
     }
 
+    // Check if it's a Blueprint class name (look for BP_ prefix or try to find as Blueprint)
+    // Search all loaded Blueprints for a matching name
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    // Try multiple search strategies for Blueprint classes
+    TArray<FString> BlueprintSearchNames;
+    BlueprintSearchNames.Add(TypeString);  // Exact name
+
+    // If TypeString is a full path like /Game/Dialogue/Blueprints/BP_DialogueNPC, use it directly
+    if (TypeString.StartsWith(TEXT("/")))
+    {
+        FString BlueprintPath = TypeString;
+        // Ensure it ends with the Blueprint asset name suffix if needed
+        if (!BlueprintPath.EndsWith(TEXT("_C")))
+        {
+            // Try to load as Blueprint asset first
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *BlueprintPath);
+            if (Blueprint && Blueprint->GeneratedClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found Blueprint '%s' from full path, using GeneratedClass"), *TypeString);
+                return Blueprint->GeneratedClass;
+            }
+            // Try with _C suffix for the generated class
+            FString GeneratedClassPath = BlueprintPath + TEXT("_C");
+            if (UClass* LoadedClass = LoadClass<UObject>(nullptr, *GeneratedClassPath))
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found Blueprint GeneratedClass from path '%s'"), *GeneratedClassPath);
+                return LoadedClass;
+            }
+        }
+    }
+
+    // Search in Asset Registry for Blueprint assets matching this name
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+    Filter.bRecursiveClasses = true;
+    Filter.bRecursivePaths = true;
+
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        // Check if asset name matches our type string
+        if (AssetData.AssetName.ToString() == TypeString)
+        {
+            // Load the Blueprint and return its GeneratedClass
+            UBlueprint* Blueprint = Cast<UBlueprint>(AssetData.GetAsset());
+            if (Blueprint && Blueprint->GeneratedClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found Blueprint '%s' via Asset Registry, using GeneratedClass"), *TypeString);
+                return Blueprint->GeneratedClass;
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("ResolveVariableType: Could not resolve type '%s'"), *TypeString);
     return nullptr;
 }

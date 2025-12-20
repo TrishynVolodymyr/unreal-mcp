@@ -8,40 +8,55 @@ Actor tools allow you to manipulate actors in the Unreal Engine scene.
 
 ## Actor Tools
 
-### get_actors_in_level
+### get_level_metadata
 
-Get a list of all actors in the current level.
+Get level metadata with selective field querying. This consolidated tool replaces the deprecated `get_actors_in_level` and `find_actors_by_name` tools.
 
 **Parameters:**
-- None
+- `fields` (array, optional) - List of metadata fields to retrieve. Options:
+  - `"actors"` - All actors in the level (default)
+  - `"*"` - All available fields
+- `actor_filter` (string, optional) - Pattern for actor name filtering (supports wildcards `*`)
 
 **Returns:**
-- List of all actors with their properties
+- Dict containing requested level metadata with `actors` object containing `count` and `items`
 
-**Example:**
+**Examples:**
+
+Get all actors in the level:
 ```json
 {
-  "command": "get_actors_in_level",
+  "command": "get_level_metadata",
   "params": {}
 }
 ```
 
-### find_actors_by_name
-
-Find actors in the current level by name pattern.
-
-**Parameters:**
-- `pattern` (string) - The name or partial name pattern to search for
-
-**Returns:**
-- List of matching actor names
-
-**Example:**
+Get all actors (explicit):
 ```json
 {
-  "command": "find_actors_by_name",
+  "command": "get_level_metadata",
   "params": {
-    "pattern": "Cube"
+    "fields": ["actors"]
+  }
+}
+```
+
+Filter actors by name pattern (replaces `find_actors_by_name`):
+```json
+{
+  "command": "get_level_metadata",
+  "params": {
+    "actor_filter": "*Light*"
+  }
+}
+```
+
+Get actors starting with "Floor":
+```json
+{
+  "command": "get_level_metadata",
+  "params": {
+    "actor_filter": "Floor*"
   }
 }
 ```
@@ -338,7 +353,7 @@ Supported actor types for the `create_actor` command:
 
 **Error: "Actor 'X' not found in the current level"**
 - **Cause**: Actor name doesn't exist or is misspelled
-- **Solution**: Use find_actors_by_name to locate existing actors, check exact spelling
+- **Solution**: Use `get_level_metadata(actor_filter="*pattern*")` to locate existing actors, check exact spelling
 
 **Error: "Invalid parameters for command 'set_light_property'"**
 - **Cause**: Incorrect property_value format, especially for LightColor
@@ -354,7 +369,7 @@ Supported actor types for the `create_actor` command:
 
 ### Best Practices
 
-1. **Use find_actors_by_name first**: Check what actors exist before operations
+1. **Use get_level_metadata first**: Check what actors exist before operations with `get_level_metadata()` or filter with `actor_filter`
 2. **Use full Blueprint paths**: Specify complete paths for predictable behavior
 3. **Check actor types**: Verify actor supports the property you're trying to set
 4. **Use unique names**: Ensure actor names are unique when spawning
@@ -392,8 +407,8 @@ Supported actor types for the `create_actor` command:
 
 ### Debugging Workflow
 
-1. **List actors**: Use get_actors_in_level to see current scene state
-2. **Find specific actors**: Use find_actors_by_name with patterns
-3. **Check properties**: Use get_actor_properties to see current values
+1. **List actors**: Use `get_level_metadata()` to see current scene state
+2. **Find specific actors**: Use `get_level_metadata(actor_filter="*pattern*")` with wildcard patterns
+3. **Check properties**: Use `get_actor_properties` to see current values
 4. **Test changes**: Make small changes and verify results
 5. **Handle errors**: Check response messages for specific error details

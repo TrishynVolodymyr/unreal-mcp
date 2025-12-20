@@ -7,7 +7,6 @@
 #include "Commands/Blueprint/CompileBlueprintCommand.h"
 #include "Commands/Blueprint/SetPhysicsPropertiesCommand.h"
 #include "Commands/Blueprint/SetBlueprintPropertyCommand.h"
-#include "Commands/Blueprint/ListBlueprintComponentsCommand.h"
 #include "Commands/Blueprint/SetStaticMeshPropertiesCommand.h"
 #include "Commands/Blueprint/SetPawnPropertiesCommand.h"
 #include "Commands/Blueprint/CallBlueprintFunctionCommand.h"
@@ -35,7 +34,6 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     RegisterCompileBlueprintCommand();
     RegisterSetPhysicsPropertiesCommand();
     RegisterSetBlueprintPropertyCommand();
-    // RegisterListBlueprintComponentsCommand(); // Deprecated: Use get_blueprint_metadata with fields=["components"] instead
     RegisterSetStaticMeshPropertiesCommand();
     RegisterSetPawnPropertiesCommand();
     RegisterCallBlueprintFunctionCommand();
@@ -102,12 +100,6 @@ void FBlueprintCommandRegistration::RegisterSetPhysicsPropertiesCommand()
 void FBlueprintCommandRegistration::RegisterSetBlueprintPropertyCommand()
 {
     TSharedPtr<FSetBlueprintPropertyCommand> Command = MakeShared<FSetBlueprintPropertyCommand>(FBlueprintService::Get());
-    RegisterAndTrackCommand(Command);
-}
-
-void FBlueprintCommandRegistration::RegisterListBlueprintComponentsCommand()
-{
-    TSharedPtr<FListBlueprintComponentsCommand> Command = MakeShared<FListBlueprintComponentsCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

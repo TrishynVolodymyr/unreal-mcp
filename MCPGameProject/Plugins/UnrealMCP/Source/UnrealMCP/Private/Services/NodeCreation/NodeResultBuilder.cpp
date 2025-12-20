@@ -19,7 +19,8 @@ FString FNodeResultBuilder::BuildNodeResult(
     const FString& NodeType,
     UClass* TargetClass,
     int32 PositionX,
-    int32 PositionY
+    int32 PositionY,
+    const FString& Warning
 )
 {
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
@@ -79,7 +80,13 @@ FString FNodeResultBuilder::BuildNodeResult(
         }
         ResultObj->SetArrayField(TEXT("pins"), PinsArray);
     }
-    
+
+    // Add warning if present
+    if (!Warning.IsEmpty())
+    {
+        ResultObj->SetStringField(TEXT("warning"), Warning);
+    }
+
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
     FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);

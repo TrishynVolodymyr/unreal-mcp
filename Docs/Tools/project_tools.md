@@ -114,43 +114,65 @@ Add a key mapping to an Input Mapping Context.
 }
 ```
 
-### list_input_actions
+### get_project_metadata
 
-List all Enhanced Input Action assets in the project.
+Get project metadata with selective field querying. This consolidated tool replaces the deprecated `list_input_actions`, `list_input_mapping_contexts`, `show_struct_variables`, and `list_folder_contents` tools.
 
 **Parameters:**
-- `path` (string, optional) - Path to search for Input Actions (searches recursively), defaults to "/Game"
+- `fields` (array, optional) - List of metadata fields to retrieve. Options:
+  - `"input_actions"` - Enhanced Input Action assets in path
+  - `"input_contexts"` - Input Mapping Context assets in path
+  - `"structs"` - Struct variables (requires `struct_name` parameter)
+  - `"folder_contents"` - Folder contents (requires `folder_path` parameter)
+  - `"*"` - All available fields (default if not specified)
+- `path` (string, optional) - Base path for searching input actions/contexts, defaults to "/Game"
+- `folder_path` (string, optional) - Required for "folder_contents" field - path to list
+- `struct_name` (string, optional) - Required for "structs" field - name of struct to inspect
 
 **Returns:**
-- Dict containing list of Input Action assets and their details
+- Dict containing requested project metadata
 
-**Example:**
+**Examples:**
+
+Get all input-related metadata:
 ```json
 {
-  "command": "list_input_actions",
+  "command": "get_project_metadata",
   "params": {
+    "fields": ["input_actions", "input_contexts"],
     "path": "/Game/Input"
   }
 }
 ```
 
-### list_input_mapping_contexts
-
-List all Input Mapping Context assets in the project.
-
-**Parameters:**
-- `path` (string, optional) - Path to search for Input Mapping Contexts (searches recursively), defaults to "/Game"
-
-**Returns:**
-- Dict containing list of Input Mapping Context assets and their details
-
-**Example:**
+Get struct variables (replaces `show_struct_variables`):
 ```json
 {
-  "command": "list_input_mapping_contexts",
+  "command": "get_project_metadata",
   "params": {
-    "path": "/Game/Input"
+    "fields": ["structs"],
+    "struct_name": "PlayerStats",
+    "path": "/Game/DataStructures"
   }
+}
+```
+
+Get folder contents (replaces `list_folder_contents`):
+```json
+{
+  "command": "get_project_metadata",
+  "params": {
+    "fields": ["folder_contents"],
+    "folder_path": "/Game/Blueprints"
+  }
+}
+```
+
+Get everything (input actions and contexts in /Game):
+```json
+{
+  "command": "get_project_metadata",
+  "params": {}
 }
 ```
 
@@ -278,48 +300,6 @@ Update an existing Unreal struct.
 }
 ```
 
-### show_struct_variables
-
-Show variables and types of a struct in Unreal Engine.
-
-**Parameters:**
-- `struct_name` (string) - Name of the struct to inspect
-- `path` (string, optional) - Path where the struct exists, defaults to "/Game/Blueprints"
-
-**Returns:**
-- Dict containing struct variable information
-
-**Example:**
-```json
-{
-  "command": "show_struct_variables",
-  "params": {
-    "struct_name": "PlayerStats",
-    "path": "/Game/DataStructures"
-  }
-}
-```
-
-### list_folder_contents
-
-List the contents of a folder in the Unreal project.
-
-**Parameters:**
-- `folder_path` (string) - Path to the folder (e.g., "/Game/Blueprints" or "Content/MyFolder" or "Intermediate/MyTools")
-
-**Returns:**
-- Dict containing arrays of subfolders and files/assets
-
-**Example:**
-```json
-{
-  "command": "list_folder_contents",
-  "params": {
-    "folder_path": "/Game/Blueprints"
-  }
-}
-```
-
 ## Common Usage Patterns
 
 ### Enhanced Input System Setup
@@ -327,7 +307,7 @@ List the contents of a folder in the Unreal project.
 1. **Create Input Actions**: Use `create_enhanced_input_action` for each input you need
 2. **Create Mapping Context**: Use `create_input_mapping_context` to group related inputs
 3. **Add Mappings**: Use `add_mapping_to_context` to bind keys to actions
-4. **List Assets**: Use `list_input_actions` and `list_input_mapping_contexts` to verify
+4. **List Assets**: Use `get_project_metadata` with `fields=["input_actions", "input_contexts"]` to verify
 
 ```json
 // Step 1: Create actions
@@ -361,7 +341,7 @@ List the contents of a folder in the Unreal project.
 ### Struct Management Workflow
 
 1. **Create Struct**: Use `create_struct` to define data structure
-2. **Inspect Structure**: Use `show_struct_variables` to see current properties
+2. **Inspect Structure**: Use `get_project_metadata` with `fields=["structs"]` and `struct_name` to see current properties
 3. **Update Structure**: Use `update_struct` to modify properties
 4. **Use in DataTables**: Reference struct in `create_datatable` operations
 
@@ -390,7 +370,7 @@ List the contents of a folder in the Unreal project.
 ### Project Organization
 
 1. **Create Folders**: Use `create_folder` to organize content
-2. **List Contents**: Use `list_folder_contents` to explore structure
+2. **List Contents**: Use `get_project_metadata` with `fields=["folder_contents"]` and `folder_path` to explore structure
 3. **Place Assets**: Create assets in appropriate folders using path parameters
 
 ```json

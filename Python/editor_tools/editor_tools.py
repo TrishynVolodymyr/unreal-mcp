@@ -8,8 +8,6 @@ import logging
 from typing import Dict, List, Any, Optional
 from mcp.server.fastmcp import FastMCP, Context
 from utils.editor.editor_operations import (
-    get_actors_in_level as get_actors_in_level_impl,
-    find_actors_by_name as find_actors_by_name_impl,
     spawn_actor as spawn_actor_impl,
     delete_actor as delete_actor_impl,
     set_actor_transform as set_actor_transform_impl,
@@ -17,7 +15,8 @@ from utils.editor.editor_operations import (
     set_actor_property as set_actor_property_impl,
     set_light_property as set_light_property_impl,
     focus_viewport as focus_viewport_impl,
-    spawn_blueprint_actor as spawn_blueprint_actor_impl
+    spawn_blueprint_actor as spawn_blueprint_actor_impl,
+    get_level_metadata as get_level_metadata_impl
 )
 
 # Get logger
@@ -25,43 +24,7 @@ logger = logging.getLogger("UnrealMCP")
 
 def register_editor_tools(mcp: FastMCP):
     """Register editor tools with the MCP server."""
-    
-    @mcp.tool()
-    def get_actors_in_level(ctx: Context) -> List[Dict[str, Any]]:
-        """
-        Get a list of all actors in the current level.
-        
-        Returns:
-            List of actors in the current level with their properties
-            
-        Examples:
-            actors = get_actors_in_level()
-            # Print names of all actors in level
-            for actor in actors:
-                print(actor["name"])
-        """
-        return get_actors_in_level_impl(ctx)
 
-    @mcp.tool()
-    def find_actors_by_name(ctx: Context, pattern: str) -> List[str]:
-        """
-        Find actors by name pattern.
-        
-        Args:
-            pattern: Name pattern to search for (supports wildcards using *)
-            
-        Returns:
-            List of actor names matching the pattern
-            
-        Examples:
-            # Find all Point Light actors
-            lights = find_actors_by_name("*PointLight*")
-            
-            # Find a specific actor
-            player = find_actors_by_name("Player*")
-        """
-        return find_actors_by_name_impl(ctx, pattern)
-    
     @mcp.tool()
     def spawn_actor(
         ctx: Context,
@@ -374,5 +337,41 @@ def register_editor_tools(mcp: FastMCP):
             For spawning basic actor types (lights, static meshes, etc.), use spawn_actor() instead.
         """
         return spawn_blueprint_actor_impl(ctx, blueprint_name, actor_name, location, rotation)
+
+    @mcp.tool()
+    def get_level_metadata(
+        ctx: Context,
+        fields: List[str] = None,
+        actor_filter: str = None
+    ) -> Dict[str, Any]:
+        """
+        Get level metadata with selective field querying.
+
+        This tool consolidates multiple level query tools into one flexible interface.
+
+        Args:
+            fields: List of metadata fields to retrieve. Options:
+                - "actors": All actors in the level (default)
+                - "*": All available fields
+            actor_filter: Optional pattern for actor name filtering (supports wildcards *)
+                         When provided, only actors matching the pattern are returned.
+
+        Returns:
+            Dictionary with requested level metadata
+
+        Examples:
+            # Get all actors in the level
+            get_level_metadata()
+
+            # Get all actors (explicit)
+            get_level_metadata(fields=["actors"])
+
+            # Get actors matching a pattern
+            get_level_metadata(actor_filter="*PointLight*")
+
+            # Get all actors with "Player" in the name
+            get_level_metadata(fields=["actors"], actor_filter="Player*")
+        """
+        return get_level_metadata_impl(ctx, fields, actor_filter)
 
     logger.info("Editor tools registered successfully")

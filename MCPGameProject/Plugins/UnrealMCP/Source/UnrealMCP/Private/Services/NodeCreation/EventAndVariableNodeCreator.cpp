@@ -332,6 +332,25 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 
 		UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Variable scope='%s', VarName='%s'"), *Scope, *VarName);
 
+		// Extract class_name parameter - if specified, this indicates we want a variable from an EXTERNAL class
+		// and we should NOT create a self-member node even if a variable with the same name exists in this Blueprint
+		FString ExternalClassName;
+		if (ParamsObject.IsValid())
+		{
+			// Check at root level
+			if (!ParamsObject->TryGetStringField(TEXT("class_name"), ExternalClassName))
+			{
+				// Check nested under kwargs object
+				const TSharedPtr<FJsonObject>* KwargsObject;
+				if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+				{
+					(*KwargsObject)->TryGetStringField(TEXT("class_name"), ExternalClassName);
+				}
+			}
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: ExternalClassName='%s'"), *ExternalClassName);
+
 		// Try to find the variable or component in the Blueprint
 		bool bFound = false;
 
@@ -471,8 +490,19 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 			}
 		}
 
-		// Only check Blueprint variables if scope allows it
+		// Only check Blueprint variables if scope allows it AND no external class is specified
+		// CRITICAL FIX: If class_name is specified, we want a variable from that EXTERNAL class,
+		// not a self-member variable from this Blueprint (even if a variable with the same name exists here)
 		bool bShouldCheckBlueprintVars = !Scope.Equals(TEXT("function"), ESearchCase::IgnoreCase);
+
+		// If an external class is specified, skip self-member variable creation entirely
+		// This allows the flow to continue to TryCreateNodeUsingBlueprintActionDatabase
+		// which will properly create an external member getter for the specified class
+		if (!ExternalClassName.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: External class '%s' specified - skipping self-member variable check to allow external member creation"), *ExternalClassName);
+			bShouldCheckBlueprintVars = false;
+		}
 
 		if (!bFound && bShouldCheckBlueprintVars)
 		{
@@ -550,26 +580,29 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 			// Variable not found directly in the Blueprint – it might be a native property on another class.
 			// Attempt to spawn it via the Blueprint Action Database using multiple name variants so users can still
 			// create property nodes like "Get Show Mouse Cursor" on a PlayerController reference.
+			//
+			// CRITICAL: If ExternalClassName was specified, we MUST pass it to TryCreateNodeUsingBlueprintActionDatabase
+			// so that it can create an external member getter for that specific class
 
 			bool bSpawned = false;
-			bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(FunctionName, TEXT(""), EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
+			bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(FunctionName, ExternalClassName, EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
 
 			if (!bSpawned)
 			{
 				// Try trimmed variable name (without Get/Set prefix)
-				bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(VarName, TEXT(""), EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
+				bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(VarName, ExternalClassName, EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
 			}
 
 			if (!bSpawned && bIsGetter)
 			{
 				// Prepend "Get " to the node name in case the BAD entry includes it
 				FString GetterName = FString::Printf(TEXT("Get %s"), *VarName);
-				bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(GetterName, TEXT(""), EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
+				bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(GetterName, ExternalClassName, EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
 			}
 			else if (!bSpawned && !bIsGetter)
 			{
 				FString SetterName = FString::Printf(TEXT("Set %s"), *VarName);
-				bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(SetterName, TEXT(""), EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
+				bSpawned = FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatabase(SetterName, ExternalClassName, EventGraph, PositionX, PositionY, OutNode, OutNodeTitle, OutNodeType);
 			}
 
 			if (!bSpawned)

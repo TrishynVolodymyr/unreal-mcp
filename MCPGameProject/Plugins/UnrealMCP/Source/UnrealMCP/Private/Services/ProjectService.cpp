@@ -130,10 +130,10 @@ TArray<FString> FProjectService::ListFolderContents(const FString& FolderPath, b
 {
     TArray<FString> Contents;
     bOutSuccess = false;
-    
+
     // Check if this is a content folder request
     bool bIsContentFolder = FolderPath.StartsWith(TEXT("/Game")) || FolderPath.StartsWith(TEXT("/Content/")) || FolderPath.StartsWith(TEXT("Content/"));
-    
+
     if (bIsContentFolder)
     {
         // Use UE's asset system for content folders
@@ -146,30 +146,46 @@ TArray<FString> FProjectService::ListFolderContents(const FString& FolderPath, b
         {
             AssetPath = AssetPath.Replace(TEXT("Content/"), TEXT("/Game/"));
         }
-        
-        if (!UEditorAssetLibrary::DoesDirectoryExist(AssetPath))
-        {
-            OutError = FString::Printf(TEXT("Content directory does not exist: %s"), *AssetPath);
-            return Contents;
-        }
-        
-        // Get subdirectories using AssetRegistry
+
+        // Get subdirectories and assets using AssetRegistry
+        // NOTE: We don't use UEditorAssetLibrary::DoesDirectoryExist as it's unreliable for virtual content paths.
+        // Instead, we try to get contents and check if anything was found.
         FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
         IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-        
+
         TArray<FString> SubPaths;
         AssetRegistry.GetSubPaths(AssetPath, SubPaths, false);
-        
+
         for (const FString& SubPath : SubPaths)
         {
             Contents.Add(FString::Printf(TEXT("FOLDER: %s"), *SubPath));
         }
-        
+
         // Get assets (UE 5.7 compatible)
         TArray<FString> Assets = UEditorAssetLibrary::ListAssets(AssetPath, false, false);
         for (const FString& Asset : Assets)
         {
             Contents.Add(FString::Printf(TEXT("ASSET: %s"), *Asset));
+        }
+
+        // If no content was found at all, the path likely doesn't exist
+        if (Contents.Num() == 0)
+        {
+            // Double-check with recursive search - maybe there are only nested assets
+            TArray<FString> RecursiveAssets = UEditorAssetLibrary::ListAssets(AssetPath, true, false);
+            if (RecursiveAssets.Num() == 0)
+            {
+                OutError = FString::Printf(TEXT("Content directory does not exist or is empty: %s"), *AssetPath);
+                return Contents;
+            }
+            // If we found recursive assets, the folder exists but only has nested content
+            // Get sub-paths again with that knowledge - the recursive assets tell us subfolders exist
+            SubPaths.Empty();
+            AssetRegistry.GetSubPaths(AssetPath, SubPaths, false);
+            for (const FString& SubPath : SubPaths)
+            {
+                Contents.Add(FString::Printf(TEXT("FOLDER: %s"), *SubPath));
+            }
         }
     }
     else

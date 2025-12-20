@@ -7,11 +7,8 @@
 #include "Commands/Project/CreateEnhancedInputActionCommand.h"
 #include "Commands/Project/CreateInputMappingContextCommand.h"
 #include "Commands/Project/AddMappingToContextCommand.h"
-#include "Commands/Project/ListInputActionsCommand.h"
-#include "Commands/Project/ListInputMappingContextsCommand.h"
 #include "Commands/Project/UpdateStructCommand.h"
-#include "Commands/Project/ShowStructVariablesCommand.h"
-#include "Commands/Project/ListFolderContentsCommand.h"
+#include "Commands/Project/GetProjectMetadataCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -38,13 +35,12 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     Registry.RegisterCommand(MakeShared<FCreateEnhancedInputActionCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FCreateInputMappingContextCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FAddMappingToContextCommand>(ProjectService));
-    Registry.RegisterCommand(MakeShared<FListInputActionsCommand>(ProjectService));
-    Registry.RegisterCommand(MakeShared<FListInputMappingContextsCommand>(ProjectService));
-    
-    // Register remaining project commands
+
+    // Register struct commands
     Registry.RegisterCommand(MakeShared<FUpdateStructCommand>(ProjectService));
-    Registry.RegisterCommand(MakeShared<FShowStructVariablesCommand>(ProjectService));
-    Registry.RegisterCommand(MakeShared<FListFolderContentsCommand>(ProjectService));
+
+    // Register consolidated metadata command (replaces list_input_actions, list_input_mapping_contexts, show_struct_variables, list_folder_contents)
+    Registry.RegisterCommand(MakeShared<FGetProjectMetadataCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }

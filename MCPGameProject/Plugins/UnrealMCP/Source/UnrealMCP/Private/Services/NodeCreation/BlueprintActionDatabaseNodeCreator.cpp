@@ -16,6 +16,9 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
+#include "WidgetBlueprint.h"
+#include "UObject/UObjectIterator.h"
+#include "K2Node_GetArrayItem.h"
 
 // Helper function to normalize function names by removing common UE prefixes
 static FString NormalizeFunctionName(const FString& Name)
@@ -48,7 +51,8 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
     UEdGraphNode*& NewNode,
     FString& NodeTitle,
     FString& NodeType,
-    FString* OutErrorMessage
+    FString* OutErrorMessage,
+    FString* OutWarningMessage
 )
 {
     UE_LOG(LogTemp, Warning, TEXT("=== TryCreateNodeUsingBlueprintActionDatabase START ==="));
@@ -110,7 +114,44 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
         UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Enhanced Input Action '%s' not found in asset registry"), *FunctionName);
         return false;
     }
-    
+
+    // Special handling for Array Get nodes
+    // The Blueprint Action Database may return the deprecated UK2Node_CallArrayFunction for Array_Get,
+    // but the UI creates UK2Node_GetArrayItem which has proper wildcard type propagation.
+    // We must create UK2Node_GetArrayItem directly to ensure correct behavior.
+    if (FunctionName.Equals(TEXT("GET"), ESearchCase::IgnoreCase) ||
+        FunctionName.Equals(TEXT("Array_Get"), ESearchCase::IgnoreCase) ||
+        FunctionName.Equals(TEXT("Get (a ref)"), ESearchCase::IgnoreCase) ||
+        FunctionName.Equals(TEXT("Get (a copy)"), ESearchCase::IgnoreCase) ||
+        (ClassName.Equals(TEXT("KismetArrayLibrary"), ESearchCase::IgnoreCase) &&
+         FunctionName.Contains(TEXT("Get"), ESearchCase::IgnoreCase)))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Array GET node requested, creating UK2Node_GetArrayItem directly"));
+
+        UK2Node_GetArrayItem* ArrayGetNode = NewObject<UK2Node_GetArrayItem>(EventGraph);
+        if (ArrayGetNode)
+        {
+            ArrayGetNode->NodePosX = PositionX;
+            ArrayGetNode->NodePosY = PositionY;
+            ArrayGetNode->CreateNewGuid();
+            EventGraph->AddNode(ArrayGetNode, true, true);
+            ArrayGetNode->AllocateDefaultPins();
+            ArrayGetNode->PostPlacedNewNode();
+
+            NewNode = ArrayGetNode;
+            NodeTitle = TEXT("GET");
+            NodeType = TEXT("K2Node_GetArrayItem");
+
+            UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created UK2Node_GetArrayItem"));
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Failed to create UK2Node_GetArrayItem"));
+            return false;
+        }
+    }
+
     // Create a map of common operation aliases to their actual function names
     TMap<FString, TArray<FString>> OperationAliases;
     
@@ -521,48 +562,104 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
                 if (NewNode)
                 {
                     // POST-CREATION FIX: Check if this is a variable get/set node and fix the reference if needed
-                    // Problem: Blueprint Action Database creates variable getters/setters with SetExternalMember()
-                    // which adds an unnecessary "Target" pin. For self variables, we need SetSelfMember() instead.
+                    // Problem 1: Blueprint Action Database creates variable getters/setters with SetExternalMember()
+                    //            which adds an unnecessary "Target" pin. For self variables, we need SetSelfMember() instead.
+                    // Problem 2: When ClassName is specified for an external class variable (e.g., "BP_DialogueNPC"),
+                    //            we must ensure the node is set as external member of THAT class, not self.
+                    //            This prevents naming collision when both current Blueprint and target class have same variable name.
                     if (UK2Node_VariableGet* GetNode = Cast<UK2Node_VariableGet>(NewNode))
                     {
-                        // Check if this variable belongs to the current Blueprint (self member)
                         UBlueprint* Blueprint = FBlueprintEditorUtils::FindBlueprintForGraph(EventGraph);
                         if (Blueprint)
                         {
-                            // Check if the variable exists in this Blueprint's variable list
                             FName VarName = GetNode->GetVarName();
-                            TArray<FBPVariableDescription> Variables = Blueprint->NewVariables;
 
-                            bool bIsSelfVariable = false;
-                            for (const FBPVariableDescription& VarDesc : Variables)
+                            // CASE 1: ClassName is specified - this should be an EXTERNAL member of that class
+                            // This handles the naming collision case where both WBP_DialogueWindow and BP_DialogueNPC
+                            // have a variable named "DialogueTable" - we want the one from the specified class
+                            if (!ClassName.IsEmpty())
                             {
-                                if (VarDesc.VarName == VarName)
+                                // Find the target class for the external member
+                                UClass* TargetClass = nullptr;
+
+                                // Try to find the class by name
+                                FString ClassNameWithSuffix = ClassName;
+                                if (!ClassNameWithSuffix.EndsWith(TEXT("_C")))
                                 {
-                                    bIsSelfVariable = true;
-                                    break;
+                                    ClassNameWithSuffix += TEXT("_C");
+                                }
+
+                                // Search for Blueprint-generated class
+                                for (TObjectIterator<UClass> It; It; ++It)
+                                {
+                                    UClass* TestClass = *It;
+                                    if (TestClass && (TestClass->GetName().Equals(ClassName, ESearchCase::IgnoreCase) ||
+                                                      TestClass->GetName().Equals(ClassNameWithSuffix, ESearchCase::IgnoreCase)))
+                                    {
+                                        TargetClass = TestClass;
+                                        break;
+                                    }
+                                }
+
+                                if (TargetClass)
+                                {
+                                    // Verify the variable exists in the target class
+                                    FProperty* Property = FindFProperty<FProperty>(TargetClass, VarName);
+                                    if (Property)
+                                    {
+                                        UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Setting variable getter '%s' as external member of class '%s'"),
+                                               *VarName.ToString(), *TargetClass->GetName());
+                                        GetNode->VariableReference.SetExternalMember(VarName, TargetClass);
+                                        GetNode->ReconstructNode(); // Rebuild pins with correct Target type
+                                    }
+                                    else
+                                    {
+                                        UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Variable '%s' not found in class '%s', keeping original reference"),
+                                               *VarName.ToString(), *TargetClass->GetName());
+                                    }
+                                }
+                                else
+                                {
+                                    UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Could not find class '%s' for external member '%s'"),
+                                           *ClassName, *VarName.ToString());
                                 }
                             }
-
-                            // Also check component variables (SCS nodes)
-                            if (!bIsSelfVariable && Blueprint->SimpleConstructionScript)
+                            // CASE 2: No ClassName specified - check if this is a self variable
+                            else
                             {
-                                const TArray<USCS_Node*>& AllNodes = Blueprint->SimpleConstructionScript->GetAllNodes();
-                                for (USCS_Node* Node : AllNodes)
+                                TArray<FBPVariableDescription> Variables = Blueprint->NewVariables;
+
+                                bool bIsSelfVariable = false;
+                                for (const FBPVariableDescription& VarDesc : Variables)
                                 {
-                                    if (Node && Node->GetVariableName() == VarName)
+                                    if (VarDesc.VarName == VarName)
                                     {
                                         bIsSelfVariable = true;
                                         break;
                                     }
                                 }
-                            }
 
-                            if (bIsSelfVariable)
-                            {
-                                // This is a self variable! Fix the reference to use SetSelfMember
-                                UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Converting variable getter '%s' from external to self member"), *VarName.ToString());
-                                GetNode->VariableReference.SetSelfMember(VarName);
-                                GetNode->ReconstructNode(); // Rebuild pins to remove the "Target" pin
+                                // Also check component variables (SCS nodes)
+                                if (!bIsSelfVariable && Blueprint->SimpleConstructionScript)
+                                {
+                                    const TArray<USCS_Node*>& AllNodes = Blueprint->SimpleConstructionScript->GetAllNodes();
+                                    for (USCS_Node* Node : AllNodes)
+                                    {
+                                        if (Node && Node->GetVariableName() == VarName)
+                                        {
+                                            bIsSelfVariable = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (bIsSelfVariable)
+                                {
+                                    // This is a self variable! Fix the reference to use SetSelfMember
+                                    UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Converting variable getter '%s' from external to self member"), *VarName.ToString());
+                                    GetNode->VariableReference.SetSelfMember(VarName);
+                                    GetNode->ReconstructNode(); // Rebuild pins to remove the "Target" pin
+                                }
                             }
                         }
                     }
@@ -573,37 +670,113 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
                         if (Blueprint)
                         {
                             FName VarName = SetNode->GetVarName();
-                            TArray<FBPVariableDescription> Variables = Blueprint->NewVariables;
 
-                            bool bIsSelfVariable = false;
-                            for (const FBPVariableDescription& VarDesc : Variables)
+                            // CASE 1: ClassName is specified - this should be an EXTERNAL member of that class
+                            if (!ClassName.IsEmpty())
                             {
-                                if (VarDesc.VarName == VarName)
+                                UClass* TargetClass = nullptr;
+
+                                FString ClassNameWithSuffix = ClassName;
+                                if (!ClassNameWithSuffix.EndsWith(TEXT("_C")))
                                 {
-                                    bIsSelfVariable = true;
-                                    break;
+                                    ClassNameWithSuffix += TEXT("_C");
+                                }
+
+                                for (TObjectIterator<UClass> It; It; ++It)
+                                {
+                                    UClass* TestClass = *It;
+                                    if (TestClass && (TestClass->GetName().Equals(ClassName, ESearchCase::IgnoreCase) ||
+                                                      TestClass->GetName().Equals(ClassNameWithSuffix, ESearchCase::IgnoreCase)))
+                                    {
+                                        TargetClass = TestClass;
+                                        break;
+                                    }
+                                }
+
+                                if (TargetClass)
+                                {
+                                    FProperty* Property = FindFProperty<FProperty>(TargetClass, VarName);
+                                    if (Property)
+                                    {
+                                        UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Setting variable setter '%s' as external member of class '%s'"),
+                                               *VarName.ToString(), *TargetClass->GetName());
+                                        SetNode->VariableReference.SetExternalMember(VarName, TargetClass);
+                                        SetNode->ReconstructNode();
+                                    }
+                                    else
+                                    {
+                                        UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Variable '%s' not found in class '%s', keeping original reference"),
+                                               *VarName.ToString(), *TargetClass->GetName());
+                                    }
+                                }
+                                else
+                                {
+                                    UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Could not find class '%s' for external member '%s'"),
+                                           *ClassName, *VarName.ToString());
                                 }
                             }
-
-                            // Also check component variables (SCS nodes)
-                            if (!bIsSelfVariable && Blueprint->SimpleConstructionScript)
+                            // CASE 2: No ClassName specified - check if this is a self variable
+                            else
                             {
-                                const TArray<USCS_Node*>& AllNodes = Blueprint->SimpleConstructionScript->GetAllNodes();
-                                for (USCS_Node* Node : AllNodes)
+                                TArray<FBPVariableDescription> Variables = Blueprint->NewVariables;
+
+                                bool bIsSelfVariable = false;
+                                for (const FBPVariableDescription& VarDesc : Variables)
                                 {
-                                    if (Node && Node->GetVariableName() == VarName)
+                                    if (VarDesc.VarName == VarName)
                                     {
                                         bIsSelfVariable = true;
                                         break;
                                     }
                                 }
-                            }
 
-                            if (bIsSelfVariable)
+                                // Also check component variables (SCS nodes)
+                                if (!bIsSelfVariable && Blueprint->SimpleConstructionScript)
+                                {
+                                    const TArray<USCS_Node*>& AllNodes = Blueprint->SimpleConstructionScript->GetAllNodes();
+                                    for (USCS_Node* Node : AllNodes)
+                                    {
+                                        if (Node && Node->GetVariableName() == VarName)
+                                        {
+                                            bIsSelfVariable = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (bIsSelfVariable)
+                                {
+                                    UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Converting variable setter '%s' from external to self member"), *VarName.ToString());
+                                    SetNode->VariableReference.SetSelfMember(VarName);
+                                    SetNode->ReconstructNode(); // Rebuild pins to remove the "Target" pin
+                                }
+                            }
+                        }
+                    }
+
+                    // POST-CREATION WARNING: Check for WidgetBlueprintLibrary functions in non-Widget Blueprints
+                    // These functions have a WorldContext/Target pin that needs manual connection
+                    if (OutWarningMessage && Cast<UK2Node_CallFunction>(NewNode))
+                    {
+                        UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(NewNode);
+                        if (UFunction* Function = FunctionNode->GetTargetFunction())
+                        {
+                            UClass* OwnerClass = Function->GetOwnerClass();
+                            if (OwnerClass && OwnerClass->GetName().Contains(TEXT("WidgetBlueprintLibrary")))
                             {
-                                UE_LOG(LogTemp, Warning, TEXT("POST-FIX: Converting variable setter '%s' from external to self member"), *VarName.ToString());
-                                SetNode->VariableReference.SetSelfMember(VarName);
-                                SetNode->ReconstructNode(); // Rebuild pins to remove the "Target" pin
+                                // Check if we're in a Widget Blueprint
+                                UBlueprint* Blueprint = FBlueprintEditorUtils::FindBlueprintForGraph(EventGraph);
+                                bool bIsWidgetBlueprint = Blueprint && Blueprint->IsA<UWidgetBlueprint>();
+
+                                if (!bIsWidgetBlueprint)
+                                {
+                                    *OutWarningMessage = FString::Printf(
+                                        TEXT("WARNING: '%s' is from WidgetBlueprintLibrary. When used in non-Widget Blueprints, this node has a hidden 'self' pin (WorldContext) that must also be connected. ")
+                                        TEXT("Connect the PlayerController to BOTH the visible parameter pin AND the hidden 'self' pin, or consider using PlayerController's native SetInputMode functions instead which don't have this issue."),
+                                        *Function->GetName()
+                                    );
+                                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: %s"), **OutWarningMessage);
+                                }
                             }
                         }
                     }

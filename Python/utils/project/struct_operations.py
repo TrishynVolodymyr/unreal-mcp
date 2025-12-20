@@ -78,42 +78,45 @@ def update_struct(
     return send_unreal_command("update_struct", params)
 
 
-def show_struct_variables(
+def get_project_metadata(
     ctx: Context,
-    struct_name: str,
-    path: str = "/Game/Blueprints"
+    fields: List[str] = None,
+    path: str = "/Game",
+    folder_path: str = None,
+    struct_name: str = None
 ) -> Dict[str, Any]:
     """
-    Show variables and types of a struct in Unreal Engine.
+    Get project metadata with selective field querying.
+
+    Consolidates: list_input_actions, list_input_mapping_contexts, show_struct_variables, list_folder_contents
+
     Args:
         ctx: The MCP context
-        struct_name: Name of the struct to inspect
-        path: Path where the struct exists (default: /Game/Blueprints)
+        fields: List of fields to include. Options:
+            - "input_actions": Enhanced Input Action assets
+            - "input_contexts": Input Mapping Context assets
+            - "structs": Struct variables (requires struct_name)
+            - "folder_contents": Folder contents (requires folder_path)
+            - "*": All fields (default if None)
+        path: Base path for input action/context search (default: /Game)
+        folder_path: Path for folder_contents field
+        struct_name: Struct name for structs field
+
     Returns:
-        Dictionary with struct variable info
+        Dictionary with requested project metadata
     """
     params = {
-        "struct_name": struct_name,
         "path": path
     }
-    logger.info(f"Showing struct variables for: {struct_name} at {path}")
-    return send_unreal_command("show_struct_variables", params)
 
+    if fields:
+        params["fields"] = fields
 
-def list_folder_contents(
-    ctx: Context,
-    folder_path: str
-) -> Dict[str, Any]:
-    """
-    List the contents of a folder in the Unreal project (content or regular folder).
-    Args:
-        ctx: The MCP context
-        folder_path: Path to the folder (e.g., "/Game/Blueprints" or "Content/MyFolder" or "Intermediate/MyTools")
-    Returns:
-        Dictionary with arrays of subfolders and files/assets
-    """
-    params = {
-        "folder_path": folder_path
-    }
-    logger.info(f"Listing folder contents for: {folder_path}")
-    return send_unreal_command("list_folder_contents", params)
+    if folder_path:
+        params["folder_path"] = folder_path
+
+    if struct_name:
+        params["struct_name"] = struct_name
+
+    logger.info(f"Getting project metadata with fields: {fields}")
+    return send_unreal_command("get_project_metadata", params)

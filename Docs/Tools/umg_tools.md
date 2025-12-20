@@ -4,7 +4,7 @@ This document provides detailed information about the UMG (Unreal Motion Graphic
 
 ## Overview
 
-UMG tools allow you to create and manipulate UMG Widget Blueprints in Unreal Engine, including creating widget blueprints, adding components, binding events, setting properties, managing layouts, and displaying widgets in the viewport.
+UMG tools allow you to create and manipulate UMG Widget Blueprints in Unreal Engine, including creating widget blueprints, adding components, binding events, setting properties, managing layouts, and capturing widget screenshots.
 
 ## UMG Tools
 
@@ -54,28 +54,6 @@ Bind an event on a widget component to a function.
     "widget_component_name": "LoginButton",
     "event_name": "OnClicked",
     "function_name": "HandleLoginClick"
-  }
-}
-```
-
-### add_widget_to_viewport
-
-Add a Widget Blueprint instance to the viewport.
-
-**Parameters:**
-- `widget_name` (string) - Name of the Widget Blueprint to add
-- `z_order` (int, optional) - Z-order for the widget (higher numbers appear on top), defaults to 0
-
-**Returns:**
-- Dict containing success status and widget instance information
-
-**Example:**
-```json
-{
-  "command": "add_widget_to_viewport",
-  "params": {
-    "widget_name": "MainMenu",
-    "z_order": 5
   }
 }
 ```
@@ -175,28 +153,6 @@ Create a new parent widget component with a new child component.
 }
 ```
 
-### check_widget_component_exists
-
-Check if a component exists in the specified widget blueprint.
-
-**Parameters:**
-- `widget_name` (string) - Name of the target Widget Blueprint
-- `component_name` (string) - Name of the component to check
-
-**Returns:**
-- Dict containing existence status of the component
-
-**Example:**
-```json
-{
-  "command": "check_widget_component_exists",
-  "params": {
-    "widget_name": "MyWidget",
-    "component_name": "HeaderText"
-  }
-}
-```
-
 ### set_widget_component_placement
 
 Change the placement (position/size) of a widget component.
@@ -221,28 +177,6 @@ Change the placement (position/size) of a widget component.
     "position": [50.0, 25.0],
     "size": [250.0, 30.0],
     "alignment": [0.0, 0.0]
-  }
-}
-```
-
-### get_widget_container_component_dimensions
-
-Get the dimensions of a container widget in a UMG Widget Blueprint.
-
-**Parameters:**
-- `widget_name` (string) - Name of the target Widget Blueprint
-- `container_name` (string, optional) - Name of the container widget, defaults to "CanvasPanel_0" for the root canvas panel
-
-**Returns:**
-- Dict containing the container dimensions and position
-
-**Example:**
-```json
-{
-  "command": "get_widget_container_component_dimensions",
-  "params": {
-    "widget_name": "InventoryScreen",
-    "container_name": "ItemsContainer"
   }
 }
 ```
@@ -314,32 +248,116 @@ Set one or more properties on a specific component within a UMG Widget Blueprint
 }
 ```
 
-### get_widget_component_layout
+### get_widget_blueprint_metadata
 
-Get hierarchical layout information for all components within a UMG Widget Blueprint.
+Get comprehensive metadata about a Widget Blueprint. This consolidated tool replaces the deprecated `check_widget_component_exists`, `get_widget_component_layout`, and `get_widget_container_component_dimensions` tools.
 
 **Parameters:**
-- `widget_name` (string) - Name of the target Widget Blueprint
+- `widget_name` (string) - Name of the target Widget Blueprint (e.g., "WBP_MainMenu", "/Game/UI/MyWidget")
+- `fields` (array, optional) - List of fields to include. Options: "components", "layout", "dimensions", "hierarchy", "bindings", "events", "variables", "functions", "*" (all). Defaults to all fields.
+- `container_name` (string, optional) - Container name for dimensions field, defaults to "CanvasPanel_0"
 
 **Returns:**
 - Dict containing:
   - `success` (boolean) - Whether the operation succeeded
-  - `message` (string) - Status message
-  - `hierarchy` (object) - Root component with hierarchical structure including:
-    - `name` (string) - Component name
-    - `type` (string) - Component class name
-    - `slot_properties` (object) - Layout properties based on the slot type
-    - `children` (array) - List of child components with the same structure
+  - `widget_name` (string) - Name of the widget blueprint
+  - `asset_path` (string) - Full asset path
+  - `parent_class` (string) - Parent class name
+  - `components` (object) - Component list with count (if requested)
+  - `layout` (object) - Hierarchical layout info (if requested)
+  - `dimensions` (object) - Container dimensions (if requested)
+  - `hierarchy` (object) - Simple widget tree (if requested)
+  - `bindings` (object) - Property bindings (if requested)
+  - `events` (object) - Event bindings (if requested)
+  - `variables` (object) - Blueprint variables (if requested)
+  - `functions` (object) - Blueprint functions (if requested)
 
-**Example:**
+**Examples:**
+
+Get all metadata:
 ```json
 {
-  "command": "get_widget_component_layout",
+  "command": "get_widget_blueprint_metadata",
   "params": {
     "widget_name": "WBP_MainMenu"
   }
 }
 ```
+
+Check if a component exists (replaces check_widget_component_exists):
+```json
+{
+  "command": "get_widget_blueprint_metadata",
+  "params": {
+    "widget_name": "WBP_MainMenu",
+    "fields": ["components"]
+  }
+}
+```
+
+Get layout info (replaces get_widget_component_layout):
+```json
+{
+  "command": "get_widget_blueprint_metadata",
+  "params": {
+    "widget_name": "WBP_MainMenu",
+    "fields": ["layout"]
+  }
+}
+```
+
+Get container dimensions (replaces get_widget_container_component_dimensions):
+```json
+{
+  "command": "get_widget_blueprint_metadata",
+  "params": {
+    "widget_name": "WBP_MainMenu",
+    "fields": ["dimensions"],
+    "container_name": "CanvasPanel_0"
+  }
+}
+```
+
+### capture_widget_screenshot
+
+Capture a screenshot of a UMG Widget Blueprint preview. Returns base64-encoded image data that AI can view directly.
+
+**Parameters:**
+- `widget_name` (string) - Name of the widget blueprint to capture
+- `width` (integer, optional) - Screenshot width in pixels (default: 800, range: 1-8192)
+- `height` (integer, optional) - Screenshot height in pixels (default: 600, range: 1-8192)
+- `format` (string, optional) - Image format - "png" (default) or "jpg"
+
+**Returns:**
+- Dict containing:
+  - `success` (boolean) - Whether the screenshot was captured
+  - `image_base64` (string) - Base64-encoded image data (viewable by AI)
+  - `width` (integer) - Actual image width
+  - `height` (integer) - Actual image height
+  - `format` (string) - Image format used
+  - `image_size_bytes` (integer) - Size of the compressed image
+  - `message` (string) - Success or error message
+
+**Example:**
+```json
+{
+  "command": "capture_widget_screenshot",
+  "params": {
+    "widget_name": "WBP_MainMenu",
+    "width": 1920,
+    "height": 1080,
+    "format": "png"
+  }
+}
+```
+
+## Deprecated Tools
+
+The following tools have been removed and replaced by `get_widget_blueprint_metadata`:
+
+- **check_widget_component_exists** - Use `get_widget_blueprint_metadata` with `fields=["components"]` and check for component in results
+- **get_widget_container_component_dimensions** - Use `get_widget_blueprint_metadata` with `fields=["dimensions"]`
+- **get_widget_component_layout** - Use `get_widget_blueprint_metadata` with `fields=["layout"]`
 
 ## Common Usage Patterns
 
@@ -349,7 +367,8 @@ Get hierarchical layout information for all components within a UMG Widget Bluep
 2. **Add Components**: Use `add_widget_component_to_widget` or `create_parent_and_child_widget_components` to add UI elements
 3. **Set Properties**: Use `set_widget_component_property` to configure component appearance and behavior
 4. **Bind Events**: Use `bind_widget_component_event` to handle user interactions
-5. **Display Widget**: Use `add_widget_to_viewport` to show the widget in game
+5. **Verify Layout**: Use `get_widget_blueprint_metadata` with `fields=["layout"]` to inspect the widget structure
+6. **Capture Preview**: Use `capture_widget_screenshot` to visually verify the widget appearance
 
 ### Component Types Reference
 
@@ -403,4 +422,4 @@ Alignment values for positioning (0.0 to 1.0):
 - `[1.0, 0.5]` - Middle-right
 - `[0.0, 1.0]` - Bottom-left
 - `[0.5, 1.0]` - Bottom-center
-- `[1.0, 1.0]` - Bottom-right 
+- `[1.0, 1.0]` - Bottom-right

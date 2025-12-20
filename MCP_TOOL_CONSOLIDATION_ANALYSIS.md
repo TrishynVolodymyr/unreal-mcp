@@ -1,0 +1,242 @@
+# MCP Tool Consolidation Analysis
+
+Focus: Query/metadata tools that retrieve information (not setters/creators)
+
+---
+
+## COMPLETED CONSOLIDATIONS
+
+### ✅ UMG_TOOLS - `get_widget_blueprint_metadata` (IMPLEMENTED)
+
+**Status: COMPLETE**
+
+Created consolidated tool: `get_widget_blueprint_metadata`
+- Supports fields: `components`, `layout`, `dimensions`, `hierarchy`, `bindings`, `events`, `variables`, `functions`, `*`
+
+**Removed tools:**
+- ~~`check_widget_component_exists`~~ → Use `fields=["components"]` then check component name
+- ~~`get_widget_container_component_dimensions`~~ → Use `fields=["dimensions"]`
+- ~~`get_widget_component_layout`~~ → Use `fields=["layout"]`
+
+---
+
+## CONSOLIDATION OPPORTUNITIES BY MCP SERVER
+
+### ✅ 1. BLUEPRINT_TOOLS (blueprint_mcp_server.py) - DONE
+
+| Tool | Type | Status |
+|------|------|--------|
+| `get_blueprint_metadata` | **QUERY** | ✅ KEEP - Central metadata tool |
+| ~~`list_blueprint_components`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_blueprint_metadata(fields=["components"])` |
+| `create_blueprint` | setter | keep |
+| `add_blueprint_variable` | setter | keep |
+| `add_component_to_blueprint` | setter | keep |
+| `set_static_mesh_properties` | setter | keep |
+| `set_component_property` | setter | keep |
+| `set_physics_properties` | setter | keep |
+| `compile_blueprint` | setter | keep |
+| `set_blueprint_property` | setter | keep |
+| `set_pawn_properties` | setter | keep |
+| `call_blueprint_function` | setter | keep |
+| `add_interface_to_blueprint` | setter | keep |
+| `create_blueprint_interface` | setter | keep |
+| `create_custom_blueprint_function` | setter | keep |
+
+**Completed:**
+- ✅ Removed `list_blueprint_components` - Use `get_blueprint_metadata(fields=["components"])` instead
+
+---
+
+### 2. NODE_TOOLS (node_mcp_server.py)
+
+| Tool | Type | Recommendation |
+|------|------|----------------|
+| `find_blueprint_nodes` | **QUERY** | ⚠️ Consider merge → `get_blueprint_metadata(fields=["nodes"])` |
+| `get_variable_info` | **QUERY** | ⚠️ Consider merge → Enhanced `variables` field with detail param |
+| `connect_blueprint_nodes` | setter | keep |
+| `disconnect_node` | setter | keep |
+| `delete_node` | setter | keep |
+| `replace_node` | setter | keep |
+| `set_node_pin_value` | setter | keep |
+
+**Action Items:**
+1. **Consider adding `nodes` field to `get_blueprint_metadata`** - Would replace `find_blueprint_nodes`
+2. **Consider enhancing `variables` field** - Could include detailed type info from `get_variable_info`
+
+**Trade-offs:**
+- `find_blueprint_nodes` has complex filtering (node_type, event_type) - may be worth keeping separate
+- `get_variable_info` is simple enough to merge into `variables` field
+
+---
+
+### 3. BLUEPRINT_ACTION_TOOLS (blueprint_action_mcp_server.py)
+
+| Tool | Type | Recommendation |
+|------|------|----------------|
+| `get_actions_for_pin` | **QUERY** | ⚠️ Consider merge |
+| `get_actions_for_class` | **QUERY** | ⚠️ Consider merge |
+| `get_actions_for_class_hierarchy` | **QUERY** | ⚠️ Consider merge |
+| `search_blueprint_actions` | **QUERY** | ⚠️ Consider merge |
+| `inspect_node_pin_connection` | **QUERY** | ✅ KEEP - Specific use case |
+| `create_node_by_action_name` | setter | keep |
+
+**Analysis:**
+These 4 query tools could potentially consolidate into `search_blueprint_actions` with extra parameters:
+```python
+search_blueprint_actions(
+    keyword: str = None,           # Current search
+    pin_type: str = None,          # Replaces get_actions_for_pin
+    class_name: str = None,        # Replaces get_actions_for_class
+    include_parent_classes: bool = False  # Replaces get_actions_for_class_hierarchy
+)
+```
+
+**Trade-offs:**
+- These are discovery tools for node creation workflow
+- Keeping them separate provides clearer intent
+- **Recommendation: KEEP SEPARATE** - They serve distinct UX purposes during node discovery
+
+---
+
+### ✅ 4. EDITOR_TOOLS (editor_mcp_server.py) - DONE
+
+| Tool | Type | Status |
+|------|------|--------|
+| `get_level_metadata` | **QUERY** | ✅ NEW - Consolidated metadata tool |
+| ~~`get_actors_in_level`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_level_metadata(fields=["actors"])` |
+| ~~`find_actors_by_name`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_level_metadata(actor_filter=...)` |
+| `get_actor_properties` | **QUERY** | ✅ KEEP - Actor-specific, needs actor name |
+| `spawn_actor` | setter | keep |
+| `delete_actor` | setter | keep |
+| `set_actor_transform` | setter | keep |
+| `set_actor_property` | setter | keep |
+| `set_light_property` | setter | keep |
+| `focus_viewport` | setter | keep (buggy) |
+| `spawn_blueprint_actor` | setter | keep |
+
+**Completed:**
+- ✅ Created `get_level_metadata` with fields: `actors`, `*`
+- ✅ Supports `actor_filter` for pattern matching (replaces `find_actors_by_name`)
+
+**Usage:**
+```python
+# Get all actors in level
+get_level_metadata(fields=["actors"])
+
+# Get actors matching a pattern
+get_level_metadata(actor_filter="*PointLight*")
+```
+
+**Removed:** Old tools (`get_actors_in_level`, `find_actors_by_name`) have been removed
+
+---
+
+### ✅ 5. PROJECT_TOOLS (project_mcp_server.py) - DONE
+
+| Tool | Type | Status |
+|------|------|--------|
+| `get_project_metadata` | **QUERY** | ✅ NEW - Consolidated metadata tool |
+| ~~`list_input_actions`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["input_actions"])` |
+| ~~`list_input_mapping_contexts`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["input_contexts"])` |
+| ~~`show_struct_variables`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["structs"], struct_name=...)` |
+| ~~`list_folder_contents`~~ | ~~QUERY~~ | ❌ **REMOVED** - Use `get_project_metadata(fields=["folder_contents"], folder_path=...)` |
+| `create_input_mapping` | setter | keep |
+| `create_enhanced_input_action` | setter | keep |
+| `create_input_mapping_context` | setter | keep |
+| `add_mapping_to_context` | setter | keep |
+| `create_folder` | setter | keep |
+| `create_struct` | setter | keep |
+| `update_struct` | setter | keep |
+
+**Completed:**
+- ✅ Created `get_project_metadata` with fields: `input_actions`, `input_contexts`, `structs`, `folder_contents`, `*`
+- ✅ Removed 4 deprecated tools and their C++ command implementations
+
+**Usage:**
+```python
+# Get all input-related metadata
+get_project_metadata(fields=["input_actions", "input_contexts"], path="/Game/Input")
+
+# Get struct variables
+get_project_metadata(fields=["structs"], struct_name="PlayerStats", path="/Game/DataStructures")
+
+# Get folder contents
+get_project_metadata(fields=["folder_contents"], folder_path="/Game/Blueprints")
+```
+
+---
+
+### 6. DATATABLE_TOOLS (datatable_mcp_server.py)
+
+| Tool | Type | Recommendation |
+|------|------|----------------|
+| `get_datatable_rows` | **QUERY** | ✅ KEEP - Core query |
+| `get_datatable_row_names` | **QUERY** | ⚠️ Consider merge → `get_datatable_rows(names_only=true)` |
+| `create_datatable` | setter | keep |
+| `add_rows_to_datatable` | setter | keep |
+| `update_rows_in_datatable` | setter | keep |
+| `delete_datatable_rows` | setter | keep |
+
+**Action Items:**
+1. **Add `names_only` parameter to `get_datatable_rows`** - Eliminates `get_datatable_row_names`
+   ```python
+   get_datatable_rows(
+       datatable_name: str,
+       row_names: List[str] = None,
+       names_only: bool = False  # NEW: Only return row names, not full data
+   )
+   ```
+
+---
+
+## PRIORITY ORDER
+
+### 🔴 High Priority (Clear wins, minimal risk)
+
+1. ~~**Remove `list_blueprint_components`** from BLUEPRINT_TOOLS~~ ✅ DONE
+
+### 🟡 Medium Priority (Good consolidation, moderate effort)
+
+2. ~~**Create `get_project_metadata`** in PROJECT_TOOLS~~ ✅ DONE
+
+3. ~~**Create `get_level_metadata`** in EDITOR_TOOLS~~ ✅ DONE
+
+4. **Add `names_only` to `get_datatable_rows`** in DATATABLE_TOOLS
+   - Eliminates `get_datatable_row_names`
+   - Risk: Very low
+   - Effort: ~1 hour
+
+### 🟢 Lower Priority (Consider but not essential)
+
+5. **Add `nodes` field to `get_blueprint_metadata`** in BLUEPRINT_TOOLS
+   - Potentially replaces `find_blueprint_nodes` from NODE_TOOLS
+   - Risk: Medium - cross-server change
+   - Effort: ~3-4 hours
+
+6. **Enhance `variables` field in `get_blueprint_metadata`**
+   - Could replace `get_variable_info` from NODE_TOOLS
+   - Risk: Medium - need to maintain backwards compatibility
+   - Effort: ~2 hours
+
+---
+
+## SUMMARY TABLE
+
+| Server | Current Query Tools | After Consolidation | Tools Removed |
+|--------|---------------------|---------------------|---------------|
+| UMG_TOOLS | 1 | 1 | 3 (DONE ✅) |
+| BLUEPRINT_TOOLS | 1 | 1 | 1 (DONE ✅) |
+| NODE_TOOLS | 2 | 0-2 | 0-2 (optional) |
+| BLUEPRINT_ACTION_TOOLS | 5 | 5 | 0 (keep separate) |
+| EDITOR_TOOLS | 3 | 2 | 2 (DONE ✅) |
+| PROJECT_TOOLS | 5 (1 new + 4 deprecated) | 1 | 4 (DONE ✅) |
+| DATATABLE_TOOLS | 2 | 1 | 1 |
+| **TOTAL** | **19** | **11-13** | **9-11** |
+
+---
+
+## NEXT STEPS
+
+1. Start with **High Priority** items - quick wins
+2. Then tackle **Medium Priority** for significant API cleanup
+3. **Lower Priority** can wait for future refactoring cycles

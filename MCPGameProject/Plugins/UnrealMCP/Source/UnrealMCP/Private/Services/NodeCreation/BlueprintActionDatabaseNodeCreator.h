@@ -27,6 +27,7 @@ public:
      * @param NodeTitle - Title of the created node
      * @param NodeType - Type of the created node
      * @param OutErrorMessage - Optional output parameter for detailed error message
+     * @param OutWarningMessage - Optional output parameter for warning message (e.g., WidgetBlueprintLibrary usage)
      * @return True if node was created successfully
      */
     static bool TryCreateNodeUsingBlueprintActionDatabase(
@@ -38,6 +39,7 @@ public:
         UEdGraphNode*& NewNode,
         FString& NodeTitle,
         FString& NodeType,
-        FString* OutErrorMessage = nullptr
+        FString* OutErrorMessage = nullptr,
+        FString* OutWarningMessage = nullptr
     );
 };

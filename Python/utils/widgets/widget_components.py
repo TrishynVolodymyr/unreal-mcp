@@ -52,10 +52,6 @@ def bind_widget_component_event(
     logger.info(f"Binding event '{event_name}' on component '{widget_component_name}' in widget '{widget_name}' to function '{func_name}'")
     return send_unreal_command("bind_widget_component_event", params)
 
-# NOTE: add_widget_to_viewport removed – functionality superseded by regular Blueprint usage.
-def add_widget_to_viewport(*args, **kwargs):
-    """Deprecated – command removed."""
-    raise RuntimeError("add_widget_to_viewport MCP command has been removed.")
 
 def set_text_block_widget_component_binding(
     ctx: Context,
@@ -130,20 +126,6 @@ def create_parent_and_child_widget_components(
     logger.info(f"Creating parent '{parent_component_name}' ({parent_component_type}) with child '{child_component_name}' ({child_component_type}) in widget '{widget_name}'")
     return send_unreal_command("create_parent_and_child_widget_components", params)
 
-def check_widget_component_exists(
-    ctx: Context,
-    widget_name: str,
-    component_name: str
-) -> Dict[str, Any]:
-    """Implementation for checking if a component exists in a widget blueprint."""
-    params = {
-        "blueprint_name": widget_name,
-        "component_name": component_name
-    }
-    
-    logger.info(f"Checking if component '{component_name}' exists in widget '{widget_name}'")
-    return send_unreal_command("check_widget_component_exists", params)
-
 def set_widget_component_placement(
     ctx: Context,
     widget_name: str,
@@ -182,29 +164,6 @@ def set_widget_component_placement(
     
     logger.info(f"Setting placement for component '{component_name}' in widget '{widget_name}': Pos={position}, Size={size}, Align={alignment}")
     return send_unreal_command("set_widget_component_placement", params)
-
-def get_widget_container_component_dimensions(
-    ctx: Context,
-    widget_name: str,
-    container_name: str = "CanvasPanel_0"
-) -> Dict[str, Any]:
-    """Implementation for getting the dimensions of a container widget in a UMG Widget Blueprint.
-    
-    Args:
-        ctx: The current context
-        widget_name: Name of the target Widget Blueprint
-        container_name: Name of the container widget (defaults to "RootCanvas" for the root canvas panel)
-        
-    Returns:
-        Dict containing the container dimensions (width, height) and its position
-    """
-    params = {
-        "widget_name": widget_name,
-        "container_name": container_name
-    }
-    
-    logger.info(f"Getting dimensions for container '{container_name}' in widget '{widget_name}'")
-    return send_unreal_command("get_widget_container_component_dimensions", params)
 
 def add_widget_component_to_widget(
     ctx: Context,
@@ -313,13 +272,46 @@ def set_widget_component_property(ctx: Context, widget_name: str, component_name
     logger.info(f"[DEBUG] Sending set_widget_component_property params: {params}")
     return send_unreal_command("set_widget_component_property", params)
 
-def get_widget_component_layout_impl(ctx: Context, widget_name: str) -> dict:
-    """Implementation for getting layout information for all components within a UMG Widget Blueprint."""
-    command = "get_widget_component_layout"
-    params = {"widget_name": widget_name}
-    
-    logger.info(f"Getting component layout for widget: {widget_name}")
-    
-    # Just prepare params and call send_unreal_command, returning its result directly.
-    # Response parsing and detailed error handling will be done in the tool function.
-    return send_unreal_command(command, params)
+def get_widget_blueprint_metadata_impl(
+    ctx: Context,
+    widget_name: str,
+    fields: List[str] = None,
+    container_name: str = "CanvasPanel_0"
+) -> Dict[str, Any]:
+    """Implementation for getting comprehensive metadata about a Widget Blueprint.
+
+    This is the consolidated metadata tool that replaces:
+    - check_widget_component_exists (use fields=["components"])
+    - get_widget_component_layout (use fields=["layout"])
+    - get_widget_container_component_dimensions (use fields=["dimensions"])
+
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        fields: List of fields to include. Options:
+            - "components" - List all widget components
+            - "layout" - Full hierarchical layout with positions/sizes
+            - "dimensions" - Container dimensions
+            - "hierarchy" - Parent/child widget tree
+            - "bindings" - Property bindings
+            - "events" - Bound events and delegates
+            - "variables" - Blueprint variables
+            - "functions" - Blueprint functions
+            - "*" - Return all fields (default)
+        container_name: Container name for dimensions field (default: "CanvasPanel_0")
+
+    Returns:
+        Dict containing the requested metadata fields
+    """
+    params = {
+        "widget_name": widget_name
+    }
+
+    if fields is not None:
+        params["fields"] = fields
+
+    if container_name:
+        params["container_name"] = container_name
+
+    logger.info(f"Getting widget blueprint metadata for: {widget_name}, fields: {fields}")
+    return send_unreal_command("get_widget_blueprint_metadata", params)

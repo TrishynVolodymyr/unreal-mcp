@@ -8,6 +8,7 @@
 #include "EdGraphSchema_K2.h"
 #include "K2Node_Event.h"
 #include "K2Node_FunctionEntry.h"
+#include "K2Node_FunctionResult.h"
 #include "Components/TimelineComponent.h"
 #include "Engine/TimelineTemplate.h"
 #include "HAL/FileManager.h"
@@ -313,36 +314,55 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildFunctionsInfo(UBluepr
             FuncObj->SetStringField(TEXT("category"), EntryNode->MetaData.Category.ToString());
         }
 
-        // Get inputs and outputs from the generated function (if compiled)
-        if (Blueprint->GeneratedClass)
+        // Get inputs and outputs from the entry node's UserDefinedPins (most accurate, includes uncompiled changes)
+        // This reads directly from the graph definition rather than the compiled GeneratedClass
+        TArray<TSharedPtr<FJsonValue>> InputsList;
+        TArray<TSharedPtr<FJsonValue>> OutputsList;
+
+        if (EntryNode)
         {
-            UFunction* Function = Blueprint->GeneratedClass->FindFunctionByName(Graph->GetFName());
-            if (Function)
+            // Read inputs from entry node's user defined pins
+            for (const TSharedPtr<FUserPinInfo>& PinInfo : EntryNode->UserDefinedPins)
             {
-                TArray<TSharedPtr<FJsonValue>> InputsList;
-                TArray<TSharedPtr<FJsonValue>> OutputsList;
-
-                for (TFieldIterator<FProperty> PropIt(Function); PropIt; ++PropIt)
+                if (PinInfo.IsValid())
                 {
-                    FProperty* Prop = *PropIt;
                     TSharedPtr<FJsonObject> ParamObj = MakeShared<FJsonObject>();
-                    ParamObj->SetStringField(TEXT("name"), Prop->GetName());
-                    ParamObj->SetStringField(TEXT("type"), Prop->GetCPPType());
+                    ParamObj->SetStringField(TEXT("name"), PinInfo->PinName.ToString());
 
-                    if (Prop->HasAnyPropertyFlags(CPF_ReturnParm) || Prop->HasAnyPropertyFlags(CPF_OutParm))
-                    {
-                        OutputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
-                    }
-                    else if (Prop->HasAnyPropertyFlags(CPF_Parm))
-                    {
-                        InputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
-                    }
+                    // Get type info from pin type
+                    FString TypeString = GetPinTypeAsString(PinInfo->PinType);
+                    ParamObj->SetStringField(TEXT("type"), TypeString);
+
+                    InputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
                 }
-
-                FuncObj->SetArrayField(TEXT("inputs"), InputsList);
-                FuncObj->SetArrayField(TEXT("outputs"), OutputsList);
             }
         }
+
+        // Find result node for outputs
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            UK2Node_FunctionResult* ResultNode = Cast<UK2Node_FunctionResult>(Node);
+            if (ResultNode)
+            {
+                for (const TSharedPtr<FUserPinInfo>& PinInfo : ResultNode->UserDefinedPins)
+                {
+                    if (PinInfo.IsValid())
+                    {
+                        TSharedPtr<FJsonObject> ParamObj = MakeShared<FJsonObject>();
+                        ParamObj->SetStringField(TEXT("name"), PinInfo->PinName.ToString());
+
+                        FString TypeString = GetPinTypeAsString(PinInfo->PinType);
+                        ParamObj->SetStringField(TEXT("type"), TypeString);
+
+                        OutputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
+                    }
+                }
+                break; // Only need first result node
+            }
+        }
+
+        FuncObj->SetArrayField(TEXT("inputs"), InputsList);
+        FuncObj->SetArrayField(TEXT("outputs"), OutputsList);
 
         FunctionsList.Add(MakeShared<FJsonValueObject>(FuncObj));
     }
@@ -357,7 +377,7 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildComponentsInfo(UBluep
 {
     TSharedPtr<FJsonObject> ComponentsInfo = MakeShared<FJsonObject>();
 
-    // Use BlueprintService to get comprehensive component list (same as list_blueprint_components)
+    // Use BlueprintService to get comprehensive component list
     TArray<TPair<FString, FString>> Components;
     if (BlueprintService.GetBlueprintComponents(Blueprint, Components))
     {
@@ -541,4 +561,90 @@ bool FGetBlueprintMetadataCommand::ShouldIncludeField(const FString& FieldName, 
     }
 
     return RequestedFields.Contains(FieldName);
+}
+
+FString FGetBlueprintMetadataCommand::GetPinTypeAsString(const FEdGraphPinType& PinType) const
+{
+    // Handle basic types
+    if (PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean)
+    {
+        return TEXT("bool");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int)
+    {
+        return TEXT("int32");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Int64)
+    {
+        return TEXT("int64");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Real)
+    {
+        // Check subcategory for float vs double
+        if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Float)
+        {
+            return TEXT("float");
+        }
+        else if (PinType.PinSubCategory == UEdGraphSchema_K2::PC_Double)
+        {
+            return TEXT("double");
+        }
+        return TEXT("float"); // Default
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_String)
+    {
+        return TEXT("FString");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Text)
+    {
+        return TEXT("FText");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Name)
+    {
+        return TEXT("FName");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Byte)
+    {
+        return TEXT("uint8");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Struct)
+    {
+        // Return the struct name
+        if (UScriptStruct* Struct = Cast<UScriptStruct>(PinType.PinSubCategoryObject.Get()))
+        {
+            return Struct->GetName();
+        }
+        return TEXT("Struct");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Object ||
+             PinType.PinCategory == UEdGraphSchema_K2::PC_Class ||
+             PinType.PinCategory == UEdGraphSchema_K2::PC_SoftObject ||
+             PinType.PinCategory == UEdGraphSchema_K2::PC_SoftClass)
+    {
+        // Return the class name - this handles Blueprint classes like BP_DialogueNPC
+        if (UClass* Class = Cast<UClass>(PinType.PinSubCategoryObject.Get()))
+        {
+            return Class->GetName();
+        }
+        return TEXT("Object");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Interface)
+    {
+        if (UClass* Interface = Cast<UClass>(PinType.PinSubCategoryObject.Get()))
+        {
+            return Interface->GetName();
+        }
+        return TEXT("Interface");
+    }
+    else if (PinType.PinCategory == UEdGraphSchema_K2::PC_Enum)
+    {
+        if (UEnum* Enum = Cast<UEnum>(PinType.PinSubCategoryObject.Get()))
+        {
+            return Enum->GetName();
+        }
+        return TEXT("Enum");
+    }
+
+    // Fallback: return the category name
+    return PinType.PinCategory.ToString();
 }
