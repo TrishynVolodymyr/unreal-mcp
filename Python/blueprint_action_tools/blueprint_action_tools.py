@@ -275,6 +275,13 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Example: "GetOwner" exists in Actor, ActorComponent, CheatManager classes
         - Without class_name, the system may pick the wrong variant
         - Use get_actions_for_class() instead of search_blueprint_actions() to get context-specific results
+
+        **EXTERNAL CLASS VARIABLES** (class_name for variables from another class):
+        - When both the current Blueprint AND another class have a variable with the same name,
+          specify class_name to get the variable from the external class
+        - Example: WBP_DialogueWindow and BP_DialogueNPC both have "DialogueTable"
+        - Use class_name="BP_DialogueNPC" to get the getter for the NPC's variable
+        - This creates a getter with a Target pin expecting that specific class type
         
         **WORKING NODE TYPES**:
         - Function calls (KismetMathLibrary, GameplayStatics, etc.)

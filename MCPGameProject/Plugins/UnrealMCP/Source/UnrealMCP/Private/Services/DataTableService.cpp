@@ -129,11 +129,30 @@ UDataTable* FDataTableService::FindDataTable(const FString& DataTableName)
 {
     // Try multiple path variations to find the datatable
     TArray<FString> PathVariations;
+
+    // If DataTableName already looks like a full path (starts with /), try it first
+    if (DataTableName.StartsWith(TEXT("/")))
+    {
+        // Full path provided - try as-is first
+        PathVariations.Add(DataTableName);
+
+        // Also try with .AssetName suffix (e.g., /Game/Dialogue/DataTables/DT_Test.DT_Test)
+        FString AssetName = FPaths::GetBaseFilename(DataTableName);
+        PathVariations.Add(FString::Printf(TEXT("%s.%s"), *DataTableName, *AssetName));
+    }
+
+    // Try common variations
     PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s"), *DataTableName)));
     PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s.%s"), *DataTableName, *DataTableName)));
-    PathVariations.Add(DataTableName); // Try direct name
+    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataTables/%s"), *DataTableName)));
     PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(DataTableName)); // Try under Game root
-    
+
+    // Try just the name directly (last resort)
+    if (!DataTableName.StartsWith(TEXT("/")))
+    {
+        PathVariations.Add(DataTableName);
+    }
+
     for (const FString& Path : PathVariations)
     {
         UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Attempting to load DataTable at path: '%s'"), *Path);
@@ -144,7 +163,7 @@ UDataTable* FDataTableService::FindDataTable(const FString& DataTableName)
             return FoundTable;
         }
     }
-    
+
     UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Failed to find DataTable: '%s' in any location"), *DataTableName);
     return nullptr;
 }
