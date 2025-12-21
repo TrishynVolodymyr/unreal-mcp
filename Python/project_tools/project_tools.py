@@ -443,9 +443,14 @@ def register_project_tools(mcp: FastMCP):
                 - "structs": Struct variables (requires struct_name parameter)
                 - "folder_contents": Folder contents (requires folder_path parameter)
                 - "*": All available fields (default if None)
-            path: Base path for searching input actions/contexts (default: /Game)
+            path: Base path for searching input actions/contexts (default: /Game).
+                  For structs, this is optional - if not provided, smart discovery will search
+                  common paths and the asset registry.
             folder_path: Required for "folder_contents" field - path to list
-            struct_name: Required for "structs" field - name of struct to inspect
+            struct_name: Required for "structs" field - name or path of struct to inspect.
+                        Supports: simple name ("S_InventoryItem"), partial path, or full path.
+                        Smart discovery searches: /Game, /Game/Blueprints, /Game/Data,
+                        /Game/Structs, /Game/Inventory/Data, and asset registry.
 
         Returns:
             Dictionary with requested project metadata
@@ -458,7 +463,14 @@ def register_project_tools(mcp: FastMCP):
                 path="/Game/Input"
             )
 
-            # Get struct variables
+            # Get struct variables (with smart discovery - just provide name)
+            get_project_metadata(
+                ctx,
+                fields=["structs"],
+                struct_name="S_InventoryItem"  # Will search common paths automatically
+            )
+
+            # Get struct variables (with explicit path)
             get_project_metadata(
                 ctx,
                 fields=["structs"],

@@ -1,4 +1,5 @@
 #include "Services/ProjectService.h"
+#include "Services/AssetDiscoveryService.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 #include "GameFramework/InputSettings.h"
 #include "Misc/Paths.h"
@@ -850,27 +851,85 @@ TArray<TSharedPtr<FJsonObject>> FProjectService::ShowStructVariables(const FStri
     TArray<TSharedPtr<FJsonObject>> Variables;
     bOutSuccess = false;
 
-    // Create the struct asset path
-    FString AssetName = StructName;
-    FString PackagePath = Path;
-    if (!PackagePath.EndsWith(TEXT("/")))
-    {
-        PackagePath += TEXT("/");
-    }
-    FString PackageName = PackagePath + AssetName;
+    UUserDefinedStruct* Struct = nullptr;
 
-    // Check if the struct exists
-    if (!UEditorAssetLibrary::DoesAssetExist(PackageName))
+    // Strategy 1: Try exact path if provided
+    if (!Path.IsEmpty())
     {
-        OutError = FString::Printf(TEXT("Struct does not exist: %s"), *PackageName);
-        return Variables;
+        FString PackagePath = Path;
+        if (!PackagePath.EndsWith(TEXT("/")))
+        {
+            PackagePath += TEXT("/");
+        }
+        FString PackageName = PackagePath + StructName;
+
+        if (UEditorAssetLibrary::DoesAssetExist(PackageName))
+        {
+            UObject* AssetObj = UEditorAssetLibrary::LoadAsset(PackageName);
+            Struct = Cast<UUserDefinedStruct>(AssetObj);
+        }
     }
 
-    UObject* AssetObj = UEditorAssetLibrary::LoadAsset(PackageName);
-    UUserDefinedStruct* Struct = Cast<UUserDefinedStruct>(AssetObj);
+    // Strategy 2: Use smart asset discovery service (searches by name)
     if (!Struct)
     {
-        OutError = TEXT("Failed to load struct asset");
+        UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(StructName);
+        if (FoundStruct)
+        {
+            // Check if it's a user-defined struct
+            Struct = Cast<UUserDefinedStruct>(FoundStruct);
+            if (!Struct)
+            {
+                // It's a native/C++ struct - still valid, we can read its properties
+                // For native structs, we iterate properties differently
+                for (TFieldIterator<FProperty> PropIt(FoundStruct); PropIt; ++PropIt)
+                {
+                    FProperty* Property = *PropIt;
+                    if (!Property) continue;
+
+                    TSharedPtr<FJsonObject> VarObj = MakeShared<FJsonObject>();
+                    VarObj->SetStringField(TEXT("name"), Property->GetName());
+                    VarObj->SetStringField(TEXT("type"), GetPropertyTypeString(Property));
+
+                    FString Tooltip = Property->GetToolTipText().ToString();
+                    if (!Tooltip.IsEmpty())
+                    {
+                        VarObj->SetStringField(TEXT("description"), Tooltip);
+                    }
+                    Variables.Add(VarObj);
+                }
+                bOutSuccess = true;
+                return Variables;
+            }
+        }
+    }
+
+    // Strategy 3: Try common paths as fallback
+    if (!Struct)
+    {
+        TArray<FString> SearchPaths = {
+            FString::Printf(TEXT("/Game/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Blueprints/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Data/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Structs/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Inventory/Data/%s"), *StructName),
+            FString::Printf(TEXT("/Game/DataStructures/%s"), *StructName)
+        };
+
+        for (const FString& SearchPath : SearchPaths)
+        {
+            if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
+            {
+                UObject* AssetObj = UEditorAssetLibrary::LoadAsset(SearchPath);
+                Struct = Cast<UUserDefinedStruct>(AssetObj);
+                if (Struct) break;
+            }
+        }
+    }
+
+    if (!Struct)
+    {
+        OutError = FString::Printf(TEXT("Struct '%s' not found. Searched in common paths and asset registry. Try providing full path like '/Game/Inventory/Data/%s'"), *StructName, *StructName);
         return Variables;
     }
 
