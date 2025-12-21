@@ -19,6 +19,7 @@
 #include "WidgetBlueprint.h"
 #include "UObject/UObjectIterator.h"
 #include "K2Node_GetArrayItem.h"
+#include "Animation/AnimBlueprint.h"
 
 // Helper function to normalize function names by removing common UE prefixes
 static FString NormalizeFunctionName(const FString& Name)
@@ -541,22 +542,168 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
         // (by this point, if ClassName was specified, only matching spawners remain in the list)
         if (MatchingSpawners.Num() > 0)
         {
-            const UBlueprintNodeSpawner* SelectedSpawner = MatchingSpawners[0];
-            
+            // CRITICAL: Get the target Blueprint to check compatibility with spawners
+            UBlueprint* TargetBlueprint = FBlueprintEditorUtils::FindBlueprintForGraph(EventGraph);
+            bool bIsAnimBlueprint = TargetBlueprint && TargetBlueprint->IsA<UAnimBlueprint>();
+
+            const UBlueprintNodeSpawner* SelectedSpawner = nullptr;
+
+            // Find a compatible spawner - some spawners are only valid for specific Blueprint types
+            for (const UBlueprintNodeSpawner* CandidateSpawner : MatchingSpawners)
+            {
+                if (!CandidateSpawner) continue;
+
+                bool bRequiresAnimBlueprint = false;
+
+                // CHECK 1: Examine the spawner's template node class
+                // AnimGraph nodes have class names containing "AnimGraph" or are in the AnimGraph module
+                if (UEdGraphNode* TemplateNode = CandidateSpawner->GetTemplateNode())
+                {
+                    UClass* NodeClass = TemplateNode->GetClass();
+                    if (NodeClass)
+                    {
+                        FString NodeClassName = NodeClass->GetName();
+                        FString NodeClassPath = NodeClass->GetPathName();
+
+                        // Check if the node class is from AnimGraph module or is animation-related
+                        if (NodeClassName.Contains(TEXT("AnimGraph")) ||
+                            NodeClassName.Contains(TEXT("AnimNode")) ||
+                            NodeClassName.StartsWith(TEXT("UAnimGraphNode")) ||
+                            NodeClassPath.Contains(TEXT("/AnimGraph/")) ||
+                            NodeClassPath.Contains(TEXT("AnimGraphRuntime")))
+                        {
+                            bRequiresAnimBlueprint = true;
+                            UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Node class '%s' requires AnimBlueprint"), *NodeClassName);
+                        }
+
+                        // Also check the node class's outer chain for AnimGraph module
+                        for (UObject* Outer = NodeClass->GetOuter(); Outer && !bRequiresAnimBlueprint; Outer = Outer->GetOuter())
+                        {
+                            FString OuterName = Outer->GetName();
+                            if (OuterName.Contains(TEXT("AnimGraph")) || OuterName.Contains(TEXT("AnimNode")))
+                            {
+                                bRequiresAnimBlueprint = true;
+                                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Node outer '%s' requires AnimBlueprint"), *OuterName);
+                            }
+                        }
+                    }
+                }
+
+                // CHECK 2: Examine the spawner's outer object (ActionKey)
+                if (!bRequiresAnimBlueprint)
+                {
+                    UObject* ActionOuter = CandidateSpawner->GetOuter();
+                    if (ActionOuter)
+                    {
+                        // Check if the spawner's outer is an AnimBlueprint or AnimBlueprint-related class
+                        if (UClass* OuterClass = Cast<UClass>(ActionOuter))
+                        {
+                            bRequiresAnimBlueprint = OuterClass->IsChildOf(UAnimBlueprint::StaticClass()) ||
+                                                      OuterClass->GetName().Contains(TEXT("AnimGraph")) ||
+                                                      OuterClass->GetName().Contains(TEXT("AnimNode"));
+                        }
+                        else if (Cast<UAnimBlueprint>(ActionOuter))
+                        {
+                            bRequiresAnimBlueprint = true;
+                        }
+                        else
+                        {
+                            // Check the outer's class name for animation-related keywords
+                            FString OuterClassName = ActionOuter->GetClass()->GetName();
+                            if (OuterClassName.Contains(TEXT("AnimGraph")) || OuterClassName.Contains(TEXT("AnimNode")))
+                            {
+                                bRequiresAnimBlueprint = true;
+                            }
+                        }
+                    }
+                }
+
+                // CHECK 3: Check the spawner class itself
+                if (!bRequiresAnimBlueprint)
+                {
+                    FString SpawnerClassName = CandidateSpawner->GetClass()->GetName();
+                    if (SpawnerClassName.Contains(TEXT("AnimGraph")) || SpawnerClassName.Contains(TEXT("AnimNode")))
+                    {
+                        bRequiresAnimBlueprint = true;
+                    }
+                }
+
+                // CHECK 4: For function call nodes, check if the function's owner class is animation-related
+                // Some spawners create K2Node_CallFunction but the target function is only valid in AnimBlueprint context
+                if (!bRequiresAnimBlueprint)
+                {
+                    if (UEdGraphNode* TemplateNode = CandidateSpawner->GetTemplateNode())
+                    {
+                        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(TemplateNode))
+                        {
+                            if (UFunction* Function = FunctionNode->GetTargetFunction())
+                            {
+                                UClass* OwnerClass = Function->GetOwnerClass();
+                                if (OwnerClass)
+                                {
+                                    FString OwnerClassName = OwnerClass->GetName();
+                                    FString OwnerClassPath = OwnerClass->GetPathName();
+
+                                    // Check for animation-related owner classes
+                                    if (OwnerClassName.Contains(TEXT("AnimInstance")) ||
+                                        OwnerClassName.Contains(TEXT("AnimBlueprint")) ||
+                                        OwnerClassName.Contains(TEXT("AnimGraph")) ||
+                                        OwnerClassName.Contains(TEXT("AnimNode")) ||
+                                        OwnerClassName.Contains(TEXT("AnimSequence")) ||
+                                        OwnerClassPath.Contains(TEXT("/AnimGraph/")) ||
+                                        OwnerClassPath.Contains(TEXT("AnimGraphRuntime")))
+                                    {
+                                        bRequiresAnimBlueprint = true;
+                                        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Function owner '%s' requires AnimBlueprint"), *OwnerClassName);
+                                    }
+                                }
+
+                                // Also check function metadata for animation-specific flags
+                                FString FunctionPath = Function->GetPathName();
+                                if (FunctionPath.Contains(TEXT("AnimGraph")) || FunctionPath.Contains(TEXT("AnimNode")))
+                                {
+                                    bRequiresAnimBlueprint = true;
+                                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Function path '%s' requires AnimBlueprint"), *FunctionPath);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Skip AnimBlueprint-specific spawners if target is not an AnimBlueprint
+                if (bRequiresAnimBlueprint && !bIsAnimBlueprint)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Skipping spawner (requires AnimBlueprint, target is %s)"),
+                           TargetBlueprint ? *TargetBlueprint->GetClass()->GetName() : TEXT("NULL"));
+                    continue;
+                }
+
+                // This spawner is compatible
+                SelectedSpawner = CandidateSpawner;
+                break;
+            }
+
+            if (!SelectedSpawner)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: No compatible spawner found for Blueprint type '%s'"),
+                       TargetBlueprint ? *TargetBlueprint->GetClass()->GetName() : TEXT("NULL"));
+                return false;
+            }
+
             // Get info from the selected spawner for logging
             if (UEdGraphNode* TemplateNode = SelectedSpawner->GetTemplateNode())
             {
                 FString NodeName = TEXT("");
                 FString NodeClass = TemplateNode->GetClass()->GetName();
-                
+
                 if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
                 {
                     NodeName = K2Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
                 }
-                
-                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Creating node using selected spawner (name: '%s', class: '%s')"), 
+
+                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Creating node using selected spawner (name: '%s', class: '%s')"),
                        *NodeName, *NodeClass);
-                
+
                 // Create the node using the spawner
                 NewNode = SelectedSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
                 if (NewNode)

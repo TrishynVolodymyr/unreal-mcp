@@ -28,9 +28,10 @@ public:
     // IUMGService interface
     virtual UWidgetBlueprint* CreateWidgetBlueprint(const FString& Name, const FString& ParentClass = TEXT("UserWidget"), const FString& Path = TEXT("/Game/Widgets")) override;
     virtual bool DoesWidgetBlueprintExist(const FString& Name, const FString& Path = TEXT("/Game/Widgets")) override;
-    virtual UWidget* AddWidgetComponent(const FString& BlueprintName, const FString& ComponentName, 
-                                       const FString& ComponentType, const FVector2D& Position, 
-                                       const FVector2D& Size, const TSharedPtr<FJsonObject>& Kwargs) override;
+    virtual UWidget* AddWidgetComponent(const FString& BlueprintName, const FString& ComponentName,
+                                       const FString& ComponentType, const FVector2D& Position,
+                                       const FVector2D& Size, const TSharedPtr<FJsonObject>& Kwargs,
+                                       FString* OutError = nullptr) override;
     virtual bool SetWidgetProperties(const FString& BlueprintName, const FString& ComponentName, 
                                     const TSharedPtr<FJsonObject>& Properties, TArray<FString>& OutSuccessProperties, 
                                     TArray<FString>& OutFailedProperties) override;

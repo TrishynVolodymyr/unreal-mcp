@@ -47,14 +47,31 @@ FWidgetComponentService::FWidgetComponentService()
 {
 }
 
-UWidget* FWidgetComponentService::CreateWidgetComponent(
-    UWidgetBlueprint* WidgetBlueprint, 
-    const FString& ComponentName, 
-    const FString& ComponentType,
-    const FVector2D& Position, 
-    const FVector2D& Size,
-    const TSharedPtr<FJsonObject>& KwargsObject)
+TArray<FString> FWidgetComponentService::GetSupportedComponentTypes()
 {
+    return TArray<FString>{
+        TEXT("TextBlock"), TEXT("Button"), TEXT("Image"), TEXT("CheckBox"), TEXT("Slider"),
+        TEXT("ProgressBar"), TEXT("Border"), TEXT("ScrollBox"), TEXT("Spacer"), TEXT("WidgetSwitcher"),
+        TEXT("Throbber"), TEXT("ExpandableArea"), TEXT("RichTextBlock"), TEXT("MultiLineEditableText"),
+        TEXT("VerticalBox"), TEXT("HorizontalBox"), TEXT("Overlay"), TEXT("GridPanel"), TEXT("SizeBox"),
+        TEXT("CanvasPanel"), TEXT("ComboBox"), TEXT("EditableText"), TEXT("EditableTextBox"),
+        TEXT("CircularThrobber"), TEXT("SpinBox"), TEXT("WrapBox"), TEXT("ScaleBox"), TEXT("NamedSlot"),
+        TEXT("RadialSlider"), TEXT("ListView"), TEXT("TileView"), TEXT("TreeView"), TEXT("SafeZone"),
+        TEXT("MenuAnchor"), TEXT("NativeWidgetHost"), TEXT("BackgroundBlur"), TEXT("UniformGridPanel")
+    };
+}
+
+UWidget* FWidgetComponentService::CreateWidgetComponent(
+    UWidgetBlueprint* WidgetBlueprint,
+    const FString& ComponentName,
+    const FString& ComponentType,
+    const FVector2D& Position,
+    const FVector2D& Size,
+    const TSharedPtr<FJsonObject>& KwargsObject,
+    FString& OutError)
+{
+    OutError.Empty();
+
     // Log the received KwargsObject
     FString JsonString = TEXT("null");
     if (KwargsObject.IsValid())
@@ -63,7 +80,7 @@ UWidget* FWidgetComponentService::CreateWidgetComponent(
         FJsonSerializer::Serialize(KwargsObject.ToSharedRef(), Writer);
     }
     UE_LOG(LogTemp, Log, TEXT("FWidgetComponentService::CreateWidgetComponent Received Kwargs for %s (%s): %s"), *ComponentName, *ComponentType, *JsonString);
-    
+
     // Create the appropriate widget based on component type
     UWidget* CreatedWidget = nullptr;
 
@@ -261,27 +278,36 @@ UWidget* FWidgetComponentService::CreateWidgetComponent(
     // Default case for unsupported types
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("Unsupported component type: %s"), *ComponentType);
+        // Build a helpful error message listing supported types
+        TArray<FString> SupportedTypes = GetSupportedComponentTypes();
+        FString SupportedTypesStr = FString::Join(SupportedTypes, TEXT(", "));
+
+        OutError = FString::Printf(
+            TEXT("Unsupported component type '%s'. Note: To embed another Widget Blueprint, use 'NamedSlot' as a placeholder or create the widget at runtime in Construct. Supported types: %s"),
+            *ComponentType, *SupportedTypesStr);
+        UE_LOG(LogTemp, Error, TEXT("%s"), *OutError);
         return nullptr;
     }
-    
+
     // If widget creation failed, return nullptr
     if (!CreatedWidget)
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to create widget component: %s"), *ComponentName);
+        OutError = FString::Printf(TEXT("Widget factory returned null for component '%s' of type '%s'. The widget type is supported but creation failed internally."), *ComponentName, *ComponentType);
+        UE_LOG(LogTemp, Error, TEXT("%s"), *OutError);
         return nullptr;
     }
-    
+
     // Add the widget to the widget tree
     if (!AddWidgetToTree(WidgetBlueprint, CreatedWidget, Position, Size))
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to add widget to tree: %s"), *ComponentName);
+        OutError = FString::Printf(TEXT("Failed to add widget '%s' to the widget tree. The widget was created but could not be added to the blueprint's root canvas."), *ComponentName);
+        UE_LOG(LogTemp, Error, TEXT("%s"), *OutError);
         return nullptr;
     }
-    
+
     // Save the blueprint
     SaveWidgetBlueprint(WidgetBlueprint);
-    
+
     UE_LOG(LogTemp, Log, TEXT("Successfully created and added widget component: %s"), *ComponentName);
     return CreatedWidget;
 }

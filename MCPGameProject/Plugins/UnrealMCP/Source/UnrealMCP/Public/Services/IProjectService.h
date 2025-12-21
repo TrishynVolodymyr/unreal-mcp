@@ -23,6 +23,10 @@ public:
     virtual bool CreateStruct(const FString& StructName, const FString& Path, const FString& Description, const TArray<TSharedPtr<FJsonObject>>& Properties, FString& OutFullPath, FString& OutError) = 0;
     virtual bool UpdateStruct(const FString& StructName, const FString& Path, const FString& Description, const TArray<TSharedPtr<FJsonObject>>& Properties, FString& OutError) = 0;
     virtual TArray<TSharedPtr<FJsonObject>> ShowStructVariables(const FString& StructName, const FString& Path, bool& bOutSuccess, FString& OutError) = 0;
+
+    // Enum operations
+    // ValueDescriptions is a map from value name to its description (optional)
+    virtual bool CreateEnum(const FString& EnumName, const FString& Path, const FString& Description, const TArray<FString>& Values, const TMap<FString, FString>& ValueDescriptions, FString& OutFullPath, FString& OutError) = 0;
     
     // Enhanced Input operations
     virtual bool CreateEnhancedInputAction(const FString& ActionName, const FString& Path, const FString& Description, const FString& ValueType, FString& OutAssetPath, FString& OutError) = 0;

@@ -27,6 +27,7 @@ public:
     UObject* FindAssetByPath(const FString& AssetPath);
     UObject* FindAssetByName(const FString& AssetName, const FString& AssetType = TEXT(""));
     UScriptStruct* FindStructType(const FString& StructPath);
+    UEnum* FindEnumType(const FString& EnumPath);
 
     // Asset path utilities
     TArray<FString> GetCommonAssetSearchPaths(const FString& AssetName);

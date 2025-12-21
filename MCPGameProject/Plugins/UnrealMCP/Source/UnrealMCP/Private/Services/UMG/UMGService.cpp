@@ -142,9 +142,10 @@ bool FUMGService::DoesWidgetBlueprintExist(const FString& Name, const FString& P
     return true;
 }
 
-UWidget* FUMGService::AddWidgetComponent(const FString& BlueprintName, const FString& ComponentName, 
-                                        const FString& ComponentType, const FVector2D& Position, 
-                                        const FVector2D& Size, const TSharedPtr<FJsonObject>& Kwargs)
+UWidget* FUMGService::AddWidgetComponent(const FString& BlueprintName, const FString& ComponentName,
+                                        const FString& ComponentType, const FVector2D& Position,
+                                        const FVector2D& Size, const TSharedPtr<FJsonObject>& Kwargs,
+                                        FString* OutError)
 {
     // Validate parameters
     if (ValidationService)
@@ -152,10 +153,12 @@ UWidget* FUMGService::AddWidgetComponent(const FString& BlueprintName, const FSt
         FWidgetValidationResult ValidationResult = ValidationService->ValidateWidgetComponentCreation(BlueprintName, ComponentName, ComponentType, Position, Size, Kwargs);
         if (!ValidationResult.bIsValid)
         {
-            UE_LOG(LogTemp, Error, TEXT("UMGService: Widget component creation validation failed: %s"), *ValidationResult.ErrorMessage);
+            FString ErrorMsg = FString::Printf(TEXT("Widget component creation validation failed: %s"), *ValidationResult.ErrorMessage);
+            UE_LOG(LogTemp, Error, TEXT("UMGService: %s"), *ErrorMsg);
+            if (OutError) *OutError = ErrorMsg;
             return nullptr;
         }
-        
+
         // Log warnings if any
         for (const FString& Warning : ValidationResult.Warnings)
         {
@@ -166,17 +169,27 @@ UWidget* FUMGService::AddWidgetComponent(const FString& BlueprintName, const FSt
     UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
     if (!WidgetBlueprint)
     {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to find widget blueprint: %s"), *BlueprintName);
+        FString ErrorMsg = FString::Printf(TEXT("Failed to find widget blueprint: %s"), *BlueprintName);
+        UE_LOG(LogTemp, Error, TEXT("UMGService: %s"), *ErrorMsg);
+        if (OutError) *OutError = ErrorMsg;
         return nullptr;
     }
 
     if (!WidgetComponentService)
     {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: WidgetComponentService is null"));
+        FString ErrorMsg = TEXT("Internal error: WidgetComponentService is null");
+        UE_LOG(LogTemp, Error, TEXT("UMGService: %s"), *ErrorMsg);
+        if (OutError) *OutError = ErrorMsg;
         return nullptr;
     }
 
-    return WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ComponentName, ComponentType, Position, Size, Kwargs);
+    FString ServiceError;
+    UWidget* Result = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ComponentName, ComponentType, Position, Size, Kwargs, ServiceError);
+    if (!Result && OutError)
+    {
+        *OutError = ServiceError.IsEmpty() ? FString::Printf(TEXT("Failed to create widget component: %s of type %s"), *ComponentName, *ComponentType) : ServiceError;
+    }
+    return Result;
 }
 
 bool FUMGService::SetWidgetProperties(const FString& BlueprintName, const FString& ComponentName, 
@@ -513,10 +526,11 @@ bool FUMGService::AddChildWidgetComponentToParent(const FString& BlueprintName, 
     {
         // Create the parent component
         TSharedPtr<FJsonObject> EmptyKwargs = MakeShared<FJsonObject>();
-        ParentWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ParentComponentName, ParentComponentType, ParentPosition, ParentSize, EmptyKwargs);
+        FString CreateError;
+        ParentWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ParentComponentName, ParentComponentType, ParentPosition, ParentSize, EmptyKwargs, CreateError);
         if (!ParentWidget)
         {
-            UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create parent widget component: %s"), *ParentComponentName);
+            UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create parent widget component: %s - %s"), *ParentComponentName, *CreateError);
             return false;
         }
     }
@@ -561,18 +575,20 @@ bool FUMGService::CreateParentAndChildWidgetComponents(const FString& BlueprintN
 
     // Create the parent component
     TSharedPtr<FJsonObject> EmptyKwargs = MakeShared<FJsonObject>();
-    UWidget* ParentWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ParentComponentName, ParentComponentType, ParentPosition, ParentSize, EmptyKwargs);
+    FString ParentError;
+    UWidget* ParentWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ParentComponentName, ParentComponentType, ParentPosition, ParentSize, EmptyKwargs, ParentError);
     if (!ParentWidget)
     {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create parent widget component: %s"), *ParentComponentName);
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create parent widget component: %s - %s"), *ParentComponentName, *ParentError);
         return false;
     }
 
     // Create the child component
-    UWidget* ChildWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ChildComponentName, ChildComponentType, FVector2D(0.0f, 0.0f), FVector2D(100.0f, 50.0f), ChildAttributes);
+    FString ChildError;
+    UWidget* ChildWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ChildComponentName, ChildComponentType, FVector2D(0.0f, 0.0f), FVector2D(100.0f, 50.0f), ChildAttributes, ChildError);
     if (!ChildWidget)
     {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create child widget component: %s"), *ChildComponentName);
+        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create child widget component: %s - %s"), *ChildComponentName, *ChildError);
         return false;
     }
 

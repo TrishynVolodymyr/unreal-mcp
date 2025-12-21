@@ -10,6 +10,8 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/GameModeBase.h"
 #include "Engine/DataTable.h"
+#include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedEnum.h"
 
 
 FAssetDiscoveryService& FAssetDiscoveryService::Get()
@@ -296,57 +298,245 @@ UObject* FAssetDiscoveryService::FindAssetByName(const FString& AssetName, const
 UScriptStruct* FAssetDiscoveryService::FindStructType(const FString& StructPath)
 {
     UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Searching for struct: %s"), *StructPath);
-    
-    // Try direct loading first
-    UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructPath);
-    if (FoundStruct)
+
+    // Extract the base struct name (handle paths like /Game/Inventory/Data/S_ItemInstance)
+    FString StructName = FPaths::GetBaseFilename(StructPath);
+    // Also try without any path prefix
+    FString CleanStructPath = StructPath;
+    if (CleanStructPath.StartsWith(TEXT("Struct:")))
     {
-        UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via direct loading: %s"), *FoundStruct->GetName());
-        return FoundStruct;
+        CleanStructPath = CleanStructPath.Mid(7); // Remove "Struct:" prefix
     }
-    
-    // Try with common engine paths
-    TArray<FString> CommonPaths = {
-        BuildEnginePath(StructPath),
-        BuildCorePath(StructPath),
-        BuildGamePath(StructPath)
+    StructName = FPaths::GetBaseFilename(CleanStructPath);
+
+    UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Extracted struct name: %s from path: %s"), *StructName, *StructPath);
+
+    // Strategy 1: Check built-in struct types first
+    static const TMap<FString, UScriptStruct*> BuiltInStructs = {
+        {TEXT("Vector"), TBaseStructure<FVector>::Get()},
+        {TEXT("Rotator"), TBaseStructure<FRotator>::Get()},
+        {TEXT("Transform"), TBaseStructure<FTransform>::Get()},
+        {TEXT("Color"), TBaseStructure<FLinearColor>::Get()},
+        {TEXT("LinearColor"), TBaseStructure<FLinearColor>::Get()},
+        {TEXT("Vector2D"), TBaseStructure<FVector2D>::Get()},
+        {TEXT("IntPoint"), TBaseStructure<FIntPoint>::Get()},
+        {TEXT("IntVector"), TBaseStructure<FIntVector>::Get()},
+        {TEXT("Guid"), TBaseStructure<FGuid>::Get()},
+        {TEXT("DateTime"), TBaseStructure<FDateTime>::Get()}
     };
-    
+
+    // Check for exact built-in match
+    if (const UScriptStruct* const* FoundBuiltIn = BuiltInStructs.Find(StructName))
+    {
+        UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found built-in struct: %s"), *(*FoundBuiltIn)->GetName());
+        return const_cast<UScriptStruct*>(*FoundBuiltIn);
+    }
+
+    // Strategy 2: Try direct loading with the full path if it looks like a path
+    if (CleanStructPath.StartsWith(TEXT("/")) || CleanStructPath.Contains(TEXT(".")))
+    {
+        // Try as UUserDefinedStruct (user-created structs in editor)
+        UUserDefinedStruct* DirectUserStruct = LoadObject<UUserDefinedStruct>(nullptr, *CleanStructPath);
+        if (DirectUserStruct)
+        {
+            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via direct path (UserDefinedStruct): %s"), *DirectUserStruct->GetName());
+            return DirectUserStruct;
+        }
+
+        // Try as regular UScriptStruct (C++ structs)
+        UScriptStruct* DirectStruct = LoadObject<UScriptStruct>(nullptr, *CleanStructPath);
+        if (DirectStruct)
+        {
+            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via direct path (ScriptStruct): %s"), *DirectStruct->GetName());
+            return DirectStruct;
+        }
+
+        // Try with .StructName suffix (asset reference format)
+        FString AssetPath = FString::Printf(TEXT("%s.%s"), *CleanStructPath, *StructName);
+        DirectUserStruct = LoadObject<UUserDefinedStruct>(nullptr, *AssetPath);
+        if (DirectUserStruct)
+        {
+            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via asset path: %s"), *DirectUserStruct->GetName());
+            return DirectUserStruct;
+        }
+    }
+
+    // Strategy 3: Search using asset registry for UUserDefinedStruct
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> AssetDataList;
+
+    FARFilter Filter;
+    Filter.PackagePaths.Add(TEXT("/Game"));
+    Filter.bRecursivePaths = true;
+    Filter.ClassPaths.Add(UUserDefinedStruct::StaticClass()->GetClassPathName());
+
+    AssetRegistryModule.Get().GetAssets(Filter, AssetDataList);
+
+    UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found %d UserDefinedStruct assets in registry"), AssetDataList.Num());
+
+    // First pass: exact match on name
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        FString AssetName = AssetData.AssetName.ToString();
+        if (AssetName.Equals(StructName, ESearchCase::IgnoreCase))
+        {
+            UUserDefinedStruct* UserStruct = Cast<UUserDefinedStruct>(AssetData.GetAsset());
+            if (UserStruct)
+            {
+                UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found exact match UserDefinedStruct: %s at %s"),
+                    *UserStruct->GetName(), *AssetData.GetObjectPathString());
+                return UserStruct;
+            }
+        }
+    }
+
+    // Second pass: Contains match (for partial names)
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        FString AssetName = AssetData.AssetName.ToString();
+        if (AssetName.Contains(StructName, ESearchCase::IgnoreCase) ||
+            StructName.Contains(AssetName, ESearchCase::IgnoreCase))
+        {
+            UUserDefinedStruct* UserStruct = Cast<UUserDefinedStruct>(AssetData.GetAsset());
+            if (UserStruct)
+            {
+                UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found partial match UserDefinedStruct: %s at %s"),
+                    *UserStruct->GetName(), *AssetData.GetObjectPathString());
+                return UserStruct;
+            }
+        }
+    }
+
+    // Strategy 4: Try with common engine paths for C++ structs
+    TArray<FString> CommonPaths = {
+        BuildEnginePath(StructName),
+        BuildCorePath(StructName),
+        BuildGamePath(StructName)
+    };
+
     for (const FString& Path : CommonPaths)
     {
-        FoundStruct = LoadObject<UScriptStruct>(nullptr, *Path);
+        UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *Path);
         if (FoundStruct)
         {
             UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via common path: %s"), *Path);
             return FoundStruct;
         }
     }
-    
-    // Try finding user-defined structs using asset registry (without UUserDefinedStruct class)
+
+    UE_LOG(LogTemp, Warning, TEXT("AssetDiscoveryService: Could not find struct: %s (searched as: %s)"), *StructPath, *StructName);
+    return nullptr;
+}
+
+UEnum* FAssetDiscoveryService::FindEnumType(const FString& EnumPath)
+{
+    UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Searching for enum: %s"), *EnumPath);
+
+    // Extract the base enum name (handle paths like /Game/Inventory/Data/E_EquipmentSlot)
+    FString EnumName = FPaths::GetBaseFilename(EnumPath);
+    // Also try without any path prefix
+    FString CleanEnumPath = EnumPath;
+    if (CleanEnumPath.StartsWith(TEXT("Enum:")))
+    {
+        CleanEnumPath = CleanEnumPath.Mid(5); // Remove "Enum:" prefix
+    }
+    EnumName = FPaths::GetBaseFilename(CleanEnumPath);
+
+    UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Extracted enum name: %s from path: %s"), *EnumName, *EnumPath);
+
+    // Strategy 1: Try direct loading with the full path if it looks like a path
+    if (CleanEnumPath.StartsWith(TEXT("/")) || CleanEnumPath.Contains(TEXT(".")))
+    {
+        // Try as UUserDefinedEnum (user-created enums in editor)
+        UUserDefinedEnum* DirectUserEnum = LoadObject<UUserDefinedEnum>(nullptr, *CleanEnumPath);
+        if (DirectUserEnum)
+        {
+            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via direct path (UserDefinedEnum): %s"), *DirectUserEnum->GetName());
+            return DirectUserEnum;
+        }
+
+        // Try as regular UEnum (C++ enums)
+        UEnum* DirectEnum = LoadObject<UEnum>(nullptr, *CleanEnumPath);
+        if (DirectEnum)
+        {
+            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via direct path (UEnum): %s"), *DirectEnum->GetName());
+            return DirectEnum;
+        }
+
+        // Try with .EnumName suffix (asset reference format)
+        FString AssetPath = FString::Printf(TEXT("%s.%s"), *CleanEnumPath, *EnumName);
+        DirectUserEnum = LoadObject<UUserDefinedEnum>(nullptr, *AssetPath);
+        if (DirectUserEnum)
+        {
+            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via asset path: %s"), *DirectUserEnum->GetName());
+            return DirectUserEnum;
+        }
+    }
+
+    // Strategy 2: Search using asset registry for UUserDefinedEnum
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
     TArray<FAssetData> AssetDataList;
-    
+
     FARFilter Filter;
     Filter.PackagePaths.Add(TEXT("/Game"));
     Filter.bRecursivePaths = true;
-    
+    Filter.ClassPaths.Add(UUserDefinedEnum::StaticClass()->GetClassPathName());
+
     AssetRegistryModule.Get().GetAssets(Filter, AssetDataList);
-    
+
+    UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found %d UserDefinedEnum assets in registry"), AssetDataList.Num());
+
+    // First pass: exact match on name
     for (const FAssetData& AssetData : AssetDataList)
     {
-        if (AssetData.AssetName.ToString().Contains(StructPath))
+        FString AssetName = AssetData.AssetName.ToString();
+        if (AssetName.Equals(EnumName, ESearchCase::IgnoreCase))
         {
-            UObject* Asset = AssetData.GetAsset();
-            UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Asset);
-            if (ScriptStruct)
+            UUserDefinedEnum* UserEnum = Cast<UUserDefinedEnum>(AssetData.GetAsset());
+            if (UserEnum)
             {
-                UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found user-defined struct: %s"), *ScriptStruct->GetName());
-                return ScriptStruct;
+                UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found exact match UserDefinedEnum: %s at %s"),
+                    *UserEnum->GetName(), *AssetData.GetObjectPathString());
+                return UserEnum;
             }
         }
     }
-    
-    UE_LOG(LogTemp, Warning, TEXT("AssetDiscoveryService: Could not find struct: %s"), *StructPath);
+
+    // Second pass: Contains match (for partial names)
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        FString AssetName = AssetData.AssetName.ToString();
+        if (AssetName.Contains(EnumName, ESearchCase::IgnoreCase) ||
+            EnumName.Contains(AssetName, ESearchCase::IgnoreCase))
+        {
+            UUserDefinedEnum* UserEnum = Cast<UUserDefinedEnum>(AssetData.GetAsset());
+            if (UserEnum)
+            {
+                UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found partial match UserDefinedEnum: %s at %s"),
+                    *UserEnum->GetName(), *AssetData.GetObjectPathString());
+                return UserEnum;
+            }
+        }
+    }
+
+    // Strategy 3: Try with common engine paths for C++ enums
+    TArray<FString> CommonPaths = {
+        BuildEnginePath(EnumName),
+        BuildCorePath(EnumName),
+        BuildGamePath(EnumName)
+    };
+
+    for (const FString& Path : CommonPaths)
+    {
+        UEnum* FoundEnum = LoadObject<UEnum>(nullptr, *Path);
+        if (FoundEnum)
+        {
+            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via common path: %s"), *Path);
+            return FoundEnum;
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("AssetDiscoveryService: Could not find enum: %s (searched as: %s)"), *EnumPath, *EnumName);
     return nullptr;
 }
 

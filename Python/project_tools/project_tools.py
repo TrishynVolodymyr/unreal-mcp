@@ -349,6 +349,81 @@ def register_project_tools(mcp: FastMCP):
         return update_struct_impl(ctx, struct_name, properties, path, description)
 
     @mcp.tool()
+    def create_enum(
+        ctx: Context,
+        enum_name: str,
+        values: List[Dict[str, str]],
+        path: str = "/Game/Blueprints",
+        description: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Create a new Unreal user-defined enum.
+
+        Args:
+            enum_name: Name of the enum to create (e.g., "E_ItemType")
+            values: List of enum values. Can be either:
+                    - Simple strings: ["Weapon", "Armor", "Consumable"]
+                    - Objects with name and description: [{"name": "Weapon", "description": "Melee or ranged weapons"}]
+            path: Path where to create the enum asset
+            description: Optional description for the enum (shown in Enum Description field)
+
+        Returns:
+            Dictionary with the creation status and enum path
+
+        Examples:
+            # Simple enum (values as strings)
+            create_enum(
+                enum_name="E_ItemType",
+                values=["Weapon", "Armor", "Consumable", "Material", "QuestItem"],
+                path="/Game/Inventory/Data",
+                description="Categories for inventory items"
+            )
+
+            # Enum with per-value descriptions
+            create_enum(
+                enum_name="E_EquipmentSlot",
+                values=[
+                    {"name": "None", "description": "No slot assigned"},
+                    {"name": "Head", "description": "Helmet slot"},
+                    {"name": "Chest", "description": "Body armor slot"},
+                    {"name": "Hands", "description": "Gloves slot"},
+                    {"name": "Feet", "description": "Boots slot"}
+                ],
+                path="/Game/Inventory/Data",
+                description="Equipment slots for equippable items"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "enum_name": enum_name,
+                "values": values,
+                "path": path,
+                "description": description
+            }
+
+            logger.info(f"Creating enum '{enum_name}' with {len(values)} values at '{path}'")
+            response = unreal.send_command("create_enum", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Enum creation response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error creating enum: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
     def get_project_metadata(
         ctx: Context,
         fields: List[str] = None,

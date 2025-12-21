@@ -7,6 +7,7 @@
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Engine/UserDefinedStruct.h"
+#include "Engine/UserDefinedEnum.h"
 #include "Engine/DataTable.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
@@ -136,28 +137,39 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
             InnerPinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
             bInnerResolved = true;
         } else {
-            // Try struct
-            UScriptStruct* FoundStruct = FUnrealMCPCommonUtils::FindStructType(InnerType);
-            if (FoundStruct) {
-                InnerPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-                InnerPinType.PinSubCategoryObject = FoundStruct;
+            // Try enum using AssetDiscoveryService (supports UUserDefinedEnum)
+            UEnum* FoundEnum = FAssetDiscoveryService::Get().FindEnumType(InnerType);
+            if (FoundEnum) {
+                // User-defined enums use PC_Byte with the enum as subcategory object
+                InnerPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+                InnerPinType.PinSubCategoryObject = FoundEnum;
                 bInnerResolved = true;
+                UE_LOG(LogTemp, Display, TEXT("Successfully resolved array enum type: %s -> %s"), *InnerType, *FoundEnum->GetName());
             } else {
-                // Try object/class resolution
-                UClass* FoundClass = FAssetDiscoveryService::Get().ResolveObjectClass(InnerType);
-                
-                if (!FoundClass) {
-                    // Try widget class finding for widget blueprints
-                    FoundClass = FAssetDiscoveryService::Get().FindWidgetClass(InnerType);
-                }
-
-                if (FoundClass) {
-                    InnerPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-                    InnerPinType.PinSubCategoryObject = FoundClass;
+                // Try struct using AssetDiscoveryService (supports UUserDefinedStruct)
+                UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(InnerType);
+                if (FoundStruct) {
+                    InnerPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    InnerPinType.PinSubCategoryObject = FoundStruct;
                     bInnerResolved = true;
-                    UE_LOG(LogTemp, Display, TEXT("Successfully resolved array object type: %s -> %s"), *InnerType, *FoundClass->GetName());
+                    UE_LOG(LogTemp, Display, TEXT("Successfully resolved array struct type: %s -> %s"), *InnerType, *FoundStruct->GetName());
                 } else {
-                    UE_LOG(LogTemp, Warning, TEXT("Could not resolve array inner type: %s"), *InnerType);
+                    // Try object/class resolution
+                    UClass* FoundClass = FAssetDiscoveryService::Get().ResolveObjectClass(InnerType);
+
+                    if (!FoundClass) {
+                        // Try widget class finding for widget blueprints
+                        FoundClass = FAssetDiscoveryService::Get().FindWidgetClass(InnerType);
+                    }
+
+                    if (FoundClass) {
+                        InnerPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+                        InnerPinType.PinSubCategoryObject = FoundClass;
+                        bInnerResolved = true;
+                        UE_LOG(LogTemp, Display, TEXT("Successfully resolved array object type: %s -> %s"), *InnerType, *FoundClass->GetName());
+                    } else {
+                        UE_LOG(LogTemp, Warning, TEXT("Could not resolve array inner type: %s"), *InnerType);
+                    }
                 }
             }
         }
@@ -208,25 +220,32 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
                 SetPinTypeForCategory(UEdGraphSchema_K2::PC_Class, TargetClass);
             }
         } else {
-            // Try struct first using the asset discovery service
-            UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(TypeStr);
-            if (FoundStruct) {
-                SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, FoundStruct);
-                UE_LOG(LogTemp, Display, TEXT("Successfully resolved struct type: %s -> %s"), *TypeStr, *FoundStruct->GetName());
+            // Try enum first using the asset discovery service
+            UEnum* FoundEnum = FAssetDiscoveryService::Get().FindEnumType(TypeStr);
+            if (FoundEnum) {
+                SetPinTypeForCategory(UEdGraphSchema_K2::PC_Byte, FoundEnum);
+                UE_LOG(LogTemp, Display, TEXT("Successfully resolved enum type: %s -> %s"), *TypeStr, *FoundEnum->GetName());
             } else {
-                // Try object/class resolution using the asset discovery service
-                UClass* FoundClass = FAssetDiscoveryService::Get().ResolveObjectClass(TypeStr);
-                
-                if (!FoundClass) {
-                    // Try widget class finding for widget blueprints
-                    FoundClass = FAssetDiscoveryService::Get().FindWidgetClass(TypeStr);
-                }
-
-                if (FoundClass) {
-                    SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, FoundClass);
-                    UE_LOG(LogTemp, Display, TEXT("Successfully resolved object type: %s -> %s"), *TypeStr, *FoundClass->GetName());
+                // Try struct using the asset discovery service
+                UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(TypeStr);
+                if (FoundStruct) {
+                    SetPinTypeForCategory(UEdGraphSchema_K2::PC_Struct, FoundStruct);
+                    UE_LOG(LogTemp, Display, TEXT("Successfully resolved struct type: %s -> %s"), *TypeStr, *FoundStruct->GetName());
                 } else {
-                    UE_LOG(LogTemp, Warning, TEXT("Could not resolve object type: %s"), *TypeStr);
+                    // Try object/class resolution using the asset discovery service
+                    UClass* FoundClass = FAssetDiscoveryService::Get().ResolveObjectClass(TypeStr);
+
+                    if (!FoundClass) {
+                        // Try widget class finding for widget blueprints
+                        FoundClass = FAssetDiscoveryService::Get().FindWidgetClass(TypeStr);
+                    }
+
+                    if (FoundClass) {
+                        SetPinTypeForCategory(UEdGraphSchema_K2::PC_Object, FoundClass);
+                        UE_LOG(LogTemp, Display, TEXT("Successfully resolved object type: %s -> %s"), *TypeStr, *FoundClass->GetName());
+                    } else {
+                        UE_LOG(LogTemp, Warning, TEXT("Could not resolve object type: %s"), *TypeStr);
+                    }
                 }
             }
         }

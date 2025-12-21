@@ -17,6 +17,12 @@
 #include "BlueprintVariableNodeSpawner.h"
 #include "BlueprintNodeBinder.h"
 
+// Widget Blueprint support
+#include "WidgetBlueprint.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Widget.h"
+#include "Components/PanelWidget.h"
+
 // Include refactored node creation helpers
 #include "Services/NodeCreation/BlueprintActionDatabaseNodeCreator.h"
 #include "Services/NodeCreation/NativePropertyNodeCreator.h"
@@ -570,6 +576,84 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 
 					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created component reference for '%s'"), *VarName);
 					break;
+				}
+			}
+		}
+
+		// If not found in regular variables or components, check Widget Blueprint widget variables
+		// Widget Blueprints store widgets exposed as variables in the WidgetTree, not in NewVariables
+		if (!bFound)
+		{
+			UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(Blueprint);
+			if (WidgetBlueprint && WidgetBlueprint->WidgetTree)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Blueprint is a Widget Blueprint, checking WidgetTree for variable '%s'"), *VarName);
+
+				// Helper lambda to recursively search widgets
+				TFunction<UWidget*(UWidget*)> FindWidgetVariable = [&](UWidget* Widget) -> UWidget*
+				{
+					if (!Widget) return nullptr;
+
+					// Check if this widget matches and is exposed as a variable
+					if (Widget->bIsVariable && Widget->GetName().Equals(VarName, ESearchCase::IgnoreCase))
+					{
+						return Widget;
+					}
+
+					// Recurse into children if this is a panel widget
+					if (UPanelWidget* PanelWidget = Cast<UPanelWidget>(Widget))
+					{
+						for (int32 i = 0; i < PanelWidget->GetChildrenCount(); ++i)
+						{
+							if (UWidget* FoundWidget = FindWidgetVariable(PanelWidget->GetChildAt(i)))
+							{
+								return FoundWidget;
+							}
+						}
+					}
+
+					return nullptr;
+				};
+
+				UWidget* FoundWidget = FindWidgetVariable(WidgetBlueprint->WidgetTree->RootWidget);
+				if (FoundWidget)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found widget variable '%s' in WidgetTree (type: %s)"), *VarName, *FoundWidget->GetClass()->GetName());
+
+					if (bIsGetter)
+					{
+						UK2Node_VariableGet* WidgetGetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+						WidgetGetterNode->VariableReference.SetSelfMember(FName(*VarName));
+						WidgetGetterNode->NodePosX = PositionX;
+						WidgetGetterNode->NodePosY = PositionY;
+						WidgetGetterNode->CreateNewGuid();
+						EventGraph->AddNode(WidgetGetterNode, true, true);
+						WidgetGetterNode->PostPlacedNewNode();
+						WidgetGetterNode->AllocateDefaultPins();
+						OutNode = WidgetGetterNode;
+						OutNodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
+						OutNodeType = TEXT("UK2Node_VariableGet");
+						bFound = true;
+
+						UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created Widget Blueprint variable getter for '%s'"), *VarName);
+					}
+					else
+					{
+						UK2Node_VariableSet* WidgetSetterNode = NewObject<UK2Node_VariableSet>(EventGraph);
+						WidgetSetterNode->VariableReference.SetSelfMember(FName(*VarName));
+						WidgetSetterNode->NodePosX = PositionX;
+						WidgetSetterNode->NodePosY = PositionY;
+						WidgetSetterNode->CreateNewGuid();
+						EventGraph->AddNode(WidgetSetterNode, true, true);
+						WidgetSetterNode->PostPlacedNewNode();
+						WidgetSetterNode->AllocateDefaultPins();
+						OutNode = WidgetSetterNode;
+						OutNodeTitle = FString::Printf(TEXT("Set %s"), *VarName);
+						OutNodeType = TEXT("UK2Node_VariableSet");
+						bFound = true;
+
+						UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created Widget Blueprint variable setter for '%s'"), *VarName);
+					}
 				}
 			}
 		}

@@ -417,5 +417,64 @@ async def get_blueprint_metadata(
     return await send_tcp_command("get_blueprint_metadata", params)
 
 
+@app.tool()
+async def add_interface_to_blueprint(
+    blueprint_name: str,
+    interface_name: str
+) -> Dict[str, Any]:
+    """
+    Add an interface to a Blueprint.
+
+    Args:
+        blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
+        interface_name: Name or path of the interface to add (e.g., "/Game/Blueprints/BPI_MyInterface")
+
+    Returns:
+        Response indicating success or failure
+
+    Example:
+        add_interface_to_blueprint(
+            blueprint_name="BP_MyActor",
+            interface_name="/Game/Blueprints/BPI_MyInterface"
+        )
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "interface_name": interface_name
+    }
+
+    return await send_tcp_command("add_interface_to_blueprint", params)
+
+
+@app.tool()
+async def create_blueprint_interface(
+    name: str,
+    folder_path: str = ""
+) -> Dict[str, Any]:
+    """
+    Create a new Blueprint Interface asset.
+
+    Args:
+        name: Name of the interface (e.g., "BPI_Interactable")
+        folder_path: Optional folder path for the interface (e.g., "/Game/Interfaces")
+
+    Returns:
+        Dictionary containing information about the created interface
+
+    Example:
+        create_blueprint_interface(
+            name="BPI_Interactable",
+            folder_path="/Game/Interfaces"
+        )
+    """
+    params = {
+        "name": name
+    }
+    if folder_path:
+        params["folder_path"] = folder_path
+
+    return await send_tcp_command("create_blueprint_interface", params)
+
+
 if __name__ == "__main__":
     app.run()

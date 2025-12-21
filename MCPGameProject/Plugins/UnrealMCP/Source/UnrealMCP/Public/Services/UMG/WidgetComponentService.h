@@ -28,15 +28,23 @@ public:
      * @param Position - Position in the canvas
      * @param Size - Size of the component
      * @param KwargsObject - Additional parameters for the component
+     * @param OutError - Output error message if creation failed
      * @return Created widget or nullptr if creation failed
      */
     UWidget* CreateWidgetComponent(
-        UWidgetBlueprint* WidgetBlueprint, 
-        const FString& ComponentName, 
+        UWidgetBlueprint* WidgetBlueprint,
+        const FString& ComponentName,
         const FString& ComponentType,
-        const FVector2D& Position, 
+        const FVector2D& Position,
         const FVector2D& Size,
-        const TSharedPtr<FJsonObject>& KwargsObject);
+        const TSharedPtr<FJsonObject>& KwargsObject,
+        FString& OutError);
+
+    /**
+     * Get the list of supported component types
+     * @return Array of supported component type names
+     */
+    static TArray<FString> GetSupportedComponentTypes();
 
 private:
     // Component creation methods for each type
