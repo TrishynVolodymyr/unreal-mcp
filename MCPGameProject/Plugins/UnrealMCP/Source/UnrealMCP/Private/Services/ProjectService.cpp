@@ -1,4 +1,5 @@
 #include "Services/ProjectService.h"
+#include "Services/AssetDiscoveryService.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 #include "GameFramework/InputSettings.h"
 #include "Misc/Paths.h"
@@ -6,11 +7,14 @@
 #include "Misc/FileHelper.h"
 #include "EditorAssetLibrary.h"
 #include "Engine/UserDefinedStruct.h"
+#include "Engine/UserDefinedEnum.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet2/StructureEditorUtils.h"
+#include "Kismet2/EnumEditorUtils.h"
 #include "UnrealEd.h"
 #include "AssetToolsModule.h"
 #include "Factories/StructureFactory.h"
+#include "Factories/EnumFactory.h"
 #include "UserDefinedStructure/UserDefinedStructEditorData.h"
 #include "EnhancedInput/Public/InputAction.h"
 #include "EnhancedInput/Public/InputMappingContext.h"
@@ -847,27 +851,85 @@ TArray<TSharedPtr<FJsonObject>> FProjectService::ShowStructVariables(const FStri
     TArray<TSharedPtr<FJsonObject>> Variables;
     bOutSuccess = false;
 
-    // Create the struct asset path
-    FString AssetName = StructName;
-    FString PackagePath = Path;
-    if (!PackagePath.EndsWith(TEXT("/")))
-    {
-        PackagePath += TEXT("/");
-    }
-    FString PackageName = PackagePath + AssetName;
+    UUserDefinedStruct* Struct = nullptr;
 
-    // Check if the struct exists
-    if (!UEditorAssetLibrary::DoesAssetExist(PackageName))
+    // Strategy 1: Try exact path if provided
+    if (!Path.IsEmpty())
     {
-        OutError = FString::Printf(TEXT("Struct does not exist: %s"), *PackageName);
-        return Variables;
+        FString PackagePath = Path;
+        if (!PackagePath.EndsWith(TEXT("/")))
+        {
+            PackagePath += TEXT("/");
+        }
+        FString PackageName = PackagePath + StructName;
+
+        if (UEditorAssetLibrary::DoesAssetExist(PackageName))
+        {
+            UObject* AssetObj = UEditorAssetLibrary::LoadAsset(PackageName);
+            Struct = Cast<UUserDefinedStruct>(AssetObj);
+        }
     }
 
-    UObject* AssetObj = UEditorAssetLibrary::LoadAsset(PackageName);
-    UUserDefinedStruct* Struct = Cast<UUserDefinedStruct>(AssetObj);
+    // Strategy 2: Use smart asset discovery service (searches by name)
     if (!Struct)
     {
-        OutError = TEXT("Failed to load struct asset");
+        UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(StructName);
+        if (FoundStruct)
+        {
+            // Check if it's a user-defined struct
+            Struct = Cast<UUserDefinedStruct>(FoundStruct);
+            if (!Struct)
+            {
+                // It's a native/C++ struct - still valid, we can read its properties
+                // For native structs, we iterate properties differently
+                for (TFieldIterator<FProperty> PropIt(FoundStruct); PropIt; ++PropIt)
+                {
+                    FProperty* Property = *PropIt;
+                    if (!Property) continue;
+
+                    TSharedPtr<FJsonObject> VarObj = MakeShared<FJsonObject>();
+                    VarObj->SetStringField(TEXT("name"), Property->GetName());
+                    VarObj->SetStringField(TEXT("type"), GetPropertyTypeString(Property));
+
+                    FString Tooltip = Property->GetToolTipText().ToString();
+                    if (!Tooltip.IsEmpty())
+                    {
+                        VarObj->SetStringField(TEXT("description"), Tooltip);
+                    }
+                    Variables.Add(VarObj);
+                }
+                bOutSuccess = true;
+                return Variables;
+            }
+        }
+    }
+
+    // Strategy 3: Try common paths as fallback
+    if (!Struct)
+    {
+        TArray<FString> SearchPaths = {
+            FString::Printf(TEXT("/Game/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Blueprints/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Data/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Structs/%s"), *StructName),
+            FString::Printf(TEXT("/Game/Inventory/Data/%s"), *StructName),
+            FString::Printf(TEXT("/Game/DataStructures/%s"), *StructName)
+        };
+
+        for (const FString& SearchPath : SearchPaths)
+        {
+            if (UEditorAssetLibrary::DoesAssetExist(SearchPath))
+            {
+                UObject* AssetObj = UEditorAssetLibrary::LoadAsset(SearchPath);
+                Struct = Cast<UUserDefinedStruct>(AssetObj);
+                if (Struct) break;
+            }
+        }
+    }
+
+    if (!Struct)
+    {
+        OutError = FString::Printf(TEXT("Struct '%s' not found. Searched in common paths and asset registry. Try providing full path like '/Game/Inventory/Data/%s'"), *StructName, *StructName);
         return Variables;
     }
 
@@ -896,6 +958,135 @@ TArray<TSharedPtr<FJsonObject>> FProjectService::ShowStructVariables(const FStri
 
     bOutSuccess = true;
     return Variables;
+}
+
+bool FProjectService::CreateEnum(const FString& EnumName, const FString& Path, const FString& Description, const TArray<FString>& Values, const TMap<FString, FString>& ValueDescriptions, FString& OutFullPath, FString& OutError)
+{
+    // Validate that we have at least one value
+    if (Values.Num() == 0)
+    {
+        OutError = TEXT("At least one enum value is required");
+        return false;
+    }
+
+    // Make sure the path exists
+    if (!UEditorAssetLibrary::DoesDirectoryExist(Path))
+    {
+        if (!UEditorAssetLibrary::MakeDirectory(Path))
+        {
+            OutError = FString::Printf(TEXT("Failed to create directory: %s"), *Path);
+            return false;
+        }
+    }
+
+    // Create the enum asset path
+    FString AssetName = EnumName;
+    FString PackagePath = Path;
+    if (!PackagePath.EndsWith(TEXT("/")))
+    {
+        PackagePath += TEXT("/");
+    }
+    FString PackageName = PackagePath + AssetName;
+    OutFullPath = PackageName;
+
+    // Check if the enum already exists
+    if (UEditorAssetLibrary::DoesAssetExist(PackageName))
+    {
+        OutError = FString::Printf(TEXT("Enum already exists: %s"), *PackageName);
+        return false;
+    }
+
+    // Create the enum asset using AssetTools and EnumFactory
+    FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+    UEnumFactory* EnumFactory = NewObject<UEnumFactory>();
+    UObject* CreatedAsset = AssetToolsModule.Get().CreateAsset(AssetName, PackagePath.LeftChop(1), UUserDefinedEnum::StaticClass(), EnumFactory);
+    UUserDefinedEnum* NewEnum = Cast<UUserDefinedEnum>(CreatedAsset);
+
+    if (!NewEnum)
+    {
+        OutError = TEXT("Failed to create enum asset");
+        return false;
+    }
+
+    // Set the enum description (the "Enum Description" property visible in the editor)
+    if (!Description.IsEmpty())
+    {
+#if WITH_EDITORONLY_DATA
+        NewEnum->EnumDescription = FText::FromString(Description);
+#endif
+        // Also set as tooltip metadata for additional compatibility
+        NewEnum->SetMetaData(TEXT("ToolTip"), *Description);
+    }
+
+    // The enum is created with one default enumerator, we need to set up the values properly
+    // First, get the count of existing enumerators to remove the default one later
+    int32 InitialEnumCount = NewEnum->NumEnums();
+
+    // Add the user-specified enumerators
+    for (int32 i = 0; i < Values.Num(); ++i)
+    {
+        // Add a new enumerator
+        FEnumEditorUtils::AddNewEnumeratorForUserDefinedEnum(NewEnum);
+
+        // Get the index of the newly added enumerator (it's added at the end, before MAX)
+        int32 NewIndex = NewEnum->NumEnums() - 2; // -1 for MAX, -1 for 0-based
+
+        // Set the display name for this enumerator
+        FText DisplayName = FText::FromString(Values[i]);
+        FEnumEditorUtils::SetEnumeratorDisplayName(NewEnum, NewIndex, DisplayName);
+    }
+
+    // Remove the initial default enumerators that were created with the enum
+    // We need to remove them from the end to avoid index shifting issues
+    // The default enum creates entries like "NewEnumerator0"
+    for (int32 i = InitialEnumCount - 1; i >= 0; --i)
+    {
+        // Only remove if this is a default-named enumerator
+        FName EnumEntryName = NewEnum->GetNameByIndex(i);
+        FString EntryNameStr = EnumEntryName.ToString();
+        if (EntryNameStr.Contains(TEXT("NewEnumerator")) || EntryNameStr.Contains(TEXT("::NewEnumerator")))
+        {
+            FEnumEditorUtils::RemoveEnumeratorFromUserDefinedEnum(NewEnum, i);
+        }
+    }
+
+    // Set per-value descriptions (tooltips) if provided
+    // Iterate through the enum values and match by display name
+    if (ValueDescriptions.Num() > 0)
+    {
+        for (int32 i = 0; i < NewEnum->NumEnums() - 1; ++i) // -1 to skip _MAX
+        {
+            FText DisplayName = NewEnum->GetDisplayNameTextByIndex(i);
+            FString DisplayNameStr = DisplayName.ToString();
+
+            if (const FString* ValueDesc = ValueDescriptions.Find(DisplayNameStr))
+            {
+                if (!ValueDesc->IsEmpty())
+                {
+                    NewEnum->SetMetaData(TEXT("ToolTip"), **ValueDesc, i);
+                    UE_LOG(LogTemp, Display, TEXT("MCP Project: Set description for enum value '%s': '%s'"), *DisplayNameStr, **ValueDesc);
+                }
+            }
+        }
+    }
+
+    // Mark the enum as modified and save
+    NewEnum->MarkPackageDirty();
+    UPackage* Package = NewEnum->GetPackage();
+    if (Package)
+    {
+        Package->MarkPackageDirty();
+        Package->SetDirtyFlag(true);
+    }
+
+    FAssetRegistryModule::AssetCreated(NewEnum);
+
+    // Save the asset
+    UEditorAssetLibrary::SaveAsset(PackageName, false);
+
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully created enum '%s' with %d values at '%s'"), *EnumName, Values.Num(), *OutFullPath);
+
+    return true;
 }
 
 // Enhanced Input methods - placeholder implementations

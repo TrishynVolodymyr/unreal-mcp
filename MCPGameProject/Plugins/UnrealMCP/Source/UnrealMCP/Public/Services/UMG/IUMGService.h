@@ -41,11 +41,13 @@ public:
      * @param Position - Position in the canvas
      * @param Size - Size of the component
      * @param Kwargs - Additional parameters for the component
+     * @param OutError - Output error message if creation failed (optional)
      * @return Created widget component or nullptr if creation failed
      */
-    virtual UWidget* AddWidgetComponent(const FString& BlueprintName, const FString& ComponentName, 
-                                       const FString& ComponentType, const FVector2D& Position, 
-                                       const FVector2D& Size, const TSharedPtr<FJsonObject>& Kwargs) = 0;
+    virtual UWidget* AddWidgetComponent(const FString& BlueprintName, const FString& ComponentName,
+                                       const FString& ComponentType, const FVector2D& Position,
+                                       const FVector2D& Size, const TSharedPtr<FJsonObject>& Kwargs,
+                                       FString* OutError = nullptr) = 0;
 
     /**
      * Set properties on a widget component

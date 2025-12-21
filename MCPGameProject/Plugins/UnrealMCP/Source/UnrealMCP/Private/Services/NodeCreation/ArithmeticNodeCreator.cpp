@@ -64,73 +64,21 @@ bool FArithmeticNodeCreator::TryCreateArithmeticOrComparisonNode(
         return false;
     }
     
-    // APPROACH 1: Try to create K2Node_PromotableOperator directly
-    UE_LOG(LogTemp, Warning, TEXT("Attempting DIRECT K2Node_PromotableOperator creation for operator '%s'"), *OpName->ToString());
-    
-    // Check if this operator is supported by TypePromotion system
-    const TSet<FName>& AllOperators = FTypePromotion::GetAllOpNames();
-    if (AllOperators.Contains(*OpName))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Operator '%s' is registered in TypePromotion system"), *OpName->ToString());
-        
-        // Create K2Node_PromotableOperator directly and set its function
-        UK2Node_PromotableOperator* PromotableOpNode = NewObject<UK2Node_PromotableOperator>(EventGraph);
-        if (PromotableOpNode)
-        {
-            // Find the appropriate function for this operator
-            TArray<UFunction*> OpFunctions;
-            FTypePromotion::GetAllFuncsForOp(*OpName, OpFunctions);
-            
-            if (OpFunctions.Num() > 0)
-            {
-                // Use the first available function (wildcard operators will adapt)
-                UFunction* BaseFunction = OpFunctions[0];
-                PromotableOpNode->SetFromFunction(BaseFunction);
-                
-                // Set position and add to graph
-                PromotableOpNode->NodePosX = PositionX;
-                PromotableOpNode->NodePosY = PositionY;
-                PromotableOpNode->CreateNewGuid();
-                EventGraph->AddNode(PromotableOpNode, true, true);
-                PromotableOpNode->PostPlacedNewNode();
-                PromotableOpNode->AllocateDefaultPins();
-                
-                // CRITICAL FIX: Don't break natural PromotableOperator behavior!
-                // SetFromFunction already sets up proper wildcard adaptation
-                // Just finalize with reconstruction and visualization
-                PromotableOpNode->ReconstructNode();
-                
-                if (const UEdGraphSchema* Schema = EventGraph->GetSchema())
-                {
-                    Schema->ForceVisualizationCacheClear();
-                }
-                EventGraph->NotifyGraphChanged();
-                
-                OutNode = PromotableOpNode;
-                FText UserFacingName = FTypePromotion::GetUserFacingOperatorName(*OpName);
-                OutTitle = UserFacingName.IsEmpty() ? OperationName : UserFacingName.ToString();
-                OutNodeType = TEXT("K2Node_PromotableOperator");
-                
-                UE_LOG(LogTemp, Warning, TEXT("Successfully created DIRECT K2Node_PromotableOperator for '%s'"), *OutTitle);
-                return true;
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("No functions found for operator '%s'"), *OpName->ToString());
-            }
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Operator '%s' not found in TypePromotion system"), *OpName->ToString());
-    }
-    
-    // APPROACH 2: Try to get the operator spawner from TypePromotion system (original approach)
+    // Check if this is a promotable operator (arithmetic/comparison) vs legacy boolean operation
+    static const TSet<FName> PromotableOpNames = {
+        TEXT("Add"), TEXT("Subtract"), TEXT("Multiply"), TEXT("Divide"),
+        TEXT("Greater"), TEXT("GreaterEqual"), TEXT("Less"), TEXT("LessEqual"),
+        TEXT("NotEqual"), TEXT("EqualEqual")
+    };
+
+    bool bIsPromotableOp = PromotableOpNames.Contains(*OpName);
+
+    // First try the TypePromotion spawner (may not be registered if editor context menu hasn't been built yet)
     UBlueprintFunctionNodeSpawner* OperatorSpawner = FTypePromotion::GetOperatorSpawner(*OpName);
     if (OperatorSpawner)
     {
         UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Found TypePromotion spawner for operation '%s' -> '%s'"), *OperationName, *OpName->ToString());
-        
+
         // Create the node using the TypePromotion spawner
         OutNode = OperatorSpawner->Invoke(EventGraph, IBlueprintNodeBinder::FBindingSet(), FVector2D(PositionX, PositionY));
         if (OutNode)
@@ -138,32 +86,23 @@ bool FArithmeticNodeCreator::TryCreateArithmeticOrComparisonNode(
             FText UserFacingName = FTypePromotion::GetUserFacingOperatorName(*OpName);
             OutTitle = UserFacingName.IsEmpty() ? OperationName : UserFacingName.ToString();
             OutNodeType = OutNode->GetClass()->GetName();
-            
-            // CRITICAL FIX: Properly initialize PromotableOperator wildcard pins
-            if (OutNodeType.Contains(TEXT("PromotableOperator")))
+
+            // Cast to PromotableOperator to call ResetNodeToWildcard for proper initialization
+            if (UK2Node_PromotableOperator* PromotableOp = Cast<UK2Node_PromotableOperator>(OutNode))
             {
-                // Cast to PromotableOperator to access ResetNodeToWildcard
-                if (UK2Node_PromotableOperator* PromotableOp = Cast<UK2Node_PromotableOperator>(OutNode))
+                PromotableOp->ResetNodeToWildcard();
+                PromotableOp->ReconstructNode();
+
+                if (const UEdGraphSchema* Schema = EventGraph->GetSchema())
                 {
-                    // Don't interfere with natural PromotableOperator adaptation
-                    // TypePromotion spawner already sets up proper behavior
-                    PromotableOp->ReconstructNode();
-                    
-                    if (const UEdGraphSchema* Schema = EventGraph->GetSchema())
-                    {
-                        Schema->ForceVisualizationCacheClear();
-                    }
-                    EventGraph->NotifyGraphChanged();
-                    
-                    UE_LOG(LogTemp, Warning, TEXT("Applied PromotableOperator wildcard pin fix with ResetNodeToWildcard for node: %s"), *OutTitle);
+                    Schema->ForceVisualizationCacheClear();
                 }
-                else
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("Failed to cast PromotableOperator node for ResetNodeToWildcard"));
-                }
+                EventGraph->NotifyGraphChanged();
+
+                UE_LOG(LogTemp, Warning, TEXT("Applied PromotableOperator wildcard pin fix for node: %s"), *OutTitle);
             }
-            
-            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Successfully created dynamic '%s' operator node using TypePromotion"), *OutTitle);
+
+            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Successfully created '%s' operator node using TypePromotion spawner"), *OutTitle);
             return true;
         }
         else
@@ -171,40 +110,86 @@ bool FArithmeticNodeCreator::TryCreateArithmeticOrComparisonNode(
             UE_LOG(LogTemp, Error, TEXT("TryCreateArithmeticOrComparisonNode: TypePromotion spawner failed to create node for '%s'"), *OpName->ToString());
         }
     }
-    else
+
+    // Fallback: Manually create UK2Node_PromotableOperator for promotable operations
+    // This is needed when the TypePromotion spawner isn't registered (e.g., editor context menu hasn't been built)
+    if (bIsPromotableOp)
     {
-        UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No TypePromotion spawner found for operator '%s'"), *OpName->ToString());
-        
-        // Fallback to old system for non-promotable operations
-        TMap<FString, TArray<FString>> LegacyMappings;
-        LegacyMappings.Add(TEXT("And"), {TEXT("BooleanAND")});
-        LegacyMappings.Add(TEXT("Or"), {TEXT("BooleanOR")});
-        LegacyMappings.Add(TEXT("Not"), {TEXT("BooleanNOT")});
-        
-        const TArray<FString>* FunctionNames = LegacyMappings.Find(OperationName);
-        if (FunctionNames)
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Creating PromotableOperator manually for '%s'"), *OpName->ToString());
+
+        // Create the PromotableOperator node directly
+        UK2Node_PromotableOperator* PromotableOp = NewObject<UK2Node_PromotableOperator>(EventGraph);
+        PromotableOp->NodePosX = PositionX;
+        PromotableOp->NodePosY = PositionY;
+        PromotableOp->CreateNewGuid();
+        EventGraph->AddNode(PromotableOp, true, true);
+
+        // Find ANY function for this operation to initialize the node
+        // The key is calling ResetNodeToWildcard() AFTER to make it a proper wildcard
+        TArray<UFunction*> OpFunctions;
+        FTypePromotion::GetAllFuncsForOp(*OpName, OpFunctions);
+
+        if (OpFunctions.Num() > 0)
         {
-            for (const FString& FunctionName : *FunctionNames)
+            // Use SetFromFunction to initialize the node structure (sets OperationName internally)
+            PromotableOp->SetFromFunction(OpFunctions[0]);
+            PromotableOp->PostPlacedNewNode();
+            PromotableOp->AllocateDefaultPins();
+
+            // CRITICAL: Reset to wildcard after initialization to remove any pre-typed pins
+            PromotableOp->ResetNodeToWildcard();
+
+            if (const UEdGraphSchema* Schema = EventGraph->GetSchema())
             {
-                UFunction* TargetFunction = UKismetMathLibrary::StaticClass()->FindFunctionByName(*FunctionName);
-                if (TargetFunction)
-                {
-                    UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
-                    FunctionNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), UKismetMathLibrary::StaticClass());
-                    FunctionNode->NodePosX = PositionX;
-                    FunctionNode->NodePosY = PositionY;
-                    FunctionNode->CreateNewGuid();
-                    EventGraph->AddNode(FunctionNode, true, true);
-                    FunctionNode->PostPlacedNewNode();
-                    FunctionNode->AllocateDefaultPins();
-                    
-                    OutNode = FunctionNode;
-                    OutTitle = OperationName;
-                    OutNodeType = TEXT("UK2Node_CallFunction");
-                    
-                    UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Created legacy function node '%s'"), *FunctionName);
-                    return true;
-                }
+                Schema->ForceVisualizationCacheClear();
+            }
+            EventGraph->NotifyGraphChanged();
+
+            OutNode = PromotableOp;
+            FText UserFacingName = FTypePromotion::GetUserFacingOperatorName(*OpName);
+            OutTitle = UserFacingName.IsEmpty() ? OperationName : UserFacingName.ToString();
+            OutNodeType = TEXT("UK2Node_PromotableOperator");
+
+            UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Successfully created wildcard PromotableOperator '%s' manually"), *OutTitle);
+            return true;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("TryCreateArithmeticOrComparisonNode: No functions found for operation '%s'"), *OpName->ToString());
+            // Clean up the node we created
+            EventGraph->RemoveNode(PromotableOp);
+        }
+    }
+
+    // Fallback to legacy function nodes for boolean operations (And, Or, Not)
+    TMap<FString, TArray<FString>> LegacyMappings;
+    LegacyMappings.Add(TEXT("And"), {TEXT("BooleanAND")});
+    LegacyMappings.Add(TEXT("Or"), {TEXT("BooleanOR")});
+    LegacyMappings.Add(TEXT("Not"), {TEXT("BooleanNOT")});
+
+    const TArray<FString>* FunctionNames = LegacyMappings.Find(OperationName);
+    if (FunctionNames)
+    {
+        for (const FString& FunctionName : *FunctionNames)
+        {
+            UFunction* TargetFunction = UKismetMathLibrary::StaticClass()->FindFunctionByName(*FunctionName);
+            if (TargetFunction)
+            {
+                UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
+                FunctionNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), UKismetMathLibrary::StaticClass());
+                FunctionNode->NodePosX = PositionX;
+                FunctionNode->NodePosY = PositionY;
+                FunctionNode->CreateNewGuid();
+                EventGraph->AddNode(FunctionNode, true, true);
+                FunctionNode->PostPlacedNewNode();
+                FunctionNode->AllocateDefaultPins();
+
+                OutNode = FunctionNode;
+                OutTitle = OperationName;
+                OutNodeType = TEXT("UK2Node_CallFunction");
+
+                UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: Created legacy function node '%s'"), *FunctionName);
+                return true;
             }
         }
     }

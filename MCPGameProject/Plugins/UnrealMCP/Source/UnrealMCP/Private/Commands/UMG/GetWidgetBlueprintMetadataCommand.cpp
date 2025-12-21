@@ -150,23 +150,52 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 
 	// Find the widget blueprint using asset registry
 	UWidgetBlueprint* WidgetBlueprint = nullptr;
+	TArray<FString> AttemptedPaths;
 
 	// Check if full path provided
 	if (WidgetName.StartsWith(TEXT("/Game/")) || WidgetName.StartsWith(TEXT("/Script/")))
 	{
-		FString ObjectPath = WidgetName;
-		if (!ObjectPath.Contains(TEXT(".")))
+		// Try multiple path variations
+		TArray<FString> PathVariations;
+
+		if (WidgetName.Contains(TEXT(".")))
 		{
-			FString AssetName = FPaths::GetBaseFilename(ObjectPath);
-			ObjectPath = ObjectPath + TEXT(".") + AssetName;
+			// Path already has asset suffix - try as-is first
+			PathVariations.Add(WidgetName);
+			// Also try without suffix
+			int32 DotIndex;
+			if (WidgetName.FindLastChar(TEXT('.'), DotIndex))
+			{
+				FString PathWithoutSuffix = WidgetName.Left(DotIndex);
+				FString AssetName = FPaths::GetBaseFilename(PathWithoutSuffix);
+				PathVariations.Add(PathWithoutSuffix + TEXT(".") + AssetName);
+			}
+		}
+		else
+		{
+			// No suffix - add asset name suffix
+			FString AssetName = FPaths::GetBaseFilename(WidgetName);
+			PathVariations.Add(WidgetName + TEXT(".") + AssetName);
+			PathVariations.Add(WidgetName);
 		}
 
-		UObject* Asset = UEditorAssetLibrary::LoadAsset(ObjectPath);
-		WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
+		for (const FString& Path : PathVariations)
+		{
+			AttemptedPaths.Add(Path);
+			UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Attempting to load Widget Blueprint at path: '%s'"), *Path);
+			UObject* Asset = UEditorAssetLibrary::LoadAsset(Path);
+			WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
+			if (WidgetBlueprint)
+			{
+				UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully found Widget Blueprint at: '%s'"), *Path);
+				break;
+			}
+		}
 	}
-	else
+
+	// If not found by path, search using asset registry
+	if (!WidgetBlueprint)
 	{
-		// Search using asset registry
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
 		FARFilter Filter;
@@ -177,21 +206,35 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 		TArray<FAssetData> AssetData;
 		AssetRegistryModule.Get().GetAssets(Filter, AssetData);
 
+		// Extract just the name for comparison
+		FString SearchName = FPaths::GetBaseFilename(WidgetName);
+		if (SearchName.IsEmpty())
+		{
+			SearchName = WidgetName;
+		}
+
 		for (const FAssetData& Asset : AssetData)
 		{
-			if (Asset.AssetName.ToString().Equals(WidgetName, ESearchCase::IgnoreCase))
+			if (Asset.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
 			{
 				FString AssetPath = Asset.GetSoftObjectPath().ToString();
+				AttemptedPaths.Add(FString::Printf(TEXT("AssetRegistry:%s"), *AssetPath));
+				UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Found in asset registry, loading: '%s'"), *AssetPath);
 				UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(AssetPath);
 				WidgetBlueprint = Cast<UWidgetBlueprint>(LoadedAsset);
-				break;
+				if (WidgetBlueprint)
+				{
+					UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully loaded Widget Blueprint from registry: '%s'"), *AssetPath);
+					break;
+				}
 			}
 		}
 	}
 
 	if (!WidgetBlueprint)
 	{
-		return CreateErrorResponse(FString::Printf(TEXT("Widget blueprint '%s' not found"), *WidgetName));
+		FString AttemptedPathsStr = FString::Join(AttemptedPaths, TEXT(", "));
+		return CreateErrorResponse(FString::Printf(TEXT("Widget blueprint '%s' not found. Tried paths: [%s]"), *WidgetName, *AttemptedPathsStr));
 	}
 
 	if (!WidgetBlueprint->WidgetTree)

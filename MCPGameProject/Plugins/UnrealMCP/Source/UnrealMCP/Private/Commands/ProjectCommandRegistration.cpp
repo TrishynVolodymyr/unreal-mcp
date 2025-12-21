@@ -3,6 +3,7 @@
 #include "Commands/Project/CreateInputMappingCommand.h"
 #include "Commands/Project/CreateFolderCommand.h"
 #include "Commands/Project/CreateStructCommand.h"
+#include "Commands/Project/CreateEnumCommand.h"
 #include "Commands/Project/GetProjectDirCommand.h"
 #include "Commands/Project/CreateEnhancedInputActionCommand.h"
 #include "Commands/Project/CreateInputMappingContextCommand.h"
@@ -27,7 +28,10 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     
     // Register struct command
     Registry.RegisterCommand(MakeShared<FCreateStructCommand>(ProjectService));
-    
+
+    // Register enum command
+    Registry.RegisterCommand(MakeShared<FCreateEnumCommand>(ProjectService));
+
     // Register get project directory command
     Registry.RegisterCommand(MakeShared<FGetProjectDirCommand>(ProjectService));
     

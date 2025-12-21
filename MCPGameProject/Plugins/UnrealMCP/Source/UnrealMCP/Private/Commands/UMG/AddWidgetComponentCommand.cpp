@@ -23,10 +23,11 @@ FString FAddWidgetComponentCommand::Execute(const FString& Parameters)
     }
 
     // Use the UMG service to add the widget component
-    UWidget* CreatedWidget = UMGService.AddWidgetComponent(BlueprintName, ComponentName, ComponentType, Position, Size, Kwargs);
+    FString ServiceError;
+    UWidget* CreatedWidget = UMGService.AddWidgetComponent(BlueprintName, ComponentName, ComponentType, Position, Size, Kwargs, &ServiceError);
     if (!CreatedWidget)
     {
-        return CreateErrorResponse(FString::Printf(TEXT("Failed to create widget component: %s of type %s"), *ComponentName, *ComponentType));
+        return CreateErrorResponse(ServiceError.IsEmpty() ? FString::Printf(TEXT("Failed to create widget component: %s of type %s"), *ComponentName, *ComponentType) : ServiceError);
     }
 
     return CreateSuccessResponse(CreatedWidget, ComponentName, ComponentType);

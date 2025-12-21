@@ -1,5 +1,6 @@
 #include "Services/DataTableService.h"
 #include "Services/DataTableTransformationService.h"
+#include "Services/AssetDiscoveryService.h"
 #include "Engine/DataTable.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -133,24 +134,49 @@ UDataTable* FDataTableService::FindDataTable(const FString& DataTableName)
     // If DataTableName already looks like a full path (starts with /), try it first
     if (DataTableName.StartsWith(TEXT("/")))
     {
-        // Full path provided - try as-is first
-        PathVariations.Add(DataTableName);
+        // Check if path already has asset suffix (contains . after last /)
+        FString PathWithoutSuffix = DataTableName;
+        bool bHasSuffix = DataTableName.Contains(TEXT("."));
 
-        // Also try with .AssetName suffix (e.g., /Game/Dialogue/DataTables/DT_Test.DT_Test)
-        FString AssetName = FPaths::GetBaseFilename(DataTableName);
-        PathVariations.Add(FString::Printf(TEXT("%s.%s"), *DataTableName, *AssetName));
+        if (bHasSuffix)
+        {
+            // Path already has suffix - use as-is
+            PathVariations.Add(DataTableName);
+            // Also try without suffix (extract path before .)
+            int32 DotIndex;
+            if (DataTableName.FindLastChar(TEXT('.'), DotIndex))
+            {
+                PathWithoutSuffix = DataTableName.Left(DotIndex);
+                PathVariations.Add(PathWithoutSuffix);
+            }
+        }
+        else
+        {
+            // No suffix - try with and without
+            FString AssetName = FPaths::GetBaseFilename(DataTableName);
+            PathVariations.Add(FString::Printf(TEXT("%s.%s"), *DataTableName, *AssetName));
+            PathVariations.Add(DataTableName);
+        }
     }
 
-    // Try common variations
-    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s"), *DataTableName)));
-    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s.%s"), *DataTableName, *DataTableName)));
-    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataTables/%s"), *DataTableName)));
-    PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(DataTableName)); // Try under Game root
-
-    // Try just the name directly (last resort)
+    // Try common variations for short names
     if (!DataTableName.StartsWith(TEXT("/")))
     {
-        PathVariations.Add(DataTableName);
+        FString CleanName = DataTableName;
+        // Remove any suffix if present
+        if (CleanName.Contains(TEXT(".")))
+        {
+            int32 DotIndex;
+            if (CleanName.FindLastChar(TEXT('.'), DotIndex))
+            {
+                CleanName = CleanName.Left(DotIndex);
+            }
+        }
+
+        PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("Data/%s.%s"), *CleanName, *CleanName)));
+        PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("DataTables/%s.%s"), *CleanName, *CleanName)));
+        PathVariations.Add(FUnrealMCPCommonUtils::BuildGamePath(FString::Printf(TEXT("%s.%s"), *CleanName, *CleanName)));
+        PathVariations.Add(CleanName);
     }
 
     for (const FString& Path : PathVariations)
@@ -164,7 +190,9 @@ UDataTable* FDataTableService::FindDataTable(const FString& DataTableName)
         }
     }
 
-    UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Failed to find DataTable: '%s' in any location"), *DataTableName);
+    // Log all attempted paths for debugging
+    FString AttemptedPaths = FString::Join(PathVariations, TEXT(", "));
+    UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Failed to find DataTable: '%s'. Tried paths: [%s]"), *DataTableName, *AttemptedPaths);
     return nullptr;
 }
 
@@ -640,13 +668,30 @@ bool FDataTableService::ValidateRowData(const UDataTable* DataTable, const TShar
 
 UScriptStruct* FDataTableService::FindStruct(const FString& StructName)
 {
-    // Try alternative struct names if needed
+    UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Finding struct: '%s'"), *StructName);
+
+    // Use AssetDiscoveryService for smart struct discovery
+    // This handles both native engine structs and user-defined structs via asset registry
+    UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(StructName);
+    if (FoundStruct)
+    {
+        UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully found struct via AssetDiscoveryService: '%s'"), *FoundStruct->GetName());
+        return FoundStruct;
+    }
+
+    // If AssetDiscoveryService didn't find it, try additional fallback paths
     TArray<FString> StructNameVariations;
-    
+
     // First try the direct name if it's already a full path
     if (StructName.StartsWith(TEXT("/Game/")))
     {
         StructNameVariations.Add(StructName);
+        // Also try with .AssetName suffix
+        if (!StructName.Contains(TEXT(".")))
+        {
+            FString AssetName = FPaths::GetBaseFilename(StructName);
+            StructNameVariations.Add(FString::Printf(TEXT("%s.%s"), *StructName, *AssetName));
+        }
     }
     else if (StructName.StartsWith(TEXT("/Script/")))
     {
@@ -654,46 +699,40 @@ UScriptStruct* FDataTableService::FindStruct(const FString& StructName)
     }
     else
     {
-        // Try engine and core paths first
+        // Try engine and core paths
         StructNameVariations.Add(FUnrealMCPCommonUtils::BuildEnginePath(StructName));
         StructNameVariations.Add(FUnrealMCPCommonUtils::BuildCorePath(StructName));
-        
-        // Then try game paths - ensure no double slashes
+
+        // Then try game paths
         FString GamePath = FUnrealMCPCommonUtils::GetGameContentPath();
         if (!GamePath.EndsWith(TEXT("/")))
         {
             GamePath += TEXT("/");
         }
-        
-        // Try in Blueprints folder
+
+        // Try common folder locations
+        StructNameVariations.Add(FString::Printf(TEXT("%sStructs/%s.%s"), *GamePath, *StructName, *StructName));
         StructNameVariations.Add(FString::Printf(TEXT("%sBlueprints/%s.%s"), *GamePath, *StructName, *StructName));
-        
-        // Try in Data folder
         StructNameVariations.Add(FString::Printf(TEXT("%sData/%s.%s"), *GamePath, *StructName, *StructName));
-        
-        // Try direct in Game folder
+        StructNameVariations.Add(FString::Printf(TEXT("%sDataTables/%s.%s"), *GamePath, *StructName, *StructName));
         StructNameVariations.Add(FString::Printf(TEXT("%s%s.%s"), *GamePath, *StructName, *StructName));
     }
-    
+
     // Store tried paths for error reporting
     TriedStructPaths = StructNameVariations;
-    
+
     // Try each variation of the struct name
     for (const FString& StructVariation : StructNameVariations)
     {
         UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Trying to find struct with name: '%s'"), *StructVariation);
-        UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
+        FoundStruct = LoadObject<UScriptStruct>(nullptr, *StructVariation);
         if (FoundStruct)
         {
             UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Successfully found struct: '%s'"), *StructVariation);
             return FoundStruct;
         }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Could not find struct: '%s'"), *StructVariation);
-        }
     }
-    
+
     UE_LOG(LogTemp, Error, TEXT("MCP DataTable: Failed to find any struct matching: '%s'"), *StructName);
     return nullptr;
 }
