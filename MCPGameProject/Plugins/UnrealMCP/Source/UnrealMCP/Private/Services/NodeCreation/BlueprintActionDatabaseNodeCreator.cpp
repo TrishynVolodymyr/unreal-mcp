@@ -19,6 +19,8 @@
 #include "WidgetBlueprint.h"
 #include "UObject/UObjectIterator.h"
 #include "K2Node_GetArrayItem.h"
+#include "K2Node_CallArrayFunction.h"
+#include "Kismet/KismetArrayLibrary.h"
 #include "Animation/AnimBlueprint.h"
 
 // Helper function to normalize function names by removing common UE prefixes
@@ -151,6 +153,43 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
             UE_LOG(LogTemp, Error, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Failed to create UK2Node_GetArrayItem"));
             return false;
         }
+    }
+
+    // Special handling for Array Length nodes
+    // Array_Length uses UK2Node_CallArrayFunction which properly handles wildcard array types
+    if (FunctionName.Equals(TEXT("LENGTH"), ESearchCase::IgnoreCase) ||
+        FunctionName.Equals(TEXT("Array_Length"), ESearchCase::IgnoreCase) ||
+        (ClassName.Equals(TEXT("KismetArrayLibrary"), ESearchCase::IgnoreCase) &&
+         FunctionName.Contains(TEXT("Length"), ESearchCase::IgnoreCase)))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Array LENGTH node requested, creating UK2Node_CallArrayFunction directly"));
+
+        // Find the Array_Length function
+        UFunction* ArrayLengthFunc = UKismetArrayLibrary::StaticClass()->FindFunctionByName(GET_FUNCTION_NAME_CHECKED(UKismetArrayLibrary, Array_Length));
+        if (ArrayLengthFunc)
+        {
+            UK2Node_CallArrayFunction* ArrayLengthNode = NewObject<UK2Node_CallArrayFunction>(EventGraph);
+            if (ArrayLengthNode)
+            {
+                ArrayLengthNode->SetFromFunction(ArrayLengthFunc);
+                ArrayLengthNode->NodePosX = PositionX;
+                ArrayLengthNode->NodePosY = PositionY;
+                ArrayLengthNode->CreateNewGuid();
+                EventGraph->AddNode(ArrayLengthNode, true, true);
+                ArrayLengthNode->AllocateDefaultPins();
+                ArrayLengthNode->PostPlacedNewNode();
+
+                NewNode = ArrayLengthNode;
+                NodeTitle = TEXT("LENGTH");
+                NodeType = TEXT("K2Node_CallArrayFunction");
+
+                UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Successfully created UK2Node_CallArrayFunction for Array_Length"));
+                return true;
+            }
+        }
+
+        UE_LOG(LogTemp, Error, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Failed to create Array_Length node"));
+        return false;
     }
 
     // Create a map of common operation aliases to their actual function names

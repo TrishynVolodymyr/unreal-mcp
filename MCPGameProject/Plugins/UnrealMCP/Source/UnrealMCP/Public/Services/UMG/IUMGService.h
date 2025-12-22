@@ -173,4 +173,44 @@ public:
      */
     virtual bool CaptureWidgetScreenshot(const FString& BlueprintName, int32 Width, int32 Height,
                                         const FString& Format, TSharedPtr<FJsonObject>& OutScreenshotData) = 0;
+
+    /**
+     * Create an input event handler in a Widget Blueprint
+     *
+     * This method creates handlers for input events not exposed as standard delegates,
+     * such as right mouse button clicks, keyboard events, touch events, etc.
+     *
+     * It works by:
+     * 1. Creating a custom event function in the Widget Blueprint
+     * 2. Overriding the appropriate input handler (OnMouseButtonDown, OnKeyDown, etc.)
+     * 3. Adding logic to check for the specific input and call the custom event
+     *
+     * @param WidgetName - Name of the target Widget Blueprint
+     * @param ComponentName - Name of the widget component (optional - if empty, handles at widget level)
+     * @param InputType - Type of input: "MouseButton", "Key", "Touch", "Focus", "Drag"
+     * @param InputEvent - Specific input event:
+     *                     MouseButton: LeftMouseButton, RightMouseButton, MiddleMouseButton, ThumbMouseButton, ThumbMouseButton2
+     *                     Key: Any key name (Enter, Escape, SpaceBar, A-Z, F1-F12, etc.)
+     *                     Touch: Touch, Pinch, Swipe
+     *                     Focus: FocusReceived, FocusLost
+     *                     Drag: DragDetected, DragEnter, DragLeave, DragOver, Drop
+     * @param Trigger - When to trigger: "Pressed", "Released", "DoubleClick"
+     * @param HandlerName - Name of the function to create
+     * @param OutActualHandlerName - The actual handler function name that was created
+     * @return true if the input handler was created successfully
+     */
+    virtual bool CreateWidgetInputHandler(const FString& WidgetName, const FString& ComponentName,
+                                         const FString& InputType, const FString& InputEvent,
+                                         const FString& Trigger, const FString& HandlerName,
+                                         FString& OutActualHandlerName) = 0;
+
+    /**
+     * Remove a function graph from a Widget Blueprint
+     * Use this to clean up broken/corrupt function graphs
+     *
+     * @param WidgetName - Name of the target Widget Blueprint
+     * @param FunctionName - Name of the function graph to remove
+     * @return true if the function graph was removed successfully
+     */
+    virtual bool RemoveWidgetFunctionGraph(const FString& WidgetName, const FString& FunctionName) = 0;
 };

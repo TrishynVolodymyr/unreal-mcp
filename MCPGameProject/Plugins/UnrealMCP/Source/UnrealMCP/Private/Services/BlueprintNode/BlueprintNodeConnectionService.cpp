@@ -40,6 +40,95 @@ FBlueprintNodeConnectionService& FBlueprintNodeConnectionService::Get()
     return Instance;
 }
 
+FPinConnectionResponse FBlueprintNodeConnectionService::CanConnectPins(UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+{
+    if (!SourcePin || !TargetPin)
+    {
+        return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, TEXT("Invalid pin(s) - one or both pins are null"));
+    }
+
+    UEdGraphNode* SourceNode = SourcePin->GetOwningNode();
+    UEdGraphNode* TargetNode = TargetPin->GetOwningNode();
+
+    if (!SourceNode || !TargetNode)
+    {
+        return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, TEXT("Invalid node(s) - pin has no owning node"));
+    }
+
+    UEdGraph* Graph = SourceNode->GetGraph();
+    if (!Graph)
+    {
+        return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, TEXT("No graph found for source node"));
+    }
+
+    const UEdGraphSchema* Schema = Graph->GetSchema();
+    if (!Schema)
+    {
+        return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, TEXT("No schema found for graph"));
+    }
+
+    // Use Unreal's built-in pin compatibility check - this is the same check used in the UI
+    return Schema->CanCreateConnection(SourcePin, TargetPin);
+}
+
+bool FBlueprintNodeConnectionService::CanConnectPinsByName(UEdGraphNode* SourceNode, const FString& SourcePinName,
+                                                           UEdGraphNode* TargetNode, const FString& TargetPinName,
+                                                           FPinConnectionResponse& OutResponse)
+{
+    if (!SourceNode || !TargetNode)
+    {
+        OutResponse = FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, TEXT("Invalid node(s) - one or both nodes are null"));
+        return false;
+    }
+
+    // Find the source pin
+    UEdGraphPin* SourcePin = FUnrealMCPCommonUtils::FindPin(SourceNode, SourcePinName, EGPD_Output);
+    if (!SourcePin)
+    {
+        // Try without direction constraint
+        for (UEdGraphPin* Pin : SourceNode->Pins)
+        {
+            if (Pin && Pin->PinName.ToString() == SourcePinName)
+            {
+                SourcePin = Pin;
+                break;
+            }
+        }
+    }
+
+    // Find the target pin
+    UEdGraphPin* TargetPin = FUnrealMCPCommonUtils::FindPin(TargetNode, TargetPinName, EGPD_Input);
+    if (!TargetPin)
+    {
+        // Try without direction constraint
+        for (UEdGraphPin* Pin : TargetNode->Pins)
+        {
+            if (Pin && Pin->PinName.ToString() == TargetPinName)
+            {
+                TargetPin = Pin;
+                break;
+            }
+        }
+    }
+
+    if (!SourcePin)
+    {
+        OutResponse = FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW,
+            FString::Printf(TEXT("Source pin '%s' not found on node"), *SourcePinName));
+        return false;
+    }
+
+    if (!TargetPin)
+    {
+        OutResponse = FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW,
+            FString::Printf(TEXT("Target pin '%s' not found on node"), *TargetPinName));
+        return false;
+    }
+
+    OutResponse = CanConnectPins(SourcePin, TargetPin);
+    return OutResponse.Response != CONNECT_RESPONSE_DISALLOW;
+}
+
 bool FBlueprintNodeConnectionService::ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& TargetGraph, TArray<bool>& OutResults)
 {
     if (!Blueprint)
@@ -155,6 +244,7 @@ bool FBlueprintNodeConnectionService::ConnectPins(UEdGraphNode* SourceNode, cons
 {
     if (!SourceNode || !TargetNode)
     {
+        UE_LOG(LogTemp, Error, TEXT("ConnectPins: Invalid node(s)"));
         return false;
     }
 
@@ -209,13 +299,64 @@ bool FBlueprintNodeConnectionService::ConnectPins(UEdGraphNode* SourceNode, cons
 
     if (!SourcePin || !TargetPin)
     {
+        UE_LOG(LogTemp, Error, TEXT("ConnectPins: Pin not found - Source '%s': %s, Target '%s': %s"),
+               *SourcePinName, SourcePin ? TEXT("FOUND") : TEXT("NOT FOUND"),
+               *TargetPinName, TargetPin ? TEXT("FOUND") : TEXT("NOT FOUND"));
         return false;
     }
 
-    // Make the connection
-    SourcePin->MakeLinkTo(TargetPin);
+    // Get the graph schema for proper connection handling
+    UEdGraph* Graph = SourceNode->GetGraph();
+    if (!Graph)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ConnectPins: No graph found for source node"));
+        return false;
+    }
 
-    return true;
+    const UEdGraphSchema* Schema = Graph->GetSchema();
+    if (!Schema)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ConnectPins: No schema found for graph"));
+        // Fallback to raw connection
+        SourcePin->MakeLinkTo(TargetPin);
+        return true;
+    }
+
+    // First check if the connection is valid using Unreal's built-in validation
+    FPinConnectionResponse Response = Schema->CanCreateConnection(SourcePin, TargetPin);
+
+    if (Response.Response == CONNECT_RESPONSE_DISALLOW)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ConnectPins: Connection not allowed - %s"), *Response.Message.ToString());
+        UE_LOG(LogTemp, Error, TEXT("  Source: %s.%s (Category: %s, Direction: %s)"),
+               *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(),
+               *SourcePin->PinName.ToString(),
+               *SourcePin->PinType.PinCategory.ToString(),
+               SourcePin->Direction == EGPD_Input ? TEXT("Input") : TEXT("Output"));
+        UE_LOG(LogTemp, Error, TEXT("  Target: %s.%s (Category: %s, Direction: %s)"),
+               *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(),
+               *TargetPin->PinName.ToString(),
+               *TargetPin->PinType.PinCategory.ToString(),
+               TargetPin->Direction == EGPD_Input ? TEXT("Input") : TEXT("Output"));
+        return false;
+    }
+
+    // Use TryCreateConnection which handles all the proper connection logic including:
+    // - Breaking existing connections if needed (for exec pins)
+    // - Creating conversion nodes if needed
+    // - Proper notification of graph changes
+    bool bSuccess = Schema->TryCreateConnection(SourcePin, TargetPin);
+
+    if (!bSuccess)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ConnectPins: TryCreateConnection failed for %s.%s -> %s.%s"),
+               *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(),
+               *SourcePinName,
+               *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(),
+               *TargetPinName);
+    }
+
+    return bSuccess;
 }
 
 bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName)
@@ -247,16 +388,38 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
 
     // LOG DETAILED PIN INFORMATION
     UE_LOG(LogTemp, Warning, TEXT("=== PIN TYPE ANALYSIS ==="));
-    UE_LOG(LogTemp, Warning, TEXT("Source Pin '%s': Category=%s, SubCategory=%s, SubCategoryObject=%s"),
+    UE_LOG(LogTemp, Warning, TEXT("Source Pin '%s': Category=%s, SubCategory=%s, SubCategoryObject=%s, Direction=%s"),
         *SourcePin->PinName.ToString(),
         *SourcePin->PinType.PinCategory.ToString(),
         *SourcePin->PinType.PinSubCategory.ToString(),
-        SourcePin->PinType.PinSubCategoryObject.IsValid() ? *SourcePin->PinType.PinSubCategoryObject->GetName() : TEXT("None"));
-    UE_LOG(LogTemp, Warning, TEXT("Target Pin '%s': Category=%s, SubCategory=%s, SubCategoryObject=%s"),
+        SourcePin->PinType.PinSubCategoryObject.IsValid() ? *SourcePin->PinType.PinSubCategoryObject->GetName() : TEXT("None"),
+        SourcePin->Direction == EGPD_Input ? TEXT("Input") : TEXT("Output"));
+    UE_LOG(LogTemp, Warning, TEXT("Target Pin '%s': Category=%s, SubCategory=%s, SubCategoryObject=%s, Direction=%s"),
         *TargetPin->PinName.ToString(),
         *TargetPin->PinType.PinCategory.ToString(),
         *TargetPin->PinType.PinSubCategory.ToString(),
-        TargetPin->PinType.PinSubCategoryObject.IsValid() ? *TargetPin->PinType.PinSubCategoryObject->GetName() : TEXT("None"));
+        TargetPin->PinType.PinSubCategoryObject.IsValid() ? *TargetPin->PinType.PinSubCategoryObject->GetName() : TEXT("None"),
+        TargetPin->Direction == EGPD_Input ? TEXT("Input") : TEXT("Output"));
+
+    // Use Unreal's built-in schema validation FIRST - same check the UI uses
+    const UEdGraphSchema* Schema = Graph->GetSchema();
+    if (Schema)
+    {
+        FPinConnectionResponse Response = Schema->CanCreateConnection(SourcePin, TargetPin);
+        UE_LOG(LogTemp, Warning, TEXT("Schema CanCreateConnection response: %d (%s)"),
+            (int32)Response.Response, *Response.Message.ToString());
+
+        // CONNECT_RESPONSE_DISALLOW means the connection is fundamentally incompatible
+        // (e.g., exec pin to bool pin, two inputs, etc.)
+        if (Response.Response == CONNECT_RESPONSE_DISALLOW)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Connection not allowed by schema: %s"), *Response.Message.ToString());
+            UE_LOG(LogTemp, Error, TEXT("  Cannot connect %s (%s) to %s (%s)"),
+                *SourcePin->PinName.ToString(), *SourcePin->PinType.PinCategory.ToString(),
+                *TargetPin->PinName.ToString(), *TargetPin->PinType.PinCategory.ToString());
+            return false;
+        }
+    }
 
     // CHECK IF NODES ARE PROMOTABLE OPERATORS BEFORE CONNECTION
     bool bSourceIsPromotable = SourceNode->GetClass()->GetName().Contains(TEXT("PromotableOperator"));
@@ -399,14 +562,14 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
             }
 
             // Apply comprehensive PromotableOperator fix (from Habr tutorial)
-            if (UEdGraph* Graph = PromotableOpSource->GetGraph())
+            if (UEdGraph* SourceGraph = PromotableOpSource->GetGraph())
             {
                 // Force visualization cache clear and notify graph changed
-                if (const UEdGraphSchema* Schema = Graph->GetSchema())
+                if (const UEdGraphSchema* SourceSchema = SourceGraph->GetSchema())
                 {
-                    Schema->ForceVisualizationCacheClear();
+                    SourceSchema->ForceVisualizationCacheClear();
                 }
-                Graph->NotifyGraphChanged();
+                SourceGraph->NotifyGraphChanged();
             }
 
             // DON'T ReconstructNode() - it breaks wildcard pins by converting them to specific types!
@@ -436,14 +599,14 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
             }
 
             // Apply comprehensive PromotableOperator fix (from Habr tutorial)
-            if (UEdGraph* Graph = PromotableOpTarget->GetGraph())
+            if (UEdGraph* TargetGraph = PromotableOpTarget->GetGraph())
             {
                 // Force visualization cache clear and notify graph changed
-                if (const UEdGraphSchema* Schema = Graph->GetSchema())
+                if (const UEdGraphSchema* TargetSchema = TargetGraph->GetSchema())
                 {
-                    Schema->ForceVisualizationCacheClear();
+                    TargetSchema->ForceVisualizationCacheClear();
                 }
-                Graph->NotifyGraphChanged();
+                TargetGraph->NotifyGraphChanged();
             }
 
             // DON'T ReconstructNode() - it breaks wildcard pins by converting them to specific types!
@@ -827,17 +990,25 @@ bool FBlueprintNodeConnectionService::CreateObjectCast(UEdGraph* Graph, UEdGraph
     CastNode->AllocateDefaultPins();
 
     // Find the input and output pins on the cast node
-    // Cast nodes have "Object" input pin and "As [ClassName]" output pin
+    // Cast nodes have "Object" input pin (category: PC_Wildcard) and "As [ClassName]" output pin (category: PC_Object)
     UEdGraphPin* CastInputPin = nullptr;
     UEdGraphPin* CastOutputPin = nullptr;
 
     for (UEdGraphPin* Pin : CastNode->Pins)
     {
-        if (Pin->Direction == EGPD_Input && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+        // The Cast node input pin is named "Object" and has PC_Wildcard category (not PC_Object!)
+        // It accepts any object type to be cast
+        if (Pin->Direction == EGPD_Input &&
+            (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard ||
+             Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object) &&
+            Pin->PinName.ToString() == TEXT("Object"))
         {
             CastInputPin = Pin;
         }
-        else if (Pin->Direction == EGPD_Output && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object &&
+        // The Cast node output pin starts with "As" and has PC_Object or PC_Interface category
+        else if (Pin->Direction == EGPD_Output &&
+                 (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object ||
+                  Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Interface) &&
                  Pin->PinName.ToString().StartsWith(TEXT("As")))
         {
             CastOutputPin = Pin;
@@ -846,7 +1017,19 @@ bool FBlueprintNodeConnectionService::CreateObjectCast(UEdGraph* Graph, UEdGraph
 
     if (!CastInputPin || !CastOutputPin)
     {
-        UE_LOG(LogTemp, Error, TEXT("CreateObjectCast: Could not find input/output pins on cast node"));
+        UE_LOG(LogTemp, Error, TEXT("CreateObjectCast: Could not find input/output pins on cast node to %s"),
+            *TargetClass->GetName());
+        UE_LOG(LogTemp, Error, TEXT("  CastInputPin: %s, CastOutputPin: %s"),
+            CastInputPin ? TEXT("Found") : TEXT("NOT FOUND"),
+            CastOutputPin ? TEXT("Found") : TEXT("NOT FOUND"));
+        UE_LOG(LogTemp, Error, TEXT("  Available pins on cast node:"));
+        for (UEdGraphPin* Pin : CastNode->Pins)
+        {
+            UE_LOG(LogTemp, Error, TEXT("    - '%s': Category=%s, Direction=%s"),
+                *Pin->PinName.ToString(),
+                *Pin->PinType.PinCategory.ToString(),
+                Pin->Direction == EGPD_Input ? TEXT("Input") : TEXT("Output"));
+        }
         Graph->RemoveNode(CastNode);
         return false;
     }

@@ -62,6 +62,7 @@ private:
     TSharedPtr<FJsonObject> BuildMetadataInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildTimelinesInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildAssetInfo(UBlueprint* Blueprint) const;
+    TSharedPtr<FJsonObject> BuildOrphanedNodesInfo(UBlueprint* Blueprint) const;
 
     /**
      * Create success response

@@ -16,7 +16,9 @@ from utils.widgets.widget_components import (
     add_widget_component_to_widget as add_widget_component_to_widget_impl,
     set_widget_component_property as set_widget_component_property_impl,
     set_text_block_widget_component_binding as set_text_block_widget_component_binding_impl,
-    get_widget_blueprint_metadata_impl
+    get_widget_blueprint_metadata_impl,
+    create_widget_input_handler as create_widget_input_handler_impl,
+    remove_widget_function_graph as remove_widget_function_graph_impl
 )
 from utils.widgets.widget_screenshot import (
     capture_widget_screenshot_impl
@@ -577,6 +579,144 @@ def register_umg_tools(mcp: FastMCP):
             )
         """
         return capture_widget_screenshot_impl(ctx, widget_name, width, height, format)
+
+    @mcp.tool()
+    def create_widget_input_handler(
+        ctx: Context,
+        widget_name: str,
+        input_type: str,
+        input_event: str,
+        trigger: str = "Pressed",
+        handler_name: str = "",
+        component_name: str = ""
+    ) -> Dict[str, object]:
+        """
+        Create an input event handler in a Widget Blueprint.
+
+        This creates handlers for input events that are NOT exposed as standard widget
+        delegates (like OnClicked). Use this for handling:
+        - Right mouse button clicks (for context menus)
+        - Middle mouse button (for panning/special actions)
+        - Keyboard shortcuts on focusable widgets
+        - Touch gestures
+        - Drag and drop operations
+        - Focus changes
+
+        The tool creates:
+        1. A custom event function in the Widget Blueprint's event graph
+        2. An override of the appropriate input handler (OnMouseButtonDown, OnKeyDown, etc.)
+        3. Logic to detect the specific input and call your custom event
+
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            input_type: Type of input to handle:
+                - "MouseButton" - Mouse button events (left, right, middle, thumb)
+                - "Key" - Keyboard key events
+                - "Touch" - Touch/gesture events
+                - "Focus" - Widget focus events
+                - "Drag" - Drag and drop events
+            input_event: Specific input event to handle:
+                - For MouseButton: "LeftMouseButton", "RightMouseButton", "MiddleMouseButton",
+                                   "ThumbMouseButton", "ThumbMouseButton2"
+                - For Key: Any key name (e.g., "Enter", "Escape", "SpaceBar", "A", "F1", etc.)
+                - For Touch: "Touch", "Pinch", "Swipe"
+                - For Focus: "FocusReceived", "FocusLost"
+                - For Drag: "DragDetected", "DragEnter", "DragLeave", "DragOver", "Drop"
+            trigger: When to trigger the handler (default: "Pressed"):
+                - "Pressed" - On button/key press
+                - "Released" - On button/key release
+                - "DoubleClick" - On double click (mouse only)
+            handler_name: Name of the custom event function to create.
+                         If empty, auto-generates (e.g., "OnRightMouseButtonPressed")
+            component_name: Optional widget component name for component-specific handling.
+                           If empty, handles at widget blueprint level.
+
+        Returns:
+            Dict containing:
+                - success: Whether the handler was created
+                - handler_name: The actual name of the created handler function
+                - input_type: The input type configured
+                - input_event: The specific event that triggers the handler
+                - message: Description of what was created
+
+        Examples:
+            # Create right-click handler for inventory context menu
+            create_widget_input_handler(
+                widget_name="WBP_InventorySlot",
+                input_type="MouseButton",
+                input_event="RightMouseButton",
+                handler_name="OnSlotRightClicked"
+            )
+
+            # Create Escape key handler to close a menu
+            create_widget_input_handler(
+                widget_name="WBP_PauseMenu",
+                input_type="Key",
+                input_event="Escape",
+                handler_name="OnCloseMenu"
+            )
+
+            # Create middle mouse button handler for map panning
+            create_widget_input_handler(
+                widget_name="WBP_WorldMap",
+                input_type="MouseButton",
+                input_event="MiddleMouseButton",
+                trigger="Pressed",
+                handler_name="OnStartPan"
+            )
+
+            # Create double-click handler
+            create_widget_input_handler(
+                widget_name="WBP_ItemList",
+                input_type="MouseButton",
+                input_event="LeftMouseButton",
+                trigger="DoubleClick",
+                handler_name="OnItemDoubleClicked"
+            )
+        """
+        return create_widget_input_handler_impl(
+            ctx, widget_name, input_type, input_event, trigger, handler_name, component_name
+        )
+
+    @mcp.tool()
+    def remove_widget_function_graph(
+        ctx: Context,
+        widget_name: str,
+        function_name: str
+    ) -> Dict[str, object]:
+        """
+        Remove a function graph from a Widget Blueprint.
+
+        Use this to clean up broken/corrupt function graphs that prevent compilation,
+        remove unwanted override functions, or reset widget event handlers.
+
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            function_name: Name of the function graph to remove (e.g., "OnMouseButtonDown")
+
+        Returns:
+            Dict containing success status and removal information
+
+        Examples:
+            # Remove a broken OnMouseButtonDown override that prevents compilation
+            remove_widget_function_graph(
+                widget_name="WBP_InventorySlot",
+                function_name="OnMouseButtonDown"
+            )
+
+            # Remove a custom event handler
+            remove_widget_function_graph(
+                widget_name="WBP_MainMenu",
+                function_name="OnRightClickHandler"
+            )
+
+            # Clean up an override function to start fresh
+            remove_widget_function_graph(
+                widget_name="WBP_InteractiveWidget",
+                function_name="OnKeyDown"
+            )
+        """
+        return remove_widget_function_graph_impl(ctx, widget_name, function_name)
 
     logger.info("UMG tools registered successfully")
 

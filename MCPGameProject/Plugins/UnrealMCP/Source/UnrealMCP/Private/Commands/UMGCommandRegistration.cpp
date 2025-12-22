@@ -10,6 +10,8 @@
 #include "Commands/UMG/SetWidgetPlacementCommand.h"
 #include "Commands/UMG/CaptureWidgetScreenshotCommand.h"
 #include "Commands/UMG/GetWidgetBlueprintMetadataCommand.h"
+#include "Commands/UMG/CreateWidgetInputHandlerCommand.h"
+#include "Commands/UMG/RemoveWidgetFunctionGraphCommand.h"
 #include "Services/UMG/UMGService.h"
 
 // Static member definition
@@ -33,6 +35,8 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterSetWidgetPlacementCommand();
     RegisterCaptureWidgetScreenshotCommand();
     RegisterGetWidgetBlueprintMetadataCommand();
+    RegisterCreateWidgetInputHandlerCommand();
+    RegisterRemoveWidgetFunctionGraphCommand();
 
     // TODO: Register remaining 22 UMG commands when their classes are implemented
     // For now, we'll register the core commands that exist
@@ -238,6 +242,22 @@ void FUMGCommandRegistration::RegisterCaptureWidgetScreenshotCommand()
     // Create shared pointer to the UMG service singleton for the new architecture
     TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
     TSharedPtr<FCaptureWidgetScreenshotCommand> Command = MakeShared<FCaptureWidgetScreenshotCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
+}
+
+void FUMGCommandRegistration::RegisterCreateWidgetInputHandlerCommand()
+{
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FCreateWidgetInputHandlerCommand> Command = MakeShared<FCreateWidgetInputHandlerCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
+}
+
+void FUMGCommandRegistration::RegisterRemoveWidgetFunctionGraphCommand()
+{
+    // Create shared pointer to the UMG service singleton for the new architecture
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FRemoveWidgetFunctionGraphCommand> Command = MakeShared<FRemoveWidgetFunctionGraphCommand>(UMGServicePtr);
     RegisterAndTrackCommand(Command);
 }
 

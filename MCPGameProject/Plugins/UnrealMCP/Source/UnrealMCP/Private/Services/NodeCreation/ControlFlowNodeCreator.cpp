@@ -6,9 +6,12 @@
 #include "K2Node_DynamicCast.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_VariableGet.h"
+#include "K2Node_Self.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Blueprint.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonReader.h"
 
 FControlFlowNodeCreator& FControlFlowNodeCreator::Get()
 {
@@ -200,20 +203,45 @@ bool FControlFlowNodeCreator::TryCreateCastNode(const FString& FunctionName, TSh
 			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: ParamsObject is valid for Cast node"));
 			FString TargetTypeName;
 
-			// Check if target_type is in kwargs sub-object
-			const TSharedPtr<FJsonObject>* KwargsObject;
-			if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+			// Check if target_type is in kwargs sub-object (can be object or string)
+			const TSharedPtr<FJsonObject>* KwargsObjectPtr;
+			TSharedPtr<FJsonObject> ParsedKwargs;
+
+			if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObjectPtr) && KwargsObjectPtr->IsValid())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found kwargs object"));
-				if ((*KwargsObject)->TryGetStringField(TEXT("target_type"), TargetTypeName) && !TargetTypeName.IsEmpty())
+				// kwargs is an object
+				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found kwargs as object"));
+				if ((*KwargsObjectPtr)->TryGetStringField(TEXT("target_type"), TargetTypeName) && !TargetTypeName.IsEmpty())
 				{
-					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found target_type in kwargs: '%s'"), *TargetTypeName);
+					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found target_type in kwargs object: '%s'"), *TargetTypeName);
 				}
 			}
-			// Also check at root level for backwards compatibility
-			else if (ParamsObject->TryGetStringField(TEXT("target_type"), TargetTypeName) && !TargetTypeName.IsEmpty())
+			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found target_type parameter: '%s'"), *TargetTypeName);
+				// Try kwargs as string (JSON string that needs parsing)
+				FString KwargsString;
+				if (ParamsObject->TryGetStringField(TEXT("kwargs"), KwargsString) && !KwargsString.IsEmpty())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found kwargs as string: %s"), *KwargsString);
+					TSharedRef<TJsonReader<>> KwargsReader = TJsonReaderFactory<>::Create(KwargsString);
+					if (FJsonSerializer::Deserialize(KwargsReader, ParsedKwargs) && ParsedKwargs.IsValid())
+					{
+						if (ParsedKwargs->TryGetStringField(TEXT("target_type"), TargetTypeName) && !TargetTypeName.IsEmpty())
+						{
+							UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found target_type in parsed kwargs string: '%s'"), *TargetTypeName);
+						}
+					}
+					else
+					{
+						UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Failed to parse kwargs string as JSON"));
+					}
+				}
+			}
+
+			// Also check at root level for backwards compatibility
+			if (TargetTypeName.IsEmpty() && ParamsObject->TryGetStringField(TEXT("target_type"), TargetTypeName) && !TargetTypeName.IsEmpty())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found target_type at root level: '%s'"), *TargetTypeName);
 			}
 
 			if (!TargetTypeName.IsEmpty())
@@ -254,50 +282,73 @@ bool FControlFlowNodeCreator::TryCreateCastNode(const FString& FunctionName, TSh
 					if (!CastTargetClass)
 					{
 						FAssetRegistryModule& AssetReg = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-						TArray<FAssetData> BPAssets;
-						AssetReg.Get().GetAssetsByClass(UBlueprint::StaticClass()->GetClassPathName(), BPAssets);
 
-						for (const FAssetData& AssetData : BPAssets)
+						// Search both regular Blueprints and Widget Blueprints
+						TArray<FTopLevelAssetPath> ClassPaths;
+						ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+						ClassPaths.Add(FTopLevelAssetPath(TEXT("/Script/UMGEditor"), TEXT("WidgetBlueprint")));
+
+						for (const FTopLevelAssetPath& ClassPath : ClassPaths)
 						{
-							FString AssetName = AssetData.AssetName.ToString();
+							if (CastTargetClass) break; // Already found
 
-							// Try exact match first (most reliable)
-							bool bIsMatch = AssetName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
+							TArray<FAssetData> BPAssets;
+							AssetReg.Get().GetAssetsByClass(ClassPath, BPAssets);
+							UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Searching %d assets of type %s for '%s'"),
+								BPAssets.Num(), *ClassPath.ToString(), *TargetTypeName);
 
-							// If no exact match, try matching against the generated class name
-							if (!bIsMatch)
+							for (const FAssetData& AssetData : BPAssets)
 							{
-								if (UBlueprint* TestBP = Cast<UBlueprint>(AssetData.GetAsset()))
+								FString AssetName = AssetData.AssetName.ToString();
+
+								// Try exact match first (most reliable)
+								bool bIsMatch = AssetName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
+
+								// If no exact match, try matching against the generated class name
+								if (!bIsMatch)
 								{
-									if (TestBP->GeneratedClass)
+									if (UBlueprint* TestBP = Cast<UBlueprint>(AssetData.GetAsset()))
 									{
-										FString GeneratedClassName = TestBP->GeneratedClass->GetName();
-										// Remove common Blueprint prefixes for comparison
-										if (GeneratedClassName.StartsWith(TEXT("BP_")))
+										if (TestBP->GeneratedClass)
 										{
-											GeneratedClassName = GeneratedClassName.Mid(3);
+											FString GeneratedClassName = TestBP->GeneratedClass->GetName();
+											// Remove common Blueprint prefixes for comparison
+											if (GeneratedClassName.StartsWith(TEXT("BP_")) || GeneratedClassName.StartsWith(TEXT("WBP_")))
+											{
+												GeneratedClassName = GeneratedClassName.Mid(GeneratedClassName.StartsWith(TEXT("WBP_")) ? 4 : 3);
+											}
+											// Also try without _C suffix
+											if (GeneratedClassName.EndsWith(TEXT("_C")))
+											{
+												GeneratedClassName = GeneratedClassName.LeftChop(2);
+											}
+											bIsMatch = GeneratedClassName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
 										}
-										bIsMatch = GeneratedClassName.Equals(TargetTypeName, ESearchCase::IgnoreCase);
 									}
 								}
-							}
 
-							if (bIsMatch)
-							{
-								if (UBlueprint* TargetBP = Cast<UBlueprint>(AssetData.GetAsset()))
+								if (bIsMatch)
 								{
-									CastTargetClass = TargetBP->GeneratedClass;
-									if (CastTargetClass)
+									if (UBlueprint* TargetBP = Cast<UBlueprint>(AssetData.GetAsset()))
 									{
-										UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Blueprint class '%s' (matched asset '%s')"), *CastTargetClass->GetName(), *AssetName);
-										break;
-									}
-									else
-									{
-										UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Blueprint '%s' has null GeneratedClass"), *AssetName);
+										CastTargetClass = TargetBP->GeneratedClass;
+										if (CastTargetClass)
+										{
+											UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found Blueprint class '%s' (matched asset '%s')"), *CastTargetClass->GetName(), *AssetName);
+											break;
+										}
+										else
+										{
+											UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Blueprint '%s' has null GeneratedClass"), *AssetName);
+										}
 									}
 								}
 							}
+						}
+
+						if (!CastTargetClass)
+						{
+							UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Could not find Blueprint or WidgetBlueprint named '%s'"), *TargetTypeName);
 						}
 					}
 				}
@@ -321,8 +372,64 @@ bool FControlFlowNodeCreator::TryCreateCastNode(const FString& FunctionName, TSh
 		CastNode->PostPlacedNewNode();
 		CastNode->AllocateDefaultPins();
 		OutNode = CastNode;
-		OutNodeTitle = TEXT("Cast");
+
+		// Set proper title that includes the target type
+		// This matches Unreal's format: "Cast To ClassName"
+		if (CastNode->TargetType)
+		{
+			// For Blueprint classes, use the Blueprint name (without _C suffix)
+			UBlueprint* CastToBP = UBlueprint::GetBlueprintFromClass(CastNode->TargetType);
+			if (CastToBP)
+			{
+				OutNodeTitle = FString::Printf(TEXT("Cast To %s"), *CastToBP->GetName());
+			}
+			else
+			{
+				OutNodeTitle = FString::Printf(TEXT("Cast To %s"), *CastNode->TargetType->GetName());
+			}
+		}
+		else
+		{
+			// No target type - this will result in "Bad cast node" error in Unreal
+			OutNodeTitle = TEXT("Cast (No Target Type)");
+			UE_LOG(LogTemp, Error, TEXT("TryCreateCastNode: Created Cast node without TargetType - this will show as 'Bad cast node'"));
+		}
+
 		OutNodeType = TEXT("UK2Node_DynamicCast");
+		return true;
+	}
+
+	return false;
+}
+
+bool FControlFlowNodeCreator::TryCreateSelfNode(const FString& FunctionName, UEdGraph* EventGraph,
+	int32 PositionX, int32 PositionY,
+	UEdGraphNode*& OutNode, FString& OutNodeTitle, FString& OutNodeType)
+{
+	// Match various ways users might request a Self node
+	if (FunctionName.Equals(TEXT("Self"), ESearchCase::IgnoreCase) ||
+		FunctionName.Equals(TEXT("Get Self"), ESearchCase::IgnoreCase) ||
+		FunctionName.Equals(TEXT("GetSelf"), ESearchCase::IgnoreCase) ||
+		FunctionName.Equals(TEXT("This"), ESearchCase::IgnoreCase) ||
+		FunctionName.Equals(TEXT("Self Reference"), ESearchCase::IgnoreCase) ||
+		FunctionName.Equals(TEXT("SelfReference"), ESearchCase::IgnoreCase) ||
+		FunctionName.Equals(TEXT("K2Node_Self"), ESearchCase::IgnoreCase) ||
+		FunctionName.Equals(TEXT("UK2Node_Self"), ESearchCase::IgnoreCase))
+	{
+		UK2Node_Self* SelfNode = NewObject<UK2Node_Self>(EventGraph);
+
+		SelfNode->NodePosX = PositionX;
+		SelfNode->NodePosY = PositionY;
+		SelfNode->CreateNewGuid();
+		EventGraph->AddNode(SelfNode, true, true);
+		SelfNode->PostPlacedNewNode();
+		SelfNode->AllocateDefaultPins();
+
+		OutNode = SelfNode;
+		OutNodeTitle = TEXT("Self");
+		OutNodeType = TEXT("UK2Node_Self");
+
+		UE_LOG(LogTemp, Display, TEXT("TryCreateSelfNode: Successfully created Self reference node"));
 		return true;
 	}
 

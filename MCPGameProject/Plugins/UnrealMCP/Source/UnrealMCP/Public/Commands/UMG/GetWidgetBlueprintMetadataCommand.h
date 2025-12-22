@@ -22,6 +22,7 @@ class IUMGService;
  * - "events" - Bound events and delegates
  * - "variables" - Blueprint variables
  * - "functions" - Blueprint functions
+ * - "orphaned_nodes" - Nodes with no connections in blueprint graphs
  * - "*" - Return all available fields
  */
 class UNREALMCP_API FGetWidgetBlueprintMetadataCommand : public IUnrealMCPCommand
@@ -57,6 +58,7 @@ private:
 	TSharedPtr<FJsonObject> BuildEventsInfo(class UWidgetBlueprint* WidgetBlueprint) const;
 	TSharedPtr<FJsonObject> BuildVariablesInfo(class UWidgetBlueprint* WidgetBlueprint) const;
 	TSharedPtr<FJsonObject> BuildFunctionsInfo(class UWidgetBlueprint* WidgetBlueprint) const;
+	TSharedPtr<FJsonObject> BuildOrphanedNodesInfo(class UWidgetBlueprint* WidgetBlueprint) const;
 
 	/** Helper to collect all widgets in the widget tree */
 	void CollectAllWidgets(class UWidget* Widget, TArray<class UWidget*>& OutWidgets) const;

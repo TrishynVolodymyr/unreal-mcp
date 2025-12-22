@@ -58,6 +58,14 @@ public:
 		UEdGraph* EventGraph, int32 PositionX, int32 PositionY,
 		UEdGraphNode*& OutNode, FString& OutNodeTitle, FString& OutNodeType);
 
+	/**
+	 * Try to create a Self reference node
+	 * @return true if this function handled the node creation
+	 */
+	bool TryCreateSelfNode(const FString& FunctionName, UEdGraph* EventGraph,
+		int32 PositionX, int32 PositionY,
+		UEdGraphNode*& OutNode, FString& OutNodeTitle, FString& OutNodeType);
+
 private:
 	/** Private constructor for singleton pattern */
 	FControlFlowNodeCreator() = default;

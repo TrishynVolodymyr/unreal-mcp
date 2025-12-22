@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Building the C++ Plugin
 ```powershell
-# Rebuild project (kills any running Unreal Editor instances first)
-.\RebuildProject.bat
+# IMPORTANT: Always use this exact command format (not ./RebuildProject.bat or cmd /c)
+powershell -Command "& {cd e:\code\unreal-mcp; .\RebuildProject.bat}"
 
 # This script:
 # 1. Terminates all UnrealEditor*.exe processes
@@ -18,8 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Launching Unreal Editor
 ```powershell
-# Launch Unreal Editor (checks if already running to prevent duplicates)
-.\LaunchProject.bat
+# IMPORTANT: Always use this exact command format (not ./LaunchProject.bat or cmd /c)
+powershell -Command "& {cd e:\code\unreal-mcp; .\LaunchProject.bat}"
 
 # Uses: C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe
 # Opens: E:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject
@@ -181,6 +181,12 @@ The C++ plugin uses a **modular service layer pattern** for clean separation of 
   - `BlueprintNodeCreationService` → `ControlFlowNodeCreator`, `EventAndVariableNodeCreator`
   - `UnrealMCPCommonUtils` → 6 specialized utility classes
 
+**⚠️ ALWAYS CHECK FILE SIZE AFTER ADDING CODE**
+- After adding new functions, check the file's line count
+- If file exceeds 800 lines, proactively suggest splitting to user
+- If file exceeds 1000 lines, MUST split before committing
+- Split methodology: Extract functions as-is into new focused files (no refactoring during split)
+
 ## Unreal Engine Specifics
 
 ### Version & APIs
@@ -262,3 +268,15 @@ The codebase has undergone significant refactoring to improve modularity and mai
 5. **Command Registration Pattern**: Centralized registry with category-specific registration functions
 
 When adding new features, follow these established patterns for consistency and maintainability.
+
+## Known Issues and Future Improvements
+
+**Check `Docs/known-issues.md` for:**
+- MCP tool limitations discovered during development
+- Feature requests for future implementation
+- Workarounds for known problems
+
+**When encountering MCP limitations:**
+1. Document the issue in `Docs/known-issues.md`
+2. Include: what failed, expected behavior, any workarounds
+3. Tag with affected tool names for searchability
