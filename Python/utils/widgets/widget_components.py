@@ -272,6 +272,152 @@ def set_widget_component_property(ctx: Context, widget_name: str, component_name
     logger.info(f"[DEBUG] Sending set_widget_component_property params: {params}")
     return send_unreal_command("set_widget_component_property", params)
 
+def create_widget_input_handler(
+    ctx: Context,
+    widget_name: str,
+    input_type: str,
+    input_event: str,
+    trigger: str = "Pressed",
+    handler_name: str = "",
+    component_name: str = ""
+) -> Dict[str, Any]:
+    """Implementation for creating an input event handler in a Widget Blueprint.
+
+    This creates handlers for input events not exposed as standard delegates,
+    such as right mouse button clicks, keyboard events, touch events, etc.
+
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        input_type: Type of input to handle:
+            - "MouseButton" - Mouse button events
+            - "Key" - Keyboard key events
+            - "Touch" - Touch/gesture events
+            - "Focus" - Widget focus events
+            - "Drag" - Drag and drop events
+        input_event: Specific input event to handle:
+            - For MouseButton: "LeftMouseButton", "RightMouseButton", "MiddleMouseButton",
+                               "ThumbMouseButton", "ThumbMouseButton2"
+            - For Key: Any key name (e.g., "Enter", "Escape", "SpaceBar", "A", "F1", etc.)
+            - For Touch: "Touch", "Pinch", "Swipe"
+            - For Focus: "FocusReceived", "FocusLost"
+            - For Drag: "DragDetected", "DragEnter", "DragLeave", "DragOver", "Drop"
+        trigger: When to trigger the handler:
+            - "Pressed" - On button/key press (default)
+            - "Released" - On button/key release
+            - "DoubleClick" - On double click (mouse only)
+        handler_name: Name of the custom event function to create.
+                     If empty, auto-generates based on input type and event.
+        component_name: Optional widget component name. If specified, the handler
+                       is associated with that component. If empty, handles at
+                       the widget blueprint level.
+
+    Returns:
+        Dict containing:
+            - success: Boolean indicating if handler was created
+            - handler_name: The actual name of the created handler function
+            - input_type: The input type that was configured
+            - input_event: The specific event that triggers the handler
+            - message: Description of what was created
+
+    Examples:
+        # Create a right-click handler for context menu
+        create_widget_input_handler(
+            ctx,
+            widget_name="InventoryWidget",
+            input_type="MouseButton",
+            input_event="RightMouseButton",
+            trigger="Pressed",
+            handler_name="OnItemRightClicked"
+        )
+
+        # Create an Escape key handler
+        create_widget_input_handler(
+            ctx,
+            widget_name="PauseMenu",
+            input_type="Key",
+            input_event="Escape",
+            trigger="Pressed",
+            handler_name="OnEscapePressed"
+        )
+
+        # Create a middle mouse button handler on a specific component
+        create_widget_input_handler(
+            ctx,
+            widget_name="MapWidget",
+            input_type="MouseButton",
+            input_event="MiddleMouseButton",
+            trigger="Pressed",
+            handler_name="OnMapPan",
+            component_name="MapImage"
+        )
+    """
+    params = {
+        "widget_name": widget_name,
+        "input_type": input_type,
+        "input_event": input_event,
+        "trigger": trigger
+    }
+
+    if handler_name:
+        params["handler_name"] = handler_name
+
+    if component_name:
+        params["component_name"] = component_name
+
+    logger.info(f"Creating input handler for {input_type} {input_event} ({trigger}) in widget '{widget_name}'")
+    return send_unreal_command("create_widget_input_handler", params)
+
+
+def remove_widget_function_graph(
+    ctx: Context,
+    widget_name: str,
+    function_name: str
+) -> Dict[str, Any]:
+    """Remove a function graph from a Widget Blueprint.
+
+    This function removes function graphs (override functions, custom events, etc.)
+    from Widget Blueprints. Useful for:
+    - Cleaning up broken/corrupt function graphs that prevent compilation
+    - Removing unwanted override functions
+    - Resetting widget event handlers
+
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        function_name: Name of the function graph to remove (e.g., "OnMouseButtonDown")
+
+    Returns:
+        Dict containing:
+            - success: Boolean indicating if the function was removed
+            - widget_name: The widget blueprint name
+            - function_name: The function that was removed
+            - message: Description of what happened
+
+    Examples:
+        # Remove a broken OnMouseButtonDown override
+        remove_widget_function_graph(
+            ctx,
+            widget_name="WBP_InventorySlot",
+            function_name="OnMouseButtonDown"
+        )
+
+        # Remove a custom event handler
+        remove_widget_function_graph(
+            ctx,
+            widget_name="WBP_MainMenu",
+            function_name="OnRightClickHandler"
+        )
+    """
+    params = {
+        "widget_name": widget_name,
+        "function_name": function_name
+    }
+
+    logger.info(f"Removing function graph '{function_name}' from widget '{widget_name}'")
+    return send_unreal_command("remove_widget_function_graph", params)
+
+
 def get_widget_blueprint_metadata_impl(
     ctx: Context,
     widget_name: str,

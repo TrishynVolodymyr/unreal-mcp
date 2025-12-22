@@ -164,6 +164,10 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildMetadata(UBlueprint* 
     {
         Metadata->SetObjectField(TEXT("asset_info"), BuildAssetInfo(Blueprint));
     }
+    if (ShouldIncludeField(TEXT("orphaned_nodes"), Fields))
+    {
+        Metadata->SetObjectField(TEXT("orphaned_nodes"), BuildOrphanedNodesInfo(Blueprint));
+    }
 
     return Metadata;
 }
@@ -524,6 +528,83 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildAssetInfo(UBlueprint*
     }
 
     return AssetInfo;
+}
+
+TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildOrphanedNodesInfo(UBlueprint* Blueprint) const
+{
+    TSharedPtr<FJsonObject> OrphanedInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> OrphanedNodesList;
+
+    // Collect all graphs
+    TArray<UEdGraph*> AllGraphs;
+    Blueprint->GetAllGraphs(AllGraphs);
+
+    for (UEdGraph* Graph : AllGraphs)
+    {
+        if (!Graph)
+        {
+            continue;
+        }
+
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (!Node)
+            {
+                continue;
+            }
+
+            // Check if node has any connected pins (excluding exec pins for certain checks)
+            bool bHasConnection = false;
+            bool bHasInputConnection = false;
+            bool bHasOutputConnection = false;
+
+            for (UEdGraphPin* Pin : Node->Pins)
+            {
+                if (Pin && Pin->LinkedTo.Num() > 0)
+                {
+                    bHasConnection = true;
+
+                    if (Pin->Direction == EGPD_Input)
+                    {
+                        bHasInputConnection = true;
+                    }
+                    else if (Pin->Direction == EGPD_Output)
+                    {
+                        bHasOutputConnection = true;
+                    }
+                }
+            }
+
+            // Node is considered orphaned if it has no connections at all
+            // Event nodes (like BeginPlay) are not orphaned if they have outputs connected
+            bool bIsOrphaned = !bHasConnection;
+
+            // Skip event entry nodes - they're supposed to be entry points
+            if (Cast<UK2Node_Event>(Node) || Cast<UK2Node_FunctionEntry>(Node))
+            {
+                // Event/Entry nodes are only orphaned if they have no output connections
+                bIsOrphaned = !bHasOutputConnection;
+            }
+
+            if (bIsOrphaned)
+            {
+                TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
+                NodeObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
+                NodeObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+                NodeObj->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
+                NodeObj->SetStringField(TEXT("graph_name"), Graph->GetName());
+                NodeObj->SetNumberField(TEXT("position_x"), Node->NodePosX);
+                NodeObj->SetNumberField(TEXT("position_y"), Node->NodePosY);
+
+                OrphanedNodesList.Add(MakeShared<FJsonValueObject>(NodeObj));
+            }
+        }
+    }
+
+    OrphanedInfo->SetArrayField(TEXT("nodes"), OrphanedNodesList);
+    OrphanedInfo->SetNumberField(TEXT("count"), OrphanedNodesList.Num());
+
+    return OrphanedInfo;
 }
 
 FString FGetBlueprintMetadataCommand::CreateSuccessResponse(const TSharedPtr<FJsonObject>& Metadata) const

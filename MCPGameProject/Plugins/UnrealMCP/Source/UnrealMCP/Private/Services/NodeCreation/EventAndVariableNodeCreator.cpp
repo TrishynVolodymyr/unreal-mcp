@@ -1,5 +1,6 @@
 #include "Services/NodeCreation/EventAndVariableNodeCreator.h"
 #include "Services/MacroDiscoveryService.h"
+#include "Services/AssetDiscoveryService.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_Event.h"
 #include "K2Node_ComponentBoundEvent.h"
@@ -759,27 +760,38 @@ bool FEventAndVariableNodeCreator::TryCreateStructNode(const FString& FunctionNa
 		// Find the struct type
 		UScriptStruct* StructType = nullptr;
 
-		// Try multiple variations of struct name resolution
-		TArray<FString> StructNameVariations = {
-			StructTypeName,
-			FString::Printf(TEXT("F%s"), *StructTypeName),
-			FString::Printf(TEXT("/Script/Engine.%s"), *StructTypeName),
-			FString::Printf(TEXT("/Script/Engine.F%s"), *StructTypeName),
-			FString::Printf(TEXT("/Script/CoreUObject.%s"), *StructTypeName),
-			FString::Printf(TEXT("/Script/CoreUObject.F%s"), *StructTypeName)
-		};
-
-		for (const FString& StructName : StructNameVariations)
+		// First, try using AssetDiscoveryService which handles user-defined structs automatically
+		// This allows simple names like "S_InventorySlot" without requiring full paths
+		StructType = FAssetDiscoveryService::Get().FindStructType(StructTypeName);
+		if (StructType)
 		{
-			StructType = FindObject<UScriptStruct>(nullptr, *StructName);
-			if (StructType)
+			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found struct type '%s' using AssetDiscoveryService"), *StructType->GetName());
+		}
+
+		// Fallback: Try multiple variations of struct name resolution for C++ structs
+		if (!StructType)
+		{
+			TArray<FString> StructNameVariations = {
+				StructTypeName,
+				FString::Printf(TEXT("F%s"), *StructTypeName),
+				FString::Printf(TEXT("/Script/Engine.%s"), *StructTypeName),
+				FString::Printf(TEXT("/Script/Engine.F%s"), *StructTypeName),
+				FString::Printf(TEXT("/Script/CoreUObject.%s"), *StructTypeName),
+				FString::Printf(TEXT("/Script/CoreUObject.F%s"), *StructTypeName)
+			};
+
+			for (const FString& StructName : StructNameVariations)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found struct type '%s' using name '%s'"), *StructType->GetName(), *StructName);
-				break;
+				StructType = FindObject<UScriptStruct>(nullptr, *StructName);
+				if (StructType)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found struct type '%s' using FindObject with name '%s'"), *StructType->GetName(), *StructName);
+					break;
+				}
 			}
 		}
 
-		// If not found by FindObject, try using LoadObject for asset paths
+		// Final fallback: If not found by FindObject, try using LoadObject for asset paths
 		if (!StructType && StructTypeName.StartsWith(TEXT("/Game/")))
 		{
 			StructType = LoadObject<UScriptStruct>(nullptr, *StructTypeName);

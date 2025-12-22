@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EdGraph/EdGraphSchema.h"
 
 // Forward declarations
 class UBlueprint;
@@ -32,6 +33,28 @@ public:
      */
     bool ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections,
                               const FString& TargetGraph, TArray<bool>& OutResults);
+
+    /**
+     * Check if two pins can be connected (uses Unreal's schema validation)
+     * This is the same validation Unreal uses in the UI when you try to connect pins.
+     * @param SourcePin - Source pin (output)
+     * @param TargetPin - Target pin (input)
+     * @return FPinConnectionResponse containing whether connection is allowed and the reason
+     */
+    FPinConnectionResponse CanConnectPins(UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+
+    /**
+     * Check if two pins can be connected by node and pin names
+     * @param SourceNode - Source node
+     * @param SourcePinName - Name of the source pin
+     * @param TargetNode - Target node
+     * @param TargetPinName - Name of the target pin
+     * @param OutResponse - Response with details about why connection failed (if applicable)
+     * @return true if pins can be connected
+     */
+    bool CanConnectPinsByName(UEdGraphNode* SourceNode, const FString& SourcePinName,
+                              UEdGraphNode* TargetNode, const FString& TargetPinName,
+                              FPinConnectionResponse& OutResponse);
 
     /**
      * Connect two pins on nodes

@@ -326,6 +326,15 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 		}
 	}
 
+	if (ShouldIncludeField(RequestedFields, TEXT("orphaned_nodes")))
+	{
+		TSharedPtr<FJsonObject> OrphanedNodesInfo = BuildOrphanedNodesInfo(WidgetBlueprint);
+		if (OrphanedNodesInfo.IsValid())
+		{
+			MetadataObj->SetObjectField(TEXT("orphaned_nodes"), OrphanedNodesInfo);
+		}
+	}
+
 	return CreateSuccessResponse(MetadataObj);
 }
 
@@ -868,4 +877,79 @@ TArray<FString> FGetWidgetBlueprintMetadataCommand::GetAvailableDelegateEvents(U
 	}
 
 	return DelegateEvents;
+}
+
+TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::BuildOrphanedNodesInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+	TSharedPtr<FJsonObject> OrphanedInfo = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> OrphanedNodesList;
+
+	// Collect all graphs from the widget blueprint
+	TArray<UEdGraph*> AllGraphs;
+	WidgetBlueprint->GetAllGraphs(AllGraphs);
+
+	for (UEdGraph* Graph : AllGraphs)
+	{
+		if (!Graph)
+		{
+			continue;
+		}
+
+		for (UEdGraphNode* Node : Graph->Nodes)
+		{
+			if (!Node)
+			{
+				continue;
+			}
+
+			// Check if node has any connected pins
+			bool bHasConnection = false;
+			bool bHasInputConnection = false;
+			bool bHasOutputConnection = false;
+
+			for (UEdGraphPin* Pin : Node->Pins)
+			{
+				if (Pin && Pin->LinkedTo.Num() > 0)
+				{
+					bHasConnection = true;
+
+					if (Pin->Direction == EGPD_Input)
+					{
+						bHasInputConnection = true;
+					}
+					else if (Pin->Direction == EGPD_Output)
+					{
+						bHasOutputConnection = true;
+					}
+				}
+			}
+
+			// Node is considered orphaned if it has no connections at all
+			bool bIsOrphaned = !bHasConnection;
+
+			// Event/Entry nodes are only orphaned if they have no output connections
+			if (Cast<UK2Node_Event>(Node) || Cast<UK2Node_FunctionEntry>(Node))
+			{
+				bIsOrphaned = !bHasOutputConnection;
+			}
+
+			if (bIsOrphaned)
+			{
+				TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
+				NodeObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
+				NodeObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+				NodeObj->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
+				NodeObj->SetStringField(TEXT("graph_name"), Graph->GetName());
+				NodeObj->SetNumberField(TEXT("position_x"), Node->NodePosX);
+				NodeObj->SetNumberField(TEXT("position_y"), Node->NodePosY);
+
+				OrphanedNodesList.Add(MakeShared<FJsonValueObject>(NodeObj));
+			}
+		}
+	}
+
+	OrphanedInfo->SetArrayField(TEXT("nodes"), OrphanedNodesList);
+	OrphanedInfo->SetNumberField(TEXT("count"), OrphanedNodesList.Num());
+
+	return OrphanedInfo;
 }

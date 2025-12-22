@@ -192,6 +192,35 @@ Exposes UMG (Widget Blueprint) tools for Unreal Engine via MCP.
   Example:
     result = capture_widget_screenshot(widget_name="WBP_MainMenu")
 
+- **create_widget_input_handler(widget_name, input_type, input_event, trigger="Pressed", handler_name="", component_name="")**
+
+  Create an input event handler in a Widget Blueprint for events not exposed as standard delegates.
+  Use this for right-click context menus, keyboard shortcuts, touch gestures, etc.
+
+  Args:
+    - widget_name: Name of the target Widget Blueprint
+    - input_type: Type of input - "MouseButton", "Key", "Touch", "Focus", "Drag"
+    - input_event: Specific event:
+        - MouseButton: "LeftMouseButton", "RightMouseButton", "MiddleMouseButton", etc.
+        - Key: Any key name ("Enter", "Escape", "SpaceBar", "A", "F1", etc.)
+        - Touch: "Touch", "Pinch", "Swipe"
+        - Focus: "FocusReceived", "FocusLost"
+        - Drag: "DragDetected", "DragEnter", "DragLeave", "DragOver", "Drop"
+    - trigger: When to trigger - "Pressed", "Released", "DoubleClick"
+    - handler_name: Name for the custom event (auto-generated if empty)
+    - component_name: Optional component for component-specific handling
+
+  Returns: Dict containing success status and handler information
+
+  Examples:
+    # Right-click for context menu
+    create_widget_input_handler(widget_name="WBP_InventorySlot", input_type="MouseButton",
+                                input_event="RightMouseButton", handler_name="OnSlotRightClicked")
+
+    # Escape key to close menu
+    create_widget_input_handler(widget_name="WBP_PauseMenu", input_type="Key",
+                                input_event="Escape", handler_name="OnCloseMenu")
+
 See the main server or tool docstrings for argument details and examples.
 """
 from mcp.server.fastmcp import FastMCP

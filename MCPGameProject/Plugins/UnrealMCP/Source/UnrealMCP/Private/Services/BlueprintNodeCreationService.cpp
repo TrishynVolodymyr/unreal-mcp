@@ -202,6 +202,11 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     {
         // Cast node created successfully
     }
+    // Try self reference node creation
+    else if (FControlFlowNodeCreator::Get().TryCreateSelfNode(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
+    {
+        // Self node created successfully
+    }
     // Try component bound event creation
     else
     {

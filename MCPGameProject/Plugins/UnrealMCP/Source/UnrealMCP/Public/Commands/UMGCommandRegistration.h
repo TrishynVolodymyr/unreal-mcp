@@ -36,6 +36,8 @@ private:
     static void RegisterSetWidgetPlacementCommand();
     static void RegisterCaptureWidgetScreenshotCommand();
     static void RegisterGetWidgetBlueprintMetadataCommand();
+    static void RegisterCreateWidgetInputHandlerCommand();
+    static void RegisterRemoveWidgetFunctionGraphCommand();
 
     // Widget-specific add commands
     static void RegisterAddWidgetSwitcherCommand();

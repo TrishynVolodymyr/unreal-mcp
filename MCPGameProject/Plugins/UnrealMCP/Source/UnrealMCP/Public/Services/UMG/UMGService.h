@@ -65,6 +65,13 @@ public:
     virtual bool CaptureWidgetScreenshot(const FString& BlueprintName, int32 Width, int32 Height,
                                         const FString& Format, TSharedPtr<FJsonObject>& OutScreenshotData) override;
 
+    virtual bool CreateWidgetInputHandler(const FString& WidgetName, const FString& ComponentName,
+                                         const FString& InputType, const FString& InputEvent,
+                                         const FString& Trigger, const FString& HandlerName,
+                                         FString& OutActualHandlerName) override;
+
+    virtual bool RemoveWidgetFunctionGraph(const FString& WidgetName, const FString& FunctionName) override;
+
 private:
     /** Private constructor for singleton pattern */
     FUMGService();
@@ -99,57 +106,27 @@ private:
     UClass* FindParentClass(const FString& ParentClassName) const;
 
     /**
-     * Set a single property on a widget component
-     * @param Widget - Widget to modify
-     * @param PropertyName - Name of the property to set
-     * @param PropertyValue - Value to set
-     * @return true if the property was set successfully
+     * Set a single property on a widget component (delegates to PropertyService)
      */
     bool SetWidgetProperty(UWidget* Widget, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue) const;
 
     /**
-     * Create an event binding for a widget component using UK2Node_ComponentBoundEvent
-     * @param WidgetBlueprint - Widget blueprint containing the component
-     * @param Widget - Widget component to bind event to
-     * @param WidgetVarName - Variable name of the widget (must be exposed as variable)
-     * @param EventName - Name of the event to bind (e.g., "OnClicked")
-     * @param FunctionName - Name of the function to create/bind
-     * @return true if the event was bound successfully
+     * Create an event binding (delegates to WidgetBindingService)
      */
     bool CreateEventBinding(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FString& WidgetVarName, const FString& EventName, const FString& FunctionName) const;
 
     /**
-     * Create a text block binding function
-     * @param WidgetBlueprint - Widget blueprint containing the text block
-     * @param TextBlockName - Name of the text block widget component
-     * @param BindingName - Name of the variable to bind to
-     * @param VariableType - Type of the binding variable
-     * @return true if the binding was created successfully
+     * Create a text block binding function (delegates to WidgetBindingService)
      */
     bool CreateTextBlockBindingFunction(UWidgetBlueprint* WidgetBlueprint, const FString& TextBlockName, const FString& BindingName, const FString& VariableType) const;
 
     /**
      * Set widget placement in canvas panel slot
-     * @param Widget - Widget to modify placement for
-     * @param Position - New position (optional)
-     * @param Size - New size (optional)
-     * @param Alignment - New alignment (optional)
-     * @return true if placement was set successfully
      */
     bool SetCanvasSlotPlacement(UWidget* Widget, const FVector2D* Position, const FVector2D* Size, const FVector2D* Alignment) const;
 
     /**
      * Add a widget as a child to another widget (parent must be a panel widget)
-     * @param ChildWidget - Widget to add as child
-     * @param ParentWidget - Parent widget (must be a panel widget)
-     * @return true if the child was added successfully
      */
     bool AddWidgetToParent(UWidget* ChildWidget, UWidget* ParentWidget) const;
-
-    /**
-     * Build hierarchical widget information recursively
-     * @param Widget - Widget to build hierarchy for
-     * @return JSON object containing widget hierarchy information
-     */
-    TSharedPtr<FJsonObject> BuildWidgetHierarchy(UWidget* Widget) const;
 };
