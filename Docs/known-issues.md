@@ -4,6 +4,16 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ## Active Issues
 
+### Struct Field GUID Middle Numbers Can Change When Structs Are Modified
+- **Affected**: `get_struct_pin_names`, `get_datatable_row_names`, DataTable operations
+- **Problem**: User-defined structs use GUID-based internal field names (e.g., `TestField1_2_1EAE0B8A4B971533B2AD21BF45BA9220`). The hex suffix (GUID) remains stable, but the middle number can change when the struct is modified (type changes, field additions/removals).
+- **Example**: After modifying `S_TestGUID` struct:
+  - Before: `TestField1_2_1EAE0B8A4B971533B2AD21BF45BA9220`
+  - After:  `TestField1_5_1EAE0B8A4B971533B2AD21BF45BA9220`
+  - Note: `_2_` changed to `_5_`, but hex GUID suffix stayed same
+- **Impact**: Cached field names may become stale after struct modifications
+- **Workaround**: Always fetch fresh pin names using `get_struct_pin_names` or `get_datatable_row_names` before any struct field operations. Never hardcode GUID-based field names.
+
 ### Pure Functions Cannot Use Loop Accumulation Pattern
 - **Affected**: Blueprint functions marked as `is_pure=True` that need to accumulate values in loops
 - **Problem**: Pure functions in Blueprint cannot have execution flow (no exec pins), but For Each Loop macro requires execution pins for the loop body. This makes accumulating values (like summing StackCount across matching slots) impossible in a pure function.

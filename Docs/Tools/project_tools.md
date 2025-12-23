@@ -246,6 +246,71 @@ Create a new Unreal struct.
 }
 ```
 
+### get_struct_pin_names
+
+Get pin names (field names) for a user-defined struct.
+
+User-defined structs in Unreal Engine use GUID-based internal names for their fields (e.g., `ItemName_2_F2A4BC92`). This tool discovers those internal names so you can use them when creating Blueprint nodes that reference struct fields.
+
+**Parameters:**
+- `struct_name` (string) - Name or path of the struct to inspect. Supports:
+  - Simple name: `"S_InventorySlot"`
+  - Full path: `"/Game/Inventory/Data/S_InventorySlot"`
+
+**Returns:**
+- Dict containing:
+  - `success` (boolean) - Whether the struct was found
+  - `struct_name` (string) - The struct name that was queried
+  - `struct_path` (string) - Full asset path of the struct
+  - `field_count` (integer) - Number of fields in the struct
+  - `fields` (array) - Array of field information, each containing:
+    - `pin_name` (string) - The GUID-based internal name (use this for Blueprint nodes)
+    - `display_name` (string) - The friendly display name
+    - `type` (string) - The field's type
+    - `is_guid_name` (boolean) - Whether the pin_name contains a GUID suffix
+
+**Example:**
+```json
+{
+  "command": "get_struct_pin_names",
+  "params": {
+    "struct_name": "S_InventorySlot"
+  }
+}
+```
+
+**Response Example:**
+```json
+{
+  "success": true,
+  "struct_name": "S_InventorySlot",
+  "struct_path": "/Game/Inventory/Data/S_InventorySlot",
+  "field_count": 2,
+  "fields": [
+    {
+      "pin_name": "ItemID_2_ABC123DEF456...",
+      "display_name": "ItemID",
+      "type": "Name",
+      "is_guid_name": true
+    },
+    {
+      "pin_name": "StackCount_3_789GHI012...",
+      "display_name": "StackCount",
+      "type": "int32",
+      "is_guid_name": true
+    }
+  ]
+}
+```
+
+> ⚠️ **IMPORTANT: GUID Middle Numbers Can Change**
+>
+> When structs are modified (field type changes, fields added/removed), the middle number in GUID-based names can change while the hex suffix remains stable:
+> - Before: `TestField1_2_1EAE0B8A4B971533B2AD21BF45BA9220`
+> - After:  `TestField1_5_1EAE0B8A4B971533B2AD21BF45BA9220`
+>
+> **Always fetch fresh pin names** before struct field operations. Never cache or hardcode GUID-based field names.
+
 ### update_struct
 
 Update an existing Unreal struct.
