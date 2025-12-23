@@ -22,9 +22,10 @@ FString FGetBlueprintMetadataCommand::Execute(const FString& Parameters)
 {
     FString BlueprintName;
     TArray<FString> Fields;
+    FGraphNodesFilter Filter;
     FString ParseError;
 
-    if (!ParseParameters(Parameters, BlueprintName, Fields, ParseError))
+    if (!ParseParameters(Parameters, BlueprintName, Fields, Filter, ParseError))
     {
         return CreateErrorResponse(ParseError);
     }
@@ -35,7 +36,7 @@ FString FGetBlueprintMetadataCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
     }
 
-    TSharedPtr<FJsonObject> Metadata = BuildMetadata(Blueprint, Fields);
+    TSharedPtr<FJsonObject> Metadata = BuildMetadata(Blueprint, Fields, Filter);
     return CreateSuccessResponse(Metadata);
 }
 
@@ -46,13 +47,22 @@ FString FGetBlueprintMetadataCommand::GetCommandName() const
 
 bool FGetBlueprintMetadataCommand::ValidateParams(const FString& Parameters) const
 {
+    // Only validate basic JSON structure - detailed validation happens in Execute
+    // so we can return meaningful error messages
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
+
+    if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+    {
+        return false;
+    }
+
+    // Just check blueprint_name exists
     FString BlueprintName;
-    TArray<FString> Fields;
-    FString ParseError;
-    return ParseParameters(Parameters, BlueprintName, Fields, ParseError);
+    return JsonObject->TryGetStringField(TEXT("blueprint_name"), BlueprintName);
 }
 
-bool FGetBlueprintMetadataCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, TArray<FString>& OutFields, FString& OutError) const
+bool FGetBlueprintMetadataCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, TArray<FString>& OutFields, FGraphNodesFilter& OutFilter, FString& OutError) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -69,9 +79,9 @@ bool FGetBlueprintMetadataCommand::ParseParameters(const FString& JsonString, FS
         return false;
     }
 
-    // Parse optional fields array
+    // Parse required fields array - at least one field must be specified
     const TArray<TSharedPtr<FJsonValue>>* FieldsArray;
-    if (JsonObject->TryGetArrayField(TEXT("fields"), FieldsArray))
+    if (JsonObject->TryGetArrayField(TEXT("fields"), FieldsArray) && FieldsArray->Num() > 0)
     {
         for (const TSharedPtr<FJsonValue>& Value : *FieldsArray)
         {
@@ -80,8 +90,20 @@ bool FGetBlueprintMetadataCommand::ParseParameters(const FString& JsonString, FS
     }
     else
     {
-        // Default to all fields
-        OutFields.Add(TEXT("*"));
+        OutError = TEXT("Missing required 'fields' parameter. Specify at least one field (e.g., [\"components\"], [\"variables\"], [\"graph_nodes\"])");
+        return false;
+    }
+
+    // Parse optional filters for graph_nodes field
+    JsonObject->TryGetStringField(TEXT("graph_name"), OutFilter.GraphName);
+    JsonObject->TryGetStringField(TEXT("node_type"), OutFilter.NodeType);
+    JsonObject->TryGetStringField(TEXT("event_type"), OutFilter.EventType);
+
+    // Validate: graph_nodes requires graph_name to be specified
+    if (OutFields.Contains(TEXT("graph_nodes")) && OutFilter.GraphName.IsEmpty())
+    {
+        OutError = TEXT("When requesting 'graph_nodes' field, 'graph_name' parameter is required to limit response size");
+        return false;
     }
 
     return true;
@@ -120,7 +142,7 @@ UBlueprint* FGetBlueprintMetadataCommand::FindBlueprint(const FString& Blueprint
     return nullptr;
 }
 
-TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildMetadata(UBlueprint* Blueprint, const TArray<FString>& Fields) const
+TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildMetadata(UBlueprint* Blueprint, const TArray<FString>& Fields, const FGraphNodesFilter& Filter) const
 {
     TSharedPtr<FJsonObject> Metadata = MakeShared<FJsonObject>();
 
@@ -167,6 +189,10 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildMetadata(UBlueprint* 
     if (ShouldIncludeField(TEXT("orphaned_nodes"), Fields))
     {
         Metadata->SetObjectField(TEXT("orphaned_nodes"), BuildOrphanedNodesInfo(Blueprint));
+    }
+    if (ShouldIncludeField(TEXT("graph_nodes"), Fields))
+    {
+        Metadata->SetObjectField(TEXT("graph_nodes"), BuildGraphNodesInfo(Blueprint, Filter));
     }
 
     return Metadata;
@@ -252,6 +278,9 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildVariablesInfo(UBluepr
     TSharedPtr<FJsonObject> VariablesInfo = MakeShared<FJsonObject>();
     TArray<TSharedPtr<FJsonValue>> VariablesList;
 
+    // Get CDO for default values
+    UObject* CDO = (Blueprint->GeneratedClass) ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
+
     for (const FBPVariableDescription& Variable : Blueprint->NewVariables)
     {
         TSharedPtr<FJsonObject> VarObj = MakeShared<FJsonObject>();
@@ -260,6 +289,75 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildVariablesInfo(UBluepr
         VarObj->SetStringField(TEXT("category"), Variable.Category.ToString());
         VarObj->SetBoolField(TEXT("instance_editable"), (Variable.PropertyFlags & CPF_Edit) != 0);
         VarObj->SetBoolField(TEXT("blueprint_read_only"), (Variable.PropertyFlags & CPF_BlueprintReadOnly) != 0);
+
+        // Get default value from CDO
+        if (CDO)
+        {
+            FProperty* Property = CDO->GetClass()->FindPropertyByName(Variable.VarName);
+            if (Property)
+            {
+                FString DefaultValueStr;
+                const void* PropertyData = Property->ContainerPtrToValuePtr<void>(CDO);
+
+                // Handle different property types
+                if (const FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+                {
+                    DefaultValueStr = BoolProp->GetPropertyValue(PropertyData) ? TEXT("true") : TEXT("false");
+                }
+                else if (const FIntProperty* IntProp = CastField<FIntProperty>(Property))
+                {
+                    DefaultValueStr = FString::FromInt(IntProp->GetPropertyValue(PropertyData));
+                }
+                else if (const FFloatProperty* FloatProp = CastField<FFloatProperty>(Property))
+                {
+                    DefaultValueStr = FString::SanitizeFloat(FloatProp->GetPropertyValue(PropertyData));
+                }
+                else if (const FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Property))
+                {
+                    DefaultValueStr = FString::SanitizeFloat(DoubleProp->GetPropertyValue(PropertyData));
+                }
+                else if (const FStrProperty* StrProp = CastField<FStrProperty>(Property))
+                {
+                    DefaultValueStr = StrProp->GetPropertyValue(PropertyData);
+                }
+                else if (const FNameProperty* NameProp = CastField<FNameProperty>(Property))
+                {
+                    DefaultValueStr = NameProp->GetPropertyValue(PropertyData).ToString();
+                }
+                else if (const FTextProperty* TextProp = CastField<FTextProperty>(Property))
+                {
+                    DefaultValueStr = TextProp->GetPropertyValue(PropertyData).ToString();
+                }
+                else if (const FObjectProperty* ObjProp = CastField<FObjectProperty>(Property))
+                {
+                    UObject* ObjValue = ObjProp->GetObjectPropertyValue(PropertyData);
+                    if (ObjValue)
+                    {
+                        DefaultValueStr = ObjValue->GetPathName();
+                    }
+                    else
+                    {
+                        DefaultValueStr = TEXT("None");
+                    }
+                }
+                else if (const FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
+                {
+                    FScriptArrayHelper ArrayHelper(ArrayProp, PropertyData);
+                    DefaultValueStr = FString::Printf(TEXT("[Array: %d elements]"), ArrayHelper.Num());
+                }
+                else if (const FStructProperty* StructProp = CastField<FStructProperty>(Property))
+                {
+                    DefaultValueStr = FString::Printf(TEXT("[Struct: %s]"), *StructProp->Struct->GetName());
+                }
+                else
+                {
+                    // Fallback: try to export as string
+                    Property->ExportTextItem_Direct(DefaultValueStr, PropertyData, nullptr, nullptr, PPF_None);
+                }
+
+                VarObj->SetStringField(TEXT("default_value"), DefaultValueStr);
+            }
+        }
 
         VariablesList.Add(MakeShared<FJsonValueObject>(VarObj));
     }
@@ -607,6 +705,137 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildOrphanedNodesInfo(UBl
     return OrphanedInfo;
 }
 
+TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildGraphNodesInfo(UBlueprint* Blueprint, const FGraphNodesFilter& Filter) const
+{
+    TSharedPtr<FJsonObject> GraphNodesInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> GraphsList;
+
+    // Collect graphs to process
+    TArray<UEdGraph*> AllGraphs;
+    Blueprint->GetAllGraphs(AllGraphs);
+
+    for (UEdGraph* Graph : AllGraphs)
+    {
+        if (!Graph)
+        {
+            continue;
+        }
+
+        // Filter by graph name if specified
+        if (!Filter.GraphName.IsEmpty() && Graph->GetName() != Filter.GraphName)
+        {
+            continue;
+        }
+
+        TSharedPtr<FJsonObject> GraphObj = MakeShared<FJsonObject>();
+        GraphObj->SetStringField(TEXT("name"), Graph->GetName());
+
+        TArray<TSharedPtr<FJsonValue>> NodesList;
+
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (!Node)
+            {
+                continue;
+            }
+
+            // Apply node type filter
+            if (!MatchesNodeTypeFilter(Node, Filter.NodeType))
+            {
+                continue;
+            }
+
+            // Apply event type filter
+            if (!MatchesEventTypeFilter(Node, Filter.EventType))
+            {
+                continue;
+            }
+
+            TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
+            NodeObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
+            NodeObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+            NodeObj->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
+            NodeObj->SetNumberField(TEXT("position_x"), Node->NodePosX);
+            NodeObj->SetNumberField(TEXT("position_y"), Node->NodePosY);
+
+            // Build pins array with connection info
+            TArray<TSharedPtr<FJsonValue>> PinsList;
+
+            for (UEdGraphPin* Pin : Node->Pins)
+            {
+                if (!Pin)
+                {
+                    continue;
+                }
+
+                TSharedPtr<FJsonObject> PinObj = MakeShared<FJsonObject>();
+                PinObj->SetStringField(TEXT("pin_name"), Pin->PinName.ToString());
+                PinObj->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output"));
+
+                // Get pin type as readable string
+                FString PinTypeStr = GetPinTypeAsString(Pin->PinType);
+                // Add exec indicator
+                if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+                {
+                    PinTypeStr = TEXT("exec");
+                }
+                PinObj->SetStringField(TEXT("type"), PinTypeStr);
+
+                // Get default value for unconnected input pins
+                if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() == 0)
+                {
+                    FString DefaultValue = Pin->DefaultValue;
+                    if (DefaultValue.IsEmpty() && Pin->DefaultObject)
+                    {
+                        DefaultValue = Pin->DefaultObject->GetName();
+                    }
+                    if (DefaultValue.IsEmpty() && !Pin->DefaultTextValue.IsEmpty())
+                    {
+                        DefaultValue = Pin->DefaultTextValue.ToString();
+                    }
+                    if (!DefaultValue.IsEmpty())
+                    {
+                        PinObj->SetStringField(TEXT("default_value"), DefaultValue);
+                    }
+                }
+
+                // Build connections array
+                TArray<TSharedPtr<FJsonValue>> ConnectionsList;
+                for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
+                {
+                    if (LinkedPin && LinkedPin->GetOwningNode())
+                    {
+                        TSharedPtr<FJsonObject> ConnectionObj = MakeShared<FJsonObject>();
+                        ConnectionObj->SetStringField(TEXT("node_id"), LinkedPin->GetOwningNode()->NodeGuid.ToString());
+                        ConnectionObj->SetStringField(TEXT("node_title"), LinkedPin->GetOwningNode()->GetNodeTitle(ENodeTitleType::ListView).ToString());
+                        ConnectionObj->SetStringField(TEXT("pin_name"), LinkedPin->PinName.ToString());
+                        ConnectionsList.Add(MakeShared<FJsonValueObject>(ConnectionObj));
+                    }
+                }
+
+                if (ConnectionsList.Num() > 0)
+                {
+                    PinObj->SetArrayField(TEXT("connected_to"), ConnectionsList);
+                }
+
+                PinsList.Add(MakeShared<FJsonValueObject>(PinObj));
+            }
+
+            NodeObj->SetArrayField(TEXT("pins"), PinsList);
+            NodesList.Add(MakeShared<FJsonValueObject>(NodeObj));
+        }
+
+        GraphObj->SetArrayField(TEXT("nodes"), NodesList);
+        GraphObj->SetNumberField(TEXT("node_count"), NodesList.Num());
+        GraphsList.Add(MakeShared<FJsonValueObject>(GraphObj));
+    }
+
+    GraphNodesInfo->SetArrayField(TEXT("graphs"), GraphsList);
+    GraphNodesInfo->SetNumberField(TEXT("graph_count"), GraphsList.Num());
+
+    return GraphNodesInfo;
+}
+
 FString FGetBlueprintMetadataCommand::CreateSuccessResponse(const TSharedPtr<FJsonObject>& Metadata) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
@@ -728,4 +957,88 @@ FString FGetBlueprintMetadataCommand::GetPinTypeAsString(const FEdGraphPinType& 
 
     // Fallback: return the category name
     return PinType.PinCategory.ToString();
+}
+
+bool FGetBlueprintMetadataCommand::MatchesNodeTypeFilter(UEdGraphNode* Node, const FString& NodeType) const
+{
+    if (NodeType.IsEmpty())
+    {
+        return true;
+    }
+
+    FString NodeTypeLower = NodeType.ToLower();
+
+    // Check for Event type
+    if (NodeTypeLower == TEXT("event"))
+    {
+        return Node->IsA<UK2Node_Event>();
+    }
+
+    // Check for Function type (function entry or call nodes)
+    if (NodeTypeLower == TEXT("function"))
+    {
+        return Node->IsA<UK2Node_FunctionEntry>() || Node->GetClass()->GetName().Contains(TEXT("CallFunction"));
+    }
+
+    // Check for Variable type
+    if (NodeTypeLower == TEXT("variable"))
+    {
+        FString ClassName = Node->GetClass()->GetName();
+        return ClassName.Contains(TEXT("VariableGet")) || ClassName.Contains(TEXT("VariableSet"));
+    }
+
+    // Check for Comment type
+    if (NodeTypeLower == TEXT("comment"))
+    {
+        return Node->GetClass()->GetName().Contains(TEXT("Comment"));
+    }
+
+    // Generic class name match
+    return Node->GetClass()->GetName().Contains(NodeType);
+}
+
+bool FGetBlueprintMetadataCommand::MatchesEventTypeFilter(UEdGraphNode* Node, const FString& EventType) const
+{
+    if (EventType.IsEmpty())
+    {
+        return true;
+    }
+
+    // Only applies to Event nodes
+    UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node);
+    if (!EventNode)
+    {
+        return false;
+    }
+
+    // Get the event's function name
+    FName EventFuncName = EventNode->GetFunctionName();
+    FString EventName = EventFuncName.ToString();
+
+    // Common event name mappings
+    FString EventTypeLower = EventType.ToLower();
+
+    if (EventTypeLower == TEXT("beginplay"))
+    {
+        return EventName.Contains(TEXT("BeginPlay"));
+    }
+    if (EventTypeLower == TEXT("tick"))
+    {
+        return EventName.Contains(TEXT("Tick"));
+    }
+    if (EventTypeLower == TEXT("endplay"))
+    {
+        return EventName.Contains(TEXT("EndPlay"));
+    }
+    if (EventTypeLower == TEXT("destroyed"))
+    {
+        return EventName.Contains(TEXT("Destroyed"));
+    }
+    if (EventTypeLower == TEXT("constructed") || EventTypeLower == TEXT("construct"))
+    {
+        return EventName.Contains(TEXT("Construct"));
+    }
+
+    // Generic match
+    return EventName.Contains(EventType);
 }

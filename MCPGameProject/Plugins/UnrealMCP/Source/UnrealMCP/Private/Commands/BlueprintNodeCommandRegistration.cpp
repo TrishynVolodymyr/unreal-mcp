@@ -3,7 +3,7 @@
 #include "Commands/BlueprintNode/ConnectBlueprintNodesCommand.h"
 // #include "Commands/BlueprintNode/AddBlueprintInputActionNodeCommand.h"  // REMOVED: Use create_node_by_action_name instead
 // #include "Commands/BlueprintNode/GetBlueprintGraphsCommand.h"  // REMOVED: Use get_blueprint_metadata with fields=["graphs"] instead
-#include "Commands/BlueprintNode/FindBlueprintNodesCommand.h"
+// #include "Commands/BlueprintNode/FindBlueprintNodesCommand.h"  // REMOVED: Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
 #include "Commands/BlueprintNode/AddBlueprintVariableNodeCommand.h"
 #include "Commands/BlueprintNode/GetVariableInfoCommand.h"
 #include "Commands/BlueprintNode/AddBlueprintEventNodeCommand.h"
@@ -28,7 +28,7 @@ void FBlueprintNodeCommandRegistration::RegisterAllBlueprintNodeCommands()
     RegisterConnectBlueprintNodesCommand();
     // RegisterAddBlueprintInputActionNodeCommand();  // REMOVED: Use create_node_by_action_name instead
     // RegisterGetBlueprintGraphsCommand();  // REMOVED: Use get_blueprint_metadata with fields=["graphs"] instead
-    RegisterFindBlueprintNodesCommand();
+    // RegisterFindBlueprintNodesCommand();  // REMOVED: Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
     RegisterAddBlueprintVariableCommand();
     RegisterGetVariableInfoCommand();
     RegisterAddBlueprintEventNodeCommand();
@@ -79,12 +79,7 @@ void FBlueprintNodeCommandRegistration::RegisterConnectBlueprintNodesCommand()
 
 // REMOVED: RegisterGetBlueprintGraphsCommand - Use get_blueprint_metadata with fields=["graphs"] instead
 
-void FBlueprintNodeCommandRegistration::RegisterFindBlueprintNodesCommand()
-{
-    // Use service layer pattern with singleton service
-    TSharedPtr<FFindBlueprintNodesCommand> Command = MakeShared<FFindBlueprintNodesCommand>(FBlueprintNodeService::Get());
-    RegisterAndTrackCommand(Command);
-}
+// REMOVED: RegisterFindBlueprintNodesCommand - Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
 
 void FBlueprintNodeCommandRegistration::RegisterAddBlueprintVariableCommand()
 {

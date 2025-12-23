@@ -349,7 +349,10 @@ async def set_blueprint_variable_value(
 @app.tool()
 async def get_blueprint_metadata(
     blueprint_name: str,
-    fields: Optional[List[str]] = None
+    fields: Optional[List[str]] = None,
+    graph_name: str = None,
+    node_type: str = None,
+    event_type: str = None
 ) -> Dict[str, Any]:
     """
     Get comprehensive metadata about a Blueprint with selective field querying.
@@ -359,6 +362,7 @@ async def get_blueprint_metadata(
     - get parent class info (use fields=["parent_class"])
     - get Blueprint variables (use fields=["variables"])
     - get Blueprint functions (use fields=["functions"])
+    - find_blueprint_nodes (use fields=["graph_nodes"] with node_type/event_type filters)
 
     Args:
         blueprint_name: Name or path of the Blueprint
@@ -374,6 +378,15 @@ async def get_blueprint_metadata(
                 - "metadata": Asset metadata and tags
                 - "timelines": Timeline components
                 - "asset_info": Asset path, size, and modification date
+                - "orphaned_nodes": Detects disconnected nodes in all graphs
+                - "graph_nodes": Detailed node info with pin connections and default values
+        graph_name: Optional graph name filter for "graph_nodes" field.
+                   When specified, only returns nodes from that specific graph.
+        node_type: Optional node type filter for "graph_nodes" field.
+                  Options: "Event", "Function", "Variable", "Comment", or any class name.
+        event_type: Optional event type filter for "graph_nodes" field.
+                   Options: "BeginPlay", "Tick", "EndPlay", "Destroyed", "Construct",
+                   or any custom event name.
 
     Returns:
         Dictionary containing requested metadata fields
@@ -394,17 +407,19 @@ async def get_blueprint_metadata(
             fields=["parent_class", "interfaces"]
         )
 
-        # Get interface implementation status
-        result = get_blueprint_metadata(
-            blueprint_name="BP_InteractableActor",
-            fields=["interfaces"]
-        )
-        # Result will include interface functions and implementation status
-
-        # Get components and variables together
+        # Find all Event nodes (replaces find_blueprint_nodes)
         get_blueprint_metadata(
-            blueprint_name="BP_Character",
-            fields=["components", "variables"]
+            blueprint_name="BP_MyActor",
+            fields=["graph_nodes"],
+            node_type="Event"
+        )
+
+        # Find BeginPlay event node
+        get_blueprint_metadata(
+            blueprint_name="BP_MyActor",
+            fields=["graph_nodes"],
+            node_type="Event",
+            event_type="BeginPlay"
         )
     """
     params = {
@@ -413,6 +428,15 @@ async def get_blueprint_metadata(
 
     if fields is not None:
         params["fields"] = fields
+
+    if graph_name is not None:
+        params["graph_name"] = graph_name
+
+    if node_type is not None:
+        params["node_type"] = node_type
+
+    if event_type is not None:
+        params["event_type"] = event_type
 
     return await send_tcp_command("get_blueprint_metadata", params)
 

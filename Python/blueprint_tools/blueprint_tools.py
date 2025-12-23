@@ -22,7 +22,8 @@ from utils.blueprints.blueprint_operations import (
     create_blueprint_interface as create_blueprint_interface_impl,
     create_custom_blueprint_function as create_custom_blueprint_function_impl,
     call_blueprint_function as call_blueprint_function_impl,
-    get_blueprint_metadata as get_blueprint_metadata_impl
+    get_blueprint_metadata as get_blueprint_metadata_impl,
+    modify_blueprint_function_properties as modify_blueprint_function_properties_impl
 )
 
 # Get logger
@@ -552,40 +553,150 @@ def register_blueprint_tools(mcp: FastMCP):
     def get_blueprint_metadata(
         ctx: Context,
         blueprint_name: str,
-        fields: List[str] = None
+        fields: List[str],
+        graph_name: str = None,
+        node_type: str = None,
+        event_type: str = None
     ) -> Dict[str, Any]:
         """
         Get comprehensive metadata about a Blueprint with selective field querying.
 
+        IMPORTANT: At least one field must be specified. When using "graph_nodes",
+        the graph_name parameter is REQUIRED to limit response size.
+
         Args:
             blueprint_name: Name or path of the Blueprint
-            fields: List of metadata fields to retrieve. If None or ["*"], returns all.
-                    Options: "parent_class", "interfaces", "variables", "functions",
-                            "components", "graphs", "status", "metadata",
-                            "timelines", "asset_info"
+            fields: REQUIRED list of metadata fields to retrieve. At least one must be specified.
+                    Options:
+                    - "parent_class": Parent class name and path
+                    - "interfaces": Implemented interfaces and their functions
+                    - "variables": Blueprint variables with types and default values
+                    - "functions": Custom Blueprint functions
+                    - "components": All components with names and types
+                    - "graphs": Event graphs and function graphs (names and node counts only)
+                    - "status": Compilation status and error state
+                    - "metadata": Asset metadata and tags
+                    - "timelines": Timeline components
+                    - "asset_info": Asset path, size, and modification date
+                    - "orphaned_nodes": Detects disconnected nodes in all graphs
+                    - "graph_nodes": Detailed node info (REQUIRES graph_name parameter)
+            graph_name: REQUIRED when using "graph_nodes" field. Specifies which graph to query.
+                       Use fields=["graphs"] first to discover available graph names.
+            node_type: Optional filter for "graph_nodes" field.
+                      Options: "Event", "Function", "Variable", "Comment", or any class name.
+            event_type: Optional filter for "graph_nodes" field when node_type="Event".
+                       Options: "BeginPlay", "Tick", "EndPlay", "Destroyed", "Construct".
 
         Returns:
             Dictionary containing requested metadata fields
 
         Examples:
-            # Get all metadata
-            get_blueprint_metadata(ctx, blueprint_name="BP_MyActor")
-
-            # Get only parent class and interfaces
+            # Get components
             get_blueprint_metadata(
-                ctx,
+                blueprint_name="BP_MyActor",
+                fields=["components"]
+            )
+
+            # Get parent class and interfaces
+            get_blueprint_metadata(
                 blueprint_name="BP_MyActor",
                 fields=["parent_class", "interfaces"]
             )
 
-            # Get interface implementation status
-            result = get_blueprint_metadata(
-                ctx,
-                blueprint_name="BP_InteractableActor",
-                fields=["interfaces"]
+            # First discover available graphs
+            get_blueprint_metadata(
+                blueprint_name="BP_MyActor",
+                fields=["graphs"]
             )
-            # Result will include interface functions and implementation status
+
+            # Then get nodes from a specific graph
+            get_blueprint_metadata(
+                blueprint_name="BP_MyActor",
+                fields=["graph_nodes"],
+                graph_name="EventGraph"
+            )
+
+            # Find Event nodes in EventGraph
+            get_blueprint_metadata(
+                blueprint_name="BP_MyActor",
+                fields=["graph_nodes"],
+                graph_name="EventGraph",
+                node_type="Event"
+            )
+
+            # Find BeginPlay event specifically
+            get_blueprint_metadata(
+                blueprint_name="BP_MyActor",
+                fields=["graph_nodes"],
+                graph_name="EventGraph",
+                node_type="Event",
+                event_type="BeginPlay"
+            )
         """
-        return get_blueprint_metadata_impl(ctx, blueprint_name, fields)
+        return get_blueprint_metadata_impl(ctx, blueprint_name, fields, graph_name, node_type, event_type)
+
+    @mcp.tool()
+    def modify_blueprint_function_properties(
+        ctx: Context,
+        blueprint_name: str,
+        function_name: str,
+        is_pure: bool = None,
+        is_const: bool = None,
+        access_specifier: str = None,
+        category: str = None
+    ) -> Dict[str, Any]:
+        """
+        Modify properties of an existing Blueprint function.
+
+        Use this to change function attributes after creation, such as converting
+        a function from impure to pure, changing access level, or updating category.
+
+        Args:
+            blueprint_name: Name or path of the Blueprint
+            function_name: Name of the function to modify
+            is_pure: If set, changes whether the function is pure (no side effects, no exec pins)
+            is_const: If set, changes whether the function is const
+            access_specifier: If set, changes access level ("Public", "Protected", "Private")
+            category: If set, changes the function's category for organization
+
+        Returns:
+            Dictionary containing success status and modified properties
+
+        Examples:
+            # Convert a function to pure
+            modify_blueprint_function_properties(
+                ctx,
+                blueprint_name="BP_InventoryComponent",
+                function_name="GetTotalItemCount",
+                is_pure=True
+            )
+
+            # Change access level to private
+            modify_blueprint_function_properties(
+                ctx,
+                blueprint_name="BP_Character",
+                function_name="InternalUpdate",
+                access_specifier="Private"
+            )
+
+            # Change multiple properties at once
+            modify_blueprint_function_properties(
+                ctx,
+                blueprint_name="BP_Utils",
+                function_name="CalculateDistance",
+                is_pure=True,
+                is_const=True,
+                category="Math"
+            )
+        """
+        return modify_blueprint_function_properties_impl(
+            ctx,
+            blueprint_name,
+            function_name,
+            is_pure,
+            is_const,
+            access_specifier,
+            category
+        )
 
     logger.info("Blueprint tools registered successfully")

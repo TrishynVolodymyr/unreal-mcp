@@ -122,6 +122,44 @@ class FCreateBlueprintCommand : public IUnrealMCPCommand
 
 ## Development Workflow
 
+### MCP Implementation Plans: Mandatory Debugging Checkpoints (CRITICAL)
+
+**⚠️ BEFORE creating ANY plan for UE functionality via MCP tools, this section MUST be followed.**
+
+When implementing complex functionality (inventory systems, dialogue systems, game mechanics, etc.) through MCP tools:
+
+1. **Every step in every phase MUST have a verification checkpoint**
+   - Even "simple" data creation (structs, enums, DataTables) must be verified
+   - Do NOT batch multiple steps without intermediate verification
+   - Do NOT proceed to next step until current step is verified working
+
+2. **Verification checkpoint requirements:**
+   - After creating any asset (struct, enum, DataTable): Confirm it exists with correct properties via `get_*_metadata` tools
+   - After completing a function's node logic: Compile Blueprint and check for errors
+   - After completing a phase: User verification checkpoint before proceeding
+   - Note: Do NOT compile after every single node - compile once when full function is complete
+
+3. **Debug-first plan structure:**
+   ```
+   Step X.Y: [Action]
+   - MCP Tool Call: [specific tool and params]
+   - Verification: [how to confirm it worked]
+   - Expected Result: [what success looks like]
+   - Debug Point: [what to check if it fails]
+   ```
+
+4. **When errors occur:**
+   - STOP immediately - do not continue building on broken foundation
+   - Identify the exact step that failed
+   - Fix that step and re-verify before continuing
+   - Document any MCP tool limitations in `Docs/known-issues.md`
+
+5. **Phase completion gates:**
+   - ALL steps in current phase must be verified before starting next phase
+   - No "we'll fix it later" - fix it now or document as blocked
+
+**Rationale:** MCP-created Blueprint logic is difficult to debug after the fact. Each step builds on previous steps. One incorrect node connection early on cascades into complex debugging later. Verify early, verify often.
+
 ### Adding New Functionality
 
 1. **Plan cross-component**: Design Python API signature and C++ implementation together

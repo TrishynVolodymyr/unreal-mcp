@@ -31,7 +31,7 @@ private:
     static void RegisterConnectBlueprintNodesCommand();
     // static void RegisterAddBlueprintInputActionNodeCommand();  // REMOVED: Use create_node_by_action_name instead
     // static void RegisterGetBlueprintGraphsCommand();  // REMOVED: Use get_blueprint_metadata with fields=["graphs"] instead
-    static void RegisterFindBlueprintNodesCommand();
+    // static void RegisterFindBlueprintNodesCommand();  // REMOVED: Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
     static void RegisterAddBlueprintVariableCommand();
     static void RegisterGetVariableInfoCommand();
     static void RegisterAddBlueprintEventNodeCommand();

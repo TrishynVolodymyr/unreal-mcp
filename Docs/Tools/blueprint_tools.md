@@ -403,6 +403,116 @@ Then add the struct variable:
 5. Array variables are created by appending `[]` to the base type
 6. Custom struct variables require the struct to exist before creating the variable
 
+### get_blueprint_metadata
+
+Get comprehensive metadata about a Blueprint with selective field querying. This is the primary tool for inspecting Blueprint structure, components, variables, functions, and graph nodes.
+
+**Parameters:**
+- `blueprint_name` (string) - Name or path of the Blueprint
+- `fields` (array, **REQUIRED**) - List of metadata fields to retrieve. At least one field must be specified.
+- `graph_name` (string) - **REQUIRED when using "graph_nodes" field**. Specifies which graph to query.
+- `node_type` (string, optional) - Filter for "graph_nodes" field: "Event", "Function", "Variable", "Comment"
+- `event_type` (string, optional) - Filter for specific events when node_type="Event": "BeginPlay", "Tick", "EndPlay", "Destroyed", "Construct"
+
+**Available Fields:**
+- `parent_class` - Parent class name and path
+- `interfaces` - Implemented interfaces and their functions
+- `variables` - Blueprint variables with types and default values
+- `functions` - Custom Blueprint functions
+- `components` - All components with names and types
+- `graphs` - Event graphs and function graphs (names and node counts only)
+- `status` - Compilation status and error state
+- `metadata` - Asset metadata and tags
+- `timelines` - Timeline components
+- `asset_info` - Asset path, size, and modification date
+- `orphaned_nodes` - Detects disconnected nodes in all graphs
+- `graph_nodes` - Detailed node info with pin connections (**requires graph_name**)
+
+**Returns:**
+- Dictionary containing requested metadata fields
+
+**Examples:**
+
+1. **Get Components**:
+```json
+{
+  "command": "get_blueprint_metadata",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "fields": ["components"]
+  }
+}
+```
+
+2. **Discover Available Graphs** (do this first before querying graph_nodes):
+```json
+{
+  "command": "get_blueprint_metadata",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "fields": ["graphs"]
+  }
+}
+```
+
+3. **Get All Nodes from a Specific Graph**:
+```json
+{
+  "command": "get_blueprint_metadata",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "fields": ["graph_nodes"],
+    "graph_name": "EventGraph"
+  }
+}
+```
+
+4. **Find Event Nodes Only**:
+```json
+{
+  "command": "get_blueprint_metadata",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "fields": ["graph_nodes"],
+    "graph_name": "EventGraph",
+    "node_type": "Event"
+  }
+}
+```
+
+5. **Find BeginPlay Event Specifically**:
+```json
+{
+  "command": "get_blueprint_metadata",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "fields": ["graph_nodes"],
+    "graph_name": "EventGraph",
+    "node_type": "Event",
+    "event_type": "BeginPlay"
+  }
+}
+```
+
+6. **Get Multiple Fields**:
+```json
+{
+  "command": "get_blueprint_metadata",
+  "params": {
+    "blueprint_name": "BP_MyActor",
+    "fields": ["parent_class", "variables", "functions"]
+  }
+}
+```
+
+**Notes:**
+1. The `fields` parameter is **required** - you must specify at least one field
+2. When requesting `graph_nodes`, the `graph_name` parameter is **required** to limit response size
+3. Use `fields: ["graphs"]` first to discover available graph names before querying `graph_nodes`
+4. The `node_type` and `event_type` filters only apply to the `graph_nodes` field
+
+---
+
 ### create_node_by_action_name
 
 Create Blueprint nodes in graphs dynamically, including function calls, control flow nodes, variable getters/setters, and more.

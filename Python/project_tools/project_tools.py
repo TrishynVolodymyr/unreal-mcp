@@ -490,4 +490,73 @@ def register_project_tools(mcp: FastMCP):
         """
         return get_project_metadata_impl(ctx, fields, path, folder_path, struct_name)
 
+    @mcp.tool()
+    def get_struct_pin_names(
+        ctx: Context,
+        struct_name: str
+    ) -> Dict[str, Any]:
+        """
+        Get pin names (field names) for a user-defined struct.
+
+        User-defined structs in Unreal Engine use GUID-based internal names for their
+        fields (e.g., "ItemName_F2A4BC92"). This tool discovers those internal names
+        so you can use them when creating Blueprint nodes that reference struct fields.
+
+        Args:
+            struct_name: Name or path of the struct to inspect. Supports:
+                        - Simple name: "S_InventorySlot"
+                        - Full path: "/Game/Inventory/Data/S_InventorySlot"
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the struct was found
+            - struct_name: The struct name that was queried
+            - struct_path: Full asset path of the struct
+            - field_count: Number of fields in the struct
+            - fields: Array of field information, each containing:
+                - pin_name: The GUID-based internal name (use this for Blueprint nodes)
+                - display_name: The friendly display name
+                - type: The field's type
+                - is_guid_name: Whether the pin_name contains a GUID suffix
+
+        Examples:
+            # Get field names for an inventory slot struct
+            get_struct_pin_names(struct_name="S_InventorySlot")
+            # Returns: {
+            #     "fields": [
+            #         {"pin_name": "ItemID_ABC123...", "display_name": "ItemID", "type": "Name"},
+            #         {"pin_name": "StackCount_DEF456...", "display_name": "StackCount", "type": "int32"}
+            #     ]
+            # }
+
+            # Get field names using full path
+            get_struct_pin_names(struct_name="/Game/Inventory/Data/S_ItemDefinition")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "struct_name": struct_name
+            }
+
+            logger.info(f"Getting pin names for struct '{struct_name}'")
+            response = unreal.send_command("get_struct_pin_names", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Get struct pin names response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error getting struct pin names: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
     logger.info("Project tools registered successfully")

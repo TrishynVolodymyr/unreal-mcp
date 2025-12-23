@@ -42,11 +42,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintInput
     return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("add_blueprint_input_action_node"), Params);
 }
 
-TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleFindBlueprintNodes(const TSharedPtr<FJsonObject>& Params)
-{
-    // Route through new architecture - all Blueprint Node commands now use the service layer and command registry
-    return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("find_blueprint_nodes"), Params);
-}
+// REMOVED: HandleFindBlueprintNodes - Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintCustomEventNode(const TSharedPtr<FJsonObject>& Params)
 {

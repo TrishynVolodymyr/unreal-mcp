@@ -27,14 +27,25 @@ private:
 
 private:
     /**
+     * Struct to hold all parsed filter parameters for graph_nodes
+     */
+    struct FGraphNodesFilter
+    {
+        FString GraphName;    // Optional: filter by specific graph
+        FString NodeType;     // Optional: filter by node type (Event, Function, Variable, etc.)
+        FString EventType;    // Optional: filter by specific event (BeginPlay, Tick, etc.)
+    };
+
+    /**
      * Parse JSON parameters
      * @param JsonString - JSON parameters
      * @param OutBlueprintName - Parsed blueprint name
      * @param OutFields - Requested metadata fields (* for all)
+     * @param OutFilter - Optional filters for graph_nodes field
      * @param OutError - Error message if parsing fails
      * @return True if parsing succeeded
      */
-    bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, TArray<FString>& OutFields, FString& OutError) const;
+    bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, TArray<FString>& OutFields, FGraphNodesFilter& OutFilter, FString& OutError) const;
 
     /**
      * Find Blueprint by name or path
@@ -47,9 +58,10 @@ private:
      * Build metadata fields based on requested fields
      * @param Blueprint - Target Blueprint
      * @param Fields - Requested field names (* for all)
+     * @param Filter - Optional filters for graph_nodes field
      * @return JSON object with requested fields
      */
-    TSharedPtr<FJsonObject> BuildMetadata(UBlueprint* Blueprint, const TArray<FString>& Fields) const;
+    TSharedPtr<FJsonObject> BuildMetadata(UBlueprint* Blueprint, const TArray<FString>& Fields, const FGraphNodesFilter& Filter) const;
 
     // Field builders (each builds a specific metadata category)
     TSharedPtr<FJsonObject> BuildParentClassInfo(UBlueprint* Blueprint) const;
@@ -63,6 +75,30 @@ private:
     TSharedPtr<FJsonObject> BuildTimelinesInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildAssetInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildOrphanedNodesInfo(UBlueprint* Blueprint) const;
+
+    /**
+     * Build detailed graph nodes information with pin connections
+     * @param Blueprint - Target Blueprint
+     * @param Filter - Optional filters (graph_name, node_type, event_type)
+     * @return JSON object with nodes and their pin connections
+     */
+    TSharedPtr<FJsonObject> BuildGraphNodesInfo(UBlueprint* Blueprint, const FGraphNodesFilter& Filter) const;
+
+    /**
+     * Check if a node matches the specified type filter
+     * @param Node - Node to check
+     * @param NodeType - Type filter (Event, Function, Variable, etc.)
+     * @return True if node matches or filter is empty
+     */
+    bool MatchesNodeTypeFilter(UEdGraphNode* Node, const FString& NodeType) const;
+
+    /**
+     * Check if a node matches the specified event type filter
+     * @param Node - Node to check
+     * @param EventType - Event type filter (BeginPlay, Tick, etc.)
+     * @return True if node matches or filter is empty
+     */
+    bool MatchesEventTypeFilter(UEdGraphNode* Node, const FString& EventType) const;
 
     /**
      * Create success response

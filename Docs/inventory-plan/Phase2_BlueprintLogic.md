@@ -772,7 +772,7 @@ create_custom_blueprint_function(
     outputs=[
         {"name": "TotalCount", "type": "Integer"}
     ],
-    is_pure=True,
+    is_pure=False,  # Workaround for pure function limitation
     is_const=True,
     access_specifier="Public",
     category="Inventory|Lookup"
