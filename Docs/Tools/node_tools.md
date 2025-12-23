@@ -138,29 +138,23 @@ Create an input mapping for the project.
 }
 ```
 
-### find_blueprint_nodes
+### find_blueprint_nodes (REMOVED)
 
-Find nodes in a Blueprint's event graph.
+**This tool has been removed.** Use `get_blueprint_metadata` with `fields=["graph_nodes"]` and optional `node_type`/`event_type` filters instead.
 
-**Parameters:**
-- `blueprint_name` (string) - Name of the target Blueprint
-- `node_type` (string, optional) - Type of node to find (Event, Function, Variable, etc.)
-- `event_type` (string, optional) - Specific event type to find (BeginPlay, Tick, etc.)
-
-**Returns:**
-- Response containing array of found node IDs and success status
-
-**Example:**
-```json
-{
-  "command": "find_blueprint_nodes",
-  "params": {
-    "blueprint_name": "MyActor",
-    "node_type": "Event",
-    "event_type": "BeginPlay"
-  }
-}
+**Example replacement:**
+```python
+# OLD: find_blueprint_nodes(blueprint_name="MyActor", node_type="Event", event_type="BeginPlay")
+# NEW:
+get_blueprint_metadata(
+    blueprint_name="MyActor",
+    fields=["graph_nodes"],
+    node_type="Event",
+    event_type="BeginPlay"
+)
 ```
+
+The new approach provides more detailed information including pin connections, default values, and can be combined with other metadata fields in a single call.
 
 ## Error Handling
 
@@ -178,11 +172,11 @@ All command responses include a "success" field indicating whether the operation
 
 ### Node Types
 
-Common node types for the `find_blueprint_nodes` command:
+Common node types for the `node_type` filter in `get_blueprint_metadata`:
 
 - `Event` - Event nodes (BeginPlay, Tick, etc.)
 - `Function` - Function call nodes
-- `Variable` - Variable nodes
-- `Component` - Component reference nodes
-- `Self` - Self reference nodes
+- `Variable` - Variable getter/setter nodes
+- `Comment` - Comment nodes
+- Or any specific class name for precise filtering
 

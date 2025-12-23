@@ -436,25 +436,97 @@ def call_blueprint_function(
 def get_blueprint_metadata(
     ctx: Context,
     blueprint_name: str,
-    fields: List[str] = None
+    fields: List[str],
+    graph_name: str = None,
+    node_type: str = None,
+    event_type: str = None
 ) -> Dict[str, Any]:
     """Implementation for getting comprehensive metadata about a Blueprint.
 
+    IMPORTANT: At least one field must be specified. When using "graph_nodes",
+    graph_name is REQUIRED to limit response size.
+
     Args:
         blueprint_name: Name or path of the Blueprint
-        fields: List of metadata fields to retrieve. If None or ["*"], returns all.
+        fields: REQUIRED list of metadata fields. At least one must be specified.
                 Options: "parent_class", "interfaces", "variables", "functions",
                         "components", "graphs", "status", "metadata",
-                        "timelines", "asset_info"
+                        "timelines", "asset_info", "orphaned_nodes", "graph_nodes"
+        graph_name: REQUIRED when using "graph_nodes" field. Specifies which graph.
+        node_type: Optional filter for "graph_nodes": "Event", "Function", "Variable", "Comment".
+        event_type: Optional filter for "graph_nodes" when node_type="Event".
 
     Returns:
         Dictionary containing requested metadata fields
     """
+    # Validate fields parameter
+    if not fields or len(fields) == 0:
+        return {
+            "success": False,
+            "error": "Missing required 'fields' parameter. Specify at least one field."
+        }
+
+    # Validate graph_name is provided when graph_nodes is requested
+    if "graph_nodes" in fields and not graph_name:
+        return {
+            "success": False,
+            "error": "When requesting 'graph_nodes' field, 'graph_name' parameter is required. Use fields=['graphs'] first to discover available graph names."
+        }
+
     params = {
-        "blueprint_name": blueprint_name
+        "blueprint_name": blueprint_name,
+        "fields": fields
     }
 
-    if fields is not None:
-        params["fields"] = fields
+    if graph_name is not None:
+        params["graph_name"] = graph_name
+
+    if node_type is not None:
+        params["node_type"] = node_type
+
+    if event_type is not None:
+        params["event_type"] = event_type
 
     return send_unreal_command("get_blueprint_metadata", params)
+
+
+def modify_blueprint_function_properties(
+    ctx: Context,
+    blueprint_name: str,
+    function_name: str,
+    is_pure: bool = None,
+    is_const: bool = None,
+    access_specifier: str = None,
+    category: str = None
+) -> Dict[str, Any]:
+    """Implementation for modifying properties of an existing Blueprint function.
+
+    Args:
+        blueprint_name: Name or path of the Blueprint
+        function_name: Name of the function to modify
+        is_pure: If set, changes whether the function is pure (no side effects)
+        is_const: If set, changes whether the function is const
+        access_specifier: If set, changes access level ("Public", "Protected", "Private")
+        category: If set, changes the function's category for organization
+
+    Returns:
+        Dictionary containing success status and modified properties
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "function_name": function_name
+    }
+
+    if is_pure is not None:
+        params["is_pure"] = is_pure
+
+    if is_const is not None:
+        params["is_const"] = is_const
+
+    if access_specifier is not None:
+        params["access_specifier"] = access_specifier
+
+    if category is not None:
+        params["category"] = category
+
+    return send_unreal_command("modify_blueprint_function_properties", params)

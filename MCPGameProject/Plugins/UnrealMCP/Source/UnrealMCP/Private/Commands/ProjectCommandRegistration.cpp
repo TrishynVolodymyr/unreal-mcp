@@ -10,6 +10,7 @@
 #include "Commands/Project/AddMappingToContextCommand.h"
 #include "Commands/Project/UpdateStructCommand.h"
 #include "Commands/Project/GetProjectMetadataCommand.h"
+#include "Commands/Project/GetStructPinNamesCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -45,6 +46,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
 
     // Register consolidated metadata command (replaces list_input_actions, list_input_mapping_contexts, show_struct_variables, list_folder_contents)
     Registry.RegisterCommand(MakeShared<FGetProjectMetadataCommand>(ProjectService));
+
+    // Register struct pin names command for discovering struct field/pin names
+    Registry.RegisterCommand(MakeShared<FGetStructPinNamesCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }

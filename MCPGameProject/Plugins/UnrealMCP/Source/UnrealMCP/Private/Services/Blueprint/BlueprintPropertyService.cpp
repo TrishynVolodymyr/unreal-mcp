@@ -11,6 +11,7 @@
 #include "Components/ActorComponent.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Blueprint.h"
+#include "StructUtils/UserDefinedStruct.h"
 
 bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, const FString& VariableName, const FString& VariableType, bool bIsExposed, FBlueprintCache& Cache)
 {
@@ -398,19 +399,35 @@ UObject* FBlueprintPropertyService::ResolveVariableType(const FString& TypeStrin
     // If TypeString is a full path like /Game/Dialogue/Blueprints/BP_DialogueNPC, use it directly
     if (TypeString.StartsWith(TEXT("/")))
     {
-        FString BlueprintPath = TypeString;
+        FString AssetPath = TypeString;
+
+        // First, try to load as a UserDefinedStruct (for structs created via create_struct)
+        // This handles paths like /Game/Inventory/Data/S_ItemDefinition
+        if (UUserDefinedStruct* UserStruct = LoadObject<UUserDefinedStruct>(nullptr, *AssetPath))
+        {
+            UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found UserDefinedStruct '%s' from full path"), *TypeString);
+            return UserStruct;
+        }
+
+        // Try to load as a generic ScriptStruct (for other struct types)
+        if (UScriptStruct* LoadedStruct = LoadObject<UScriptStruct>(nullptr, *AssetPath))
+        {
+            UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found ScriptStruct '%s' from full path"), *TypeString);
+            return LoadedStruct;
+        }
+
         // Ensure it ends with the Blueprint asset name suffix if needed
-        if (!BlueprintPath.EndsWith(TEXT("_C")))
+        if (!AssetPath.EndsWith(TEXT("_C")))
         {
             // Try to load as Blueprint asset first
-            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *BlueprintPath);
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);
             if (Blueprint && Blueprint->GeneratedClass)
             {
                 UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found Blueprint '%s' from full path, using GeneratedClass"), *TypeString);
                 return Blueprint->GeneratedClass;
             }
             // Try with _C suffix for the generated class
-            FString GeneratedClassPath = BlueprintPath + TEXT("_C");
+            FString GeneratedClassPath = AssetPath + TEXT("_C");
             if (UClass* LoadedClass = LoadClass<UObject>(nullptr, *GeneratedClassPath))
             {
                 UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found Blueprint GeneratedClass from path '%s'"), *GeneratedClassPath);

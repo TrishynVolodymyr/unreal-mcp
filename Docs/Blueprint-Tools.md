@@ -283,6 +283,38 @@ Use: *"Add an integer variable called 'MaxHealth' and expose it to the editor"*
 ### Group Related Operations
 *"Set up physics on the MainBody component: enable simulation, mass 1200, gravity enabled, linear damping 0.1"*
 
+## Inspecting Blueprints
+
+### get_blueprint_metadata
+
+The `get_blueprint_metadata` tool allows you to query detailed information about any Blueprint. **Important restrictions:**
+- You must specify at least one field to retrieve
+- When querying `graph_nodes`, you must specify `graph_name` to limit response size
+
+**Available Fields:**
+- `parent_class`, `interfaces`, `variables`, `functions`, `components`
+- `graphs` (lightweight - just names and node counts)
+- `status`, `metadata`, `timelines`, `asset_info`, `orphaned_nodes`
+- `graph_nodes` (detailed node info - **requires graph_name**)
+
+**Usage Pattern:**
+```
+# First, discover available graphs
+"Get the graphs for BP_MyActor"  → fields: ["graphs"]
+
+# Then query specific graph nodes
+"Get all Event nodes from EventGraph in BP_MyActor"
+→ fields: ["graph_nodes"], graph_name: "EventGraph", node_type: "Event"
+
+# Find specific events
+"Find the BeginPlay event in BP_MyActor's EventGraph"
+→ fields: ["graph_nodes"], graph_name: "EventGraph", node_type: "Event", event_type: "BeginPlay"
+```
+
+**Node Type Filters:** "Event", "Function", "Variable", "Comment"
+
+**Event Type Filters:** "BeginPlay", "Tick", "EndPlay", "Destroyed", "Construct"
+
 ## Common Use Cases
 
 ### Character Setup

@@ -977,6 +977,102 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
     }
     
     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: No matching spawner found for '%s' (tried %d variations)"), *FunctionName, SearchNames.Num());
+
+    // Build helpful error message with suggestions when function is not found
+    if (OutErrorMessage)
+    {
+        // Search for similar function names to suggest alternatives
+        TArray<FString> Suggestions;
+        const int32 MaxSuggestions = 5;
+
+        // Re-scan the action database to find similar names
+        for (const auto& ActionPair : ActionRegistry)
+        {
+            for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
+            {
+                if (Suggestions.Num() >= MaxSuggestions)
+                {
+                    break;
+                }
+
+                if (NodeSpawner && IsValid(NodeSpawner))
+                {
+                    UEdGraphNode* TemplateNode = NodeSpawner->GetTemplateNode();
+                    if (!TemplateNode)
+                    {
+                        continue;
+                    }
+
+                    FString NodeName = TEXT("");
+                    FString FunctionNameFromNode = TEXT("");
+                    FString OwnerClassName = TEXT("");
+
+                    if (UK2Node* K2Node = Cast<UK2Node>(TemplateNode))
+                    {
+                        NodeName = K2Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+
+                        if (UK2Node_CallFunction* FunctionNode = Cast<UK2Node_CallFunction>(K2Node))
+                        {
+                            if (UFunction* Function = FunctionNode->GetTargetFunction())
+                            {
+                                FunctionNameFromNode = Function->GetName();
+                                if (UClass* OwnerClass = Function->GetOwnerClass())
+                                {
+                                    OwnerClassName = OwnerClass->GetName();
+                                }
+                            }
+                        }
+                    }
+
+                    // Check if this function name contains our search term (partial match)
+                    FString NameToCheck = FunctionNameFromNode.IsEmpty() ? NodeName : FunctionNameFromNode;
+                    if (NameToCheck.Contains(FunctionName, ESearchCase::IgnoreCase))
+                    {
+                        FString Suggestion;
+                        if (!OwnerClassName.IsEmpty())
+                        {
+                            Suggestion = FString::Printf(TEXT("%s (from %s)"), *NameToCheck, *OwnerClassName);
+                        }
+                        else
+                        {
+                            Suggestion = NameToCheck;
+                        }
+
+                        // Avoid duplicates
+                        if (!Suggestions.Contains(Suggestion))
+                        {
+                            Suggestions.Add(Suggestion);
+                        }
+                    }
+                }
+            }
+
+            if (Suggestions.Num() >= MaxSuggestions)
+            {
+                break;
+            }
+        }
+
+        // Build error message
+        FString ErrorMessage = FString::Printf(
+            TEXT("Function '%s' not found in Blueprint Action Database."),
+            *FunctionName
+        );
+
+        if (Suggestions.Num() > 0)
+        {
+            ErrorMessage += TEXT("\n\nDid you mean one of these?\n");
+            for (const FString& Suggestion : Suggestions)
+            {
+                ErrorMessage += FString::Printf(TEXT("  - %s\n"), *Suggestion);
+            }
+        }
+
+        ErrorMessage += TEXT("\nTip: Use search_blueprint_actions() to discover available function names.");
+
+        *OutErrorMessage = ErrorMessage;
+    }
+
     UE_LOG(LogTemp, Warning, TEXT("=== TryCreateNodeUsingBlueprintActionDatabase END (FAILED) ==="));
     return false;
 }

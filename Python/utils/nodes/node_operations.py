@@ -99,26 +99,8 @@ def add_function_node(
 
 # REMOVED: get_blueprint_graphs_impl - Use get_blueprint_metadata with fields=["graphs"] instead
 
-def find_nodes(
-    ctx: Context,
-    blueprint_name: str,
-    node_type: str = None,
-    event_type: str = None,
-    target_graph: str = None
-) -> Dict[str, Any]:
-    """Implementation for finding nodes in a Blueprint's event graph."""
-    params = {
-        "blueprint_name": blueprint_name,
-        "node_type": node_type if node_type is not None else ""
-    }
-    
-    if event_type is not None:
-        params["event_type"] = event_type
-        
-    if target_graph is not None:
-        params["target_graph"] = target_graph
-        
-    return send_unreal_command("find_blueprint_nodes", params)
+# REMOVED: find_nodes - Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
+# Example: get_blueprint_metadata(blueprint_name="BP_MyActor", fields=["graph_nodes"], node_type="Event", event_type="BeginPlay")
 
 def connect_nodes_impl(
     ctx: Context,

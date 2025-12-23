@@ -14,6 +14,7 @@
 #include "Commands/Blueprint/AddInterfaceToBlueprintCommand.h"
 #include "Commands/Blueprint/CreateCustomBlueprintFunctionCommand.h"
 #include "Commands/Blueprint/GetBlueprintMetadataCommand.h"
+#include "Commands/Blueprint/ModifyBlueprintFunctionPropertiesCommand.h"
 #include "Services/BlueprintService.h"
 
 // Static member definition
@@ -41,6 +42,7 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     RegisterAddInterfaceToBlueprintCommand();
     RegisterCreateCustomBlueprintFunctionCommand();
     RegisterGetBlueprintMetadataCommand();
+    RegisterModifyBlueprintFunctionPropertiesCommand();
 
     UE_LOG(LogTemp, Log, TEXT("FBlueprintCommandRegistration::RegisterAllBlueprintCommands: Registered %d Blueprint commands"),
         RegisteredCommandNames.Num());
@@ -148,6 +150,12 @@ void FBlueprintCommandRegistration::RegisterCreateCustomBlueprintFunctionCommand
 void FBlueprintCommandRegistration::RegisterGetBlueprintMetadataCommand()
 {
     TSharedPtr<FGetBlueprintMetadataCommand> Command = MakeShared<FGetBlueprintMetadataCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterModifyBlueprintFunctionPropertiesCommand()
+{
+    TSharedPtr<FModifyBlueprintFunctionPropertiesCommand> Command = MakeShared<FModifyBlueprintFunctionPropertiesCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

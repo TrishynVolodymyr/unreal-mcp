@@ -12,7 +12,7 @@ from utils.nodes.node_operations import (
     # add_input_action_node as add_input_action_node_impl,  # REMOVED: Use create_node_by_action_name instead
     # add_function_node as add_function_node_impl,  # REMOVED: Use create_node_by_action_name instead
     connect_nodes_impl,
-    find_nodes as find_nodes_impl,
+    # find_nodes as find_nodes_impl,  # REMOVED: Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
     get_variable_info_impl
 )
 from utils.nodes.graph_manipulation import (
@@ -97,36 +97,8 @@ def register_blueprint_node_tools(mcp: FastMCP):
     # REMOVED: get_blueprint_graphs - Use get_blueprint_metadata with fields=["graphs"] instead
     # The metadata version provides more info (graph names + node counts)
 
-    @mcp.tool()
-    def find_blueprint_nodes(
-        ctx: Context,
-        blueprint_name: str,
-        node_type: str = None,
-        event_type: str = None,
-        target_graph: str = None
-    ) -> Dict[str, Any]:
-        """
-        Find nodes in a Blueprint's event graph.
-
-        Args:
-            blueprint_name: Name of the target Blueprint
-            node_type: Optional type of node to find (Event, Function, Variable, etc.)
-            event_type: Optional specific event type to find (BeginPlay, Tick, etc.)
-            target_graph: Optional specific graph to search in (e.g. "EventGraph", "UpdateDialogueText")
-            
-        Returns:
-            Response containing array of found node IDs and success status
-        """
-        try:
-            return find_nodes_impl(
-                ctx, blueprint_name, node_type, event_type, target_graph
-            )
-        except Exception as e:
-            logger.error(f"Error finding nodes: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to find nodes: {str(e)}"
-            }
+    # REMOVED: find_blueprint_nodes - Use get_blueprint_metadata with fields=["graph_nodes"] and node_type/event_type filters instead
+    # Example: get_blueprint_metadata(blueprint_name="BP_MyActor", fields=["graph_nodes"], node_type="Event", event_type="BeginPlay")
 
     @mcp.tool()
     def get_variable_info(
