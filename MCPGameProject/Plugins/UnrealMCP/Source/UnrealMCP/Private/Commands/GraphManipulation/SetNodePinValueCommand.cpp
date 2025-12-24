@@ -1,5 +1,6 @@
 #include "Commands/GraphManipulation/SetNodePinValueCommand.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -105,7 +106,7 @@ FString FSetNodePinValueCommand::Execute(const FString& Parameters)
     {
         if (Node)
         {
-            FString CurrentNodeId = Node->NodeGuid.ToString();
+            FString CurrentNodeId = FGraphUtils::GetReliableNodeId(Node);
             if (CurrentNodeId == NodeId)
             {
                 TargetNode = Node;

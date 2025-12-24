@@ -1,4 +1,5 @@
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 #include "GameFramework/Actor.h"
 #include "Engine/Blueprint.h"
 #include "WidgetBlueprint.h"
@@ -256,8 +257,8 @@ UK2Node_Event* FUnrealMCPCommonUtils::CreateEventNode(UEdGraph* Graph, const FSt
         UK2Node_Event* EventNode = Cast<UK2Node_Event>(Node);
         if (EventNode && EventNode->EventReference.GetMemberName() == FName(*EventName))
         {
-            UE_LOG(LogTemp, Display, TEXT("Using existing event node with name %s (ID: %s)"), 
-                *EventName, *EventNode->NodeGuid.ToString());
+            UE_LOG(LogTemp, Display, TEXT("Using existing event node with name %s (ID: %s)"),
+                *EventName, *FGraphUtils::GetReliableNodeId(EventNode));
             return EventNode;
         }
     }
@@ -278,8 +279,8 @@ UK2Node_Event* FUnrealMCPCommonUtils::CreateEventNode(UEdGraph* Graph, const FSt
         Graph->AddNode(EventNode, true);
         EventNode->PostPlacedNewNode();
         EventNode->AllocateDefaultPins();
-        UE_LOG(LogTemp, Display, TEXT("Created new event node with name %s (ID: %s)"), 
-            *EventName, *EventNode->NodeGuid.ToString());
+        UE_LOG(LogTemp, Display, TEXT("Created new event node with name %s (ID: %s)"),
+            *EventName, *FGraphUtils::GetReliableNodeId(EventNode));
     }
     else
     {

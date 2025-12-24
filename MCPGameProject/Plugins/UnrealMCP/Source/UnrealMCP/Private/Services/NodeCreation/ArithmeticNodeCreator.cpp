@@ -124,15 +124,43 @@ bool FArithmeticNodeCreator::TryCreateArithmeticOrComparisonNode(
         PromotableOp->CreateNewGuid();
         EventGraph->AddNode(PromotableOp, true, true);
 
-        // Find ANY function for this operation to initialize the node
+        // Find a PRIMITIVE numeric function for this operation to initialize the node
         // The key is calling ResetNodeToWildcard() AFTER to make it a proper wildcard
+        // IMPORTANT: GetAllFuncsForOp returns ALL functions including specialized types like
+        // FrameNumber, Timespan, etc. We need to prioritize primitive numeric types (int, float, double)
+        // so the node title shows correctly as "Divide" instead of "FrameNumber / FrameNumber"
         TArray<UFunction*> OpFunctions;
         FTypePromotion::GetAllFuncsForOp(*OpName, OpFunctions);
 
         if (OpFunctions.Num() > 0)
         {
+            // Find a primitive numeric function to initialize with (int, float, or double)
+            // This ensures the node displays correctly as a generic operator
+            UFunction* PrimitiveFunc = nullptr;
+            for (UFunction* Func : OpFunctions)
+            {
+                FString FuncName = Func->GetName();
+                // Prefer functions operating on primitive numeric types
+                // Examples: Add_IntInt, Divide_IntInt, Multiply_FloatFloat, Add_DoubleDouble
+                if (FuncName.Contains(TEXT("_Int")) ||
+                    FuncName.Contains(TEXT("_Float")) ||
+                    FuncName.Contains(TEXT("_Double")))
+                {
+                    PrimitiveFunc = Func;
+                    UE_LOG(LogTemp, Display, TEXT("TryCreateArithmeticOrComparisonNode: Selected primitive function '%s' for operation '%s'"), *FuncName, *OpName->ToString());
+                    break;
+                }
+            }
+
+            // Fall back to first function if no primitive found (shouldn't happen for basic math)
+            UFunction* InitFunc = PrimitiveFunc ? PrimitiveFunc : OpFunctions[0];
+            if (!PrimitiveFunc)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("TryCreateArithmeticOrComparisonNode: No primitive function found for '%s', using '%s'"), *OpName->ToString(), *OpFunctions[0]->GetName());
+            }
+
             // Use SetFromFunction to initialize the node structure (sets OperationName internally)
-            PromotableOp->SetFromFunction(OpFunctions[0]);
+            PromotableOp->SetFromFunction(InitFunc);
             PromotableOp->PostPlacedNewNode();
             PromotableOp->AllocateDefaultPins();
 

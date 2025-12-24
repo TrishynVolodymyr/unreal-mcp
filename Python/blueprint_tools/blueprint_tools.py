@@ -23,7 +23,8 @@ from utils.blueprints.blueprint_operations import (
     create_custom_blueprint_function as create_custom_blueprint_function_impl,
     call_blueprint_function as call_blueprint_function_impl,
     get_blueprint_metadata as get_blueprint_metadata_impl,
-    modify_blueprint_function_properties as modify_blueprint_function_properties_impl
+    modify_blueprint_function_properties as modify_blueprint_function_properties_impl,
+    capture_blueprint_graph_screenshot as capture_blueprint_graph_screenshot_impl
 )
 
 # Get logger

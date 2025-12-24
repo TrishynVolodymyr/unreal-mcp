@@ -1,4 +1,5 @@
 #include "Services/NodeLayout/NodeLayoutService.h"
+#include "Utils/GraphUtils.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_Event.h"
@@ -160,7 +161,7 @@ bool FNodeLayoutService::GetGraphLayoutInfo(UEdGraph* Graph,
     {
         if (Node)
         {
-            FString NodeId = Node->NodeGuid.ToString();
+            FString NodeId = FGraphUtils::GetReliableNodeId(Node);
             OutNodePositions.Add(NodeId, FVector2D(Node->NodePosX, Node->NodePosY));
         }
     }
@@ -174,8 +175,8 @@ bool FNodeLayoutService::GetGraphLayoutInfo(UEdGraph* Graph,
             if (Nodes[i] && Nodes[j] && DoNodeBoundsOverlap(Nodes[i], Nodes[j]))
             {
                 OutOverlappingPairs.Add(TPair<FString, FString>(
-                    Nodes[i]->NodeGuid.ToString(),
-                    Nodes[j]->NodeGuid.ToString()
+                    FGraphUtils::GetReliableNodeId(Nodes[i]),
+                    FGraphUtils::GetReliableNodeId(Nodes[j])
                 ));
             }
         }

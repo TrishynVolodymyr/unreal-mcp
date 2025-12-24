@@ -8,6 +8,24 @@ class UEdGraph;
 class UEdGraphNode;
 class UEdGraphPin;
 class UK2Node_Event;
+class UBlueprint;
+
+/**
+ * Represents a graph warning (disconnected cast exec, orphaned node, etc.)
+ */
+struct UNREALMCP_API FGraphWarning
+{
+    FString Type;       // e.g., "disconnected_cast_exec", "orphaned_node"
+    FString NodeId;
+    FString NodeTitle;
+    FString GraphName;
+    FString Message;
+
+    FGraphWarning() = default;
+    FGraphWarning(const FString& InType, const FString& InNodeId, const FString& InTitle,
+                  const FString& InGraph, const FString& InMessage)
+        : Type(InType), NodeId(InNodeId), NodeTitle(InTitle), GraphName(InGraph), Message(InMessage) {}
+};
 
 /**
  * Blueprint graph manipulation utilities
@@ -44,4 +62,28 @@ public:
      * @return Found event node or nullptr
      */
     static UK2Node_Event* FindExistingEventNode(UEdGraph* Graph, const FString& EventName);
+
+    /**
+     * Get a reliable unique identifier for a node
+     * Uses NodeGuid if valid, otherwise generates an ID from object's unique ID
+     * This handles the case where some node types (FunctionEntry, FunctionResult, DynamicCast)
+     * may have uninitialized GUIDs.
+     * @param Node - The node to get ID for
+     * @return String ID that can be used for node operations
+     */
+    static FString GetReliableNodeId(UEdGraphNode* Node);
+
+    /**
+     * Detect graph warnings in a specific graph (cast nodes with disconnected exec, etc.)
+     * @param Graph - Graph to check
+     * @param OutWarnings - Array to receive warnings
+     */
+    static void DetectGraphWarnings(UEdGraph* Graph, TArray<FGraphWarning>& OutWarnings);
+
+    /**
+     * Detect graph warnings in all graphs of a Blueprint
+     * @param Blueprint - Blueprint to check
+     * @param OutWarnings - Array to receive warnings
+     */
+    static void DetectBlueprintWarnings(UBlueprint* Blueprint, TArray<FGraphWarning>& OutWarnings);
 };

@@ -24,7 +24,7 @@ Connect the inventory system to the player character and input system:
 ## Step 4.1: Create Enhanced Input Action
 
 ### AIM
-Create an input action asset for toggling the inventory UI using the Enhanced Input System (UE 5.5+).
+Create (but before must check if input already exists) an input action asset for toggling the inventory UI using the Enhanced Input System (UE 5.5+).
 
 ### USAGE EXAMPLES
 ```python
