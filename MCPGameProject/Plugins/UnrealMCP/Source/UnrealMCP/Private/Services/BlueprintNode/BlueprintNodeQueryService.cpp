@@ -10,8 +10,10 @@
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 
-// Helper function to generate safe Node IDs for query service (not in namespace to avoid unity build conflicts)
+// Helper function to generate safe Node IDs for query service
+// Uses FGraphUtils::GetReliableNodeId for consistent ID generation across the codebase
 static FString GetSafeNodeIdForQuery(UEdGraphNode* Node, const FString& NodeTitle)
 {
     if (!Node)
@@ -19,15 +21,7 @@ static FString GetSafeNodeIdForQuery(UEdGraphNode* Node, const FString& NodeTitl
         return TEXT("InvalidNode");
     }
 
-    FString NodeId = Node->NodeGuid.ToString();
-    if (NodeId.IsEmpty() || NodeId == TEXT("00000000-0000-0000-0000-000000000000") || NodeId == TEXT("00000000000000000000000000000000"))
-    {
-        // Generate fallback ID using node pointer and title
-        FString SafeTitle = NodeTitle.Replace(TEXT(" "), TEXT("_")).Replace(TEXT("("), TEXT("")).Replace(TEXT(")"), TEXT(""));
-        NodeId = FString::Printf(TEXT("Node_%p_%s"), Node, *SafeTitle);
-    }
-
-    return NodeId;
+    return FGraphUtils::GetReliableNodeId(Node);
 }
 
 namespace

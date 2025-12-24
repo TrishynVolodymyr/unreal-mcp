@@ -23,6 +23,7 @@ class IUMGService;
  * - "variables" - Blueprint variables
  * - "functions" - Blueprint functions
  * - "orphaned_nodes" - Nodes with no connections in blueprint graphs
+ * - "graph_warnings" - Cast nodes with disconnected exec pins and other issues
  * - "*" - Return all available fields
  */
 class UNREALMCP_API FGetWidgetBlueprintMetadataCommand : public IUnrealMCPCommand
@@ -59,6 +60,7 @@ private:
 	TSharedPtr<FJsonObject> BuildVariablesInfo(class UWidgetBlueprint* WidgetBlueprint) const;
 	TSharedPtr<FJsonObject> BuildFunctionsInfo(class UWidgetBlueprint* WidgetBlueprint) const;
 	TSharedPtr<FJsonObject> BuildOrphanedNodesInfo(class UWidgetBlueprint* WidgetBlueprint) const;
+	TSharedPtr<FJsonObject> BuildGraphWarningsInfo(class UWidgetBlueprint* WidgetBlueprint) const;
 
 	/** Helper to collect all widgets in the widget tree */
 	void CollectAllWidgets(class UWidget* Widget, TArray<class UWidget*>& OutWidgets) const;

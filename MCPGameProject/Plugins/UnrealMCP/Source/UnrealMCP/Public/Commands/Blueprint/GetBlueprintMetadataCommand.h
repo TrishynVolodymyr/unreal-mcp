@@ -77,6 +77,13 @@ private:
     TSharedPtr<FJsonObject> BuildOrphanedNodesInfo(UBlueprint* Blueprint) const;
 
     /**
+     * Build graph warnings information (cast nodes with disconnected exec pins, etc.)
+     * @param Blueprint - Target Blueprint
+     * @return JSON object with warnings array
+     */
+    TSharedPtr<FJsonObject> BuildGraphWarningsInfo(UBlueprint* Blueprint) const;
+
+    /**
      * Build detailed graph nodes information with pin connections
      * @param Blueprint - Target Blueprint
      * @param Filter - Optional filters (graph_name, node_type, event_type)

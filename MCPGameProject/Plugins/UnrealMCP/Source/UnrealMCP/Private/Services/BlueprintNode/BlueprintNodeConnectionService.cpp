@@ -1,6 +1,7 @@
 #include "Services/BlueprintNode/BlueprintNodeConnectionService.h"
 #include "Services/IBlueprintNodeService.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraph/EdGraphPin.h"
@@ -14,6 +15,7 @@
 namespace
 {
 // Helper function to generate safe Node IDs for connection service
+// Uses FGraphUtils::GetReliableNodeId for consistent ID generation across the codebase
 static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
 {
     if (!Node)
@@ -21,15 +23,7 @@ static FString GetSafeNodeId(UEdGraphNode* Node, const FString& NodeTitle)
         return TEXT("InvalidNode");
     }
 
-    FString NodeId = Node->NodeGuid.ToString();
-    if (NodeId.IsEmpty() || NodeId == TEXT("00000000-0000-0000-0000-000000000000") || NodeId == TEXT("00000000000000000000000000000000"))
-    {
-        // Generate fallback ID using node pointer and title
-        FString SafeTitle = NodeTitle.Replace(TEXT(" "), TEXT("_")).Replace(TEXT("("), TEXT("")).Replace(TEXT(")"), TEXT(""));
-        NodeId = FString::Printf(TEXT("Node_%p_%s"), Node, *SafeTitle);
-    }
-
-    return NodeId;
+    return FGraphUtils::GetReliableNodeId(Node);
 }
 
 } // anonymous namespace
@@ -240,6 +234,113 @@ bool FBlueprintNodeConnectionService::ConnectBlueprintNodes(UBlueprint* Blueprin
     return bAllSucceeded;
 }
 
+bool FBlueprintNodeConnectionService::ConnectBlueprintNodesEnhanced(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& TargetGraph, TArray<FConnectionResultInfo>& OutResults)
+{
+    if (!Blueprint)
+    {
+        return false;
+    }
+
+    OutResults.Empty();
+    OutResults.Reserve(Connections.Num());
+
+    bool bAllSucceeded = true;
+
+    // Find the target graph dynamically
+    UEdGraph* SearchGraph = nullptr;
+
+    for (UEdGraph* Graph : Blueprint->UbergraphPages)
+    {
+        if (Graph && Graph->GetFName() == FName(*TargetGraph))
+        {
+            SearchGraph = Graph;
+            break;
+        }
+    }
+
+    if (!SearchGraph)
+    {
+        for (UEdGraph* Graph : Blueprint->FunctionGraphs)
+        {
+            if (Graph && Graph->GetFName() == FName(*TargetGraph))
+            {
+                SearchGraph = Graph;
+                break;
+            }
+        }
+    }
+
+    if (!SearchGraph && TargetGraph == TEXT("EventGraph"))
+    {
+        SearchGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    }
+
+    if (!SearchGraph)
+    {
+        FConnectionResultInfo FailResult;
+        FailResult.bSuccess = false;
+        FailResult.ErrorMessage = FString::Printf(TEXT("Target graph '%s' not found"), *TargetGraph);
+        OutResults.Add(FailResult);
+        return false;
+    }
+
+    for (const FBlueprintNodeConnectionParams& Connection : Connections)
+    {
+        FConnectionResultInfo Result;
+        Result.SourceNodeId = Connection.SourceNodeId;
+        Result.TargetNodeId = Connection.TargetNodeId;
+
+        FString ValidationError;
+        if (!Connection.IsValid(ValidationError))
+        {
+            Result.bSuccess = false;
+            Result.ErrorMessage = ValidationError;
+            OutResults.Add(Result);
+            bAllSucceeded = false;
+            continue;
+        }
+
+        UEdGraphNode* SourceNode = FindNodeByIdOrType(SearchGraph, Connection.SourceNodeId);
+        UEdGraphNode* TargetNode = FindNodeByIdOrType(SearchGraph, Connection.TargetNodeId);
+
+        if (!SourceNode || !TargetNode)
+        {
+            Result.bSuccess = false;
+            Result.ErrorMessage = FString::Printf(TEXT("Node not found: %s=%s, %s=%s"),
+                *Connection.SourceNodeId, SourceNode ? TEXT("found") : TEXT("NOT FOUND"),
+                *Connection.TargetNodeId, TargetNode ? TEXT("found") : TEXT("NOT FOUND"));
+            OutResults.Add(Result);
+            bAllSucceeded = false;
+            continue;
+        }
+
+        // Connect with enhanced tracking
+        TArray<FAutoInsertedNodeInfo> AutoInsertedNodes;
+        bool bConnectionSucceeded = ConnectNodesWithAutoCast(SearchGraph, SourceNode, Connection.SourcePin,
+                                                              TargetNode, Connection.TargetPin, &AutoInsertedNodes);
+
+        Result.bSuccess = bConnectionSucceeded;
+        Result.AutoInsertedNodes = AutoInsertedNodes;
+
+        if (!bConnectionSucceeded)
+        {
+            Result.ErrorMessage = FString::Printf(TEXT("Failed to connect '%s'.%s -> '%s'.%s"),
+                *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.SourcePin,
+                *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.TargetPin);
+            bAllSucceeded = false;
+        }
+
+        OutResults.Add(Result);
+    }
+
+    if (bAllSucceeded)
+    {
+        FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    }
+
+    return bAllSucceeded;
+}
+
 bool FBlueprintNodeConnectionService::ConnectPins(UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName)
 {
     if (!SourceNode || !TargetNode)
@@ -359,7 +460,7 @@ bool FBlueprintNodeConnectionService::ConnectPins(UEdGraphNode* SourceNode, cons
     return bSuccess;
 }
 
-bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName)
+bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName, TArray<FAutoInsertedNodeInfo>* OutAutoInsertedNodes)
 {
     UE_LOG(LogTemp, Warning, TEXT("=== ConnectNodesWithAutoCast START ==="));
     UE_LOG(LogTemp, Warning, TEXT("Connecting: '%s'.%s -> '%s'.%s"),
@@ -372,6 +473,13 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
     {
         UE_LOG(LogTemp, Error, TEXT("NULL parameters"));
         return false;
+    }
+
+    // Track existing nodes before connection to detect auto-inserted nodes
+    TSet<UEdGraphNode*> ExistingNodes;
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        ExistingNodes.Add(Node);
     }
 
     // Find the pins
@@ -626,6 +734,53 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
     else
     {
         UE_LOG(LogTemp, Error, TEXT("Connection rejected by Unreal Engine - incompatible pin types or other validation failed"));
+    }
+
+    // Detect any newly created nodes (auto-inserted casts, conversions, etc.)
+    if (OutAutoInsertedNodes)
+    {
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (!ExistingNodes.Contains(Node))
+            {
+                // This is a new node - check if it's a cast node
+                FAutoInsertedNodeInfo NodeInfo;
+                NodeInfo.NodeId = FGraphUtils::GetReliableNodeId(Node);
+                NodeInfo.NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+                NodeInfo.NodeType = Node->GetClass()->GetName();
+
+                // Check if this is a dynamic cast node (requires exec pins)
+                bool bIsCastNode = Node->GetClass()->GetName().Contains(TEXT("DynamicCast"));
+                NodeInfo.bRequiresExecConnection = bIsCastNode;
+
+                if (bIsCastNode)
+                {
+                    // Check if exec pins are connected
+                    bool bHasExecInput = false;
+                    bool bHasExecOutput = false;
+                    for (UEdGraphPin* Pin : Node->Pins)
+                    {
+                        if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+                        {
+                            if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() > 0)
+                            {
+                                bHasExecInput = true;
+                            }
+                            else if (Pin->Direction == EGPD_Output && Pin->LinkedTo.Num() > 0)
+                            {
+                                bHasExecOutput = true;
+                            }
+                        }
+                    }
+                    NodeInfo.bExecConnected = bHasExecInput && bHasExecOutput;
+
+                    UE_LOG(LogTemp, Warning, TEXT("Auto-inserted Cast node detected: %s (exec connected: %s)"),
+                        *NodeInfo.NodeTitle, NodeInfo.bExecConnected ? TEXT("YES") : TEXT("NO - WARNING!"));
+                }
+
+                OutAutoInsertedNodes->Add(NodeInfo);
+            }
+        }
     }
 
     UE_LOG(LogTemp, Warning, TEXT("=== ConnectNodesWithAutoCast END ==="));
@@ -956,7 +1111,8 @@ bool FBlueprintNodeConnectionService::CreateStringToFloatCast(UEdGraph* Graph, U
     return true;
 }
 
-bool FBlueprintNodeConnectionService::CreateObjectCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin)
+bool FBlueprintNodeConnectionService::CreateObjectCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin,
+                                                        FAutoInsertedNodeInfo* OutNodeInfo)
 {
     if (!Graph || !SourcePin || !TargetPin)
     {
@@ -1038,6 +1194,34 @@ bool FBlueprintNodeConnectionService::CreateObjectCast(UEdGraph* Graph, UEdGraph
     SourcePin->MakeLinkTo(CastInputPin);
     CastOutputPin->MakeLinkTo(TargetPin);
 
+    // Populate auto-inserted node info if requested
+    if (OutNodeInfo)
+    {
+        OutNodeInfo->NodeId = FGraphUtils::GetReliableNodeId(CastNode);
+        OutNodeInfo->NodeTitle = CastNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+        OutNodeInfo->NodeType = CastNode->GetClass()->GetName();
+        OutNodeInfo->bRequiresExecConnection = true;  // Dynamic casts always need exec pins
+
+        // Check if exec pins are connected
+        bool bHasExecInput = false;
+        bool bHasExecOutput = false;
+        for (UEdGraphPin* Pin : CastNode->Pins)
+        {
+            if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+            {
+                if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() > 0)
+                {
+                    bHasExecInput = true;
+                }
+                else if (Pin->Direction == EGPD_Output && Pin->LinkedTo.Num() > 0)
+                {
+                    bHasExecOutput = true;
+                }
+            }
+        }
+        OutNodeInfo->bExecConnected = bHasExecInput && bHasExecOutput;
+    }
+
     UE_LOG(LogTemp, Display, TEXT("CreateObjectCast: Successfully created object cast node to %s"), *TargetClass->GetName());
     return true;
 }
@@ -1061,7 +1245,7 @@ UEdGraphNode* FBlueprintNodeConnectionService::FindNodeByIdOrType(UEdGraph* Grap
             FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
             FString SafeNodeId = GetSafeNodeId(Node, NodeTitle);
 
-            if (Node->NodeGuid.ToString() == NodeIdOrType || SafeNodeId == NodeIdOrType)
+            if (FGraphUtils::GetReliableNodeId(Node) == NodeIdOrType || SafeNodeId == NodeIdOrType)
             {
                 return Node;
             }

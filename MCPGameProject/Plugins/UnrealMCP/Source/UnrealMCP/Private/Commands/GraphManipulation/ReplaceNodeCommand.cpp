@@ -1,5 +1,6 @@
 #include "Commands/GraphManipulation/ReplaceNodeCommand.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 #include "Services/BlueprintNodeCreationService.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
@@ -104,7 +105,7 @@ FString FReplaceNodeCommand::Execute(const FString& Parameters)
     UEdGraphNode* OldNode = nullptr;
     for (UEdGraphNode* CurrentNode : Graph->Nodes)
     {
-        if (CurrentNode && CurrentNode->NodeGuid.ToString() == OldNodeId)
+        if (CurrentNode && FGraphUtils::GetReliableNodeId(CurrentNode) == OldNodeId)
         {
             OldNode = CurrentNode;
             break;
@@ -135,7 +136,7 @@ FString FReplaceNodeCommand::Execute(const FString& Parameters)
         {
             if (LinkedPin && LinkedPin->GetOwningNode())
             {
-                Connection.ConnectedNodeIds.Add(LinkedPin->GetOwningNode()->NodeGuid.ToString());
+                Connection.ConnectedNodeIds.Add(FGraphUtils::GetReliableNodeId(LinkedPin->GetOwningNode()));
                 Connection.ConnectedPinNames.Add(LinkedPin->GetName());
             }
         }
@@ -218,7 +219,7 @@ FString FReplaceNodeCommand::Execute(const FString& Parameters)
     UEdGraphNode* NewNode = nullptr;
     for (UEdGraphNode* CurrentNode : Graph->Nodes)
     {
-        if (CurrentNode && CurrentNode->NodeGuid.ToString() == NewNodeId)
+        if (CurrentNode && FGraphUtils::GetReliableNodeId(CurrentNode) == NewNodeId)
         {
             NewNode = CurrentNode;
             break;
@@ -279,7 +280,7 @@ FString FReplaceNodeCommand::Execute(const FString& Parameters)
             UEdGraphNode* ConnectedNode = nullptr;
             for (UEdGraphNode* CurrentNode : Graph->Nodes)
             {
-                if (CurrentNode && CurrentNode->NodeGuid.ToString() == ConnectedNodeId)
+                if (CurrentNode && FGraphUtils::GetReliableNodeId(CurrentNode) == ConnectedNodeId)
                 {
                     ConnectedNode = CurrentNode;
                     break;

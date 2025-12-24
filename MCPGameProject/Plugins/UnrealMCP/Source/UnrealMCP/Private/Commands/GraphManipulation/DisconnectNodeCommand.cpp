@@ -1,5 +1,6 @@
 #include "Commands/GraphManipulation/DisconnectNodeCommand.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -93,7 +94,7 @@ FString FDisconnectNodeCommand::Execute(const FString& Parameters)
     UEdGraphNode* Node = nullptr;
     for (UEdGraphNode* CurrentNode : Graph->Nodes)
     {
-        if (CurrentNode && CurrentNode->NodeGuid.ToString() == NodeId)
+        if (CurrentNode && FGraphUtils::GetReliableNodeId(CurrentNode) == NodeId)
         {
             Node = CurrentNode;
             break;

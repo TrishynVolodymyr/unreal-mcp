@@ -12,6 +12,7 @@
 #include "Components/TimelineComponent.h"
 #include "Engine/TimelineTemplate.h"
 #include "HAL/FileManager.h"
+#include "Utils/GraphUtils.h"
 
 FGetBlueprintMetadataCommand::FGetBlueprintMetadataCommand(IBlueprintService& InBlueprintService)
     : BlueprintService(InBlueprintService)
@@ -189,6 +190,10 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildMetadata(UBlueprint* 
     if (ShouldIncludeField(TEXT("orphaned_nodes"), Fields))
     {
         Metadata->SetObjectField(TEXT("orphaned_nodes"), BuildOrphanedNodesInfo(Blueprint));
+    }
+    if (ShouldIncludeField(TEXT("graph_warnings"), Fields))
+    {
+        Metadata->SetObjectField(TEXT("graph_warnings"), BuildGraphWarningsInfo(Blueprint));
     }
     if (ShouldIncludeField(TEXT("graph_nodes"), Fields))
     {
@@ -687,12 +692,9 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildOrphanedNodesInfo(UBl
             if (bIsOrphaned)
             {
                 TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
-                NodeObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
-                NodeObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
-                NodeObj->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
-                NodeObj->SetStringField(TEXT("graph_name"), Graph->GetName());
-                NodeObj->SetNumberField(TEXT("position_x"), Node->NodePosX);
-                NodeObj->SetNumberField(TEXT("position_y"), Node->NodePosY);
+                NodeObj->SetStringField(TEXT("id"), FGraphUtils::GetReliableNodeId(Node));
+                NodeObj->SetStringField(TEXT("title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+                NodeObj->SetStringField(TEXT("graph"), Graph->GetName());
 
                 OrphanedNodesList.Add(MakeShared<FJsonValueObject>(NodeObj));
             }
@@ -703,6 +705,78 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildOrphanedNodesInfo(UBl
     OrphanedInfo->SetNumberField(TEXT("count"), OrphanedNodesList.Num());
 
     return OrphanedInfo;
+}
+
+TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildGraphWarningsInfo(UBlueprint* Blueprint) const
+{
+    TSharedPtr<FJsonObject> WarningsInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> WarningsList;
+
+    // Collect all graphs
+    TArray<UEdGraph*> AllGraphs;
+    Blueprint->GetAllGraphs(AllGraphs);
+
+    for (UEdGraph* Graph : AllGraphs)
+    {
+        if (!Graph)
+        {
+            continue;
+        }
+
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (!Node)
+            {
+                continue;
+            }
+
+            // Check for Cast nodes (K2Node_DynamicCast) with disconnected exec pins
+            FString NodeClassName = Node->GetClass()->GetName();
+            if (NodeClassName.Contains(TEXT("DynamicCast")))
+            {
+                // Check exec pin connections
+                bool bHasExecInput = false;
+                bool bHasExecOutput = false;
+
+                for (UEdGraphPin* Pin : Node->Pins)
+                {
+                    if (Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+                    {
+                        if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() > 0)
+                        {
+                            bHasExecInput = true;
+                        }
+                        else if (Pin->Direction == EGPD_Output && Pin->LinkedTo.Num() > 0)
+                        {
+                            bHasExecOutput = true;
+                        }
+                    }
+                }
+
+                // Warn if cast node has disconnected exec pins
+                if (!bHasExecInput || !bHasExecOutput)
+                {
+                    TSharedPtr<FJsonObject> WarningObj = MakeShared<FJsonObject>();
+                    WarningObj->SetStringField(TEXT("type"), TEXT("disconnected_cast_exec"));
+                    WarningObj->SetStringField(TEXT("node_id"), FGraphUtils::GetReliableNodeId(Node));
+                    WarningObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+                    WarningObj->SetStringField(TEXT("graph"), Graph->GetName());
+                    WarningObj->SetBoolField(TEXT("has_exec_input"), bHasExecInput);
+                    WarningObj->SetBoolField(TEXT("has_exec_output"), bHasExecOutput);
+                    WarningObj->SetStringField(TEXT("message"),
+                        FString::Printf(TEXT("Cast node '%s' has disconnected exec pins - it will NOT execute at runtime"),
+                            *Node->GetNodeTitle(ENodeTitleType::ListView).ToString()));
+
+                    WarningsList.Add(MakeShared<FJsonValueObject>(WarningObj));
+                }
+            }
+        }
+    }
+
+    WarningsInfo->SetArrayField(TEXT("warnings"), WarningsList);
+    WarningsInfo->SetNumberField(TEXT("count"), WarningsList.Num());
+
+    return WarningsInfo;
 }
 
 TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildGraphNodesInfo(UBlueprint* Blueprint, const FGraphNodesFilter& Filter) const
@@ -752,14 +826,12 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildGraphNodesInfo(UBluep
             }
 
             TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
-            NodeObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
-            NodeObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
-            NodeObj->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
-            NodeObj->SetNumberField(TEXT("position_x"), Node->NodePosX);
-            NodeObj->SetNumberField(TEXT("position_y"), Node->NodePosY);
+            NodeObj->SetStringField(TEXT("id"), FGraphUtils::GetReliableNodeId(Node));
+            NodeObj->SetStringField(TEXT("title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
 
-            // Build pins array with connection info
-            TArray<TSharedPtr<FJsonValue>> PinsList;
+            // Build pins as object with pin name as key, connections as compact strings
+            // Format: "pinName": ["nodeId:pinName", ...] or "pinName": "default_value" for unconnected with defaults
+            TSharedPtr<FJsonObject> PinsObj = MakeShared<FJsonObject>();
 
             for (UEdGraphPin* Pin : Node->Pins)
             {
@@ -768,22 +840,30 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildGraphNodesInfo(UBluep
                     continue;
                 }
 
-                TSharedPtr<FJsonObject> PinObj = MakeShared<FJsonObject>();
-                PinObj->SetStringField(TEXT("pin_name"), Pin->PinName.ToString());
-                PinObj->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output"));
+                FString PinName = Pin->PinName.ToString();
 
-                // Get pin type as readable string
-                FString PinTypeStr = GetPinTypeAsString(Pin->PinType);
-                // Add exec indicator
-                if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec)
+                // Build connections as compact strings "nodeId|nodeTitle|pinName"
+                // Using | as delimiter since : appears in some node titles
+                if (Pin->LinkedTo.Num() > 0)
                 {
-                    PinTypeStr = TEXT("exec");
+                    TArray<TSharedPtr<FJsonValue>> ConnectionsList;
+                    for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
+                    {
+                        if (LinkedPin && LinkedPin->GetOwningNode())
+                        {
+                            UEdGraphNode* LinkedNode = LinkedPin->GetOwningNode();
+                            FString CompactConn = FString::Printf(TEXT("%s|%s|%s"),
+                                *FGraphUtils::GetReliableNodeId(LinkedNode),
+                                *LinkedNode->GetNodeTitle(ENodeTitleType::ListView).ToString(),
+                                *LinkedPin->PinName.ToString());
+                            ConnectionsList.Add(MakeShared<FJsonValueString>(CompactConn));
+                        }
+                    }
+                    PinsObj->SetArrayField(PinName, ConnectionsList);
                 }
-                PinObj->SetStringField(TEXT("type"), PinTypeStr);
-
-                // Get default value for unconnected input pins
-                if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() == 0)
+                else if (Pin->Direction == EGPD_Input)
                 {
+                    // For unconnected input pins, show default value if any
                     FString DefaultValue = Pin->DefaultValue;
                     if (DefaultValue.IsEmpty() && Pin->DefaultObject)
                     {
@@ -795,33 +875,14 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildGraphNodesInfo(UBluep
                     }
                     if (!DefaultValue.IsEmpty())
                     {
-                        PinObj->SetStringField(TEXT("default_value"), DefaultValue);
+                        PinsObj->SetStringField(PinName, DefaultValue);
                     }
+                    // Skip pins with no connection and no default
                 }
-
-                // Build connections array
-                TArray<TSharedPtr<FJsonValue>> ConnectionsList;
-                for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
-                {
-                    if (LinkedPin && LinkedPin->GetOwningNode())
-                    {
-                        TSharedPtr<FJsonObject> ConnectionObj = MakeShared<FJsonObject>();
-                        ConnectionObj->SetStringField(TEXT("node_id"), LinkedPin->GetOwningNode()->NodeGuid.ToString());
-                        ConnectionObj->SetStringField(TEXT("node_title"), LinkedPin->GetOwningNode()->GetNodeTitle(ENodeTitleType::ListView).ToString());
-                        ConnectionObj->SetStringField(TEXT("pin_name"), LinkedPin->PinName.ToString());
-                        ConnectionsList.Add(MakeShared<FJsonValueObject>(ConnectionObj));
-                    }
-                }
-
-                if (ConnectionsList.Num() > 0)
-                {
-                    PinObj->SetArrayField(TEXT("connected_to"), ConnectionsList);
-                }
-
-                PinsList.Add(MakeShared<FJsonValueObject>(PinObj));
+                // Skip unconnected output pins entirely
             }
 
-            NodeObj->SetArrayField(TEXT("pins"), PinsList);
+            NodeObj->SetObjectField(TEXT("pins"), PinsObj);
             NodesList.Add(MakeShared<FJsonValueObject>(NodeObj));
         }
 

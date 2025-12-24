@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
 #include "Services/IBlueprintNodeService.h"
+#include "Services/BlueprintNode/BlueprintNodeConnectionService.h"
 
 /**
  * Command for connecting Blueprint nodes
@@ -55,10 +56,20 @@ private:
     
     /**
      * Create mixed response JSON for partial success/failure
-     * @param Results - Connection results 
+     * @param Results - Connection results
      * @param Connections - Original connection parameters for detailed response
      * @param ErrorMessage - Error message with details
      * @return JSON response string
      */
     FString CreateMixedResponse(const TArray<bool>& Results, const TArray<FBlueprintNodeConnectionParams>& Connections, const FString& ErrorMessage) const;
+
+    /**
+     * Create enhanced response JSON with auto-inserted node information
+     * Reports any cast nodes or conversions that were auto-inserted during connection,
+     * and warns if their exec pins are not connected (which would cause them to not run)
+     * @param Results - Enhanced connection results with auto-inserted node info
+     * @param Connections - Original connection parameters for detailed response
+     * @return JSON response string
+     */
+    FString CreateEnhancedResponse(const TArray<FConnectionResultInfo>& Results, const TArray<FBlueprintNodeConnectionParams>& Connections) const;
 };

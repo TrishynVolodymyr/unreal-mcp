@@ -530,3 +530,79 @@ def modify_blueprint_function_properties(
         params["category"] = category
 
     return send_unreal_command("modify_blueprint_function_properties", params)
+
+
+def capture_blueprint_graph_screenshot(
+    ctx: Context,
+    blueprint_name: str,
+    graph_name: str = "EventGraph",
+    width: int = 1280,
+    height: int = 720,
+    format: str = "png"
+) -> Dict[str, Any]:
+    """Implementation for capturing a screenshot of a Blueprint graph.
+
+    This renders the Blueprint graph to an image and returns it as base64-encoded data.
+    The image can be used by AI to visually understand the node layout without needing
+    to query detailed node metadata, significantly reducing context/token usage.
+
+    Args:
+        blueprint_name: Name or path of the Blueprint to capture
+        graph_name: Name of the graph to capture (default: "EventGraph").
+                   Use get_blueprint_metadata with fields=["graphs"] to discover available graphs.
+        width: Screenshot width in pixels (default: 1280, range: 1-8192)
+        height: Screenshot height in pixels (default: 720, range: 1-8192)
+        format: Image format - "png" (default) or "jpg"
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the screenshot was captured
+        - image_base64: Base64-encoded image data (viewable by AI)
+        - width: Actual image width
+        - height: Actual image height
+        - format: Image format used
+        - image_size_bytes: Size of the compressed image
+        - blueprint_name: Name of the Blueprint
+        - graph_name: Name of the captured graph
+        - node_count: Number of nodes in the graph
+
+    Examples:
+        # Capture EventGraph
+        result = capture_blueprint_graph_screenshot(
+            ctx,
+            blueprint_name="BP_MyActor"
+        )
+
+        # Capture a specific function graph
+        result = capture_blueprint_graph_screenshot(
+            ctx,
+            blueprint_name="BP_MyActor",
+            graph_name="ToggleInventory"
+        )
+
+        # Capture at higher resolution
+        result = capture_blueprint_graph_screenshot(
+            ctx,
+            blueprint_name="WBP_InventorySlot",
+            graph_name="HandleMouseDown",
+            width=1920,
+            height=1080
+        )
+
+        # Capture as JPEG (smaller file size)
+        result = capture_blueprint_graph_screenshot(
+            ctx,
+            blueprint_name="BP_DialogueComponent",
+            graph_name="EventGraph",
+            format="jpg"
+        )
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "graph_name": graph_name,
+        "width": width,
+        "height": height,
+        "format": format
+    }
+
+    return send_unreal_command("capture_blueprint_graph_screenshot", params)

@@ -1,5 +1,6 @@
 #include "Commands/GraphManipulation/DeleteNodeCommand.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -87,7 +88,7 @@ FString FDeleteNodeCommand::Execute(const FString& Parameters)
     UEdGraphNode* NodeToDelete = nullptr;
     for (UEdGraphNode* CurrentNode : Graph->Nodes)
     {
-        if (CurrentNode && CurrentNode->NodeGuid.ToString() == NodeId)
+        if (CurrentNode && FGraphUtils::GetReliableNodeId(CurrentNode) == NodeId)
         {
             NodeToDelete = CurrentNode;
             break;

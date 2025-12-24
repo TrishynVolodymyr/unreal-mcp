@@ -1,6 +1,8 @@
 #include "Utils/AssetUtils.h"
 #include "EditorAssetLibrary.h"
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetBlueprintGeneratedClass.h"
+#include "WidgetBlueprint.h"
 #include "Engine/Blueprint.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 
@@ -69,14 +71,27 @@ TArray<FString> FAssetUtils::FindWidgetBlueprints(const FString& WidgetName, con
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
     IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
 
-    // Create filter for Widget Blueprints
+    // Create filter for Widget Blueprints - use UWidgetBlueprint class path for UE5 compatibility
     FARFilter Filter;
     Filter.PackagePaths.Add(FName(*SearchPath));
     Filter.bRecursivePaths = true;
-    Filter.ClassPaths.Add(FTopLevelAssetPath(TEXT("/Script/UMGEditor"), TEXT("WidgetBlueprint")));
+
+    // Try to use the actual class path - this is more reliable across UE versions
+    UClass* WidgetBPClass = UWidgetBlueprint::StaticClass();
+    if (WidgetBPClass)
+    {
+        Filter.ClassPaths.Add(WidgetBPClass->GetClassPathName());
+    }
+    else
+    {
+        // Fallback to hardcoded path
+        Filter.ClassPaths.Add(FTopLevelAssetPath(TEXT("/Script/UMGEditor"), TEXT("WidgetBlueprint")));
+    }
 
     TArray<FAssetData> AssetDataList;
     AssetRegistry.GetAssets(Filter, AssetDataList);
+
+    UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprints: Asset registry returned %d assets for class filter"), AssetDataList.Num());
 
     for (const FAssetData& AssetData : AssetDataList)
     {
@@ -409,6 +424,8 @@ TArray<FString> FAssetUtils::GetCommonAssetSearchPaths(const FString& AssetName)
         TEXT("/Game/Widgets/"),
         TEXT("/Game/UI/"),
         TEXT("/Game/UMG/"),
+        TEXT("/Game/Inventory/UI/"),
+        TEXT("/Game/Dialogue/UI/"),
         TEXT("/Game/Blueprints/Widgets/"),
         TEXT("/Game/Blueprints/UI/"),
         TEXT("/Game/Blueprints/"),

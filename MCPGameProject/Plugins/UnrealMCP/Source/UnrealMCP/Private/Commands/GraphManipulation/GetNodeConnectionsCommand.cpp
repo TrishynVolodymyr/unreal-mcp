@@ -1,5 +1,6 @@
 #include "Commands/GraphManipulation/GetNodeConnectionsCommand.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Utils/GraphUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -75,7 +76,7 @@ FString FGetNodeConnectionsCommand::Execute(const FString& Parameters)
     UEdGraphNode* Node = nullptr;
     for (UEdGraphNode* CurrentNode : Graph->Nodes)
     {
-        if (CurrentNode && CurrentNode->NodeGuid.ToString() == NodeId)
+        if (CurrentNode && FGraphUtils::GetReliableNodeId(CurrentNode) == NodeId)
         {
             Node = CurrentNode;
             break;
@@ -126,7 +127,7 @@ FString FGetNodeConnectionsCommand::Execute(const FString& Parameters)
             if (LinkedPin && LinkedPin->GetOwningNode())
             {
                 TSharedPtr<FJsonObject> ConnObj = MakeShareable(new FJsonObject());
-                ConnObj->SetStringField(TEXT("connected_node_id"), LinkedPin->GetOwningNode()->NodeGuid.ToString());
+                ConnObj->SetStringField(TEXT("connected_node_id"), FGraphUtils::GetReliableNodeId(LinkedPin->GetOwningNode()));
                 ConnObj->SetStringField(TEXT("connected_node_title"), LinkedPin->GetOwningNode()->GetNodeTitle(ENodeTitleType::ListView).ToString());
                 ConnObj->SetStringField(TEXT("connected_pin_name"), LinkedPin->GetName());
                 ConnObj->SetStringField(TEXT("connected_pin_display_name"), LinkedPin->GetDisplayName().ToString());

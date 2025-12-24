@@ -1,5 +1,6 @@
 #include "Commands/BlueprintNode/ConnectBlueprintNodesCommand.h"
 #include "Services/IBlueprintNodeService.h"
+#include "Services/BlueprintNode/BlueprintNodeConnectionService.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
@@ -38,37 +39,12 @@ FString FConnectBlueprintNodesCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
     }
 
-    // Delegate to service layer
-    TArray<bool> Results;
-    BlueprintNodeService->ConnectBlueprintNodes(Blueprint, Connections, TargetGraph, Results);
-    
-    // Count failures and create detailed response
-    int32 FailedConnections = 0;
-    TArray<FString> FailureDetails;
-    
-    for (int32 i = 0; i < Results.Num(); i++)
-    {
-        if (!Results[i])
-        {
-            FailedConnections++;
-            FString FailureDetail = FString::Printf(TEXT("Connection %d failed: '%s'.%s -> '%s'.%s"), 
-                i + 1,
-                *Connections[i].SourceNodeId, *Connections[i].SourcePin,
-                *Connections[i].TargetNodeId, *Connections[i].TargetPin);
-            FailureDetails.Add(FailureDetail);
-        }
-    }
-    
-    // If some connections failed, provide detailed error info
-    if (FailedConnections > 0)
-    {
-        FString DetailedError = FString::Printf(TEXT("Failed to connect %d of %d Blueprint nodes:\n%s"), 
-            FailedConnections, Connections.Num(), *FString::Join(FailureDetails, TEXT("\n")));
-        return CreateMixedResponse(Results, Connections, DetailedError);
-    }
+    // Use enhanced connection service to get detailed results including auto-inserted nodes
+    TArray<FConnectionResultInfo> EnhancedResults;
+    FBlueprintNodeConnectionService::Get().ConnectBlueprintNodesEnhanced(Blueprint, Connections, TargetGraph, EnhancedResults);
 
-    // Create success response
-    return CreateSuccessResponse(Results, Connections);
+    // Build response with enhanced info
+    return CreateEnhancedResponse(EnhancedResults, Connections);
 }
 
 FString FConnectBlueprintNodesCommand::GetCommandName() const
@@ -222,7 +198,7 @@ FString FConnectBlueprintNodesCommand::CreateMixedResponse(const TArray<bool>& R
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), false);
     ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
-    
+
     // Add detailed results array
     TArray<TSharedPtr<FJsonValue>> ResultsArray;
     for (int32 i = 0; i < Results.Num(); i++)
@@ -233,11 +209,11 @@ FString FConnectBlueprintNodesCommand::CreateMixedResponse(const TArray<bool>& R
         ResultObj->SetStringField(TEXT("source_pin"), Connections[i].SourcePin);
         ResultObj->SetStringField(TEXT("target_node_id"), Connections[i].TargetNodeId);
         ResultObj->SetStringField(TEXT("target_pin"), Connections[i].TargetPin);
-        
+
         ResultsArray.Add(MakeShared<FJsonValueObject>(ResultObj));
     }
     ResponseObj->SetArrayField(TEXT("connection_results"), ResultsArray);
-    
+
     // Add summary statistics
     int32 SuccessfulConnections = 0;
     for (bool Result : Results)
@@ -247,13 +223,100 @@ FString FConnectBlueprintNodesCommand::CreateMixedResponse(const TArray<bool>& R
             SuccessfulConnections++;
         }
     }
-    
+
     ResponseObj->SetNumberField(TEXT("successful_connections"), SuccessfulConnections);
     ResponseObj->SetNumberField(TEXT("total_connections"), Results.Num());
-    
+
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
     FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
-    
+
+    return OutputString;
+}
+
+FString FConnectBlueprintNodesCommand::CreateEnhancedResponse(const TArray<FConnectionResultInfo>& Results, const TArray<FBlueprintNodeConnectionParams>& Connections) const
+{
+    TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
+
+    // Count successes and collect warnings
+    int32 SuccessfulConnections = 0;
+    TArray<TSharedPtr<FJsonValue>> WarningsArray;
+    TArray<TSharedPtr<FJsonValue>> AutoInsertedArray;
+
+    // Create detailed results array
+    TArray<TSharedPtr<FJsonValue>> ResultsArray;
+    for (int32 i = 0; i < Results.Num(); i++)
+    {
+        const FConnectionResultInfo& Result = Results[i];
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetBoolField(TEXT("success"), Result.bSuccess);
+
+        if (Result.bSuccess)
+        {
+            SuccessfulConnections++;
+            ResultObj->SetStringField(TEXT("source_node_id"), Result.SourceNodeId);
+            ResultObj->SetStringField(TEXT("target_node_id"), Result.TargetNodeId);
+
+            // Report any auto-inserted nodes
+            if (Result.AutoInsertedNodes.Num() > 0)
+            {
+                for (const FAutoInsertedNodeInfo& AutoNode : Result.AutoInsertedNodes)
+                {
+                    TSharedPtr<FJsonObject> AutoNodeObj = MakeShared<FJsonObject>();
+                    AutoNodeObj->SetStringField(TEXT("node_id"), AutoNode.NodeId);
+                    AutoNodeObj->SetStringField(TEXT("title"), AutoNode.NodeTitle);
+                    AutoNodeObj->SetStringField(TEXT("type"), AutoNode.NodeType);
+                    AutoNodeObj->SetBoolField(TEXT("requires_exec"), AutoNode.bRequiresExecConnection);
+                    AutoNodeObj->SetBoolField(TEXT("exec_connected"), AutoNode.bExecConnected);
+                    AutoInsertedArray.Add(MakeShared<FJsonValueObject>(AutoNodeObj));
+
+                    // Add warning if cast node has disconnected exec
+                    if (AutoNode.bRequiresExecConnection && !AutoNode.bExecConnected)
+                    {
+                        TSharedPtr<FJsonObject> WarningObj = MakeShared<FJsonObject>();
+                        WarningObj->SetStringField(TEXT("type"), TEXT("disconnected_exec"));
+                        WarningObj->SetStringField(TEXT("node_id"), AutoNode.NodeId);
+                        WarningObj->SetStringField(TEXT("node_title"), AutoNode.NodeTitle);
+                        WarningObj->SetStringField(TEXT("message"),
+                            FString::Printf(TEXT("Auto-inserted '%s' node has disconnected exec pins - it will NOT execute at runtime. Connect its exec pins or the cast will be skipped."),
+                                *AutoNode.NodeTitle));
+                        WarningsArray.Add(MakeShared<FJsonValueObject>(WarningObj));
+                    }
+                }
+            }
+        }
+        else
+        {
+            ResultObj->SetStringField(TEXT("error"), Result.ErrorMessage.IsEmpty() ? TEXT("Failed to connect nodes") : Result.ErrorMessage);
+        }
+
+        ResultsArray.Add(MakeShared<FJsonValueObject>(ResultObj));
+    }
+
+    // Determine overall success (all connections succeeded)
+    bool bOverallSuccess = (SuccessfulConnections == Results.Num());
+    ResponseObj->SetBoolField(TEXT("success"), bOverallSuccess);
+    ResponseObj->SetArrayField(TEXT("results"), ResultsArray);
+    ResponseObj->SetBoolField(TEXT("batch"), true);
+    ResponseObj->SetNumberField(TEXT("successful_connections"), SuccessfulConnections);
+    ResponseObj->SetNumberField(TEXT("total_connections"), Results.Num());
+
+    // Add auto-inserted nodes array if any
+    if (AutoInsertedArray.Num() > 0)
+    {
+        ResponseObj->SetArrayField(TEXT("auto_inserted_nodes"), AutoInsertedArray);
+    }
+
+    // Add warnings array if any
+    if (WarningsArray.Num() > 0)
+    {
+        ResponseObj->SetArrayField(TEXT("warnings"), WarningsArray);
+        ResponseObj->SetBoolField(TEXT("has_warnings"), true);
+    }
+
+    FString OutputString;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+    FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
+
     return OutputString;
 }

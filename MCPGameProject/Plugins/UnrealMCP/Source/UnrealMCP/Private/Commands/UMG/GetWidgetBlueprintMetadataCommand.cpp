@@ -1,5 +1,6 @@
 #include "Commands/UMG/GetWidgetBlueprintMetadataCommand.h"
 #include "Services/UMG/IUMGService.h"
+#include "Utils/GraphUtils.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/WidgetTree.h"
 #include "Blueprint/UserWidget.h"
@@ -332,6 +333,15 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 		if (OrphanedNodesInfo.IsValid())
 		{
 			MetadataObj->SetObjectField(TEXT("orphaned_nodes"), OrphanedNodesInfo);
+		}
+	}
+
+	if (ShouldIncludeField(RequestedFields, TEXT("graph_warnings")))
+	{
+		TSharedPtr<FJsonObject> WarningsInfo = BuildGraphWarningsInfo(WidgetBlueprint);
+		if (WarningsInfo.IsValid())
+		{
+			MetadataObj->SetObjectField(TEXT("graph_warnings"), WarningsInfo);
 		}
 	}
 
@@ -936,12 +946,9 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::BuildOrphanedNodesIn
 			if (bIsOrphaned)
 			{
 				TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
-				NodeObj->SetStringField(TEXT("node_id"), Node->NodeGuid.ToString());
-				NodeObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
-				NodeObj->SetStringField(TEXT("node_type"), Node->GetClass()->GetName());
-				NodeObj->SetStringField(TEXT("graph_name"), Graph->GetName());
-				NodeObj->SetNumberField(TEXT("position_x"), Node->NodePosX);
-				NodeObj->SetNumberField(TEXT("position_y"), Node->NodePosY);
+				NodeObj->SetStringField(TEXT("id"), FGraphUtils::GetReliableNodeId(Node));
+				NodeObj->SetStringField(TEXT("title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+				NodeObj->SetStringField(TEXT("graph"), Graph->GetName());
 
 				OrphanedNodesList.Add(MakeShared<FJsonValueObject>(NodeObj));
 			}
@@ -952,4 +959,76 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::BuildOrphanedNodesIn
 	OrphanedInfo->SetNumberField(TEXT("count"), OrphanedNodesList.Num());
 
 	return OrphanedInfo;
+}
+
+TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::BuildGraphWarningsInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+	TSharedPtr<FJsonObject> WarningsInfo = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> WarningsList;
+
+	// Collect all graphs
+	TArray<UEdGraph*> AllGraphs;
+	WidgetBlueprint->GetAllGraphs(AllGraphs);
+
+	for (UEdGraph* Graph : AllGraphs)
+	{
+		if (!Graph)
+		{
+			continue;
+		}
+
+		for (UEdGraphNode* Node : Graph->Nodes)
+		{
+			if (!Node)
+			{
+				continue;
+			}
+
+			// Check for Cast nodes (K2Node_DynamicCast) with disconnected exec pins
+			FString NodeClassName = Node->GetClass()->GetName();
+			if (NodeClassName.Contains(TEXT("DynamicCast")))
+			{
+				// Check exec pin connections
+				bool bHasExecInput = false;
+				bool bHasExecOutput = false;
+
+				for (UEdGraphPin* Pin : Node->Pins)
+				{
+					if (Pin && Pin->PinType.PinCategory == TEXT("exec"))
+					{
+						if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() > 0)
+						{
+							bHasExecInput = true;
+						}
+						else if (Pin->Direction == EGPD_Output && Pin->LinkedTo.Num() > 0)
+						{
+							bHasExecOutput = true;
+						}
+					}
+				}
+
+				// Warn if cast node has disconnected exec pins
+				if (!bHasExecInput || !bHasExecOutput)
+				{
+					TSharedPtr<FJsonObject> WarningObj = MakeShared<FJsonObject>();
+					WarningObj->SetStringField(TEXT("type"), TEXT("disconnected_cast_exec"));
+					WarningObj->SetStringField(TEXT("node_id"), FGraphUtils::GetReliableNodeId(Node));
+					WarningObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+					WarningObj->SetStringField(TEXT("graph"), Graph->GetName());
+					WarningObj->SetBoolField(TEXT("has_exec_input"), bHasExecInput);
+					WarningObj->SetBoolField(TEXT("has_exec_output"), bHasExecOutput);
+					WarningObj->SetStringField(TEXT("message"),
+						FString::Printf(TEXT("Cast node '%s' has disconnected exec pins - it will NOT execute at runtime"),
+							*Node->GetNodeTitle(ENodeTitleType::ListView).ToString()));
+
+					WarningsList.Add(MakeShared<FJsonValueObject>(WarningObj));
+				}
+			}
+		}
+	}
+
+	WarningsInfo->SetArrayField(TEXT("warnings"), WarningsList);
+	WarningsInfo->SetNumberField(TEXT("count"), WarningsList.Num());
+
+	return WarningsInfo;
 }

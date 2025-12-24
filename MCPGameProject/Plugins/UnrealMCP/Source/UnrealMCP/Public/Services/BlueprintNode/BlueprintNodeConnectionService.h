@@ -12,6 +12,46 @@ struct FEdGraphPinType;
 struct FBlueprintNodeConnectionParams;
 
 /**
+ * Information about an auto-inserted node during connection
+ */
+struct UNREALMCP_API FAutoInsertedNodeInfo
+{
+    FString NodeId;
+    FString NodeTitle;
+    FString NodeType;  // e.g., "K2Node_DynamicCast", "K2Node_CallFunction"
+    bool bRequiresExecConnection = false;  // True for Cast nodes
+    bool bExecConnected = false;  // Whether exec pins are properly connected
+
+    FAutoInsertedNodeInfo() = default;
+    FAutoInsertedNodeInfo(const FString& InNodeId, const FString& InTitle, const FString& InType, bool bNeedsExec)
+        : NodeId(InNodeId), NodeTitle(InTitle), NodeType(InType), bRequiresExecConnection(bNeedsExec), bExecConnected(false) {}
+};
+
+/**
+ * Enhanced connection result with detailed info about what happened
+ */
+struct UNREALMCP_API FConnectionResultInfo
+{
+    bool bSuccess = false;
+    FString SourceNodeId;
+    FString TargetNodeId;
+    TArray<FAutoInsertedNodeInfo> AutoInsertedNodes;
+    FString ErrorMessage;
+
+    bool HasWarnings() const
+    {
+        for (const FAutoInsertedNodeInfo& Node : AutoInsertedNodes)
+        {
+            if (Node.bRequiresExecConnection && !Node.bExecConnected)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+/**
  * Service for handling Blueprint node connections and automatic type casting
  * Extracted from BlueprintNodeService for better code organization
  */
@@ -24,7 +64,7 @@ public:
     static FBlueprintNodeConnectionService& Get();
 
     /**
-     * Connect multiple Blueprint nodes
+     * Connect multiple Blueprint nodes (legacy version for backward compatibility)
      * @param Blueprint - Target Blueprint
      * @param Connections - Array of connection parameters
      * @param TargetGraph - Graph name to connect nodes in
@@ -33,6 +73,18 @@ public:
      */
     bool ConnectBlueprintNodes(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections,
                               const FString& TargetGraph, TArray<bool>& OutResults);
+
+    /**
+     * Connect multiple Blueprint nodes with enhanced result information
+     * Reports auto-inserted nodes (casts, conversions) and their exec pin status
+     * @param Blueprint - Target Blueprint
+     * @param Connections - Array of connection parameters
+     * @param TargetGraph - Graph name to connect nodes in
+     * @param OutResults - Array of enhanced results for each connection
+     * @return true if all connections succeeded
+     */
+    bool ConnectBlueprintNodesEnhanced(UBlueprint* Blueprint, const TArray<FBlueprintNodeConnectionParams>& Connections,
+                                       const FString& TargetGraph, TArray<FConnectionResultInfo>& OutResults);
 
     /**
      * Check if two pins can be connected (uses Unreal's schema validation)
@@ -74,10 +126,12 @@ public:
      * @param SourcePinName - Name of the source pin
      * @param TargetNode - Target node
      * @param TargetPinName - Name of the target pin
+     * @param OutAutoInsertedNodes - Optional array to receive info about auto-inserted nodes
      * @return true if connection succeeded (with or without cast node)
      */
     bool ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName,
-                                  UEdGraphNode* TargetNode, const FString& TargetPinName);
+                                  UEdGraphNode* TargetNode, const FString& TargetPinName,
+                                  TArray<FAutoInsertedNodeInfo>* OutAutoInsertedNodes = nullptr);
 
     /**
      * Find a node by ID or special type identifiers (for Entry/Exit nodes)
@@ -129,5 +183,6 @@ private:
     /**
      * Create an Object to Object dynamic cast node
      */
-    bool CreateObjectCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin);
+    bool CreateObjectCast(UEdGraph* Graph, UEdGraphPin* SourcePin, UEdGraphPin* TargetPin,
+                         FAutoInsertedNodeInfo* OutNodeInfo = nullptr);
 };
