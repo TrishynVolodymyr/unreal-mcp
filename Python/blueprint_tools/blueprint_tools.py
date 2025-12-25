@@ -557,7 +557,8 @@ def register_blueprint_tools(mcp: FastMCP):
         fields: List[str],
         graph_name: str = None,
         node_type: str = None,
-        event_type: str = None
+        event_type: str = None,
+        detail_level: str = None
     ) -> Dict[str, Any]:
         """
         Get comprehensive metadata about a Blueprint with selective field querying.
@@ -587,6 +588,10 @@ def register_blueprint_tools(mcp: FastMCP):
                       Options: "Event", "Function", "Variable", "Comment", or any class name.
             event_type: Optional filter for "graph_nodes" field when node_type="Event".
                        Options: "BeginPlay", "Tick", "EndPlay", "Destroyed", "Construct".
+            detail_level: Optional detail level for "graph_nodes" field. Options:
+                         - "summary": Node IDs and titles only (minimal output)
+                         - "flow": Node IDs, titles, and exec pin connections only (DEFAULT)
+                         - "full": Everything including all data pin connections and default values
 
         Returns:
             Dictionary containing requested metadata fields
@@ -610,11 +615,27 @@ def register_blueprint_tools(mcp: FastMCP):
                 fields=["graphs"]
             )
 
-            # Then get nodes from a specific graph
+            # Then get nodes from a specific graph (default detail_level="flow")
             get_blueprint_metadata(
                 blueprint_name="BP_MyActor",
                 fields=["graph_nodes"],
                 graph_name="EventGraph"
+            )
+
+            # Get only node IDs and titles (minimal output)
+            get_blueprint_metadata(
+                blueprint_name="BP_MyActor",
+                fields=["graph_nodes"],
+                graph_name="EventGraph",
+                detail_level="summary"
+            )
+
+            # Get full details including all data pins and defaults
+            get_blueprint_metadata(
+                blueprint_name="BP_MyActor",
+                fields=["graph_nodes"],
+                graph_name="EventGraph",
+                detail_level="full"
             )
 
             # Find Event nodes in EventGraph
@@ -634,7 +655,7 @@ def register_blueprint_tools(mcp: FastMCP):
                 event_type="BeginPlay"
             )
         """
-        return get_blueprint_metadata_impl(ctx, blueprint_name, fields, graph_name, node_type, event_type)
+        return get_blueprint_metadata_impl(ctx, blueprint_name, fields, graph_name, node_type, event_type, detail_level)
 
     @mcp.tool()
     def modify_blueprint_function_properties(

@@ -5,6 +5,7 @@
 #include "Commands/BlueprintAction/GetActionsForPinCommand.h"
 #include "Commands/BlueprintAction/SearchBlueprintActionsCommand.h"
 #include "Commands/BlueprintAction/GetNodePinInfoCommand.h"
+#include "Commands/BlueprintAction/FindInBlueprintsCommand.h"
 #include "Services/IBlueprintActionService.h"
 
 // Static member definition
@@ -39,6 +40,10 @@ void FBlueprintActionCommandRegistration::RegisterCommands(FUnrealMCPCommandRegi
     // Register GetNodePinInfo command
     TSharedPtr<IUnrealMCPCommand> GetNodePinInfoCommand = MakeShared<FGetNodePinInfoCommand>(BlueprintActionService);
     RegisterAndTrackCommand(GetNodePinInfoCommand);
+
+    // Register FindInBlueprints command
+    TSharedPtr<IUnrealMCPCommand> FindInBlueprintsCommand = MakeShared<FFindInBlueprintsCommand>(BlueprintActionService);
+    RegisterAndTrackCommand(FindInBlueprintsCommand);
 
     UE_LOG(LogTemp, Log, TEXT("FBlueprintActionCommandRegistration::RegisterCommands: Successfully registered %d Blueprint Action commands"), RegisteredCommands.Num());
 }

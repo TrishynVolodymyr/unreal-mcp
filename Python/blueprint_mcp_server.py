@@ -352,7 +352,8 @@ async def get_blueprint_metadata(
     fields: Optional[List[str]] = None,
     graph_name: str = None,
     node_type: str = None,
-    event_type: str = None
+    event_type: str = None,
+    detail_level: str = None
 ) -> Dict[str, Any]:
     """
     Get comprehensive metadata about a Blueprint with selective field querying.
@@ -387,6 +388,10 @@ async def get_blueprint_metadata(
         event_type: Optional event type filter for "graph_nodes" field.
                    Options: "BeginPlay", "Tick", "EndPlay", "Destroyed", "Construct",
                    or any custom event name.
+        detail_level: Optional detail level for "graph_nodes" field. Options:
+                     - "summary": Node IDs and titles only (minimal output)
+                     - "flow": Node IDs, titles, and exec pin connections only (DEFAULT)
+                     - "full": Everything including all data pin connections and default values
 
     Returns:
         Dictionary containing requested metadata fields
@@ -421,6 +426,22 @@ async def get_blueprint_metadata(
             node_type="Event",
             event_type="BeginPlay"
         )
+
+        # Get minimal node info (just IDs and titles)
+        get_blueprint_metadata(
+            blueprint_name="BP_MyActor",
+            fields=["graph_nodes"],
+            graph_name="EventGraph",
+            detail_level="summary"
+        )
+
+        # Get execution flow only (default)
+        get_blueprint_metadata(
+            blueprint_name="BP_MyActor",
+            fields=["graph_nodes"],
+            graph_name="EventGraph",
+            detail_level="flow"
+        )
     """
     params = {
         "blueprint_name": blueprint_name
@@ -437,6 +458,9 @@ async def get_blueprint_metadata(
 
     if event_type is not None:
         params["event_type"] = event_type
+
+    if detail_level is not None:
+        params["detail_level"] = detail_level
 
     return await send_tcp_command("get_blueprint_metadata", params)
 

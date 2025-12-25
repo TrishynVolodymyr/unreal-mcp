@@ -27,6 +27,16 @@ private:
 
 private:
     /**
+     * Detail level for graph_nodes output
+     */
+    enum class EGraphNodesDetailLevel : uint8
+    {
+        Summary,  // Node IDs + titles only
+        Flow,     // Node IDs + titles + exec pin connections only (DEFAULT)
+        Full      // Everything including all data pin connections
+    };
+
+    /**
      * Struct to hold all parsed filter parameters for graph_nodes
      */
     struct FGraphNodesFilter
@@ -34,6 +44,7 @@ private:
         FString GraphName;    // Optional: filter by specific graph
         FString NodeType;     // Optional: filter by node type (Event, Function, Variable, etc.)
         FString EventType;    // Optional: filter by specific event (BeginPlay, Tick, etc.)
+        EGraphNodesDetailLevel DetailLevel = EGraphNodesDetailLevel::Flow;  // Default to flow
     };
 
     /**

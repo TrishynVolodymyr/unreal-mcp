@@ -337,6 +337,83 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 "message": f"Failed to set pin value: {str(e)}"
             }
 
+    # ========== Orphaned Node Tools ==========
+
+    @mcp.tool()
+    def delete_orphaned_nodes(
+        ctx: Context,
+        blueprint_name: str,
+        graph_name: str = "",
+        include_event_graph: bool = False,
+        exclude_return_nodes: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Delete orphaned nodes from Blueprint graphs.
+
+        Orphaned nodes are nodes that are not connected to any execution flow:
+        - Not reachable from any entry point (Event, FunctionEntry, CustomEvent)
+        - Not a data dependency of any reachable node
+
+        Args:
+            blueprint_name: Name of the target Blueprint
+            graph_name: Optional name of specific graph to clean (empty = all graphs except EventGraph)
+            include_event_graph: Whether to include EventGraph in cleanup (default: False)
+                                EventGraph is excluded by default because:
+                                - Enhanced Input Action nodes may not be recognized as entry points
+                                - Event bindings should call custom functions, not contain logic
+            exclude_return_nodes: Whether to skip auto-generated Return Nodes at (0,0) (default: True)
+                                 These are created automatically for non-void functions and may
+                                 be unused if the function returns early or has multiple paths
+
+        Returns:
+            Dict containing:
+            - success: Boolean indicating success
+            - blueprint_name: Name of the Blueprint processed
+            - deleted_count: Number of nodes deleted
+            - deleted_nodes: Array of deleted node titles with graph names
+            - skipped_graphs: Array of graphs that were skipped (if any)
+
+        Examples:
+            # Clean orphaned nodes from a specific function
+            delete_orphaned_nodes(
+                ctx,
+                blueprint_name="WBP_InventorySlot",
+                graph_name="HandleMouseDown"
+            )
+
+            # Clean all functions except EventGraph
+            delete_orphaned_nodes(
+                ctx,
+                blueprint_name="WBP_InventorySlot"
+            )
+
+            # Include EventGraph in cleanup (use with caution)
+            delete_orphaned_nodes(
+                ctx,
+                blueprint_name="BP_SimpleActor",
+                include_event_graph=True
+            )
+        """
+        try:
+            params = {
+                "blueprint_name": blueprint_name,
+                "include_event_graph": include_event_graph,
+                "exclude_return_nodes": exclude_return_nodes
+            }
+
+            if graph_name:
+                params["graph_name"] = graph_name
+
+            result = send_unreal_command("delete_orphaned_nodes", params)
+            return result
+
+        except Exception as e:
+            logger.error(f"Error deleting orphaned nodes: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to delete orphaned nodes: {str(e)}"
+            }
+
     # ========== Graph Layout Tools ==========
 
     @mcp.tool()

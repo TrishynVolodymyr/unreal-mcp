@@ -1,14 +1,18 @@
 # Phase 3: UI Widget Layer
 
+> **STATUS: ✅ COMPLETE**
+> All 4 widget blueprints successfully implemented via MCP tools.
+
 > **REMINDER**: ALL functionality MUST be implemented using MCP tools.
 > NO manual Unreal Editor work is permitted.
 
 ## Objective
 
-Create the visual representation of the inventory system using three widget blueprints:
+Create the visual representation of the inventory system using four widget blueprints:
 1. **WBP_InventorySlot** - Individual slot showing item icon and stack count
 2. **WBP_ItemContextMenu** - Right-click popup with Use/Drop buttons
 3. **WBP_InventoryGrid** - Main container with 4x4 grid of slots
+4. **WBP_ItemTooltip** - Hover tooltip showing item details
 
 ## Dependencies
 
@@ -27,17 +31,6 @@ Create the visual representation of the inventory system using three widget blue
 #### AIM
 Create the widget that represents a single inventory slot. Each slot displays an item icon and stack count.
 
-#### USAGE EXAMPLES
-```python
-# Created 16 times by WBP_InventoryGrid
-slot = CreateWidget(WBP_InventorySlot)
-slot.InitializeSlot(5, InventoryManager)
-```
-
-#### WORKFLOW
-1. Create UserWidget blueprint
-2. Widget will be instantiated by grid
-
 #### MCP TOOL CALL
 
 ```python
@@ -49,33 +42,24 @@ create_umg_widget_blueprint(
 ```
 
 #### VERIFICATION
-- [ ] WBP_InventorySlot created at /Game/Inventory/UI/WBP_InventorySlot
+- [x] WBP_InventorySlot created at /Game/Inventory/UI/WBP_InventorySlot
 
 ---
 
 ### Step 3.1.2: Add Slot Widget Components
 
-#### AIM
-Create the visual hierarchy: Border (background) > Image (item icon) + TextBlock (stack count) + Border (selection highlight)
+#### ACTUAL IMPLEMENTATION
 
-#### USAGE EXAMPLES
-```python
-# Visual layout:
-# ┌──────────────────┐
-# │ [SlotBackground] │ 64x64 Border
-# │ ┌──────────────┐ │
-# │ │ [ItemIcon]   │ │ Image inside border
-# │ │              │ │
-# │ │           99 │ │ StackCountText at bottom-right
-# │ └──────────────┘ │
-# └──────────────────┘
-```
+The slot uses the following component hierarchy:
 
-#### WORKFLOW
-1. Create Border as slot background (clickable area)
-2. Add Image inside for item icon
-3. Add TextBlock for stack count
-4. Add selection highlight border (hidden by default)
+| Component | Type | Purpose |
+|-----------|------|---------|
+| CanvasPanel | CanvasPanel | Root container (auto-created) |
+| SlotBackground | Border | Clickable area, dark background |
+| ItemIcon | Image | Displays item texture |
+| StackCountText | TextBlock | Shows stack count (bottom-right) |
+| SelectionHighlight | Border | Gold highlight when selected (hidden by default) |
+| ContextMenuAnchor | SizeBox | Anchor point for context menu positioning |
 
 #### MCP TOOL CALLS
 
@@ -88,20 +72,7 @@ create_parent_and_child_widget_components(
     parent_component_type="Border",
     child_component_type="Image",
     parent_position=[0.0, 0.0],
-    parent_size=[64.0, 64.0],
-    child_attributes={
-        "size_x": 56.0,
-        "size_y": 56.0,
-        "brush_color": [1.0, 1.0, 1.0, 1.0]
-    }
-)
-
-# Set border background color
-set_widget_component_property(
-    widget_name="WBP_InventorySlot",
-    component_name="SlotBackground",
-    background_color=[0.2, 0.2, 0.2, 0.8],
-    padding=[4.0, 4.0, 4.0, 4.0]
+    parent_size=[64.0, 64.0]
 )
 
 # Add stack count text (bottom-right)
@@ -112,8 +83,7 @@ add_widget_component_to_widget(
     position=[44.0, 44.0],
     size=[20.0, 20.0],
     text="1",
-    font_size=12,
-    justification="Right"
+    font_size=12
 )
 
 # Add selection highlight (hidden by default)
@@ -122,37 +92,45 @@ add_widget_component_to_widget(
     component_name="SelectionHighlight",
     component_type="Border",
     position=[0.0, 0.0],
-    size=[64.0, 64.0],
-    background_color=[1.0, 0.8, 0.0, 0.0]  # Gold, invisible (alpha=0)
+    size=[64.0, 64.0]
+)
+
+# Add context menu anchor for positioning
+add_widget_component_to_widget(
+    widget_name="WBP_InventorySlot",
+    component_name="ContextMenuAnchor",
+    component_type="SizeBox",
+    position=[64.0, 64.0],
+    size=[1.0, 1.0]
 )
 ```
 
-#### COMPONENT LAYOUT
-
-| Component | Type | Size | Purpose |
-|-----------|------|------|---------|
-| SlotBackground | Border | 64x64 | Clickable area, dark background |
-| ItemIcon | Image | 56x56 | Displays item texture |
-| StackCountText | TextBlock | 20x20 | Shows stack count (bottom-right) |
-| SelectionHighlight | Border | 64x64 | Gold highlight when selected |
-
 #### VERIFICATION
-- [ ] Border background visible
-- [ ] Image centered in border
-- [ ] Text in bottom-right corner
-- [ ] Selection highlight invisible by default
+- [x] SlotBackground Border visible
+- [x] ItemIcon Image centered in border
+- [x] StackCountText in bottom-right corner
+- [x] SelectionHighlight invisible by default
+- [x] ContextMenuAnchor for menu positioning
 
 ---
 
 ### Step 3.1.3: Add Slot Widget Variables
 
-#### AIM
-Store slot state and references needed for functionality.
+#### ACTUAL IMPLEMENTATION (7 variables)
+
+| Variable | Type | Purpose |
+|----------|------|---------|
+| SlotIndex | Integer | Position in grid (0-15) |
+| InventoryManager | BP_InventoryManager_C | Reference to manager component |
+| IsSelected | Boolean | Current selection state |
+| CachedSlotData | S_InventorySlot | Cached slot data for quick access |
+| ParentGrid | UserWidget | Reference to parent grid widget |
+| TooltipClass | Class | Widget class for tooltip instantiation |
+| ItemTooltipRef | UserWidget | Active tooltip instance |
 
 #### MCP TOOL CALLS
 
 ```python
-# Slot index in grid (0-15)
 add_blueprint_variable(
     blueprint_name="WBP_InventorySlot",
     variable_name="SlotIndex",
@@ -160,7 +138,6 @@ add_blueprint_variable(
     is_exposed=True
 )
 
-# Reference to inventory manager
 add_blueprint_variable(
     blueprint_name="WBP_InventorySlot",
     variable_name="InventoryManager",
@@ -168,56 +145,59 @@ add_blueprint_variable(
     is_exposed=True
 )
 
-# Is this slot currently selected
 add_blueprint_variable(
     blueprint_name="WBP_InventorySlot",
     variable_name="IsSelected",
     variable_type="Boolean",
-    is_exposed=False
+    is_exposed=True
 )
 
-# Cached slot data for quick access
 add_blueprint_variable(
     blueprint_name="WBP_InventorySlot",
     variable_name="CachedSlotData",
     variable_type="/Game/Inventory/Data/S_InventorySlot",
-    is_exposed=False
+    is_exposed=True
 )
 
-# Reference to parent grid (for context menu)
 add_blueprint_variable(
     blueprint_name="WBP_InventorySlot",
     variable_name="ParentGrid",
     variable_type="UserWidget",
     is_exposed=True
 )
-```
 
-#### VERIFICATION
-- [ ] 5 variables created
-- [ ] SlotIndex and InventoryManager are exposed
+add_blueprint_variable(
+    blueprint_name="WBP_InventorySlot",
+    variable_name="TooltipClass",
+    variable_type="Class",
+    is_exposed=True
+)
+
+add_blueprint_variable(
+    blueprint_name="WBP_InventorySlot",
+    variable_name="ItemTooltipRef",
+    variable_type="UserWidget",
+    is_exposed=True
+)
+```
 
 ---
 
 ### Step 3.1.4: Create Slot Widget Functions
 
-#### Function: InitializeSlot
+#### ACTUAL IMPLEMENTATION (7 functions)
 
-##### AIM
-Set up the slot with its index and manager reference. Called by grid during initialization.
+| Function | Inputs | Outputs | Purpose |
+|----------|--------|---------|---------|
+| InitializeSlot | Index (int32), Manager (BP_InventoryManager_C*), Grid (UserWidget*) | - | Setup slot with references |
+| RefreshSlot | - | - | Update display from data |
+| HandleMouseDown | MyGeometry (FGeometry), MouseEvent (FPointerEvent) | ReturnValue (FEventReply) | Process mouse clicks |
+| OnMouseButtonDown | MyGeometry (FGeometry) | MouseEvent (FPointerEvent), ReturnValue (FEventReply) | Event override |
+| ShowTooltip | - | - | Display item tooltip |
+| HideTooltip | - | - | Remove tooltip |
+| OnFocusReceived | MyGeometry (FGeometry), InFocusEvent (FFocusEvent) | ReturnValue (FEventReply) | Focus handler |
 
-##### USAGE EXAMPLES
-```python
-slot.InitializeSlot(5, InventoryManager, GridWidget)
-```
-
-##### WORKFLOW
-1. Store SlotIndex parameter
-2. Store InventoryManager reference
-3. Store ParentGrid reference
-4. Call RefreshSlot to update display
-
-##### MCP TOOL CALL
+#### MCP TOOL CALLS
 
 ```python
 create_custom_blueprint_function(
@@ -229,72 +209,17 @@ create_custom_blueprint_function(
         {"name": "Grid", "type": "UserWidget"}
     ],
     outputs=[],
-    is_pure=False,
-    category="Slot"
+    is_pure=False
 )
-```
 
----
-
-#### Function: RefreshSlot
-
-##### AIM
-Update the visual display from inventory data. Called on initialization and when inventory changes.
-
-##### USAGE EXAMPLES
-```python
-# After inventory change
-slot.RefreshSlot()
-```
-
-##### WORKFLOW
-1. Call InventoryManager.GetSlotData(SlotIndex)
-2. Store result in CachedSlotData
-3. If IsEmpty:
-   - Set ItemIcon visibility to Hidden/Collapsed
-   - Set StackCountText visibility to Hidden
-4. Else:
-   - Set ItemIcon texture to ItemDef.Icon
-   - Set ItemIcon visibility to Visible
-   - If StackCount > 1: Show StackCountText with count
-   - Else: Hide StackCountText
-
-##### MCP TOOL CALL
-
-```python
 create_custom_blueprint_function(
     blueprint_name="WBP_InventorySlot",
     function_name="RefreshSlot",
     inputs=[],
     outputs=[],
-    is_pure=False,
-    category="Slot"
+    is_pure=False
 )
-```
 
----
-
-#### Function: HandleMouseDown
-
-##### AIM
-Handle mouse button presses on the slot. Right-click shows context menu.
-
-##### USAGE EXAMPLES
-```python
-# Bound to SlotBackground OnMouseButtonDown
-# Right-click triggers context menu
-```
-
-##### WORKFLOW
-1. Check which mouse button was pressed
-2. If right mouse button:
-   - Get mouse screen position
-   - Call ParentGrid.ShowContextMenuAtSlot(SlotIndex, Position)
-3. Return handled
-
-##### MCP TOOL CALL
-
-```python
 create_custom_blueprint_function(
     blueprint_name="WBP_InventorySlot",
     function_name="HandleMouseDown",
@@ -305,39 +230,24 @@ create_custom_blueprint_function(
     outputs=[
         {"name": "ReturnValue", "type": "EventReply"}
     ],
-    is_pure=False,
-    category="Slot"
+    is_pure=False
 )
-```
 
----
-
-### Step 3.1.5: Bind Mouse Events
-
-#### AIM
-Connect the SlotBackground's mouse event to HandleMouseDown function.
-
-#### MCP TOOL CALL
-
-```python
-bind_widget_component_event(
-    widget_name="WBP_InventorySlot",
-    widget_component_name="SlotBackground",
-    event_name="OnMouseButtonDown",
-    function_name="HandleMouseDown"
+create_custom_blueprint_function(
+    blueprint_name="WBP_InventorySlot",
+    function_name="ShowTooltip",
+    inputs=[],
+    outputs=[],
+    is_pure=False
 )
-```
 
-#### VERIFICATION
-- [ ] OnMouseButtonDown bound to HandleMouseDown
-- [ ] Right-click will trigger context menu
-
----
-
-### Step 3.1.6: Compile Slot Widget
-
-```python
-compile_blueprint(blueprint_name="WBP_InventorySlot")
+create_custom_blueprint_function(
+    blueprint_name="WBP_InventorySlot",
+    function_name="HideTooltip",
+    inputs=[],
+    outputs=[],
+    is_pure=False
+)
 ```
 
 ---
@@ -345,11 +255,6 @@ compile_blueprint(blueprint_name="WBP_InventorySlot")
 ## Section 3.2: WBP_ItemContextMenu
 
 ### Step 3.2.1: Create Context Menu Widget
-
-#### AIM
-Create the right-click popup menu with Use and Drop buttons.
-
-#### MCP TOOL CALL
 
 ```python
 create_umg_widget_blueprint(
@@ -363,21 +268,19 @@ create_umg_widget_blueprint(
 
 ### Step 3.2.2: Add Context Menu Components
 
-#### AIM
-Create the menu layout with background and two buttons.
+#### ACTUAL IMPLEMENTATION
 
-#### USAGE EXAMPLES
-```python
-# Visual layout:
-# ┌────────────────┐
-# │ [MenuBG]       │ Border with dark background
-# │ ┌────────────┐ │
-# │ │ [Use]      │ │ Button (only if item IsUsable)
-# │ ├────────────┤ │
-# │ │ [Drop]     │ │ Button (only if item IsDroppable)
-# │ └────────────┘ │
-# └────────────────┘
-```
+| Component | Type | Purpose |
+|-----------|------|---------|
+| CanvasPanel | CanvasPanel | Root container (auto-created) |
+| MenuBackground | Border | Dark background container |
+| ButtonContainer | VerticalBox | Vertical layout for buttons |
+| UseButton | Button | Use item button |
+| DropButton | Button | Drop item button |
+| UseButtonText | TextBlock | "Use" label (SelfHitTestInvisible) |
+| DropButtonText | TextBlock | "Drop" label (SelfHitTestInvisible) |
+
+**IMPORTANT**: Button text components must have `Visibility: SelfHitTestInvisible` to prevent them from blocking button hover events.
 
 #### MCP TOOL CALLS
 
@@ -390,16 +293,7 @@ create_parent_and_child_widget_components(
     parent_component_type="Border",
     child_component_type="VerticalBox",
     parent_position=[0.0, 0.0],
-    parent_size=[100.0, 80.0],
-    child_attributes={}
-)
-
-# Style the background
-set_widget_component_property(
-    widget_name="WBP_ItemContextMenu",
-    component_name="MenuBackground",
-    background_color=[0.15, 0.15, 0.15, 0.95],
-    padding=[5.0, 5.0, 5.0, 5.0]
+    parent_size=[100.0, 80.0]
 )
 
 # Add Use button
@@ -412,15 +306,18 @@ add_widget_component_to_widget(
 )
 
 # Add text to Use button
-add_child_widget_component_to_parent(
+add_widget_component_to_widget(
     widget_name="WBP_ItemContextMenu",
-    parent_component_name="UseButton",
-    child_component_name="UseButtonText",
-    child_component_type="TextBlock",
-    child_attributes={
-        "text": "Use",
-        "justification": "Center"
-    }
+    component_name="UseButtonText",
+    component_type="TextBlock",
+    text="Use"
+)
+
+# CRITICAL: Set text to SelfHitTestInvisible so it doesn't block button hover
+set_widget_component_property(
+    widget_name="WBP_ItemContextMenu",
+    component_name="UseButtonText",
+    kwargs={"Visibility": "SelfHitTestInvisible"}
 )
 
 # Add Drop button
@@ -433,145 +330,52 @@ add_widget_component_to_widget(
 )
 
 # Add text to Drop button
-add_child_widget_component_to_parent(
+add_widget_component_to_widget(
     widget_name="WBP_ItemContextMenu",
-    parent_component_name="DropButton",
-    child_component_name="DropButtonText",
-    child_component_type="TextBlock",
-    child_attributes={
-        "text": "Drop",
-        "justification": "Center"
-    }
+    component_name="DropButtonText",
+    component_type="TextBlock",
+    text="Drop"
+)
+
+# CRITICAL: Set text to SelfHitTestInvisible
+set_widget_component_property(
+    widget_name="WBP_ItemContextMenu",
+    component_name="DropButtonText",
+    kwargs={"Visibility": "SelfHitTestInvisible"}
 )
 ```
-
-#### VERIFICATION
-- [ ] Menu has dark background
-- [ ] Use button visible
-- [ ] Drop button visible
 
 ---
 
 ### Step 3.2.3: Add Context Menu Variables
 
-```python
-# Slot this menu is acting on
-add_blueprint_variable(
-    blueprint_name="WBP_ItemContextMenu",
-    variable_name="TargetSlotIndex",
-    variable_type="Integer",
-    is_exposed=True
-)
+#### ACTUAL IMPLEMENTATION (3 variables)
 
-# Reference to inventory manager
-add_blueprint_variable(
-    blueprint_name="WBP_ItemContextMenu",
-    variable_name="InventoryManager",
-    variable_type="/Game/Inventory/Blueprints/BP_InventoryManager",
-    is_exposed=True
-)
-
-# Reference to parent grid (to close menu)
-add_blueprint_variable(
-    blueprint_name="WBP_ItemContextMenu",
-    variable_name="ParentGrid",
-    variable_type="UserWidget",
-    is_exposed=True
-)
-```
+| Variable | Type | Purpose |
+|----------|------|---------|
+| TargetSlotIndex | Integer | Slot this menu is acting on |
+| InventoryManager | BP_InventoryManager_C | Reference to manager |
+| ParentGrid | UserWidget | Reference to grid (for HideContextMenu) |
 
 ---
 
 ### Step 3.2.4: Create Context Menu Functions
 
-#### Function: InitializeMenu
+#### ACTUAL IMPLEMENTATION (3 functions)
 
-##### AIM
-Configure the menu for a specific slot, showing/hiding buttons based on item properties.
-
-##### USAGE EXAMPLES
-```python
-menu.InitializeMenu(5, InventoryManager, GridWidget)
-# Shows Use button only if item.IsUsable
-# Shows Drop button only if item.IsDroppable
-```
-
-##### WORKFLOW
-1. Store references
-2. Get slot data from InventoryManager
-3. If slot empty, hide both buttons
-4. Else:
-   - Set UseButton visibility based on ItemDef.IsUsable
-   - Set DropButton visibility based on ItemDef.IsDroppable
-
-##### MCP TOOL CALL
-
-```python
-create_custom_blueprint_function(
-    blueprint_name="WBP_ItemContextMenu",
-    function_name="InitializeMenu",
-    inputs=[
-        {"name": "SlotIndex", "type": "Integer"},
-        {"name": "Manager", "type": "/Game/Inventory/Blueprints/BP_InventoryManager"},
-        {"name": "Grid", "type": "UserWidget"}
-    ],
-    outputs=[],
-    is_pure=False,
-    category="Menu"
-)
-```
+| Function | Inputs | Outputs | Purpose |
+|----------|--------|---------|---------|
+| InitializeMenu | SlotIndex (int32), Manager (BP_InventoryManager_C*), Grid (UserWidget*) | - | Setup menu for slot |
+| OnUseClicked | - | - | Handle Use button click |
+| OnDropClicked | - | - | Handle Drop button click |
 
 ---
 
-#### Function: OnUseClicked
+### Step 3.2.5: Bind Button Events and Self-Dismissal
 
-##### AIM
-Handle Use button click. Calls inventory UseItem and closes menu.
-
-##### WORKFLOW
-1. Call InventoryManager.UseItem(TargetSlotIndex)
-2. Call ParentGrid.HideContextMenu()
-
-##### MCP TOOL CALL
-
-```python
-create_custom_blueprint_function(
-    blueprint_name="WBP_ItemContextMenu",
-    function_name="OnUseClicked",
-    inputs=[],
-    outputs=[],
-    is_pure=False,
-    category="Menu"
-)
-```
-
----
-
-#### Function: OnDropClicked
-
-##### AIM
-Handle Drop button click. Calls inventory DropItem and closes menu.
-
-##### WORKFLOW
-1. Call InventoryManager.DropItem(TargetSlotIndex, 1)
-2. Call ParentGrid.HideContextMenu()
-
-##### MCP TOOL CALL
-
-```python
-create_custom_blueprint_function(
-    blueprint_name="WBP_ItemContextMenu",
-    function_name="OnDropClicked",
-    inputs=[],
-    outputs=[],
-    is_pure=False,
-    category="Menu"
-)
-```
-
----
-
-### Step 3.2.5: Bind Button Events
+The context menu handles its own lifecycle:
+- OnMouseLeave hides the menu (self-dismissing)
+- Button clicks execute action then hide menu
 
 ```python
 bind_widget_component_event(
@@ -591,22 +395,9 @@ bind_widget_component_event(
 
 ---
 
-### Step 3.2.6: Compile Context Menu Widget
-
-```python
-compile_blueprint(blueprint_name="WBP_ItemContextMenu")
-```
-
----
-
 ## Section 3.3: WBP_InventoryGrid
 
 ### Step 3.3.1: Create Grid Widget Blueprint
-
-#### AIM
-Create the main inventory container that holds the 4x4 grid of slots.
-
-#### MCP TOOL CALL
 
 ```python
 create_umg_widget_blueprint(
@@ -620,29 +411,18 @@ create_umg_widget_blueprint(
 
 ### Step 3.3.2: Add Grid Widget Components
 
-#### AIM
-Create the grid layout with title and slot container.
+#### ACTUAL IMPLEMENTATION
 
-#### USAGE EXAMPLES
-```python
-# Visual layout:
-# ┌─────────────────────────────┐
-# │ [GridBackground]            │ Border 300x340
-# │ ┌─────────────────────────┐ │
-# │ │ Inventory               │ │ Title text
-# │ ├─────────────────────────┤ │
-# │ │ ┌──┬──┬──┬──┐          │ │ UniformGridPanel
-# │ │ │  │  │  │  │          │ │ 4 columns
-# │ │ ├──┼──┼──┼──┤          │ │
-# │ │ │  │  │  │  │          │ │ Slots added dynamically
-# │ │ ├──┼──┼──┼──┤          │ │
-# │ │ │  │  │  │  │          │ │
-# │ │ ├──┼──┼──┼──┤          │ │
-# │ │ │  │  │  │  │          │ │
-# │ │ └──┴──┴──┴──┘          │ │
-# │ └─────────────────────────┘ │
-# └─────────────────────────────┘
-```
+| Component | Type | Purpose |
+|-----------|------|---------|
+| CanvasPanel | CanvasPanel | Root container (auto-created) |
+| GridBackground | Border | Dark background for entire grid |
+| TitleText | TextBlock | "Inventory" title |
+| SlotsScrollBox | ScrollBox | Scrollable container (for future expansion) |
+| SlotsContainer | VerticalBox | Container for rows |
+| SlotsGrid | UniformGridPanel | 4x4 grid of slots |
+
+**NOTE**: We use `UniformGridPanel` (not GridPanel) for automatic uniform slot sizing.
 
 #### MCP TOOL CALLS
 
@@ -668,7 +448,7 @@ add_widget_component_to_widget(
     font_size=18
 )
 
-# Grid panel for slots
+# UniformGridPanel for slots (NOT GridPanel)
 add_widget_component_to_widget(
     widget_name="WBP_InventoryGrid",
     component_name="SlotsGrid",
@@ -676,252 +456,185 @@ add_widget_component_to_widget(
     position=[10.0, 50.0],
     size=[280.0, 280.0]
 )
-
-# Configure grid to have 4 columns
-set_widget_component_property(
-    widget_name="WBP_InventoryGrid",
-    component_name="SlotsGrid",
-    slot_padding=[2.0, 2.0, 2.0, 2.0],
-    min_desired_slot_width=64.0,
-    min_desired_slot_height=64.0
-)
 ```
-
-#### VERIFICATION
-- [ ] Dark background visible
-- [ ] Title "Inventory" at top
-- [ ] Grid panel sized for 4x4 slots
 
 ---
 
 ### Step 3.3.3: Add Grid Widget Variables
 
-```python
-# Reference to inventory manager
-add_blueprint_variable(
-    blueprint_name="WBP_InventoryGrid",
-    variable_name="InventoryManager",
-    variable_type="/Game/Inventory/Blueprints/BP_InventoryManager",
-    is_exposed=True
-)
+#### ACTUAL IMPLEMENTATION (3 variables)
 
-# Class for slot widget instantiation
-add_blueprint_variable(
-    blueprint_name="WBP_InventoryGrid",
-    variable_name="SlotWidgetClass",
-    variable_type="Class<UserWidget>",
-    is_exposed=True
-)
+| Variable | Type | Purpose |
+|----------|------|---------|
+| SlotWidgets | WBP_InventorySlot_C[] | Array of created slot widgets |
+| ActiveContextMenu | WBP_ItemContextMenu_C | Currently shown context menu |
+| InventoryManager | Object | Reference to inventory manager |
 
-# Class for context menu instantiation
-add_blueprint_variable(
-    blueprint_name="WBP_InventoryGrid",
-    variable_name="ContextMenuClass",
-    variable_type="Class<UserWidget>",
-    is_exposed=True
-)
-
-# Array of created slot widgets
-add_blueprint_variable(
-    blueprint_name="WBP_InventoryGrid",
-    variable_name="SlotWidgets",
-    variable_type="UserWidget[]",
-    is_exposed=False
-)
-
-# Currently active context menu
-add_blueprint_variable(
-    blueprint_name="WBP_InventoryGrid",
-    variable_name="ActiveContextMenu",
-    variable_type="UserWidget",
-    is_exposed=False
-)
-```
+**NOTE**: We don't need separate SlotWidgetClass/ContextMenuClass variables - we use direct class references in Create Widget nodes.
 
 ---
 
 ### Step 3.3.4: Create Grid Widget Functions
 
-#### Function: InitializeGrid
+#### ACTUAL IMPLEMENTATION (5 functions)
 
-##### AIM
-Create 16 slot widgets, add them to the grid, and set up event bindings.
+| Function | Inputs | Outputs | Purpose |
+|----------|--------|---------|---------|
+| InitializeGrid | Manager (Object*) | - | Create 16 slots, setup grid |
+| RefreshAllSlots | - | - | Update all slot displays |
+| ShowContextMenuAtSlot | SlotIndex (int32) | - | Show menu (deprecated, use ShowContextMenuAtPosition) |
+| ShowContextMenuAtPosition | SlotIndex (int32), Position (Vector2D) | - | Show menu at specific screen position |
+| HideContextMenu | - | - | Remove active context menu |
 
-##### USAGE EXAMPLES
-```python
-grid.InitializeGrid(InventoryManager)
-# Creates 16 WBP_InventorySlot widgets
-# Adds them to UniformGridPanel
-# Binds to OnInventoryChanged
-```
-
-##### WORKFLOW
-1. Store InventoryManager reference
-2. Clear SlotWidgets array
-3. For index 0 to 15:
-   - Create WBP_InventorySlot widget
-   - Call InitializeSlot(index, InventoryManager, self)
-   - Add to SlotsGrid (UniformGridPanel)
-   - Add to SlotWidgets array
-4. Bind to InventoryManager.OnInventoryChanged -> RefreshAllSlots
-
-##### MCP TOOL CALL
+#### MCP TOOL CALLS
 
 ```python
 create_custom_blueprint_function(
     blueprint_name="WBP_InventoryGrid",
     function_name="InitializeGrid",
     inputs=[
-        {"name": "Manager", "type": "/Game/Inventory/Blueprints/BP_InventoryManager"}
+        {"name": "Manager", "type": "Object"}
     ],
     outputs=[],
-    is_pure=False,
-    category="Grid"
+    is_pure=False
 )
-```
 
----
-
-#### Function: RefreshAllSlots
-
-##### AIM
-Update all slot widgets to reflect current inventory state.
-
-##### USAGE EXAMPLES
-```python
-# Bound to OnInventoryChanged
-# Called whenever inventory modified
-```
-
-##### WORKFLOW
-1. For each widget in SlotWidgets:
-   - Cast to WBP_InventorySlot
-   - Call RefreshSlot()
-
-##### MCP TOOL CALL
-
-```python
 create_custom_blueprint_function(
     blueprint_name="WBP_InventoryGrid",
     function_name="RefreshAllSlots",
     inputs=[],
     outputs=[],
-    is_pure=False,
-    category="Grid"
+    is_pure=False
 )
-```
 
----
-
-#### Function: ShowContextMenuAtSlot
-
-##### AIM
-Display the context menu at a specific screen position for a slot.
-
-##### USAGE EXAMPLES
-```python
-# Called from slot's HandleMouseDown
-grid.ShowContextMenuAtSlot(5, [400, 300])
-```
-
-##### WORKFLOW
-1. Call HideContextMenu() to close any existing menu
-2. Get slot data to check if empty
-3. If empty, return (no menu for empty slots)
-4. Create WBP_ItemContextMenu widget
-5. Call InitializeMenu(SlotIndex, InventoryManager, self)
-6. Add to viewport at screen position
-7. Store in ActiveContextMenu
-
-##### MCP TOOL CALL
-
-```python
 create_custom_blueprint_function(
     blueprint_name="WBP_InventoryGrid",
-    function_name="ShowContextMenuAtSlot",
+    function_name="ShowContextMenuAtPosition",
     inputs=[
         {"name": "SlotIndex", "type": "Integer"},
-        {"name": "ScreenPosition", "type": "Vector2D"}
+        {"name": "Position", "type": "Vector2D"}
     ],
     outputs=[],
-    is_pure=False,
-    category="Grid"
+    is_pure=False
 )
-```
 
----
-
-#### Function: HideContextMenu
-
-##### AIM
-Remove the active context menu from viewport.
-
-##### WORKFLOW
-1. If ActiveContextMenu is valid:
-   - Remove from parent
-   - Set ActiveContextMenu to null
-
-##### MCP TOOL CALL
-
-```python
 create_custom_blueprint_function(
     blueprint_name="WBP_InventoryGrid",
     function_name="HideContextMenu",
     inputs=[],
     outputs=[],
-    is_pure=False,
-    category="Grid"
+    is_pure=False
 )
 ```
 
 ---
 
-### Step 3.3.5: Compile Grid Widget
+## Section 3.4: WBP_ItemTooltip
+
+### Step 3.4.1: Create Tooltip Widget Blueprint
 
 ```python
-compile_blueprint(blueprint_name="WBP_InventoryGrid")
+create_umg_widget_blueprint(
+    widget_name="WBP_ItemTooltip",
+    parent_class="UserWidget",
+    path="/Game/Inventory/UI"
+)
 ```
+
+---
+
+### Step 3.4.2: Add Tooltip Components
+
+#### ACTUAL IMPLEMENTATION
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| CanvasPanel | CanvasPanel | Root container (auto-created) |
+| TooltipBackground | Border | Dark background |
+| ContentBox | VerticalBox | Vertical layout for text |
+| ItemNameText | TextBlock | Item display name (bold) |
+| ItemTypeText | TextBlock | Item type category |
+| ItemDescriptionText | TextBlock | Item description |
+
+---
+
+### Step 3.4.3: Create Tooltip Functions
+
+#### ACTUAL IMPLEMENTATION (1 function)
+
+| Function | Inputs | Outputs | Purpose |
+|----------|--------|---------|---------|
+| SetItemData | ItemDef (S_ItemDefinition) | - | Populate tooltip with item data |
 
 ---
 
 ## Phase 3 Completion Checklist
 
 ### WBP_InventorySlot
-- [ ] Widget created
-- [ ] Components: SlotBackground, ItemIcon, StackCountText, SelectionHighlight
-- [ ] Variables: SlotIndex, InventoryManager, IsSelected, CachedSlotData, ParentGrid
-- [ ] Functions: InitializeSlot, RefreshSlot, HandleMouseDown
-- [ ] OnMouseButtonDown event bound
-- [ ] Compiles successfully
+- [x] Widget created
+- [x] Components: SlotBackground, ItemIcon, StackCountText, SelectionHighlight, ContextMenuAnchor
+- [x] Variables: SlotIndex, InventoryManager, IsSelected, CachedSlotData, ParentGrid, TooltipClass, ItemTooltipRef (7 total)
+- [x] Functions: InitializeSlot, RefreshSlot, HandleMouseDown, OnMouseButtonDown, ShowTooltip, HideTooltip, OnFocusReceived (7 total)
+- [x] Compiles successfully
 
 ### WBP_ItemContextMenu
-- [ ] Widget created
-- [ ] Components: MenuBackground, ButtonContainer, UseButton, DropButton
-- [ ] Variables: TargetSlotIndex, InventoryManager, ParentGrid
-- [ ] Functions: InitializeMenu, OnUseClicked, OnDropClicked
-- [ ] Button OnClicked events bound
-- [ ] Compiles successfully
+- [x] Widget created
+- [x] Components: MenuBackground, ButtonContainer, UseButton, DropButton, UseButtonText, DropButtonText
+- [x] Variables: TargetSlotIndex, InventoryManager, ParentGrid (3 total)
+- [x] Functions: InitializeMenu, OnUseClicked, OnDropClicked (3 total)
+- [x] Button OnClicked events bound
+- [x] OnMouseLeave self-dismisses menu
+- [x] Button text set to SelfHitTestInvisible (fixes hover)
+- [x] Compiles successfully
 
 ### WBP_InventoryGrid
-- [ ] Widget created
-- [ ] Components: GridBackground, TitleText, SlotsGrid
-- [ ] Variables: InventoryManager, SlotWidgetClass, ContextMenuClass, SlotWidgets, ActiveContextMenu
-- [ ] Functions: InitializeGrid, RefreshAllSlots, ShowContextMenuAtSlot, HideContextMenu
-- [ ] Compiles successfully
+- [x] Widget created
+- [x] Components: GridBackground, TitleText, SlotsScrollBox, SlotsContainer, SlotsGrid (UniformGridPanel)
+- [x] Variables: SlotWidgets, ActiveContextMenu, InventoryManager (3 total)
+- [x] Functions: InitializeGrid, RefreshAllSlots, ShowContextMenuAtSlot, ShowContextMenuAtPosition, HideContextMenu (5 total)
+- [x] Compiles successfully
+
+### WBP_ItemTooltip
+- [x] Widget created
+- [x] Components: TooltipBackground, ContentBox, ItemNameText, ItemTypeText, ItemDescriptionText
+- [x] Functions: SetItemData (1 total)
+- [x] Compiles successfully
 
 ### All Done Via MCP Tools
-- [ ] `create_umg_widget_blueprint` used for all 3 widgets
-- [ ] `add_widget_component_to_widget` used for components
-- [ ] `create_parent_and_child_widget_components` used for nested layouts
-- [ ] `set_widget_component_property` used for styling
-- [ ] `add_blueprint_variable` used for all variables
-- [ ] `create_custom_blueprint_function` used for all functions
-- [ ] `bind_widget_component_event` used for event binding
-- [ ] `compile_blueprint` successful for all widgets
+- [x] `create_umg_widget_blueprint` used for all 4 widgets
+- [x] `add_widget_component_to_widget` used for components
+- [x] `create_parent_and_child_widget_components` used for nested layouts
+- [x] `set_widget_component_property` used for styling and SelfHitTestInvisible
+- [x] `add_blueprint_variable` used for all variables
+- [x] `create_custom_blueprint_function` used for all functions
+- [x] `bind_widget_component_event` used for event binding
+- [x] `compile_blueprint` successful for all widgets
 
-### Ready for Phase 4
-- [ ] All widgets complete and compiling
-- [ ] Proceed to Phase 4: Integration Layer
+---
+
+## Key Implementation Notes
+
+### 1. UniformGridPanel vs GridPanel
+Use `UniformGridPanel` for the slot grid - it automatically sizes children uniformly. Regular `GridPanel` requires manual column/row configuration.
+
+### 2. SelfHitTestInvisible for Button Text
+Button text blocks MUST have `Visibility: SelfHitTestInvisible` to prevent them from blocking mouse events on the parent button. This is set via:
+```python
+set_widget_component_property(
+    widget_name="WBP_ItemContextMenu",
+    component_name="UseButtonText",
+    kwargs={"Visibility": "SelfHitTestInvisible"}
+)
+```
+
+### 3. Context Menu Self-Management
+The context menu handles its own lifecycle:
+- OnMouseLeave on the menu itself calls HideContextMenu
+- Opening a new context menu auto-closes any existing one
+- Left-click on slots (not right-click) also hides the menu
+
+### 4. Context Menu Positioning
+Use `ShowContextMenuAtPosition` with the slot's bottom-right corner position, not mouse position. This ensures the menu is always reachable from the slot.
 
 ---
 
