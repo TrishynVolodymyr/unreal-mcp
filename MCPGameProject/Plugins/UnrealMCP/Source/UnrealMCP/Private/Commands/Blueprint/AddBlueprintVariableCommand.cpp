@@ -255,8 +255,36 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(FString::Printf(TEXT("Could not resolve variable type: %s"), *VariableType));
     }
 
+    // Debug: Log the resolved pin type
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariable: Blueprint='%s', Variable='%s', RequestedType='%s'"),
+        *BlueprintName, *VariableName, *VariableType);
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariable: Resolved PinCategory='%s', PinSubCategory='%s', SubCategoryObject='%s'"),
+        *PinType.PinCategory.ToString(),
+        *PinType.PinSubCategory.ToString(),
+        PinType.PinSubCategoryObject.IsValid() ? *PinType.PinSubCategoryObject->GetName() : TEXT("None"));
+
+    // Check if variable already exists
+    for (const FBPVariableDescription& Variable : Blueprint->NewVariables)
+    {
+        if (Variable.VarName == FName(*VariableName))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariable: Variable '%s' already exists in Blueprint '%s'"),
+                *VariableName, *BlueprintName);
+            return CreateErrorResponse(FString::Printf(TEXT("Variable '%s' already exists in Blueprint '%s'"),
+                *VariableName, *BlueprintName));
+        }
+    }
+
+    // Debug: Log variable count before
+    int32 VarCountBefore = Blueprint->NewVariables.Num();
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariable: Variable count before AddMemberVariable: %d"), VarCountBefore);
+
     // Create the variable
     FBlueprintEditorUtils::AddMemberVariable(Blueprint, FName(*VariableName), PinType);
+
+    // Debug: Log variable count after
+    int32 VarCountAfter = Blueprint->NewVariables.Num();
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariable: Variable count after AddMemberVariable: %d"), VarCountAfter);
 
     // Set variable properties
     FBPVariableDescription* NewVar = nullptr;
@@ -269,17 +297,31 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
         }
     }
 
-    if (NewVar)
+    if (!NewVar)
     {
-        // Set exposure in editor
-        if (IsExposed)
+        // Debug: List all variables to see what's there
+        UE_LOG(LogTemp, Error, TEXT("AddBlueprintVariable: Failed to find newly created variable '%s'. Existing variables:"), *VariableName);
+        for (const FBPVariableDescription& Variable : Blueprint->NewVariables)
         {
-            NewVar->PropertyFlags |= CPF_Edit;
+            UE_LOG(LogTemp, Error, TEXT("  - '%s' (Type: %s)"),
+                *Variable.VarName.ToString(),
+                *Variable.VarType.PinCategory.ToString());
         }
+        return CreateErrorResponse(FString::Printf(TEXT("Failed to create variable '%s' in Blueprint '%s'. AddMemberVariable may have failed silently."),
+            *VariableName, *BlueprintName));
+    }
+
+    // Set exposure in editor
+    if (IsExposed)
+    {
+        NewVar->PropertyFlags |= CPF_Edit;
     }
 
     // Mark the blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+
+    UE_LOG(LogTemp, Warning, TEXT("AddBlueprintVariable: Successfully created variable '%s' in Blueprint '%s'"),
+        *VariableName, *BlueprintName);
 
     return CreateSuccessResponse(BlueprintName, VariableName, VariableType, IsExposed);
 }

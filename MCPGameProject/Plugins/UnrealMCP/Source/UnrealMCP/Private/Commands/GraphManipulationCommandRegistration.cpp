@@ -5,7 +5,9 @@
 #include "Commands/GraphManipulation/ReplaceNodeCommand.h"
 #include "Commands/GraphManipulation/SetNodePinValueCommand.h"
 #include "Commands/GraphManipulation/AutoArrangeNodesCommand.h"
+#include "Commands/GraphManipulation/DeleteOrphanedNodesCommand.h"
 #include "Services/BlueprintNodeService.h"
+#include "Services/BlueprintService.h"
 
 // Static member definition
 TArray<FString> FGraphManipulationCommandRegistration::RegisteredCommandNames;
@@ -23,7 +25,8 @@ void FGraphManipulationCommandRegistration::RegisterAllGraphManipulationCommands
     RegisterReplaceNodeCommand();
     RegisterSetNodePinValueCommand();
     RegisterAutoArrangeNodesCommand();
-    
+    RegisterDeleteOrphanedNodesCommand();
+
     UE_LOG(LogTemp, Log, TEXT("FGraphManipulationCommandRegistration::RegisterAllGraphManipulationCommands: Registered %d Graph Manipulation commands"), 
         RegisteredCommandNames.Num());
 }
@@ -76,6 +79,12 @@ void FGraphManipulationCommandRegistration::RegisterSetNodePinValueCommand()
 void FGraphManipulationCommandRegistration::RegisterAutoArrangeNodesCommand()
 {
     TSharedPtr<FAutoArrangeNodesCommand> Command = MakeShared<FAutoArrangeNodesCommand>();
+    RegisterAndTrackCommand(Command);
+}
+
+void FGraphManipulationCommandRegistration::RegisterDeleteOrphanedNodesCommand()
+{
+    TSharedPtr<FDeleteOrphanedNodesCommand> Command = MakeShared<FDeleteOrphanedNodesCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

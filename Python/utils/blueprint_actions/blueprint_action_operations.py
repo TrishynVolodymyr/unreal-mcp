@@ -371,5 +371,63 @@ def create_node_by_action_name(
     # Always provide json_params (even if empty) so the handler code doesn't hit a
     # missing-field branch and the tool signature stays consistent.
     params["json_params"] = json.dumps(extra_params)
-    
+
     return send_unreal_command("create_node_by_action_name", params)
+
+
+def find_in_blueprints(
+    ctx: Context,
+    search_query: str,
+    search_type: str = "all",
+    path: str = "/Game",
+    max_results: int = 50,
+    case_sensitive: bool = False
+) -> Dict[str, Any]:
+    """
+    Search for function/variable/event usages across all blueprints.
+
+    Similar to Unreal's "Find in Blueprints" feature, this searches through
+    all blueprint graphs to find nodes matching the search query.
+
+    Args:
+        ctx: MCP context
+        search_query: Text to search for (function names, variable names, event names, etc.)
+        search_type: Type of nodes to search ("all", "function", "variable", "event", "comment", "custom")
+        path: Content path to search in (default: "/Game")
+        max_results: Maximum number of results to return (default: 50, max: 500)
+        case_sensitive: Whether to perform case-sensitive search (default: False)
+
+    Returns:
+        Dict containing:
+            - success: Whether the search succeeded
+            - search_query: The search query used
+            - search_type: The type filter applied
+            - blueprints_searched: Number of blueprints searched
+            - match_count: Number of matches found
+            - matches: Array of match objects with:
+                - blueprint_path: Full path to the blueprint
+                - blueprint_name: Name of the blueprint
+                - graph_name: Name of the graph containing the match
+                - node_id: Unique node ID
+                - node_title: Node's display title
+                - node_class: Node class name
+                - match_context: The text that matched
+            - by_blueprint: Results grouped by blueprint for easier consumption
+    """
+    params = {
+        "search_query": search_query,
+        "search_type": search_type,
+        "path": path,
+        "max_results": max_results,
+        "case_sensitive": case_sensitive
+    }
+
+    command_result = send_unreal_command("find_in_blueprints", params)
+
+    # Extract the actual result from the wrapper
+    if "result" in command_result:
+        result = command_result["result"]
+    else:
+        result = command_result
+
+    return result

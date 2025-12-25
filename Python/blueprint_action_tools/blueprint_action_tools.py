@@ -15,7 +15,8 @@ from utils.blueprint_actions.blueprint_action_operations import (
     get_actions_for_class_hierarchy as get_actions_for_class_hierarchy_impl,
     search_blueprint_actions as search_blueprint_actions_impl,
     get_node_pin_info as inspect_node_pin_connection_impl,
-    create_node_by_action_name as create_node_by_action_name_impl
+    create_node_by_action_name as create_node_by_action_name_impl,
+    find_in_blueprints as find_in_blueprints_impl
 )
 
 # Get logger
@@ -448,4 +449,69 @@ def register_blueprint_action_tools(mcp: FastMCP):
             # Then use the discovered function names
         """
         return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, target_graph=target_graph, **kwargs)
+
+    @mcp.tool()
+    def find_in_blueprints(
+        ctx: Context,
+        search_query: str,
+        search_type: str = "all",
+        path: str = "/Game",
+        max_results: int = 50,
+        case_sensitive: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Search for function/variable/event usages across all blueprints.
+
+        Similar to Unreal's "Find in Blueprints" feature, this searches through
+        all blueprint graphs to find nodes matching the search query. Use this
+        to find where a function is called, where a variable is used, or where
+        an event is defined.
+
+        Args:
+            search_query: Text to search for (function names, variable names, event names, etc.)
+            search_type: Type of nodes to search. Options:
+                - "all": Search all node types (default)
+                - "function": Search function calls only
+                - "variable": Search variable get/set nodes only
+                - "event": Search event nodes only
+                - "comment": Search comment nodes only
+                - "custom": Search custom events only
+            path: Content path to search in (default: "/Game")
+            max_results: Maximum number of results to return (default: 50, max: 500)
+            case_sensitive: Whether to perform case-sensitive search (default: False)
+
+        Returns:
+            Dict containing:
+                - success: Whether the search succeeded
+                - search_query: The search query used
+                - search_type: The type filter applied
+                - blueprints_searched: Number of blueprints searched
+                - match_count: Number of matches found
+                - matches: Array of match objects with:
+                    - blueprint_path: Full path to the blueprint
+                    - blueprint_name: Name of the blueprint
+                    - graph_name: Name of the graph containing the match
+                    - node_id: Unique node ID
+                    - node_title: Node's display title
+                    - node_class: Node class name
+                    - match_context: The text that matched
+                - by_blueprint: Results grouped by blueprint for easier reading
+
+        Examples:
+            # Find all usages of "ShowContextMenuAtSlot" function
+            find_in_blueprints(search_query="ShowContextMenuAtSlot", search_type="function")
+
+            # Find all uses of a variable
+            find_in_blueprints(search_query="ActiveContextMenu", search_type="variable")
+
+            # Find all custom events named "OnItemClicked"
+            find_in_blueprints(search_query="OnItemClicked", search_type="custom")
+
+            # Search only in Inventory folder
+            find_in_blueprints(search_query="Inventory", path="/Game/Inventory")
+
+            # Case-sensitive search
+            find_in_blueprints(search_query="DialogueNPC", case_sensitive=True)
+        """
+        return find_in_blueprints_impl(ctx, search_query, search_type, path, max_results, case_sensitive)
 

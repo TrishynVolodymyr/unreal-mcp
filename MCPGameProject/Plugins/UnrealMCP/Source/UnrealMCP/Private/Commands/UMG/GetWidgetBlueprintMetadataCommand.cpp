@@ -185,11 +185,23 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 			AttemptedPaths.Add(Path);
 			UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Attempting to load Widget Blueprint at path: '%s'"), *Path);
 			UObject* Asset = UEditorAssetLibrary::LoadAsset(Path);
-			WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
-			if (WidgetBlueprint)
+			if (Asset)
 			{
-				UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully found Widget Blueprint at: '%s'"), *Path);
-				break;
+				UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Loaded asset of type: %s"), *Asset->GetClass()->GetName());
+				WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
+				if (WidgetBlueprint)
+				{
+					UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully found Widget Blueprint at: '%s'"), *Path);
+					break;
+				}
+				else
+				{
+					UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Asset at path '%s' is not a WidgetBlueprint, it is: %s"), *Path, *Asset->GetClass()->GetName());
+				}
+			}
+			else
+			{
+				UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Failed to load asset at path: '%s'"), *Path);
 			}
 		}
 	}
@@ -218,15 +230,38 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 		{
 			if (Asset.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
 			{
-				FString AssetPath = Asset.GetSoftObjectPath().ToString();
-				AttemptedPaths.Add(FString::Printf(TEXT("AssetRegistry:%s"), *AssetPath));
-				UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Found in asset registry, loading: '%s'"), *AssetPath);
-				UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(AssetPath);
-				WidgetBlueprint = Cast<UWidgetBlueprint>(LoadedAsset);
-				if (WidgetBlueprint)
+				// Try multiple path formats
+				FString ObjectPath = Asset.GetObjectPathString();
+				FString SoftPath = Asset.GetSoftObjectPath().ToString();
+
+				AttemptedPaths.Add(FString::Printf(TEXT("AssetRegistry:%s"), *ObjectPath));
+				UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Found in asset registry: ObjectPath='%s', SoftPath='%s'"), *ObjectPath, *SoftPath);
+
+				// Try loading with object path first
+				UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(ObjectPath);
+				if (!LoadedAsset)
 				{
-					UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully loaded Widget Blueprint from registry: '%s'"), *AssetPath);
-					break;
+					// Try with soft path format
+					LoadedAsset = UEditorAssetLibrary::LoadAsset(SoftPath);
+				}
+
+				if (LoadedAsset)
+				{
+					UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Loaded asset type: %s"), *LoadedAsset->GetClass()->GetName());
+					WidgetBlueprint = Cast<UWidgetBlueprint>(LoadedAsset);
+					if (WidgetBlueprint)
+					{
+						UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully loaded Widget Blueprint from registry: '%s'"), *ObjectPath);
+						break;
+					}
+					else
+					{
+						UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Asset loaded but is not a WidgetBlueprint, it is: %s"), *LoadedAsset->GetClass()->GetName());
+					}
+				}
+				else
+				{
+					UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Failed to load asset from path: %s"), *ObjectPath);
 				}
 			}
 		}

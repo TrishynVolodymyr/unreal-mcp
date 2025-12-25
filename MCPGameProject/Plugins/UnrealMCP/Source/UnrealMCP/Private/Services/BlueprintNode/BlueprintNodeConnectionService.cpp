@@ -561,7 +561,7 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
         UE_LOG(LogTemp, Warning, TEXT("String to Primitive cast needed: String -> %s"),
             *TargetPin->PinType.PinCategory.ToString());
     }
-    // For object types, check if target requires more specific type than source provides
+    // For object types, check if types are compatible without casting
     else if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object &&
              TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
     {
@@ -570,13 +570,23 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
 
         if (SourceClass && TargetClass)
         {
-            // Need cast if target is more specific than source (not a parent class)
-            // e.g., Source=ActorComponent, Target=SplineComponent -> need cast
-            // e.g., Source=AActor, Target=PlayerController -> need cast
-            bNeedsCast = !TargetClass->IsChildOf(SourceClass);
+            // Types are compatible without cast if:
+            // 1. Source IS a child of Target (e.g., WBP_ItemContextMenu -> Widget) - polymorphism
+            // 2. Target is a child of Source (e.g., Widget -> WBP_ItemContextMenu) - needs explicit cast
+            // 3. They are the same class
+            bool bSourceIsChildOfTarget = SourceClass->IsChildOf(TargetClass);
+            bool bTargetIsChildOfSource = TargetClass->IsChildOf(SourceClass);
+            bool bSameClass = (SourceClass == TargetClass);
 
-            UE_LOG(LogTemp, Warning, TEXT("Object type check: Source=%s, Target=%s, NeedsCast=%s"),
-                *SourceClass->GetName(), *TargetClass->GetName(), bNeedsCast ? TEXT("YES") : TEXT("NO"));
+            // Only need cast if target is MORE SPECIFIC than source (downcasting)
+            // Don't need cast if source is more specific (upcasting - polymorphism handles this)
+            bNeedsCast = bTargetIsChildOfSource && !bSameClass && !bSourceIsChildOfTarget;
+
+            UE_LOG(LogTemp, Warning, TEXT("Object type check: Source=%s, Target=%s, SourceIsChildOfTarget=%s, TargetIsChildOfSource=%s, NeedsCast=%s"),
+                *SourceClass->GetName(), *TargetClass->GetName(),
+                bSourceIsChildOfTarget ? TEXT("YES") : TEXT("NO"),
+                bTargetIsChildOfSource ? TEXT("YES") : TEXT("NO"),
+                bNeedsCast ? TEXT("YES") : TEXT("NO"));
         }
     }
 
@@ -612,6 +622,29 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
         }
     }
 
+    // SMART TYPE COMPATIBILITY: Check if source type is already compatible with target via inheritance
+    // This prevents Unreal from creating unnecessary implicit cast nodes for polymorphic connections
+    bool bTypesDirectlyCompatible = false;
+    if (SourcePin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object &&
+        TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+    {
+        UClass* SourceClass = Cast<UClass>(SourcePin->PinType.PinSubCategoryObject.Get());
+        UClass* TargetClass = Cast<UClass>(TargetPin->PinType.PinSubCategoryObject.Get());
+
+        if (SourceClass && TargetClass)
+        {
+            // Source IS-A Target (e.g., WBP_ItemContextMenu IS-A Widget) - polymorphic, no cast needed
+            bTypesDirectlyCompatible = SourceClass->IsChildOf(TargetClass);
+            if (bTypesDirectlyCompatible)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Types directly compatible via inheritance: %s -> %s (skipping schema connection)"),
+                    *SourceClass->GetName(), *TargetClass->GetName());
+            }
+        }
+    }
+
+    // Use raw MakeLinkTo for compatible types to bypass schema's auto-cast creation
+    // For incompatible types, the schema's TryCreateConnection may insert conversion nodes
     SourcePin->MakeLinkTo(TargetPin);
 
     // CRITICAL: Explicitly notify nodes about pin connection changes for wildcard adaptation

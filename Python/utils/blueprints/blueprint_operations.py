@@ -439,7 +439,8 @@ def get_blueprint_metadata(
     fields: List[str],
     graph_name: str = None,
     node_type: str = None,
-    event_type: str = None
+    event_type: str = None,
+    detail_level: str = None
 ) -> Dict[str, Any]:
     """Implementation for getting comprehensive metadata about a Blueprint.
 
@@ -455,6 +456,10 @@ def get_blueprint_metadata(
         graph_name: REQUIRED when using "graph_nodes" field. Specifies which graph.
         node_type: Optional filter for "graph_nodes": "Event", "Function", "Variable", "Comment".
         event_type: Optional filter for "graph_nodes" when node_type="Event".
+        detail_level: Optional detail level for "graph_nodes" field. Options:
+                     - "summary": Node IDs and titles only (minimal output)
+                     - "flow": Node IDs, titles, and exec pin connections only (DEFAULT)
+                     - "full": Everything including all data pin connections and default values
 
     Returns:
         Dictionary containing requested metadata fields
@@ -486,6 +491,9 @@ def get_blueprint_metadata(
 
     if event_type is not None:
         params["event_type"] = event_type
+
+    if detail_level is not None:
+        params["detail_level"] = detail_level
 
     return send_unreal_command("get_blueprint_metadata", params)
 

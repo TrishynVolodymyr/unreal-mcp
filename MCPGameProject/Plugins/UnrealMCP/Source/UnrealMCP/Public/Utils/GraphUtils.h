@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "EdGraph/EdGraphPin.h"
+#include "Dom/JsonObject.h"
 
 // Forward declarations
 class UEdGraph;
@@ -86,4 +87,52 @@ public:
      * @param OutWarnings - Array to receive warnings
      */
     static void DetectBlueprintWarnings(UBlueprint* Blueprint, TArray<FGraphWarning>& OutWarnings);
+
+    /**
+     * Detect orphaned nodes in a graph using execution flow reachability analysis.
+     * Algorithm:
+     * 1. Find all entry points (Event nodes, FunctionEntry, CustomEvent)
+     * 2. Trace execution flow forward via exec pins
+     * 3. For each exec-reachable node, trace data dependencies backward via data pins
+     * 4. Any node not touched in steps 2-3 is orphaned
+     *
+     * @param Graph - Graph to analyze
+     * @param OutOrphanedNodeIds - Array to receive IDs of orphaned nodes
+     * @return true if analysis completed successfully
+     */
+    static bool DetectOrphanedNodes(UEdGraph* Graph, TArray<FString>& OutOrphanedNodeIds);
+
+    /**
+     * Get detailed information about orphaned nodes in a graph
+     * @param Graph - Graph to analyze
+     * @param OutOrphanedNodes - Array to receive orphaned node info (ID, Title, Class)
+     * @return true if analysis completed successfully
+     */
+    static bool GetOrphanedNodesInfo(UEdGraph* Graph, TArray<TSharedPtr<FJsonObject>>& OutOrphanedNodes);
+
+private:
+    /**
+     * Check if a node is an entry point (Event, FunctionEntry, CustomEvent)
+     */
+    static bool IsEntryPoint(UEdGraphNode* Node);
+
+    /**
+     * Check if a node is pure (has no execution pins)
+     */
+    static bool IsPureNode(UEdGraphNode* Node);
+
+    /**
+     * Trace execution flow forward from entry points, marking reachable nodes
+     * @param EntryPoints - Starting nodes
+     * @param OutReachableNodes - Set to receive all nodes reachable via execution flow
+     */
+    static void TraceExecutionFlow(const TArray<UEdGraphNode*>& EntryPoints, TSet<UEdGraphNode*>& OutReachableNodes);
+
+    /**
+     * Trace data dependencies backward from a set of nodes
+     * For each node, follow input data pins to find connected pure nodes
+     * @param ExecReachableNodes - Nodes known to be on execution path
+     * @param OutDataDependencies - Set to receive nodes that are data dependencies
+     */
+    static void TraceDataDependencies(const TSet<UEdGraphNode*>& ExecReachableNodes, TSet<UEdGraphNode*>& OutDataDependencies);
 };

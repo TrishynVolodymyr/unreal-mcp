@@ -62,8 +62,7 @@ Unreal Engine 5.7 Editor
 
 **Python MCP Servers**: `Python/`
 - 7 independent FastMCP servers (blueprint, editor, umg, node, datatable, project, blueprint_action)
-- Each server has a `*_mcp_server.py` entry point
-- Tool implementations in `*_tools/` folders
+- **MCP tools are defined in `*_mcp_server.py` files** (NOT in `*_tools/` folders)
 - Shared utilities in `utils/` (blueprints/, nodes/, umg/, datatable/, editor/, project/)
 - TCP communication via `utils/unreal_connection_utils.py` (connects to 127.0.0.1:55557)
 
@@ -91,17 +90,15 @@ Unreal Engine 5.7 Editor
 
 **Adding a new tool requires changes in both components:**
 
-**Python Side** (example: `Python/blueprint_tools/blueprint_tools.py`):
+**Python Side** (example: `Python/blueprint_mcp_server.py`):
 ```python
-@mcp.tool()
-def create_blueprint(ctx: Context, name: str, parent_class: str, folder_path: str = "") -> Dict[str, Any]:
+@app.tool()
+async def create_blueprint(name: str, parent_class: str, folder_path: str = "") -> Dict[str, Any]:
     """Create a new Blueprint class."""
-    response = send_tcp_command("create_blueprint", {
-        "name": name,
-        "parent_class": parent_class,
-        "folder_path": folder_path
-    })
-    return response
+    params = {"name": name, "parent_class": parent_class}
+    if folder_path:
+        params["folder_path"] = folder_path
+    return await send_tcp_command("create_blueprint", params)
 ```
 
 **C++ Side** (example: `Commands/Blueprint/CreateBlueprintCommand.cpp`):
@@ -169,11 +166,12 @@ When implementing complex functionality (inventory systems, dialogue systems, ga
    - Register in category's registration function
    - Use service layer for business logic
 3. **Create Python MCP tool**:
-   - Add `@mcp.tool()` decorated function in appropriate `*_tools/` module
-   - Use `send_tcp_command(command_type, params)` to call C++ side
+   - Add `@app.tool()` decorated function in the correct `*_mcp_server.py` file (see table below)
+   - Use `await send_tcp_command(command_type, params)` to call C++ side
 4. **Compile and test**:
    - Run `RebuildProject.bat` to compile C++ changes
    - Run `LaunchProject.bat` to start Unreal Editor
+   - **Restart Python MCP servers** for Python changes to take effect
    - Test via AI assistant natural language or Python test scripts
 
 ### Service Layer Architecture
@@ -261,7 +259,37 @@ UNREAL_PORT = 55557
 
 ## Python MCP Tool Guidelines
 
-**For functions decorated with `@mcp.tool()`:**
+### Where to Modify MCP Tools (CRITICAL)
+
+**⚠️ MCP tools are defined ONLY in `Python/*_mcp_server.py` files:**
+
+| MCP Server File | Purpose | C++ Command Category |
+|-----------------|---------|---------------------|
+| `blueprint_mcp_server.py` | Blueprint creation, compilation, variables, components, interfaces, metadata | `Commands/Blueprint/` |
+| `editor_mcp_server.py` | Actor spawning, transforms, viewport, light properties | `Commands/Editor/` |
+| `umg_mcp_server.py` | Widget Blueprints, UI components, layouts, bindings | `Commands/UMG/` |
+| `node_mcp_server.py` | Node connections, pin values, graph manipulation | `Commands/BlueprintNode/`, `Commands/GraphManipulation/` |
+| `datatable_mcp_server.py` | DataTable creation, CRUD operations | `Commands/DataTable/` |
+| `project_mcp_server.py` | Folders, input mappings, structs, enums | `Commands/Project/` |
+| `blueprint_action_mcp_server.py` | Action discovery, node creation, pin inspection | `Commands/BlueprintAction/` |
+
+**These `*_mcp_server.py` files contain the `@app.tool()` decorated functions that Claude/AI assistants actually call.**
+
+**⚠️ DO NOT modify these folders for MCP tool changes:**
+- `Python/blueprint_tools/` - Legacy/unused implementations
+- `Python/utils/` - Shared utility functions (called BY MCP servers, not MCP tools themselves)
+- `Python/*_tools/` - Helper modules (may be imported by MCP servers but are NOT the tool entry points)
+
+**When adding/modifying MCP tool parameters:**
+1. Identify the correct `*_mcp_server.py` file from the table above
+2. Add/modify the `@app.tool()` decorated async function
+3. Add parameter to the `params` dict passed to `send_tcp_command()`
+4. Update the docstring with new parameter documentation
+5. **Restart the Python MCP server** for changes to take effect (user runs via VSCode)
+
+### Parameter Type Guidelines
+
+**For functions decorated with `@app.tool()`:**
 - Parameters should NOT use types: `Any`, `object`, `Optional[T]`, `Union[T]`
 - For parameters with default values, use `x: T = None` NOT `x: T | None = None`
 - Handle defaults within method body
@@ -277,6 +305,24 @@ UNREAL_PORT = 55557
 - **UMG**: Widget Blueprint creation, UI components, layouts, event/property bindings
 - **DataTable**: Create tables, CRUD operations, struct-based data management
 - **Project**: Folders, input mappings, Enhanced Input System (UE 5.5+), structs
+
+## Blueprint Architecture Best Practices
+
+**⚠️ All game logic should be implemented in custom functions, NOT in EventGraph:**
+- EventGraph should only contain event bindings (BeginPlay, Tick, Input Actions) that call custom functions
+- Complex logic belongs in dedicated custom functions for better organization and debugging
+- This makes orphan detection more reliable (EventGraph has special entry points like Enhanced Input Actions)
+- Easier to test, refactor, and maintain individual functions
+
+**When working with orphan detection/cleanup:**
+- Always scope operations to specific graphs (e.g., `target_graph="MyFunction"`)
+- EventGraph should generally be excluded from automatic orphan deletion due to its special nature
+- Development workflow typically focuses on one function at a time - tools should support this
+
+**Return Node handling:**
+- Every function has an auto-generated Return Node at (0,0) - this may appear orphaned if unused
+- For non-void functions, always connect the final exec flow to the Return Node
+- Pure functions don't have exec pins - they use data flow only
 
 ## Important Implementation Files
 
