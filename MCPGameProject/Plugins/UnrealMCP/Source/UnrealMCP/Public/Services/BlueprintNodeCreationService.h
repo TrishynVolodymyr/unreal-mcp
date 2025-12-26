@@ -39,6 +39,32 @@ private:
     UBlueprint* FindBlueprintByName(const FString& BlueprintName);
     
     // Helper for logging and debugging
-    void LogNodeCreationAttempt(const FString& FunctionName, const FString& BlueprintName, 
+    void LogNodeCreationAttempt(const FString& FunctionName, const FString& BlueprintName,
                                const FString& ClassName, int32 PositionX, int32 PositionY) const;
+
+    // Post-creation helpers for pin values and connections
+
+    /**
+     * Apply pin values to a newly created node
+     * @param Node - The created node
+     * @param Graph - The graph containing the node
+     * @param Blueprint - The blueprint containing the graph
+     * @param PinValuesObject - JSON object with pin_name -> value mappings
+     * @param OutWarnings - Array to collect any warnings (e.g., pin not found)
+     */
+    void ApplyPinValues(UEdGraphNode* Node, UEdGraph* Graph, UBlueprint* Blueprint,
+                       const TSharedPtr<FJsonObject>& PinValuesObject, TArray<FString>& OutWarnings);
+
+    /**
+     * Create connections from/to the newly created node
+     * @param Node - The created node
+     * @param Graph - The graph containing the node
+     * @param Blueprint - The blueprint containing the graph
+     * @param ConnectionsArray - JSON array of connection objects
+     * @param OutWarnings - Array to collect any warnings
+     * @param OutConnectionResults - Array to collect connection results
+     */
+    void ApplyConnections(UEdGraphNode* Node, UEdGraph* Graph, UBlueprint* Blueprint,
+                         const TArray<TSharedPtr<FJsonValue>>& ConnectionsArray,
+                         TArray<FString>& OutWarnings, TArray<TSharedPtr<FJsonObject>>& OutConnectionResults);
 }; 

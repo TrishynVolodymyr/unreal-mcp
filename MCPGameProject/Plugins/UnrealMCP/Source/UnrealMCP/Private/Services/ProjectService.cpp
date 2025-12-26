@@ -1,10 +1,10 @@
 #include "Services/ProjectService.h"
+#include "Services/PropertyTypeResolverService.h"
 #include "Services/AssetDiscoveryService.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 #include "GameFramework/InputSettings.h"
 #include "Misc/Paths.h"
 #include "HAL/PlatformFileManager.h"
-#include "Misc/FileHelper.h"
 #include "EditorAssetLibrary.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
@@ -242,266 +242,7 @@ FString FProjectService::GetProjectDirectory() const
     return FPaths::ProjectDir();
 }
 
-FString FProjectService::GetPropertyTypeString(const FProperty* Property) const
-{
-    if (!Property) return TEXT("Unknown");
-    
-    // Handle array properties first
-    if (const FArrayProperty* ArrayProp = CastField<FArrayProperty>(Property))
-    {
-        // Get the type of array elements
-        FString ElementType = GetPropertyTypeString(ArrayProp->Inner);
-        return ElementType + TEXT("[]");
-    }
-    
-    if (Property->IsA<FBoolProperty>()) return TEXT("Boolean");
-    if (Property->IsA<FIntProperty>()) return TEXT("Integer");
-    if (Property->IsA<FFloatProperty>() || Property->IsA<FDoubleProperty>()) return TEXT("Float");
-    if (Property->IsA<FStrProperty>()) return TEXT("String");
-    if (Property->IsA<FTextProperty>()) return TEXT("Text");
-    if (Property->IsA<FNameProperty>()) return TEXT("Name");
-    if (const FStructProperty* StructProp = CastField<FStructProperty>(Property))
-    {
-        if (StructProp->Struct == TBaseStructure<FVector>::Get()) return TEXT("Vector");
-        if (StructProp->Struct == TBaseStructure<FRotator>::Get()) return TEXT("Rotator");
-        if (StructProp->Struct == TBaseStructure<FTransform>::Get()) return TEXT("Transform");
-        if (StructProp->Struct == TBaseStructure<FLinearColor>::Get()) return TEXT("Color");
-        // For custom structs, strip the 'F' prefix if present
-        FString StructName = StructProp->Struct->GetName();
-        if (StructName.StartsWith(TEXT("F")) && StructName.Len() > 1)
-        {
-            StructName = StructName.RightChop(1);
-        }
-        return StructName;
-    }
-    return TEXT("Unknown");
-}
 
-bool FProjectService::ResolvePropertyType(const FString& PropertyType, FEdGraphPinType& OutPinType) const
-{
-    // Check if this is an array type (either "Array", "Array<Type>", or ends with "[]")
-    if (PropertyType.Equals(TEXT("Array"), ESearchCase::IgnoreCase))
-    {
-        // Default to string array if no specific type is provided
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
-        OutPinType.ContainerType = EPinContainerType::Array;
-        return true;
-    }
-    else if (PropertyType.StartsWith(TEXT("Array<")) && PropertyType.EndsWith(TEXT(">")))
-    {
-        // Handle Array<Type> syntax
-        FString BaseType = PropertyType.Mid(6, PropertyType.Len() - 7); // Remove "Array<" and ">"
-        
-        // Create a temporary pin type for the base type
-        FEdGraphPinType BasePinType;
-        
-        // Resolve the base type
-        if (BaseType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
-        }
-        else if (BaseType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-        }
-        else if (BaseType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Float;
-        }
-        else if (BaseType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
-        }
-        else if (BaseType.Equals(TEXT("Text"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Text;
-        }
-        else if (BaseType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Name;
-        }
-        else if (BaseType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-        }
-        else if (BaseType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
-        }
-        else if (BaseType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
-        }
-        else if (BaseType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
-        }
-        else
-        {
-            // Try to find a custom struct using dynamic search
-            UScriptStruct* FoundStruct = FindCustomStruct(BaseType);
-            if (FoundStruct)
-            {
-                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-                BasePinType.PinSubCategoryObject = FoundStruct;
-            }
-            else
-            {
-                // Default to string array if type not resolved
-                BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
-            }
-        }
-        
-        // Set up the array type
-        OutPinType = BasePinType;
-        OutPinType.ContainerType = EPinContainerType::Array;
-        return true;
-    }
-    else if (PropertyType.EndsWith(TEXT("[]")))
-    {
-        // Get the base type without the array suffix
-        FString BaseType = PropertyType.LeftChop(2);
-        
-        // Create a temporary pin type for the base type
-        FEdGraphPinType BasePinType;
-        
-        // Resolve the base type
-        if (BaseType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
-        }
-        else if (BaseType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-        }
-        else if (BaseType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Float;
-        }
-        else if (BaseType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
-        }
-        else if (BaseType.Equals(TEXT("Text"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Text;
-        }
-        else if (BaseType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Name;
-        }
-        else if (BaseType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-        }
-        else if (BaseType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
-        }
-        else if (BaseType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
-        }
-        else if (BaseType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
-        {
-            BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            BasePinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
-        }
-        else
-        {
-            // Try to find a custom struct dynamically
-            UScriptStruct* FoundStruct = FindCustomStruct(BaseType);
-            if (FoundStruct)
-            {
-                UE_LOG(LogTemp, Display, TEXT("MCP Project: Found struct '%s' at path: '%s'"), *BaseType, *FoundStruct->GetPathName());
-                BasePinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-                BasePinType.PinSubCategoryObject = FoundStruct;
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("MCP Project: Could not find struct '%s', defaulting to String array"), *BaseType);
-                // Default to string array if type not resolved
-                BasePinType.PinCategory = UEdGraphSchema_K2::PC_String;
-            }
-        }
-        
-        // Set up the array type
-        OutPinType = BasePinType;
-        OutPinType.ContainerType = EPinContainerType::Array;
-        return true;
-    }
-    else
-    {
-        // Handle non-array types
-        if (PropertyType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
-        }
-        else if (PropertyType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Int;
-        }
-        else if (PropertyType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Float;
-        }
-        else if (PropertyType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
-        }
-        else if (PropertyType.Equals(TEXT("Text"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
-        }
-        else if (PropertyType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Name;
-        }
-        else if (PropertyType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            OutPinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-        }
-        else if (PropertyType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            OutPinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
-        }
-        else if (PropertyType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            OutPinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
-        }
-        else if (PropertyType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
-        {
-            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-            OutPinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
-        }
-        else
-        {
-            // Try to find a custom struct using dynamic search
-            UScriptStruct* FoundStruct = FindCustomStruct(PropertyType);
-            if (FoundStruct)
-            {
-                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-                OutPinType.PinSubCategoryObject = FoundStruct;
-            }
-            else
-            {
-                // Default to string if type not recognized
-                OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
-            }
-        }
-        return true;
-    }
-}
 
 bool FProjectService::CreateStruct(const FString& StructName, const FString& Path, const FString& Description, const TArray<TSharedPtr<FJsonObject>>& Properties, FString& OutFullPath, FString& OutError)
 {
@@ -703,7 +444,7 @@ bool FProjectService::UpdateStruct(const FString& StructName, const FString& Pat
             PropertyObj->TryGetStringField(TEXT("type"), NewPropertyType);
             
             FEdGraphPinType NewPinType;
-            bool bNewTypeValid = ResolvePropertyType(NewPropertyType, NewPinType);
+            bool bNewTypeValid = FPropertyTypeResolverService::Get().ResolvePropertyType(NewPropertyType, NewPinType);
             
             if (bNewTypeValid)
             {
@@ -794,7 +535,7 @@ bool FProjectService::CreateStructProperty(UUserDefinedStruct* Struct, const TSh
 
     // Create the pin type
     FEdGraphPinType PinType;
-    if (!ResolvePropertyType(PropertyType, PinType))
+    if (!FPropertyTypeResolverService::Get().ResolvePropertyType(PropertyType, PinType))
     {
         return false;
     }
@@ -889,7 +630,7 @@ TArray<TSharedPtr<FJsonObject>> FProjectService::ShowStructVariables(const FStri
 
                     TSharedPtr<FJsonObject> VarObj = MakeShared<FJsonObject>();
                     VarObj->SetStringField(TEXT("name"), Property->GetName());
-                    VarObj->SetStringField(TEXT("type"), GetPropertyTypeString(Property));
+                    VarObj->SetStringField(TEXT("type"), FPropertyTypeResolverService::Get().GetPropertyTypeString(Property));
 
                     FString Tooltip = Property->GetToolTipText().ToString();
                     if (!Tooltip.IsEmpty())
@@ -944,7 +685,7 @@ TArray<TSharedPtr<FJsonObject>> FProjectService::ShowStructVariables(const FStri
 
         TSharedPtr<FJsonObject> VarObj = MakeShared<FJsonObject>();
         VarObj->SetStringField(TEXT("name"), Property->GetName());
-        VarObj->SetStringField(TEXT("type"), GetPropertyTypeString(Property));
+        VarObj->SetStringField(TEXT("type"), FPropertyTypeResolverService::Get().GetPropertyTypeString(Property));
         
         // Get tooltip/description if available
         FString Tooltip = Property->GetToolTipText().ToString();
@@ -1178,60 +919,3 @@ bool FProjectService::DuplicateAsset(const FString& SourcePath, const FString& D
     return true;
 }
 
-UScriptStruct* FProjectService::FindCustomStruct(const FString& StructName) const
-{
-    UE_LOG(LogTemp, Display, TEXT("MCP Project: Dynamic search for struct '%s'"), *StructName);
-    
-    // Use Asset Registry to search for UserDefinedStruct assets dynamically
-    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-    
-    // Search for UserDefinedStruct assets
-    FARFilter Filter;
-    Filter.ClassPaths.Add(UUserDefinedStruct::StaticClass()->GetClassPathName());
-    Filter.bRecursiveClasses = true;
-    
-    TArray<FAssetData> StructAssets;
-    AssetRegistry.GetAssets(Filter, StructAssets);
-    
-    UE_LOG(LogTemp, Display, TEXT("MCP Project: Found %d struct assets in project"), StructAssets.Num());
-    
-    // Look for matching struct names (try multiple variations)
-    TArray<FString> NameVariations;
-    NameVariations.Add(StructName);
-    NameVariations.Add(FString::Printf(TEXT("F%s"), *StructName));
-    
-    for (const FAssetData& AssetData : StructAssets)
-    {
-        FString AssetName = AssetData.AssetName.ToString();
-        UE_LOG(LogTemp, Verbose, TEXT("MCP Project: Checking struct asset: '%s' at path: '%s'"), *AssetName, *AssetData.GetObjectPathString());
-        
-        for (const FString& NameVariation : NameVariations)
-        {
-            if (AssetName.Equals(NameVariation, ESearchCase::IgnoreCase))
-            {
-                UE_LOG(LogTemp, Display, TEXT("MCP Project: Found matching struct '%s' -> '%s'"), *NameVariation, *AssetName);
-                UObject* LoadedAsset = AssetData.GetAsset();
-                if (UUserDefinedStruct* UserStruct = Cast<UUserDefinedStruct>(LoadedAsset))
-                {
-                    UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully loaded struct: '%s'"), *UserStruct->GetPathName());
-                    return UserStruct;
-                }
-            }
-        }
-    }
-    
-    // Also try direct loading for built-in structs
-    for (const FString& NameVariation : NameVariations)
-    {
-        UScriptStruct* FoundStruct = LoadObject<UScriptStruct>(nullptr, *NameVariation);
-        if (FoundStruct)
-        {
-            UE_LOG(LogTemp, Display, TEXT("MCP Project: Found built-in struct: '%s'"), *NameVariation);
-            return FoundStruct;
-        }
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("MCP Project: No struct found for '%s' after checking %d assets"), *StructName, StructAssets.Num());
-    return nullptr;
-}

@@ -270,7 +270,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
 
         This allows you to create blueprint nodes using the function names discovered from
         the FBlueprintActionDatabase (via get_actions_for_pin, get_actions_for_class, etc.).
-        
+
         **IMPORTANT: When to specify class_name**:
         - ALWAYS specify class_name when search returns multiple functions with the same name
         - Example: "GetOwner" exists in Actor, ActorComponent, CheatManager classes
@@ -283,7 +283,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Example: WBP_DialogueWindow and BP_DialogueNPC both have "DialogueTable"
         - Use class_name="BP_DialogueNPC" to get the getter for the NPC's variable
         - This creates a getter with a Target pin expecting that specific class type
-        
+
         **WORKING NODE TYPES**:
         - Function calls (KismetMathLibrary, GameplayStatics, etc.)
         - For Each Loop (Map) - UK2Node_MapForEach
@@ -312,6 +312,15 @@ def register_blueprint_action_tools(mcp: FastMCP):
                        * "function" - Search function parameters only (use in function graphs)
                        * "blueprint" - Search Blueprint variables only
                        * "auto" (default) - Smart search: checks function params first, then Blueprint vars
+                     - pin_values: Dict mapping pin names to values to set immediately after node creation.
+                       Example: {"InString": "Hello World", "bPrintToLog": True}
+                       If a pin name is not found on the node, a warning is added but creation succeeds.
+                     - connections: List of connection dicts to establish after node creation.
+                       Use "$new" as a placeholder for the newly created node's ID.
+                       Example: [
+                           {"source_node_id": "ABC123", "source_pin": "Then", "target_node_id": "$new", "target_pin": "execute"},
+                           {"source_node_id": "$new", "source_pin": "Return Value", "target_node_id": "DEF456", "target_pin": "Value"}
+                       ]
 
         Returns:
             Dict containing:
@@ -321,6 +330,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 - pins: List of available pins on the created node
                 - position: Position where the node was placed
                 - message: Status message or error details
+                - warning: Any warnings (e.g., pin not found, connection failed)
 
         Examples:
             # RECOMMENDED: Use get_actions_for_class to find the correct function for your Blueprint type
@@ -332,87 +342,63 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 class_name="ActorComponent",  # Explicit class prevents wrong variant
                 node_position=[100, 100]
             )
-            
-            # Create a working math function node (use SelectFloat, not Add_FloatFloat)
+
+            # Create Print String with pre-set message
             create_node_by_action_name(
-                blueprint_name="BP_Calculator",
-                function_name="SelectFloat",
-                class_name="KismetMathLibrary",
-                node_position=[100, 200]
+                blueprint_name="BP_MyActor",
+                function_name="PrintString",
+                class_name="KismetSystemLibrary",
+                node_position=[200, 100],
+                pin_values={"InString": "Hello World!", "bPrintToLog": True}
             )
-            
-            # Create a node in a specific function graph - Method 1 (direct parameter)
+
+            # Create node and connect to existing nodes in one call
+            create_node_by_action_name(
+                blueprint_name="BP_MyActor",
+                function_name="PrintString",
+                class_name="KismetSystemLibrary",
+                node_position=[400, 100],
+                pin_values={"InString": "Connected!"},
+                connections=[
+                    {"source_node_id": "ABC123", "source_pin": "Then", "target_node_id": "$new", "target_pin": "execute"}
+                ]
+            )
+
+            # Create a node in a specific function graph
             create_node_by_action_name(
                 blueprint_name="DialogueComponent",
                 function_name="GetOwner",
-                class_name="ActorComponent",  # Specify class to avoid ambiguity
+                class_name="ActorComponent",
                 target_graph="CanInteract",
                 node_position=[100, 100]
             )
-            
-            # Create a node in a specific function graph - Method 2 (keyword argument)
-            create_node_by_action_name(
-                blueprint_name="DialogueComponent",
-                function_name="GetDistanceTo",
-                node_position=[300, 100],
-                target_graph="CanInteract"
-            )
-            
-            # Create a comparison operator in a function
-            create_node_by_action_name(
-                blueprint_name="DialogueComponent",
-                function_name="<",
-                node_position=[500, 100],
-                target_graph="CanInteract"
-            )
-            
+
             # Create a Map ForEach loop
             create_node_by_action_name(
                 blueprint_name="BP_MyActor",
                 function_name="For Each Loop (Map)",
                 node_position=[300, 400]
             )
-            
-            # Create a Set ForEach loop
-            create_node_by_action_name(
-                blueprint_name="BP_MyActor", 
-                function_name="For Each Loop (Set)",
-                node_position=[500, 400]
-            )
-            
+
             # Create a custom event with specific name
             create_node_by_action_name(
                 blueprint_name="BP_MyActor",
                 function_name="CustomEvent",
                 event_name="OnPlayerDied"
             )
-            
+
             # Create a cast node with target type
             create_node_by_action_name(
                 blueprint_name="BP_MyActor",
                 function_name="Cast",
                 target_type="PlayerController"
             )
-            
-            # Create Enhanced Input Action event node - Method 1 (just function_name)
+
+            # Create Enhanced Input Action event node
             create_node_by_action_name(
                 blueprint_name="BP_ThirdPersonCharacter",
                 function_name="IA_Interact",
                 node_position=[100, 200]
-            )
-            
-            # Create Enhanced Input Action event node - Method 2 (with class_name)
-            create_node_by_action_name(
-                blueprint_name="BP_ThirdPersonCharacter",
-                function_name="IA_Jump",
-                class_name="EnhancedInputAction",
-                node_position=[100, 300]
-            )
-            
-            # Create without specifying class (will search common classes)
-            create_node_by_action_name(
-                blueprint_name="BP_MyActor",
-                function_name="GetActorLocation"
             )
 
             # Use this when you need to access function parameters in a function graph
@@ -423,30 +409,6 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 scope="function",  # Explicitly search function parameters only
                 node_position=[200, 100]
             )
-
-            # Create Blueprint variable getter (scope="blueprint")
-            # Use this when you want to ensure you're getting a Blueprint variable, not a function parameter
-            create_node_by_action_name(
-                blueprint_name="BP_DialogueComponent",
-                function_name="Get PlayerName",
-                scope="blueprint",  # Explicitly search Blueprint variables only
-                node_position=[300, 200]
-            )
-
-            # Auto scope (default) - smart search
-            # In function graphs: checks function params first, then Blueprint vars
-            # In EventGraph: checks Blueprint vars only
-            create_node_by_action_name(
-                blueprint_name="WBP_DialogueWindow",
-                function_name="Get DialogueData",
-                target_graph="InitializeDialogue",
-                # scope="auto" is default - will find function parameter automatically
-                node_position=[400, 100]
-            )
-
-            # Find correct function names using search first:
-            # search_blueprint_actions(search_query="float", category="Math")
-            # Then use the discovered function names
         """
         return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, target_graph=target_graph, **kwargs)
 

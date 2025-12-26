@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
 #include "Dom/JsonObject.h"
-#include "EdGraph/EdGraphPin.h"
+#include "Services/Blueprint/BlueprintMetadataBuilderService.h"
 
 class UBlueprint;
 class IBlueprintService;
@@ -11,6 +11,8 @@ class IBlueprintService;
 /**
  * Command to retrieve comprehensive metadata about a Blueprint
  * Supports selective field querying for performance optimization
+ *
+ * Uses BlueprintMetadataBuilderService for building the actual metadata JSON objects.
  */
 class UNREALMCP_API FGetBlueprintMetadataCommand : public IUnrealMCPCommand
 {
@@ -19,6 +21,7 @@ public:
 
 private:
     IBlueprintService& BlueprintService;
+    FBlueprintMetadataBuilderService MetadataBuilder;
 
     // IUnrealMCPCommand interface
     virtual FString Execute(const FString& Parameters) override;
@@ -26,27 +29,6 @@ private:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    /**
-     * Detail level for graph_nodes output
-     */
-    enum class EGraphNodesDetailLevel : uint8
-    {
-        Summary,  // Node IDs + titles only
-        Flow,     // Node IDs + titles + exec pin connections only (DEFAULT)
-        Full      // Everything including all data pin connections
-    };
-
-    /**
-     * Struct to hold all parsed filter parameters for graph_nodes
-     */
-    struct FGraphNodesFilter
-    {
-        FString GraphName;    // Optional: filter by specific graph
-        FString NodeType;     // Optional: filter by node type (Event, Function, Variable, etc.)
-        FString EventType;    // Optional: filter by specific event (BeginPlay, Tick, etc.)
-        EGraphNodesDetailLevel DetailLevel = EGraphNodesDetailLevel::Flow;  // Default to flow
-    };
-
     /**
      * Parse JSON parameters
      * @param JsonString - JSON parameters
@@ -74,50 +56,6 @@ private:
      */
     TSharedPtr<FJsonObject> BuildMetadata(UBlueprint* Blueprint, const TArray<FString>& Fields, const FGraphNodesFilter& Filter) const;
 
-    // Field builders (each builds a specific metadata category)
-    TSharedPtr<FJsonObject> BuildParentClassInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildInterfacesInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildVariablesInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildFunctionsInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildComponentsInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildGraphsInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildStatusInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildMetadataInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildTimelinesInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildAssetInfo(UBlueprint* Blueprint) const;
-    TSharedPtr<FJsonObject> BuildOrphanedNodesInfo(UBlueprint* Blueprint) const;
-
-    /**
-     * Build graph warnings information (cast nodes with disconnected exec pins, etc.)
-     * @param Blueprint - Target Blueprint
-     * @return JSON object with warnings array
-     */
-    TSharedPtr<FJsonObject> BuildGraphWarningsInfo(UBlueprint* Blueprint) const;
-
-    /**
-     * Build detailed graph nodes information with pin connections
-     * @param Blueprint - Target Blueprint
-     * @param Filter - Optional filters (graph_name, node_type, event_type)
-     * @return JSON object with nodes and their pin connections
-     */
-    TSharedPtr<FJsonObject> BuildGraphNodesInfo(UBlueprint* Blueprint, const FGraphNodesFilter& Filter) const;
-
-    /**
-     * Check if a node matches the specified type filter
-     * @param Node - Node to check
-     * @param NodeType - Type filter (Event, Function, Variable, etc.)
-     * @return True if node matches or filter is empty
-     */
-    bool MatchesNodeTypeFilter(UEdGraphNode* Node, const FString& NodeType) const;
-
-    /**
-     * Check if a node matches the specified event type filter
-     * @param Node - Node to check
-     * @param EventType - Event type filter (BeginPlay, Tick, etc.)
-     * @return True if node matches or filter is empty
-     */
-    bool MatchesEventTypeFilter(UEdGraphNode* Node, const FString& EventType) const;
-
     /**
      * Create success response
      * @param Metadata - Metadata JSON object
@@ -139,11 +77,4 @@ private:
      * @return True if field should be included
      */
     bool ShouldIncludeField(const FString& FieldName, const TArray<FString>& RequestedFields) const;
-
-    /**
-     * Convert FEdGraphPinType to a human-readable string
-     * @param PinType - The pin type to convert
-     * @return String representation of the type (e.g., "BP_DialogueNPC", "float", "FVector")
-     */
-    FString GetPinTypeAsString(const FEdGraphPinType& PinType) const;
 };
