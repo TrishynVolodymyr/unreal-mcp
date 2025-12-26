@@ -21,6 +21,16 @@ This project is currently in an **EXPERIMENTAL** state. The API, functionality, 
 - Documentation may be outdated or missing
 - Production use is not recommended at this time
 
+## 🎬 Video Demonstrations
+
+These videos showcase systems built entirely through AI assistants using unreal-mcp:
+
+| Demo | AI Assistant | Implementation Plan |
+|------|--------------|---------------------|
+| [Simple Dialogue System](https://www.youtube.com/watch?v=qRZYDYq8np4) | ChatGPT 5.1 Codex Max | [dialogue-plan](Docs/Implementation-Examples/dialogue-plan/) |
+| [Inventory System](https://www.youtube.com/watch?v=psqTS8jX-NI) | Claude Opus 4 | [inventory-plan](Docs/Implementation-Examples/inventory-plan/) |
+| [Lootable Extension](https://www.youtube.com/watch?v=VRl7xGooVSw) | Claude Opus 4 | [loot-plan](Docs/Implementation-Examples/loot-plan/) |
+
 ## 🌟 What You Can Do
 
 Control Unreal Engine using natural language across these major areas:
