@@ -1,0 +1,677 @@
+#include "Services/UMG/WidgetMetadataBuilderService.h"
+#include "Services/UMG/IUMGService.h"
+#include "Utils/GraphUtils.h"
+#include "WidgetBlueprint.h"
+#include "Blueprint/WidgetTree.h"
+#include "Blueprint/UserWidget.h"
+#include "Components/Widget.h"
+#include "Components/PanelWidget.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/TextBlock.h"
+#include "Components/Button.h"
+#include "Components/Image.h"
+#include "Components/Border.h"
+#include "Components/HorizontalBox.h"
+#include "Components/VerticalBox.h"
+#include "Components/HorizontalBoxSlot.h"
+#include "Components/VerticalBoxSlot.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "K2Node_Event.h"
+#include "K2Node_FunctionEntry.h"
+
+FWidgetMetadataBuilderService::FWidgetMetadataBuilderService(TSharedPtr<IUMGService> InUMGService)
+    : UMGService(InUMGService)
+{
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildComponentsInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> ComponentsInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> ComponentsList;
+
+    // Collect all widgets
+    TArray<UWidget*> AllWidgets;
+    if (WidgetBlueprint->WidgetTree->RootWidget)
+    {
+        CollectAllWidgets(WidgetBlueprint->WidgetTree->RootWidget, AllWidgets);
+    }
+
+    for (UWidget* Widget : AllWidgets)
+    {
+        TSharedPtr<FJsonObject> ComponentObj = MakeShared<FJsonObject>();
+        ComponentObj->SetStringField(TEXT("name"), Widget->GetName());
+        ComponentObj->SetStringField(TEXT("type"), Widget->GetClass()->GetName());
+        ComponentObj->SetBoolField(TEXT("is_variable"), Widget->bIsVariable);
+        ComponentObj->SetBoolField(TEXT("is_visible"), Widget->GetVisibility() != ESlateVisibility::Hidden);
+        ComponentObj->SetBoolField(TEXT("is_enabled"), Widget->GetIsEnabled());
+
+        // Check if it's a panel (container) widget
+        ComponentObj->SetBoolField(TEXT("is_container"), Widget->IsA<UPanelWidget>());
+
+        // Add available delegate events for this widget
+        TArray<FString> DelegateEvents = GetAvailableDelegateEvents(Widget);
+        if (DelegateEvents.Num() > 0)
+        {
+            TArray<TSharedPtr<FJsonValue>> EventsArray;
+            for (const FString& EventName : DelegateEvents)
+            {
+                EventsArray.Add(MakeShared<FJsonValueString>(EventName));
+            }
+            ComponentObj->SetArrayField(TEXT("available_events"), EventsArray);
+        }
+
+        ComponentsList.Add(MakeShared<FJsonValueObject>(ComponentObj));
+    }
+
+    ComponentsInfo->SetArrayField(TEXT("components"), ComponentsList);
+    ComponentsInfo->SetNumberField(TEXT("count"), ComponentsList.Num());
+
+    return ComponentsInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildLayoutInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> LayoutInfo = MakeShared<FJsonObject>();
+
+    if (!WidgetBlueprint->WidgetTree->RootWidget)
+    {
+        LayoutInfo->SetStringField(TEXT("message"), TEXT("No root widget"));
+        return LayoutInfo;
+    }
+
+    // Build hierarchical layout (reuse service's BuildWidgetHierarchy logic)
+    TSharedPtr<FJsonObject> HierarchyData = BuildWidgetInfo(WidgetBlueprint->WidgetTree->RootWidget);
+    if (HierarchyData.IsValid())
+    {
+        LayoutInfo->SetObjectField(TEXT("root"), HierarchyData);
+    }
+
+    return LayoutInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildDimensionsInfo(UWidgetBlueprint* WidgetBlueprint, const FString& ContainerName) const
+{
+    TSharedPtr<FJsonObject> DimensionsInfo = MakeShared<FJsonObject>();
+
+    FString ActualContainerName = ContainerName.IsEmpty() ? TEXT("CanvasPanel_0") : ContainerName;
+    UWidget* Container = WidgetBlueprint->WidgetTree->FindWidget(FName(*ActualContainerName));
+
+    if (!Container)
+    {
+        // Try root widget
+        Container = WidgetBlueprint->WidgetTree->RootWidget;
+        if (Container)
+        {
+            ActualContainerName = Container->GetName();
+        }
+    }
+
+    if (!Container)
+    {
+        DimensionsInfo->SetStringField(TEXT("error"), TEXT("No container found"));
+        return DimensionsInfo;
+    }
+
+    DimensionsInfo->SetStringField(TEXT("container_name"), ActualContainerName);
+    DimensionsInfo->SetStringField(TEXT("container_type"), Container->GetClass()->GetName());
+
+    // Default dimensions (canvas panels typically use design-time dimensions)
+    if (UCanvasPanel* CanvasPanel = Cast<UCanvasPanel>(Container))
+    {
+        DimensionsInfo->SetNumberField(TEXT("width"), 1920.0f);
+        DimensionsInfo->SetNumberField(TEXT("height"), 1080.0f);
+    }
+    else
+    {
+        DimensionsInfo->SetNumberField(TEXT("width"), 800.0f);
+        DimensionsInfo->SetNumberField(TEXT("height"), 600.0f);
+    }
+
+    return DimensionsInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildHierarchyInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> HierarchyInfo = MakeShared<FJsonObject>();
+
+    if (!WidgetBlueprint->WidgetTree->RootWidget)
+    {
+        HierarchyInfo->SetStringField(TEXT("message"), TEXT("No root widget"));
+        return HierarchyInfo;
+    }
+
+    // Build simple hierarchy tree (names and types only, for quick overview)
+    TFunction<TSharedPtr<FJsonObject>(UWidget*)> BuildSimpleHierarchy = [&](UWidget* Widget) -> TSharedPtr<FJsonObject>
+    {
+        TSharedPtr<FJsonObject> WidgetObj = MakeShared<FJsonObject>();
+        WidgetObj->SetStringField(TEXT("name"), Widget->GetName());
+        WidgetObj->SetStringField(TEXT("type"), Widget->GetClass()->GetName());
+
+        if (UPanelWidget* PanelWidget = Cast<UPanelWidget>(Widget))
+        {
+            TArray<TSharedPtr<FJsonValue>> ChildrenArray;
+            for (int32 i = 0; i < PanelWidget->GetChildrenCount(); ++i)
+            {
+                if (UWidget* ChildWidget = PanelWidget->GetChildAt(i))
+                {
+                    TSharedPtr<FJsonObject> ChildObj = BuildSimpleHierarchy(ChildWidget);
+                    if (ChildObj.IsValid())
+                    {
+                        ChildrenArray.Add(MakeShared<FJsonValueObject>(ChildObj));
+                    }
+                }
+            }
+            WidgetObj->SetArrayField(TEXT("children"), ChildrenArray);
+        }
+
+        return WidgetObj;
+    };
+
+    TSharedPtr<FJsonObject> RootHierarchy = BuildSimpleHierarchy(WidgetBlueprint->WidgetTree->RootWidget);
+    if (RootHierarchy.IsValid())
+    {
+        HierarchyInfo->SetObjectField(TEXT("root"), RootHierarchy);
+    }
+
+    return HierarchyInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildBindingsInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> BindingsInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> BindingsList;
+
+    for (const FDelegateEditorBinding& Binding : WidgetBlueprint->Bindings)
+    {
+        TSharedPtr<FJsonObject> BindingObj = MakeShared<FJsonObject>();
+        BindingObj->SetStringField(TEXT("widget_name"), Binding.ObjectName);
+        BindingObj->SetStringField(TEXT("property_name"), Binding.PropertyName.ToString());
+        BindingObj->SetStringField(TEXT("function_name"), Binding.FunctionName.ToString());
+        BindingObj->SetStringField(TEXT("source_property"), Binding.SourceProperty.ToString());
+
+        // Binding kind
+        FString KindStr;
+        switch (Binding.Kind)
+        {
+        case EBindingKind::Function:
+            KindStr = TEXT("Function");
+            break;
+        case EBindingKind::Property:
+            KindStr = TEXT("Property");
+            break;
+        default:
+            KindStr = TEXT("Unknown");
+        }
+        BindingObj->SetStringField(TEXT("kind"), KindStr);
+
+        BindingsList.Add(MakeShared<FJsonValueObject>(BindingObj));
+    }
+
+    BindingsInfo->SetArrayField(TEXT("bindings"), BindingsList);
+    BindingsInfo->SetNumberField(TEXT("count"), BindingsList.Num());
+
+    return BindingsInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildEventsInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> EventsInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> EventsList;
+
+    // Find all event nodes in the blueprint
+    TArray<UK2Node_Event*> AllEventNodes;
+    FBlueprintEditorUtils::GetAllNodesOfClass<UK2Node_Event>(WidgetBlueprint, AllEventNodes);
+
+    for (UK2Node_Event* EventNode : AllEventNodes)
+    {
+        TSharedPtr<FJsonObject> EventObj = MakeShared<FJsonObject>();
+        EventObj->SetStringField(TEXT("event_name"), EventNode->EventReference.GetMemberName().ToString());
+        EventObj->SetStringField(TEXT("custom_function_name"), EventNode->CustomFunctionName.ToString());
+
+        if (UClass* EventClass = EventNode->EventReference.GetMemberParentClass())
+        {
+            EventObj->SetStringField(TEXT("event_class"), EventClass->GetName());
+        }
+
+        EventsList.Add(MakeShared<FJsonValueObject>(EventObj));
+    }
+
+    EventsInfo->SetArrayField(TEXT("events"), EventsList);
+    EventsInfo->SetNumberField(TEXT("count"), EventsList.Num());
+
+    return EventsInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildVariablesInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> VariablesInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> VariablesList;
+
+    for (const FBPVariableDescription& Variable : WidgetBlueprint->NewVariables)
+    {
+        TSharedPtr<FJsonObject> VarObj = MakeShared<FJsonObject>();
+        VarObj->SetStringField(TEXT("name"), Variable.VarName.ToString());
+        VarObj->SetStringField(TEXT("type"), Variable.VarType.PinCategory.ToString());
+
+        if (!Variable.VarType.PinSubCategory.IsNone())
+        {
+            VarObj->SetStringField(TEXT("sub_type"), Variable.VarType.PinSubCategory.ToString());
+        }
+
+        if (Variable.VarType.PinSubCategoryObject.IsValid())
+        {
+            VarObj->SetStringField(TEXT("object_type"), Variable.VarType.PinSubCategoryObject->GetName());
+        }
+
+        VarObj->SetBoolField(TEXT("is_public"), Variable.PropertyFlags & CPF_BlueprintVisible);
+        VarObj->SetBoolField(TEXT("is_read_only"), Variable.PropertyFlags & CPF_BlueprintReadOnly);
+        VarObj->SetStringField(TEXT("category"), Variable.Category.ToString());
+
+        VariablesList.Add(MakeShared<FJsonValueObject>(VarObj));
+    }
+
+    VariablesInfo->SetArrayField(TEXT("variables"), VariablesList);
+    VariablesInfo->SetNumberField(TEXT("count"), VariablesList.Num());
+
+    return VariablesInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildFunctionsInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> FunctionsInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> FunctionsList;
+
+    for (UEdGraph* Graph : WidgetBlueprint->FunctionGraphs)
+    {
+        if (!Graph)
+        {
+            continue;
+        }
+
+        TSharedPtr<FJsonObject> FuncObj = MakeShared<FJsonObject>();
+        FuncObj->SetStringField(TEXT("name"), Graph->GetName());
+
+        // Find function entry node for more details
+        UK2Node_FunctionEntry* EntryNode = nullptr;
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            EntryNode = Cast<UK2Node_FunctionEntry>(Node);
+            if (EntryNode)
+            {
+                break;
+            }
+        }
+
+        if (EntryNode)
+        {
+            FuncObj->SetBoolField(TEXT("is_pure"), (EntryNode->GetFunctionFlags() & FUNC_BlueprintPure) != 0);
+            FuncObj->SetBoolField(TEXT("is_const"), (EntryNode->GetFunctionFlags() & FUNC_Const) != 0);
+            FuncObj->SetStringField(TEXT("category"), EntryNode->MetaData.Category.ToString());
+        }
+
+        // Get function signature from generated class
+        if (WidgetBlueprint->GeneratedClass)
+        {
+            UFunction* Function = WidgetBlueprint->GeneratedClass->FindFunctionByName(Graph->GetFName());
+            if (Function)
+            {
+                TArray<TSharedPtr<FJsonValue>> InputsList;
+                TArray<TSharedPtr<FJsonValue>> OutputsList;
+
+                for (TFieldIterator<FProperty> PropIt(Function); PropIt; ++PropIt)
+                {
+                    FProperty* Prop = *PropIt;
+                    TSharedPtr<FJsonObject> ParamObj = MakeShared<FJsonObject>();
+                    ParamObj->SetStringField(TEXT("name"), Prop->GetName());
+                    ParamObj->SetStringField(TEXT("type"), Prop->GetCPPType());
+
+                    if (Prop->HasAnyPropertyFlags(CPF_ReturnParm) || Prop->HasAnyPropertyFlags(CPF_OutParm))
+                    {
+                        OutputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
+                    }
+                    else if (Prop->HasAnyPropertyFlags(CPF_Parm))
+                    {
+                        InputsList.Add(MakeShared<FJsonValueObject>(ParamObj));
+                    }
+                }
+
+                FuncObj->SetArrayField(TEXT("inputs"), InputsList);
+                FuncObj->SetArrayField(TEXT("outputs"), OutputsList);
+            }
+        }
+
+        FunctionsList.Add(MakeShared<FJsonValueObject>(FuncObj));
+    }
+
+    FunctionsInfo->SetArrayField(TEXT("functions"), FunctionsList);
+    FunctionsInfo->SetNumberField(TEXT("count"), FunctionsList.Num());
+
+    return FunctionsInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildOrphanedNodesInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> OrphanedInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> OrphanedNodesList;
+
+    // Collect all graphs from the widget blueprint
+    TArray<UEdGraph*> AllGraphs;
+    WidgetBlueprint->GetAllGraphs(AllGraphs);
+
+    for (UEdGraph* Graph : AllGraphs)
+    {
+        if (!Graph)
+        {
+            continue;
+        }
+
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (!Node)
+            {
+                continue;
+            }
+
+            // Check if node has any connected pins
+            bool bHasConnection = false;
+            bool bHasInputConnection = false;
+            bool bHasOutputConnection = false;
+
+            for (UEdGraphPin* Pin : Node->Pins)
+            {
+                if (Pin && Pin->LinkedTo.Num() > 0)
+                {
+                    bHasConnection = true;
+
+                    if (Pin->Direction == EGPD_Input)
+                    {
+                        bHasInputConnection = true;
+                    }
+                    else if (Pin->Direction == EGPD_Output)
+                    {
+                        bHasOutputConnection = true;
+                    }
+                }
+            }
+
+            // Node is considered orphaned if it has no connections at all
+            bool bIsOrphaned = !bHasConnection;
+
+            // Event/Entry nodes are only orphaned if they have no output connections
+            if (Cast<UK2Node_Event>(Node) || Cast<UK2Node_FunctionEntry>(Node))
+            {
+                bIsOrphaned = !bHasOutputConnection;
+            }
+
+            if (bIsOrphaned)
+            {
+                TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
+                NodeObj->SetStringField(TEXT("id"), FGraphUtils::GetReliableNodeId(Node));
+                NodeObj->SetStringField(TEXT("title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+                NodeObj->SetStringField(TEXT("graph"), Graph->GetName());
+
+                OrphanedNodesList.Add(MakeShared<FJsonValueObject>(NodeObj));
+            }
+        }
+    }
+
+    OrphanedInfo->SetArrayField(TEXT("nodes"), OrphanedNodesList);
+    OrphanedInfo->SetNumberField(TEXT("count"), OrphanedNodesList.Num());
+
+    return OrphanedInfo;
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildGraphWarningsInfo(UWidgetBlueprint* WidgetBlueprint) const
+{
+    TSharedPtr<FJsonObject> WarningsInfo = MakeShared<FJsonObject>();
+    TArray<TSharedPtr<FJsonValue>> WarningsList;
+
+    // Collect all graphs
+    TArray<UEdGraph*> AllGraphs;
+    WidgetBlueprint->GetAllGraphs(AllGraphs);
+
+    for (UEdGraph* Graph : AllGraphs)
+    {
+        if (!Graph)
+        {
+            continue;
+        }
+
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            if (!Node)
+            {
+                continue;
+            }
+
+            // Check for Cast nodes (K2Node_DynamicCast) with disconnected exec pins
+            FString NodeClassName = Node->GetClass()->GetName();
+            if (NodeClassName.Contains(TEXT("DynamicCast")))
+            {
+                // Check exec pin connections
+                bool bHasExecInput = false;
+                bool bHasExecOutput = false;
+
+                for (UEdGraphPin* Pin : Node->Pins)
+                {
+                    if (Pin && Pin->PinType.PinCategory == TEXT("exec"))
+                    {
+                        if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() > 0)
+                        {
+                            bHasExecInput = true;
+                        }
+                        else if (Pin->Direction == EGPD_Output && Pin->LinkedTo.Num() > 0)
+                        {
+                            bHasExecOutput = true;
+                        }
+                    }
+                }
+
+                // Warn if cast node has disconnected exec pins
+                if (!bHasExecInput || !bHasExecOutput)
+                {
+                    TSharedPtr<FJsonObject> WarningObj = MakeShared<FJsonObject>();
+                    WarningObj->SetStringField(TEXT("type"), TEXT("disconnected_cast_exec"));
+                    WarningObj->SetStringField(TEXT("node_id"), FGraphUtils::GetReliableNodeId(Node));
+                    WarningObj->SetStringField(TEXT("node_title"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+                    WarningObj->SetStringField(TEXT("graph"), Graph->GetName());
+                    WarningObj->SetBoolField(TEXT("has_exec_input"), bHasExecInput);
+                    WarningObj->SetBoolField(TEXT("has_exec_output"), bHasExecOutput);
+                    WarningObj->SetStringField(TEXT("message"),
+                        FString::Printf(TEXT("Cast node '%s' has disconnected exec pins - it will NOT execute at runtime"),
+                            *Node->GetNodeTitle(ENodeTitleType::ListView).ToString()));
+
+                    WarningsList.Add(MakeShared<FJsonValueObject>(WarningObj));
+                }
+            }
+        }
+    }
+
+    WarningsInfo->SetArrayField(TEXT("warnings"), WarningsList);
+    WarningsInfo->SetNumberField(TEXT("count"), WarningsList.Num());
+
+    return WarningsInfo;
+}
+
+void FWidgetMetadataBuilderService::CollectAllWidgets(UWidget* Widget, TArray<UWidget*>& OutWidgets) const
+{
+    if (!Widget)
+    {
+        return;
+    }
+
+    OutWidgets.Add(Widget);
+
+    if (UPanelWidget* PanelWidget = Cast<UPanelWidget>(Widget))
+    {
+        for (int32 i = 0; i < PanelWidget->GetChildrenCount(); ++i)
+        {
+            CollectAllWidgets(PanelWidget->GetChildAt(i), OutWidgets);
+        }
+    }
+}
+
+TSharedPtr<FJsonObject> FWidgetMetadataBuilderService::BuildWidgetInfo(UWidget* Widget) const
+{
+    if (!Widget)
+    {
+        return nullptr;
+    }
+
+    TSharedPtr<FJsonObject> WidgetInfo = MakeShared<FJsonObject>();
+
+    // Basic info
+    WidgetInfo->SetStringField(TEXT("name"), Widget->GetName());
+    WidgetInfo->SetStringField(TEXT("type"), Widget->GetClass()->GetName());
+    WidgetInfo->SetBoolField(TEXT("is_variable"), Widget->bIsVariable);
+    WidgetInfo->SetBoolField(TEXT("is_visible"), Widget->GetVisibility() != ESlateVisibility::Hidden);
+    WidgetInfo->SetBoolField(TEXT("is_enabled"), Widget->GetIsEnabled());
+
+    // Slot properties
+    if (Widget->Slot)
+    {
+        TSharedPtr<FJsonObject> SlotInfo = MakeShared<FJsonObject>();
+        SlotInfo->SetStringField(TEXT("slot_type"), Widget->Slot->GetClass()->GetName());
+
+        if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Widget->Slot))
+        {
+            FVector2D Position = CanvasSlot->GetPosition();
+            FVector2D Size = CanvasSlot->GetSize();
+            FVector2D Alignment = CanvasSlot->GetAlignment();
+            FAnchors Anchors = CanvasSlot->GetAnchors();
+
+            TArray<TSharedPtr<FJsonValue>> PositionArray;
+            PositionArray.Add(MakeShared<FJsonValueNumber>(Position.X));
+            PositionArray.Add(MakeShared<FJsonValueNumber>(Position.Y));
+            SlotInfo->SetArrayField(TEXT("position"), PositionArray);
+
+            TArray<TSharedPtr<FJsonValue>> SizeArray;
+            SizeArray.Add(MakeShared<FJsonValueNumber>(Size.X));
+            SizeArray.Add(MakeShared<FJsonValueNumber>(Size.Y));
+            SlotInfo->SetArrayField(TEXT("size"), SizeArray);
+
+            TArray<TSharedPtr<FJsonValue>> AlignmentArray;
+            AlignmentArray.Add(MakeShared<FJsonValueNumber>(Alignment.X));
+            AlignmentArray.Add(MakeShared<FJsonValueNumber>(Alignment.Y));
+            SlotInfo->SetArrayField(TEXT("alignment"), AlignmentArray);
+
+            TSharedPtr<FJsonObject> AnchorsObj = MakeShared<FJsonObject>();
+            AnchorsObj->SetNumberField(TEXT("min_x"), Anchors.Minimum.X);
+            AnchorsObj->SetNumberField(TEXT("min_y"), Anchors.Minimum.Y);
+            AnchorsObj->SetNumberField(TEXT("max_x"), Anchors.Maximum.X);
+            AnchorsObj->SetNumberField(TEXT("max_y"), Anchors.Maximum.Y);
+            SlotInfo->SetObjectField(TEXT("anchors"), AnchorsObj);
+
+            SlotInfo->SetNumberField(TEXT("z_order"), CanvasSlot->GetZOrder());
+        }
+        else if (UHorizontalBoxSlot* HBoxSlot = Cast<UHorizontalBoxSlot>(Widget->Slot))
+        {
+            FMargin Padding = HBoxSlot->GetPadding();
+            TSharedPtr<FJsonObject> PaddingObj = MakeShared<FJsonObject>();
+            PaddingObj->SetNumberField(TEXT("left"), Padding.Left);
+            PaddingObj->SetNumberField(TEXT("top"), Padding.Top);
+            PaddingObj->SetNumberField(TEXT("right"), Padding.Right);
+            PaddingObj->SetNumberField(TEXT("bottom"), Padding.Bottom);
+            SlotInfo->SetObjectField(TEXT("padding"), PaddingObj);
+
+            SlotInfo->SetStringField(TEXT("h_align"), UEnum::GetValueAsString(HBoxSlot->GetHorizontalAlignment()));
+            SlotInfo->SetStringField(TEXT("v_align"), UEnum::GetValueAsString(HBoxSlot->GetVerticalAlignment()));
+        }
+        else if (UVerticalBoxSlot* VBoxSlot = Cast<UVerticalBoxSlot>(Widget->Slot))
+        {
+            FMargin Padding = VBoxSlot->GetPadding();
+            TSharedPtr<FJsonObject> PaddingObj = MakeShared<FJsonObject>();
+            PaddingObj->SetNumberField(TEXT("left"), Padding.Left);
+            PaddingObj->SetNumberField(TEXT("top"), Padding.Top);
+            PaddingObj->SetNumberField(TEXT("right"), Padding.Right);
+            PaddingObj->SetNumberField(TEXT("bottom"), Padding.Bottom);
+            SlotInfo->SetObjectField(TEXT("padding"), PaddingObj);
+
+            SlotInfo->SetStringField(TEXT("h_align"), UEnum::GetValueAsString(VBoxSlot->GetHorizontalAlignment()));
+            SlotInfo->SetStringField(TEXT("v_align"), UEnum::GetValueAsString(VBoxSlot->GetVerticalAlignment()));
+        }
+
+        WidgetInfo->SetObjectField(TEXT("slot"), SlotInfo);
+    }
+
+    // Widget type-specific properties
+    if (UTextBlock* TextBlock = Cast<UTextBlock>(Widget))
+    {
+        TSharedPtr<FJsonObject> TextProps = MakeShared<FJsonObject>();
+        TextProps->SetStringField(TEXT("text"), TextBlock->GetText().ToString());
+        TextProps->SetNumberField(TEXT("font_size"), TextBlock->GetFont().Size);
+        WidgetInfo->SetObjectField(TEXT("text_properties"), TextProps);
+    }
+    else if (UButton* Button = Cast<UButton>(Widget))
+    {
+        TSharedPtr<FJsonObject> ButtonProps = MakeShared<FJsonObject>();
+        ButtonProps->SetBoolField(TEXT("is_focusable"), Button->GetIsFocusable());
+        WidgetInfo->SetObjectField(TEXT("button_properties"), ButtonProps);
+    }
+    else if (UBorder* Border = Cast<UBorder>(Widget))
+    {
+        TSharedPtr<FJsonObject> BorderProps = MakeShared<FJsonObject>();
+        FLinearColor BrushColor = Border->GetBrushColor();
+        BorderProps->SetStringField(TEXT("brush_color"),
+            FString::Printf(TEXT("rgba(%d,%d,%d,%.2f)"),
+                FMath::RoundToInt(BrushColor.R * 255),
+                FMath::RoundToInt(BrushColor.G * 255),
+                FMath::RoundToInt(BrushColor.B * 255),
+                BrushColor.A));
+        WidgetInfo->SetObjectField(TEXT("border_properties"), BorderProps);
+    }
+
+    // Children (for panel widgets)
+    if (UPanelWidget* PanelWidget = Cast<UPanelWidget>(Widget))
+    {
+        TArray<TSharedPtr<FJsonValue>> ChildrenArray;
+        for (int32 i = 0; i < PanelWidget->GetChildrenCount(); ++i)
+        {
+            if (UWidget* ChildWidget = PanelWidget->GetChildAt(i))
+            {
+                TSharedPtr<FJsonObject> ChildInfo = BuildWidgetInfo(ChildWidget);
+                if (ChildInfo.IsValid())
+                {
+                    ChildrenArray.Add(MakeShared<FJsonValueObject>(ChildInfo));
+                }
+            }
+        }
+        WidgetInfo->SetArrayField(TEXT("children"), ChildrenArray);
+    }
+
+    return WidgetInfo;
+}
+
+TArray<FString> FWidgetMetadataBuilderService::GetAvailableDelegateEvents(UWidget* Widget) const
+{
+    TArray<FString> DelegateEvents;
+
+    if (!Widget)
+    {
+        return DelegateEvents;
+    }
+
+    // Iterate through all properties of the widget class looking for multicast delegates
+    for (TFieldIterator<FProperty> PropIt(Widget->GetClass()); PropIt; ++PropIt)
+    {
+        FProperty* Property = *PropIt;
+        if (!Property)
+        {
+            continue;
+        }
+
+        // Check if it's a multicast delegate property (these are bindable events)
+        if (FMulticastDelegateProperty* DelegateProp = CastField<FMulticastDelegateProperty>(Property))
+        {
+            // Skip internal/private delegates that start with underscore
+            FString PropName = Property->GetName();
+            if (!PropName.StartsWith(TEXT("_")))
+            {
+                DelegateEvents.Add(PropName);
+            }
+        }
+    }
+
+    return DelegateEvents;
+}

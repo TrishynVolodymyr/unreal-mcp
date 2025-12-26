@@ -1,6 +1,8 @@
 #include "Services/BlueprintNodeCreationService.h"
 #include "Services/NodeCreation/ControlFlowNodeCreator.h"
 #include "Services/NodeCreation/EventAndVariableNodeCreator.h"
+#include "Services/IBlueprintNodeService.h"  // For FBlueprintNodeConnectionParams
+#include "Services/BlueprintNode/BlueprintNodeConnectionService.h"
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -13,6 +15,7 @@
 #include "Engine/Blueprint.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Utils/UnrealMCPCommonUtils.h" // For utility blueprint finder
+#include "Utils/GraphUtils.h" // For reliable node IDs
 
 // Include refactored node creation helpers
 #include "NodeCreation/ArithmeticNodeCreator.h"
@@ -361,13 +364,48 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionName: Failed to create node for '%s'"), *EffectiveFunctionName);
         return FNodeResultBuilder::BuildNodeResult(false, FString::Printf(TEXT("Failed to create node for '%s'"), *EffectiveFunctionName));
     }
-    
+
     UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Successfully created node '%s' of type '%s'"), *NodeTitle, *NodeType);
-    
+
+    // Collect warnings and connection results for enhanced response
+    TArray<FString> Warnings;
+    TArray<TSharedPtr<FJsonObject>> ConnectionResults;
+
+    // Apply pin values if provided
+    if (ParamsObject.IsValid() && ParamsObject->HasField(TEXT("pin_values")))
+    {
+        const TSharedPtr<FJsonObject>* PinValuesObject = nullptr;
+        if (ParamsObject->TryGetObjectField(TEXT("pin_values"), PinValuesObject) && PinValuesObject->IsValid())
+        {
+            ApplyPinValues(NewNode, EventGraph, Blueprint, *PinValuesObject, Warnings);
+        }
+    }
+
+    // Apply connections if provided
+    if (ParamsObject.IsValid() && ParamsObject->HasField(TEXT("connections")))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* ConnectionsArray = nullptr;
+        if (ParamsObject->TryGetArrayField(TEXT("connections"), ConnectionsArray))
+        {
+            ApplyConnections(NewNode, EventGraph, Blueprint, *ConnectionsArray, Warnings, ConnectionResults);
+        }
+    }
+
     // Mark blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-    
+
+    // Combine all warnings into the warning message
+    if (Warnings.Num() > 0)
+    {
+        if (!WarningMessage.IsEmpty())
+        {
+            WarningMessage += TEXT("; ");
+        }
+        WarningMessage += FString::Join(Warnings, TEXT("; "));
+    }
+
     // Return success result (include warning if present)
+    // TODO: Enhance BuildNodeResult to include connection_results array
     return FNodeResultBuilder::BuildNodeResult(true, FString::Printf(TEXT("Successfully created '%s' node (%s)"), *NodeTitle, *NodeType),
                           BlueprintName, EffectiveFunctionName, NewNode, NodeTitle, NodeType, TargetClass, PositionX, PositionY, WarningMessage);
 }
@@ -483,6 +521,259 @@ UBlueprint* FBlueprintNodeCreationService::FindBlueprintByName(const FString& Bl
 
 void FBlueprintNodeCreationService::LogNodeCreationAttempt(const FString& FunctionName, const FString& BlueprintName, const FString& ClassName, int32 PositionX, int32 PositionY) const
 {
-    UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService: Creating node '%s' in blueprint '%s' with class '%s' at position [%d, %d]"), 
+    UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService: Creating node '%s' in blueprint '%s' with class '%s' at position [%d, %d]"),
            *FunctionName, *BlueprintName, *ClassName, PositionX, PositionY);
+}
+
+void FBlueprintNodeCreationService::ApplyPinValues(UEdGraphNode* Node, UEdGraph* Graph, UBlueprint* Blueprint,
+                                                   const TSharedPtr<FJsonObject>& PinValuesObject, TArray<FString>& OutWarnings)
+{
+    if (!Node || !Graph || !Blueprint || !PinValuesObject.IsValid())
+    {
+        return;
+    }
+
+    const UEdGraphSchema_K2* K2Schema = Cast<const UEdGraphSchema_K2>(Graph->GetSchema());
+    if (!K2Schema)
+    {
+        OutWarnings.Add(TEXT("Graph schema is not K2 (Blueprint) schema - pin values not applied"));
+        return;
+    }
+
+    // Iterate over all pin values
+    for (const auto& PinValuePair : PinValuesObject->Values)
+    {
+        const FString& PinName = PinValuePair.Key;
+        FString Value;
+
+        // Get value as string (handles string, number, bool)
+        if (PinValuePair.Value->Type == EJson::String)
+        {
+            Value = PinValuePair.Value->AsString();
+        }
+        else if (PinValuePair.Value->Type == EJson::Number)
+        {
+            Value = FString::SanitizeFloat(PinValuePair.Value->AsNumber());
+        }
+        else if (PinValuePair.Value->Type == EJson::Boolean)
+        {
+            Value = PinValuePair.Value->AsBool() ? TEXT("true") : TEXT("false");
+        }
+        else
+        {
+            OutWarnings.Add(FString::Printf(TEXT("Unsupported value type for pin '%s'"), *PinName));
+            continue;
+        }
+
+        // Find the pin on the node
+        UEdGraphPin* TargetPin = nullptr;
+        for (UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin && (Pin->GetName() == PinName || Pin->PinFriendlyName.ToString() == PinName))
+            {
+                TargetPin = Pin;
+                break;
+            }
+        }
+
+        if (!TargetPin)
+        {
+            // Pin not found - add warning but continue with other pins
+            OutWarnings.Add(FString::Printf(TEXT("Pin '%s' not found on node - value not set"), *PinName));
+            continue;
+        }
+
+        // Set the pin value based on its type (adapted from SetNodePinValueCommand logic)
+        if (TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Class)
+        {
+            // Handle class reference pins
+            UClass* ClassToSet = nullptr;
+
+            if (Value.StartsWith(TEXT("/Script/")))
+            {
+                ClassToSet = FindObject<UClass>(nullptr, *Value);
+            }
+            else if (Value.StartsWith(TEXT("/Game/")))
+            {
+                FString ClassPath = Value;
+                if (!ClassPath.EndsWith(TEXT("_C")))
+                {
+                    FString BaseName = FPaths::GetBaseFilename(Value);
+                    ClassPath = FString::Printf(TEXT("%s.%s_C"), *Value, *BaseName);
+                }
+                ClassToSet = LoadObject<UClass>(nullptr, *ClassPath);
+
+                if (!ClassToSet)
+                {
+                    UObject* Asset = LoadObject<UObject>(nullptr, *Value);
+                    if (UBlueprint* BP = Cast<UBlueprint>(Asset))
+                    {
+                        ClassToSet = BP->GeneratedClass;
+                    }
+                }
+            }
+            else
+            {
+                // Try widget class first, then engine classes
+                ClassToSet = FUnrealMCPCommonUtils::FindWidgetClass(Value);
+                if (!ClassToSet)
+                {
+                    FString FullPath = FString::Printf(TEXT("/Script/Engine.%s"), *Value);
+                    ClassToSet = FindObject<UClass>(nullptr, *FullPath);
+                    if (!ClassToSet)
+                    {
+                        ClassToSet = FindFirstObject<UClass>(*Value, EFindFirstObjectOptions::NativeFirst);
+                    }
+                }
+            }
+
+            if (ClassToSet)
+            {
+                K2Schema->TrySetDefaultObject(*TargetPin, ClassToSet);
+                UE_LOG(LogTemp, Display, TEXT("Set class pin '%s' to '%s'"), *PinName, *Value);
+            }
+            else
+            {
+                OutWarnings.Add(FString::Printf(TEXT("Class '%s' not found for pin '%s'"), *Value, *PinName));
+            }
+        }
+        else if (TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Byte && TargetPin->PinType.PinSubCategoryObject.IsValid())
+        {
+            // Handle enum pins
+            UEnum* EnumType = Cast<UEnum>(TargetPin->PinType.PinSubCategoryObject.Get());
+            if (EnumType)
+            {
+                int64 EnumValue = EnumType->GetValueByNameString(Value);
+                if (EnumValue == INDEX_NONE)
+                {
+                    // Try short name match
+                    for (int32 i = 0; i < EnumType->NumEnums() - 1; ++i)
+                    {
+                        FString EnumName = EnumType->GetNameStringByIndex(i);
+                        FString ShortName = EnumName;
+                        int32 ColonPos;
+                        if (EnumName.FindLastChar(':', ColonPos))
+                        {
+                            ShortName = EnumName.RightChop(ColonPos + 1);
+                        }
+                        if (ShortName.Equals(Value, ESearchCase::IgnoreCase))
+                        {
+                            EnumValue = i;
+                            TargetPin->DefaultValue = EnumName;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    TargetPin->DefaultValue = EnumType->GetNameStringByValue(EnumValue);
+                }
+
+                if (EnumValue == INDEX_NONE)
+                {
+                    OutWarnings.Add(FString::Printf(TEXT("Enum value '%s' not found for pin '%s'"), *Value, *PinName));
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Display, TEXT("Set enum pin '%s' to '%s'"), *PinName, *TargetPin->DefaultValue);
+                }
+            }
+        }
+        else
+        {
+            // For basic types (int, float, bool, string), just set the default value
+            TargetPin->DefaultValue = Value;
+            UE_LOG(LogTemp, Display, TEXT("Set pin '%s' to '%s'"), *PinName, *Value);
+        }
+    }
+
+    // Reconstruct the node to apply changes
+    Node->ReconstructNode();
+}
+
+void FBlueprintNodeCreationService::ApplyConnections(UEdGraphNode* Node, UEdGraph* Graph, UBlueprint* Blueprint,
+                                                     const TArray<TSharedPtr<FJsonValue>>& ConnectionsArray,
+                                                     TArray<FString>& OutWarnings, TArray<TSharedPtr<FJsonObject>>& OutConnectionResults)
+{
+    if (!Node || !Graph || !Blueprint || ConnectionsArray.Num() == 0)
+    {
+        return;
+    }
+
+    // Get the new node's ID for placeholder replacement
+    FString NewNodeId = FGraphUtils::GetReliableNodeId(Node);
+
+    // Build connection params array
+    TArray<FBlueprintNodeConnectionParams> ConnectionParams;
+
+    for (const TSharedPtr<FJsonValue>& ConnectionValue : ConnectionsArray)
+    {
+        const TSharedPtr<FJsonObject>* ConnectionObj = nullptr;
+        if (!ConnectionValue->TryGetObject(ConnectionObj) || !ConnectionObj->IsValid())
+        {
+            OutWarnings.Add(TEXT("Invalid connection object in connections array"));
+            continue;
+        }
+
+        FBlueprintNodeConnectionParams Params;
+
+        // Get source and target info
+        FString SourceNodeId, SourcePin, TargetNodeId, TargetPin;
+        (*ConnectionObj)->TryGetStringField(TEXT("source_node_id"), SourceNodeId);
+        (*ConnectionObj)->TryGetStringField(TEXT("source_pin"), SourcePin);
+        (*ConnectionObj)->TryGetStringField(TEXT("target_node_id"), TargetNodeId);
+        (*ConnectionObj)->TryGetStringField(TEXT("target_pin"), TargetPin);
+
+        // Replace "$new" placeholder with actual new node ID
+        if (SourceNodeId == TEXT("$new") || SourceNodeId == TEXT("$NEW"))
+        {
+            SourceNodeId = NewNodeId;
+        }
+        if (TargetNodeId == TEXT("$new") || TargetNodeId == TEXT("$NEW"))
+        {
+            TargetNodeId = NewNodeId;
+        }
+
+        if (SourceNodeId.IsEmpty() || SourcePin.IsEmpty() || TargetNodeId.IsEmpty() || TargetPin.IsEmpty())
+        {
+            OutWarnings.Add(TEXT("Connection missing required fields (source_node_id, source_pin, target_node_id, target_pin)"));
+            continue;
+        }
+
+        Params.SourceNodeId = SourceNodeId;
+        Params.SourcePin = SourcePin;
+        Params.TargetNodeId = TargetNodeId;
+        Params.TargetPin = TargetPin;
+
+        ConnectionParams.Add(Params);
+    }
+
+    if (ConnectionParams.Num() == 0)
+    {
+        return;
+    }
+
+    // Use the connection service
+    TArray<FConnectionResultInfo> Results;
+    FBlueprintNodeConnectionService::Get().ConnectBlueprintNodesEnhanced(Blueprint, ConnectionParams, Graph->GetName(), Results);
+
+    // Process results
+    for (int32 i = 0; i < Results.Num(); i++)
+    {
+        const FConnectionResultInfo& Result = Results[i];
+        TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+        ResultObj->SetBoolField(TEXT("success"), Result.bSuccess);
+        ResultObj->SetStringField(TEXT("source_node_id"), ConnectionParams[i].SourceNodeId);
+        ResultObj->SetStringField(TEXT("target_node_id"), ConnectionParams[i].TargetNodeId);
+
+        if (!Result.bSuccess)
+        {
+            OutWarnings.Add(FString::Printf(TEXT("Connection failed: %s -> %s: %s"),
+                *ConnectionParams[i].SourcePin, *ConnectionParams[i].TargetPin,
+                Result.ErrorMessage.IsEmpty() ? TEXT("Unknown error") : *Result.ErrorMessage));
+            ResultObj->SetStringField(TEXT("error"), Result.ErrorMessage);
+        }
+
+        OutConnectionResults.Add(ResultObj);
+    }
 } 

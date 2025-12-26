@@ -319,10 +319,26 @@ def create_node_by_action_name(
     class_name: str = "",
     node_position: List[float] = None,
     target_graph: str = "EventGraph",
+    pin_values: Dict[str, Any] = None,
+    connections: List[Dict[str, str]] = None,
     **kwargs
 ) -> Dict[str, Any]:
-    """Implementation for creating a blueprint node by discovered action/function name."""
-    
+    """
+    Implementation for creating a blueprint node by discovered action/function name.
+
+    New parameters:
+        pin_values: Optional dict mapping pin names to values to set immediately after node creation.
+                   Example: {"InString": "Hello World", "bPrintToLog": True}
+                   If a pin name is not found on the node, a warning is added but creation succeeds.
+
+        connections: Optional list of connection dicts to establish after node creation.
+                    Use "$new" as a placeholder for the newly created node's ID.
+                    Example: [
+                        {"source_node_id": "ABC123", "source_pin": "Then", "target_node_id": "$new", "target_pin": "execute"},
+                        {"source_node_id": "$new", "source_pin": "Return Value", "target_node_id": "DEF456", "target_pin": "Value"}
+                    ]
+    """
+
     # Flatten if kwargs is double-wrapped (i.e., kwargs={'kwargs': {...}})
     if (
         len(kwargs) == 1 and
@@ -330,7 +346,7 @@ def create_node_by_action_name(
         isinstance(kwargs['kwargs'], dict)
     ):
         kwargs = kwargs['kwargs']
-    
+
     # --- PATCH START ---
     if function_name in ("Get", "Set") and "variable_name" in kwargs:
         function_name = f"{function_name} {kwargs['variable_name']}"
@@ -340,14 +356,14 @@ def create_node_by_action_name(
         "blueprint_name": blueprint_name,
         "function_name": function_name
     }
-    
+
     if class_name:
         params["class_name"] = class_name
-        
+
     if node_position is not None:
         # Convert List[float] to JSON string that C++ can parse
         params["node_position"] = json.dumps(node_position)
-    
+
     # Build json_params payload that will be passed through to the C++ side.  It carries
     # any extra keyword arguments **and** the optional target_graph so the service layer
     # can pick it up in one place.
@@ -359,10 +375,18 @@ def create_node_by_action_name(
     final_target_graph = target_graph
     if "target_graph" in kwargs:
         final_target_graph = kwargs.pop("target_graph")
-    
+
     # Always include target_graph (defaults to "EventGraph")
     params["target_graph"] = final_target_graph  # For handler compatibility
     extra_params["target_graph"] = final_target_graph  # For C++ service layer
+
+    # Add pin_values if provided
+    if pin_values is not None:
+        extra_params["pin_values"] = pin_values
+
+    # Add connections if provided
+    if connections is not None:
+        extra_params["connections"] = connections
 
     # Merge any additional kwargs supplied by the caller
     if kwargs:
