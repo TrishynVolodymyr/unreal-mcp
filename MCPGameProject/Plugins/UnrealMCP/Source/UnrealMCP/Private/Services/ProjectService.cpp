@@ -1130,6 +1130,54 @@ TArray<TSharedPtr<FJsonObject>> FProjectService::ListInputMappingContexts(const 
     return Contexts;
 }
 
+bool FProjectService::DuplicateAsset(const FString& SourcePath, const FString& DestinationPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError)
+{
+    // Validate source asset exists
+    if (!UEditorAssetLibrary::DoesAssetExist(SourcePath))
+    {
+        OutError = FString::Printf(TEXT("Source asset does not exist: %s"), *SourcePath);
+        return false;
+    }
+
+    // Ensure destination path exists
+    if (!UEditorAssetLibrary::DoesDirectoryExist(DestinationPath))
+    {
+        if (!UEditorAssetLibrary::MakeDirectory(DestinationPath))
+        {
+            OutError = FString::Printf(TEXT("Failed to create destination directory: %s"), *DestinationPath);
+            return false;
+        }
+    }
+
+    // Build the full destination path
+    FString CleanDestPath = DestinationPath;
+    if (!CleanDestPath.EndsWith(TEXT("/")))
+    {
+        CleanDestPath += TEXT("/");
+    }
+    FString FullDestinationPath = CleanDestPath + NewName;
+
+    // Check if destination already exists
+    if (UEditorAssetLibrary::DoesAssetExist(FullDestinationPath))
+    {
+        OutError = FString::Printf(TEXT("Destination asset already exists: %s"), *FullDestinationPath);
+        return false;
+    }
+
+    // Use UEditorAssetLibrary::DuplicateAsset - this is the simplest and most reliable method
+    // It handles all asset types automatically (Blueprints, Widgets, DataTables, Materials, etc.)
+    if (!UEditorAssetLibrary::DuplicateAsset(SourcePath, FullDestinationPath))
+    {
+        OutError = FString::Printf(TEXT("Failed to duplicate asset from '%s' to '%s'"), *SourcePath, *FullDestinationPath);
+        return false;
+    }
+
+    OutNewAssetPath = FullDestinationPath;
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully duplicated asset from '%s' to '%s'"), *SourcePath, *FullDestinationPath);
+
+    return true;
+}
+
 UScriptStruct* FProjectService::FindCustomStruct(const FString& StructName) const
 {
     UE_LOG(LogTemp, Display, TEXT("MCP Project: Dynamic search for struct '%s'"), *StructName);

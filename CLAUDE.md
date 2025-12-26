@@ -157,6 +157,70 @@ When implementing complex functionality (inventory systems, dialogue systems, ga
 
 **Rationale:** MCP-created Blueprint logic is difficult to debug after the fact. Each step builds on previous steps. One incorrect node connection early on cascades into complex debugging later. Verify early, verify often.
 
+### Test-First Phase Planning (CRITICAL)
+
+**⚠️ Phases MUST be structured for earliest possible testing, NOT by architectural layer.**
+
+**The Problem:**
+Traditional layered approach (Data → Blueprint Logic → Widgets) delays testing until ALL layers are complete. When bugs appear, you have a massive interconnected system to debug with no working baseline.
+
+**The Solution: UI-First, Data-Second, Logic-Last**
+
+```
+WRONG ORDER (delays testing):          RIGHT ORDER (early testing):
+1. Create data structures               1. Create widget visuals (hardcoded data)
+2. Create Blueprint logic               2. Test widget layout/interactions manually
+3. Create widgets                       3. Create data structures
+4. NOW you can finally test             4. Connect data to widgets, test with real data
+   → Debugging nightmare                5. Create Blueprint logic incrementally
+                                        6. Test each function as it's added
+                                           → Bugs caught immediately
+```
+
+**Phase Planning Rules:**
+
+1. **Widgets First**: Create UI widgets with hardcoded/mock data
+   - User can visually verify layout, colors, sizing
+   - Test click handlers, hover states, animations
+   - No dependencies on data layer yet
+
+2. **Data Layer Second**: Create structs, DataTables, managers
+   - Connect to existing widgets
+   - Test that real data displays correctly
+   - Widget bugs are already fixed at this point
+
+3. **Blueprint Logic Last (or in parallel)**: Complex game logic
+   - Each function tested immediately after creation
+   - Widget + data layer already verified working
+   - Logic bugs are isolated, not cascading
+
+4. **Parallel Work When Possible**:
+   - Widget visual work can happen alongside data structure creation
+   - Simple BP functions (getters, setters) can be added early
+   - Complex logic waits until UI is verified
+
+**Example - Inventory System (Correct Order):**
+```
+Phase 1: Widget Skeleton
+- Create WBP_InventorySlot with hardcoded icon
+- Create WBP_InventoryGrid with hardcoded slots
+- USER TEST: "Does the grid look right? Can I click slots?"
+
+Phase 2: Data + Widget Connection
+- Create S_InventorySlot struct
+- Create DT_Items DataTable
+- Connect DataTable to widgets
+- USER TEST: "Do real items show with correct icons?"
+
+Phase 3: Manager Logic
+- Create BP_InventoryManager
+- Implement AddItem function → TEST
+- Implement RemoveItem function → TEST
+- Each function tested in isolation
+```
+
+**Key Principle:** After each phase, the user should be able to launch Unreal, interact with something, and verify it works. If a phase doesn't end with a testable deliverable, the phase is too large - split it.
+
 ### Adding New Functionality
 
 1. **Plan cross-component**: Design Python API signature and C++ implementation together

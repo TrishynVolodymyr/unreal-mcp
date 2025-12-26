@@ -37,4 +37,7 @@ public:
     
     // Utility operations
     virtual FString GetProjectDirectory() const = 0;
+
+    // Asset operations
+    virtual bool DuplicateAsset(const FString& SourcePath, const FString& DestinationPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) = 0;
 };

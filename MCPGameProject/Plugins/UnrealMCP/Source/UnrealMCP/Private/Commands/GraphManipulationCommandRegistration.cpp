@@ -6,6 +6,7 @@
 #include "Commands/GraphManipulation/SetNodePinValueCommand.h"
 #include "Commands/GraphManipulation/AutoArrangeNodesCommand.h"
 #include "Commands/GraphManipulation/DeleteOrphanedNodesCommand.h"
+#include "Commands/GraphManipulation/CleanupBlueprintGraphCommand.h"
 #include "Services/BlueprintNodeService.h"
 #include "Services/BlueprintService.h"
 
@@ -26,6 +27,7 @@ void FGraphManipulationCommandRegistration::RegisterAllGraphManipulationCommands
     RegisterSetNodePinValueCommand();
     RegisterAutoArrangeNodesCommand();
     RegisterDeleteOrphanedNodesCommand();
+    RegisterCleanupBlueprintGraphCommand();
 
     UE_LOG(LogTemp, Log, TEXT("FGraphManipulationCommandRegistration::RegisterAllGraphManipulationCommands: Registered %d Graph Manipulation commands"), 
         RegisteredCommandNames.Num());
@@ -85,6 +87,12 @@ void FGraphManipulationCommandRegistration::RegisterAutoArrangeNodesCommand()
 void FGraphManipulationCommandRegistration::RegisterDeleteOrphanedNodesCommand()
 {
     TSharedPtr<FDeleteOrphanedNodesCommand> Command = MakeShared<FDeleteOrphanedNodesCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FGraphManipulationCommandRegistration::RegisterCleanupBlueprintGraphCommand()
+{
+    TSharedPtr<FCleanupBlueprintGraphCommand> Command = MakeShared<FCleanupBlueprintGraphCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

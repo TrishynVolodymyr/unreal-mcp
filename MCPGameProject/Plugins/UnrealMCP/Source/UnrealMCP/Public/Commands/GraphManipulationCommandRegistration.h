@@ -24,6 +24,7 @@ private:
     static void RegisterSetNodePinValueCommand();
     static void RegisterAutoArrangeNodesCommand();
     static void RegisterDeleteOrphanedNodesCommand();
+    static void RegisterCleanupBlueprintGraphCommand();
     
     /** Helper to register and track a command */
     static void RegisterAndTrackCommand(TSharedPtr<IUnrealMCPCommand> Command);

@@ -11,6 +11,7 @@
 #include "Commands/Project/UpdateStructCommand.h"
 #include "Commands/Project/GetProjectMetadataCommand.h"
 #include "Commands/Project/GetStructPinNamesCommand.h"
+#include "Commands/Project/DuplicateAssetCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -49,6 +50,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
 
     // Register struct pin names command for discovering struct field/pin names
     Registry.RegisterCommand(MakeShared<FGetStructPinNamesCommand>(ProjectService));
+
+    // Register asset duplication command
+    Registry.RegisterCommand(MakeShared<FDuplicateAssetCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }
