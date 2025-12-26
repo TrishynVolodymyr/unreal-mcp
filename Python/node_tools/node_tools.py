@@ -414,6 +414,88 @@ def register_blueprint_node_tools(mcp: FastMCP):
                 "message": f"Failed to delete orphaned nodes: {str(e)}"
             }
 
+    @mcp.tool()
+    def cleanup_blueprint_graph(
+        ctx: Context,
+        blueprint_name: str,
+        cleanup_mode: str,
+        graph_name: str = "",
+        include_event_graph: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Unified cleanup tool for Blueprint graphs with multiple modes.
+
+        Supported cleanup modes:
+        - "orphans": Delete orphaned nodes not reachable from entry points
+        - "print_strings": Delete Print String nodes and rewire execution flow
+
+        For print_strings mode:
+        - If Print String is middleware (has both execute input AND then output connected):
+          Rewires the source node's exec to the target node's exec, then deletes
+        - If Print String is a dead end (only execute input connected):
+          Simply deletes the node (nothing to rewire)
+
+        Args:
+            blueprint_name: Name of the target Blueprint
+            cleanup_mode: Cleanup mode - "orphans" or "print_strings"
+            graph_name: Optional name of specific graph to clean (empty = all graphs except EventGraph)
+            include_event_graph: Whether to include EventGraph in cleanup (default: False)
+
+        Returns:
+            Dict containing:
+            - success: Boolean indicating success
+            - blueprint_name: Name of the Blueprint processed
+            - cleanup_mode: The mode that was used
+            - deleted_count: Number of nodes deleted
+            - rewired_count: Number of connections rewired (print_strings mode only)
+            - deleted_nodes: Array of deleted node titles with graph names
+            - skipped_graphs: Array of graphs that were skipped (if any)
+
+        Examples:
+            # Clean orphaned nodes from a specific function
+            cleanup_blueprint_graph(
+                ctx,
+                blueprint_name="WBP_InventorySlot",
+                cleanup_mode="orphans",
+                graph_name="HandleMouseDown"
+            )
+
+            # Remove all Print String debug nodes and rewire connections
+            cleanup_blueprint_graph(
+                ctx,
+                blueprint_name="WBP_LootSlot",
+                cleanup_mode="print_strings",
+                graph_name="RefreshSlot"
+            )
+
+            # Clean Print Strings from all graphs including EventGraph
+            cleanup_blueprint_graph(
+                ctx,
+                blueprint_name="BP_MyActor",
+                cleanup_mode="print_strings",
+                include_event_graph=True
+            )
+        """
+        try:
+            params = {
+                "blueprint_name": blueprint_name,
+                "cleanup_mode": cleanup_mode,
+                "include_event_graph": include_event_graph
+            }
+
+            if graph_name:
+                params["graph_name"] = graph_name
+
+            result = send_unreal_command("cleanup_blueprint_graph", params)
+            return result
+
+        except Exception as e:
+            logger.error(f"Error cleaning up blueprint graph: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to cleanup blueprint graph: {str(e)}"
+            }
+
     # ========== Graph Layout Tools ==========
 
     @mcp.tool()

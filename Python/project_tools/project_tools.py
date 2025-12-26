@@ -559,4 +559,91 @@ def register_project_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
+    @mcp.tool()
+    def duplicate_asset(
+        ctx: Context,
+        source_path: str,
+        new_name: str,
+        destination_path: str = None
+    ) -> Dict[str, Any]:
+        """
+        Duplicate an existing asset (Blueprint, Widget, DataTable, Material, etc.) to a new location.
+
+        This is useful for creating copies of existing assets as starting points for new functionality,
+        avoiding the need to recreate complex assets from scratch.
+
+        Args:
+            source_path: Full path to the source asset (e.g., "/Game/Inventory/UI/WBP_InventorySlot")
+            new_name: Name for the new asset (e.g., "WBP_LootSlot")
+            destination_path: Optional destination folder path. If not provided, uses the same
+                            folder as the source asset.
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the duplication succeeded
+            - source_path: The original asset path
+            - destination_path: The destination folder
+            - new_name: The new asset name
+            - new_asset_path: Full path to the newly created asset
+            - message: Status message
+
+        Examples:
+            # Duplicate an inventory slot to create a loot slot in the same folder
+            duplicate_asset(
+                source_path="/Game/Inventory/UI/WBP_InventorySlot",
+                new_name="WBP_LootSlot"
+            )
+
+            # Duplicate to a different folder
+            duplicate_asset(
+                source_path="/Game/Inventory/UI/WBP_InventorySlot",
+                new_name="WBP_LootSlot",
+                destination_path="/Game/Loot/UI"
+            )
+
+            # Duplicate a Blueprint actor
+            duplicate_asset(
+                source_path="/Game/Blueprints/BP_BaseEnemy",
+                new_name="BP_BossEnemy",
+                destination_path="/Game/Blueprints/Enemies"
+            )
+
+            # Duplicate a DataTable
+            duplicate_asset(
+                source_path="/Game/Data/DT_Items",
+                new_name="DT_LootItems",
+                destination_path="/Game/Loot/Data"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "source_path": source_path,
+                "new_name": new_name
+            }
+
+            if destination_path:
+                params["destination_path"] = destination_path
+
+            logger.info(f"Duplicating asset '{source_path}' to '{new_name}'")
+            response = unreal.send_command("duplicate_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Duplicate asset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error duplicating asset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
     logger.info("Project tools registered successfully")

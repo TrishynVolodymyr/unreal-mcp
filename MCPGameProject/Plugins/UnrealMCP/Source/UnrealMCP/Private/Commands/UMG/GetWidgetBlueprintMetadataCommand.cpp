@@ -149,128 +149,14 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 		ContainerName = Params->GetStringField(TEXT("container_name"));
 	}
 
-	// Find the widget blueprint using asset registry
-	UWidgetBlueprint* WidgetBlueprint = nullptr;
+	// Find the widget blueprint with retry mechanism
 	TArray<FString> AttemptedPaths;
-
-	// Check if full path provided
-	if (WidgetName.StartsWith(TEXT("/Game/")) || WidgetName.StartsWith(TEXT("/Script/")))
-	{
-		// Try multiple path variations
-		TArray<FString> PathVariations;
-
-		if (WidgetName.Contains(TEXT(".")))
-		{
-			// Path already has asset suffix - try as-is first
-			PathVariations.Add(WidgetName);
-			// Also try without suffix
-			int32 DotIndex;
-			if (WidgetName.FindLastChar(TEXT('.'), DotIndex))
-			{
-				FString PathWithoutSuffix = WidgetName.Left(DotIndex);
-				FString AssetName = FPaths::GetBaseFilename(PathWithoutSuffix);
-				PathVariations.Add(PathWithoutSuffix + TEXT(".") + AssetName);
-			}
-		}
-		else
-		{
-			// No suffix - add asset name suffix
-			FString AssetName = FPaths::GetBaseFilename(WidgetName);
-			PathVariations.Add(WidgetName + TEXT(".") + AssetName);
-			PathVariations.Add(WidgetName);
-		}
-
-		for (const FString& Path : PathVariations)
-		{
-			AttemptedPaths.Add(Path);
-			UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Attempting to load Widget Blueprint at path: '%s'"), *Path);
-			UObject* Asset = UEditorAssetLibrary::LoadAsset(Path);
-			if (Asset)
-			{
-				UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Loaded asset of type: %s"), *Asset->GetClass()->GetName());
-				WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
-				if (WidgetBlueprint)
-				{
-					UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully found Widget Blueprint at: '%s'"), *Path);
-					break;
-				}
-				else
-				{
-					UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Asset at path '%s' is not a WidgetBlueprint, it is: %s"), *Path, *Asset->GetClass()->GetName());
-				}
-			}
-			else
-			{
-				UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Failed to load asset at path: '%s'"), *Path);
-			}
-		}
-	}
-
-	// If not found by path, search using asset registry
-	if (!WidgetBlueprint)
-	{
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-
-		FARFilter Filter;
-		Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
-		Filter.PackagePaths.Add(FName(TEXT("/Game")));
-		Filter.bRecursivePaths = true;
-
-		TArray<FAssetData> AssetData;
-		AssetRegistryModule.Get().GetAssets(Filter, AssetData);
-
-		// Extract just the name for comparison
-		FString SearchName = FPaths::GetBaseFilename(WidgetName);
-		if (SearchName.IsEmpty())
-		{
-			SearchName = WidgetName;
-		}
-
-		for (const FAssetData& Asset : AssetData)
-		{
-			if (Asset.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
-			{
-				// Try multiple path formats
-				FString ObjectPath = Asset.GetObjectPathString();
-				FString SoftPath = Asset.GetSoftObjectPath().ToString();
-
-				AttemptedPaths.Add(FString::Printf(TEXT("AssetRegistry:%s"), *ObjectPath));
-				UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Found in asset registry: ObjectPath='%s', SoftPath='%s'"), *ObjectPath, *SoftPath);
-
-				// Try loading with object path first
-				UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(ObjectPath);
-				if (!LoadedAsset)
-				{
-					// Try with soft path format
-					LoadedAsset = UEditorAssetLibrary::LoadAsset(SoftPath);
-				}
-
-				if (LoadedAsset)
-				{
-					UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Loaded asset type: %s"), *LoadedAsset->GetClass()->GetName());
-					WidgetBlueprint = Cast<UWidgetBlueprint>(LoadedAsset);
-					if (WidgetBlueprint)
-					{
-						UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully loaded Widget Blueprint from registry: '%s'"), *ObjectPath);
-						break;
-					}
-					else
-					{
-						UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Asset loaded but is not a WidgetBlueprint, it is: %s"), *LoadedAsset->GetClass()->GetName());
-					}
-				}
-				else
-				{
-					UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Failed to load asset from path: %s"), *ObjectPath);
-				}
-			}
-		}
-	}
+	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprintWithRetry(WidgetName, AttemptedPaths);
 
 	if (!WidgetBlueprint)
 	{
 		FString AttemptedPathsStr = FString::Join(AttemptedPaths, TEXT(", "));
-		return CreateErrorResponse(FString::Printf(TEXT("Widget blueprint '%s' not found. Tried paths: [%s]"), *WidgetName, *AttemptedPathsStr));
+		return CreateErrorResponse(FString::Printf(TEXT("Widget blueprint '%s' not found. Tried paths: [%s]. Note: If the asset exists but this error persists, the asset may not be fully loaded in the editor - try saving all assets and retrying."), *WidgetName, *AttemptedPathsStr));
 	}
 
 	if (!WidgetBlueprint->WidgetTree)
@@ -381,6 +267,150 @@ TSharedPtr<FJsonObject> FGetWidgetBlueprintMetadataCommand::ExecuteInternal(cons
 	}
 
 	return CreateSuccessResponse(MetadataObj);
+}
+
+UWidgetBlueprint* FGetWidgetBlueprintMetadataCommand::FindWidgetBlueprintWithRetry(const FString& WidgetName, TArray<FString>& OutAttemptedPaths) const
+{
+	// Maximum number of retry attempts
+	constexpr int32 MaxRetries = 2;
+	// Delay between retries in seconds
+	constexpr float RetryDelaySeconds = 0.1f;
+
+	for (int32 Attempt = 0; Attempt <= MaxRetries; ++Attempt)
+	{
+		if (Attempt > 0)
+		{
+			UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Retry attempt %d/%d for widget '%s'"), Attempt, MaxRetries, *WidgetName);
+			// Small delay to allow asset loading to complete
+			FPlatformProcess::Sleep(RetryDelaySeconds);
+		}
+
+		UWidgetBlueprint* WidgetBlueprint = nullptr;
+
+		// Check if full path provided
+		if (WidgetName.StartsWith(TEXT("/Game/")) || WidgetName.StartsWith(TEXT("/Script/")))
+		{
+			// Try multiple path variations
+			TArray<FString> PathVariations;
+
+			if (WidgetName.Contains(TEXT(".")))
+			{
+				// Path already has asset suffix - try as-is first
+				PathVariations.Add(WidgetName);
+				// Also try without suffix
+				int32 DotIndex;
+				if (WidgetName.FindLastChar(TEXT('.'), DotIndex))
+				{
+					FString PathWithoutSuffix = WidgetName.Left(DotIndex);
+					FString AssetName = FPaths::GetBaseFilename(PathWithoutSuffix);
+					PathVariations.Add(PathWithoutSuffix + TEXT(".") + AssetName);
+				}
+			}
+			else
+			{
+				// No suffix - add asset name suffix
+				FString AssetName = FPaths::GetBaseFilename(WidgetName);
+				PathVariations.Add(WidgetName + TEXT(".") + AssetName);
+				PathVariations.Add(WidgetName);
+			}
+
+			for (const FString& Path : PathVariations)
+			{
+				if (Attempt == 0)
+				{
+					OutAttemptedPaths.Add(Path);
+				}
+				UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Attempting to load Widget Blueprint at path: '%s'"), *Path);
+				UObject* Asset = UEditorAssetLibrary::LoadAsset(Path);
+				if (Asset)
+				{
+					UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Loaded asset of type: %s"), *Asset->GetClass()->GetName());
+					WidgetBlueprint = Cast<UWidgetBlueprint>(Asset);
+					if (WidgetBlueprint)
+					{
+						UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully found Widget Blueprint at: '%s'"), *Path);
+						return WidgetBlueprint;
+					}
+					else
+					{
+						UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Asset at path '%s' is not a WidgetBlueprint, it is: %s"), *Path, *Asset->GetClass()->GetName());
+					}
+				}
+				else
+				{
+					UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Failed to load asset at path: '%s'"), *Path);
+				}
+			}
+		}
+
+		// If not found by path, search using asset registry
+		if (!WidgetBlueprint)
+		{
+			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+			FARFilter Filter;
+			Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
+			Filter.PackagePaths.Add(FName(TEXT("/Game")));
+			Filter.bRecursivePaths = true;
+
+			TArray<FAssetData> AssetData;
+			AssetRegistryModule.Get().GetAssets(Filter, AssetData);
+
+			// Extract just the name for comparison
+			FString SearchName = FPaths::GetBaseFilename(WidgetName);
+			if (SearchName.IsEmpty())
+			{
+				SearchName = WidgetName;
+			}
+
+			for (const FAssetData& Asset : AssetData)
+			{
+				if (Asset.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+				{
+					// Try multiple path formats
+					FString ObjectPath = Asset.GetObjectPathString();
+					FString SoftPath = Asset.GetSoftObjectPath().ToString();
+
+					if (Attempt == 0)
+					{
+						OutAttemptedPaths.Add(FString::Printf(TEXT("AssetRegistry:%s"), *ObjectPath));
+					}
+					UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Found in asset registry: ObjectPath='%s', SoftPath='%s'"), *ObjectPath, *SoftPath);
+
+					// Try loading with object path first
+					UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(ObjectPath);
+					if (!LoadedAsset)
+					{
+						// Try with soft path format
+						LoadedAsset = UEditorAssetLibrary::LoadAsset(SoftPath);
+					}
+
+					if (LoadedAsset)
+					{
+						UE_LOG(LogGetWidgetBlueprintMetadata, Display, TEXT("Loaded asset type: %s"), *LoadedAsset->GetClass()->GetName());
+						WidgetBlueprint = Cast<UWidgetBlueprint>(LoadedAsset);
+						if (WidgetBlueprint)
+						{
+							UE_LOG(LogGetWidgetBlueprintMetadata, Log, TEXT("Successfully loaded Widget Blueprint from registry: '%s'"), *ObjectPath);
+							return WidgetBlueprint;
+						}
+						else
+						{
+							UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Asset loaded but is not a WidgetBlueprint, it is: %s"), *LoadedAsset->GetClass()->GetName());
+						}
+					}
+					else
+					{
+						UE_LOG(LogGetWidgetBlueprintMetadata, Warning, TEXT("Failed to load asset from path: %s"), *ObjectPath);
+					}
+				}
+			}
+		}
+	}
+
+	// All retries exhausted
+	UE_LOG(LogGetWidgetBlueprintMetadata, Error, TEXT("Failed to find Widget Blueprint '%s' after %d retries"), *WidgetName, MaxRetries);
+	return nullptr;
 }
 
 bool FGetWidgetBlueprintMetadataCommand::ShouldIncludeField(const TArray<FString>& RequestedFields, const FString& FieldName) const

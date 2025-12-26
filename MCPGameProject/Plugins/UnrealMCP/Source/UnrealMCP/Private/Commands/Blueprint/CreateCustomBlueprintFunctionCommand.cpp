@@ -61,10 +61,32 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
             break;
         }
     }
-    
+
     if (ExistingGraph)
     {
         return CreateErrorResponse(FString::Printf(TEXT("Function '%s' already exists in Blueprint '%s'"), *FunctionName, *BlueprintName));
+    }
+
+    // CRITICAL: Check if a function with this name is defined by any implemented interface
+    // Interface functions get auto-generated stubs, and creating a custom function with the same name
+    // causes a "Graph named 'X' already exists" compilation error that requires manual intervention
+    for (const FBPInterfaceDescription& InterfaceDesc : Blueprint->ImplementedInterfaces)
+    {
+        if (InterfaceDesc.Interface)
+        {
+            // Check all functions defined by this interface
+            for (TFieldIterator<UFunction> FuncIt(InterfaceDesc.Interface); FuncIt; ++FuncIt)
+            {
+                UFunction* InterfaceFunc = *FuncIt;
+                if (InterfaceFunc && InterfaceFunc->GetName() == FunctionName)
+                {
+                    return CreateErrorResponse(FString::Printf(
+                        TEXT("Cannot create function '%s' - a function with this name is already defined by interface '%s'. Use the interface's function graph instead."),
+                        *FunctionName,
+                        *InterfaceDesc.Interface->GetName()));
+                }
+            }
+        }
     }
     
     // Create the function graph using the working UMG pattern

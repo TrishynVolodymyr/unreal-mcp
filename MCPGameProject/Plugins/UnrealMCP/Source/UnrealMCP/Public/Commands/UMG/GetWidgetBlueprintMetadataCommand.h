@@ -71,6 +71,12 @@ private:
 	/** Helper to get available delegate events for a widget */
 	TArray<FString> GetAvailableDelegateEvents(class UWidget* Widget) const;
 
+	/**
+	 * Find and load widget blueprint with retry mechanism.
+	 * Handles transient asset loading issues by retrying after a brief delay.
+	 */
+	class UWidgetBlueprint* FindWidgetBlueprintWithRetry(const FString& WidgetName, TArray<FString>& OutAttemptedPaths) const;
+
 	/** Response builders */
 	TSharedPtr<FJsonObject> CreateSuccessResponse(const TSharedPtr<FJsonObject>& MetadataObj) const;
 	TSharedPtr<FJsonObject> CreateErrorResponse(const FString& ErrorMessage) const;

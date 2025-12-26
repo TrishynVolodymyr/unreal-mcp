@@ -27,6 +27,7 @@ public:
     virtual TArray<TSharedPtr<FJsonObject>> ListInputActions(const FString& Path, bool& bOutSuccess, FString& OutError) override;
     virtual TArray<TSharedPtr<FJsonObject>> ListInputMappingContexts(const FString& Path, bool& bOutSuccess, FString& OutError) override;
     virtual FString GetProjectDirectory() const override;
+    virtual bool DuplicateAsset(const FString& SourcePath, const FString& DestinationPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) override;
 
 private:
     // Helper methods for struct operations
