@@ -293,6 +293,7 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Custom events
         - Cast nodes
         - Enhanced Input Action events (e.g., IA_Jump, IA_Move, IA_Interact)
+        - Component Bound Events (OnComponentBeginOverlap, etc.) - use component_name + event_name kwargs
 
         Args:
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
@@ -308,6 +309,9 @@ def register_blueprint_action_tools(mcp: FastMCP):
                          Can be passed either as a direct parameter or as a keyword argument.
             **kwargs: Additional parameters for special nodes:
                      - target_type: For Cast nodes (e.g., target_type="PlayerController")
+                     - component_name + event_name: For Component Bound Events (REQUIRED together)
+                       Creates UK2Node_ComponentBoundEvent - the CORRECT way to handle component events.
+                       Example: component_name="InteractionSphere", event_name="OnComponentBeginOverlap"
                      - scope: For variable getter/setter nodes:
                        * "function" - Search function parameters only (use in function graphs)
                        * "blueprint" - Search Blueprint variables only
@@ -385,6 +389,16 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 blueprint_name="BP_MyActor",
                 function_name="CustomEvent",
                 event_name="OnPlayerDied"
+            )
+
+            # Create Component Bound Event (OnComponentBeginOverlap, OnComponentEndOverlap, etc.)
+            # THIS IS THE CORRECT WAY - creates UK2Node_ComponentBoundEvent
+            # DO NOT use modify_blueprint_component_properties with bind_events for this!
+            create_node_by_action_name(
+                blueprint_name="BP_DialogueNPC",
+                function_name="ComponentBoundEvent",
+                component_name="InteractionSphere",
+                event_name="OnComponentBeginOverlap"
             )
 
             # Create a cast node with target type

@@ -1,4 +1,4 @@
-#include "Commands/Blueprint/SetComponentPropertyCommand.h"
+﻿#include "Commands/Blueprint/SetComponentPropertyCommand.h"
 #include "Services/PropertyService.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
@@ -12,6 +12,12 @@
 #include "SubobjectData.h"
 #include "Engine/Engine.h"
 #include "MCPLogging.h"
+
+// For component event binding (Assign approach)
+#include "K2Node_AssignDelegate.h"
+#include "K2Node_VariableGet.h"
+#include "EdGraphSchema_K2.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 
 FSetComponentPropertyCommand::FSetComponentPropertyCommand(IBlueprintService& InBlueprintService)
     : BlueprintService(InBlueprintService)
@@ -182,7 +188,7 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
             if (VarName == FName(*ComponentName))
             {
                 ComponentTemplate = Obj;
-                UE_LOG(LogUnrealMCP, Warning, TEXT("  ✓ FOUND MATCH: '%s'"), *ComponentName);
+                UE_LOG(LogUnrealMCP, Warning, TEXT("  âœ“ FOUND MATCH: '%s'"), *ComponentName);
                 break;
             }
         }
@@ -216,7 +222,40 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
     }
     
     UE_LOG(LogUnrealMCP, Log, TEXT("Found component template: %s"), *ComponentTemplate->GetClass()->GetName());
-    
+
+    // Check for special bind_events property and handle it separately
+    const TArray<TSharedPtr<FJsonValue>>* BindEventsArray = nullptr;
+    if (Properties->TryGetArrayField(TEXT("bind_events"), BindEventsArray) && BindEventsArray)
+    {
+        TArray<FString> EventNames;
+        for (const TSharedPtr<FJsonValue>& EventValue : *BindEventsArray)
+        {
+            FString EventName;
+            if (EventValue->TryGetString(EventName))
+            {
+                EventNames.Add(EventName);
+            }
+        }
+
+        if (EventNames.Num() > 0)
+        {
+            TArray<FString> SuccessEvents;
+            TMap<FString, FString> FailedEvents;
+            BindComponentEvents(Blueprint, ComponentName, EventNames, SuccessEvents, FailedEvents);
+
+            // Add bound events to success list
+            for (const FString& EventName : SuccessEvents)
+            {
+                OutSuccessProperties.Add(FString::Printf(TEXT("BindEvent:%s"), *EventName));
+            }
+            // Add failed events to failure map
+            for (const auto& Pair : FailedEvents)
+            {
+                OutFailedProperties.Add(FString::Printf(TEXT("BindEvent:%s"), *Pair.Key), Pair.Value);
+            }
+        }
+    }
+
     // Build list of available properties once for error reporting
     for (TFieldIterator<FProperty> PropIt(ComponentTemplate->GetClass()); PropIt; ++PropIt)
     {
@@ -235,8 +274,14 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
     
     for (const FString& PropertyName : PropertyNames)
     {
+        // Skip the special bind_events property - it's handled above
+        if (PropertyName == TEXT("bind_events"))
+        {
+            continue;
+        }
+
         const TSharedPtr<FJsonValue>& JsonValue = Properties->Values[PropertyName];
-        
+
         UE_LOG(LogUnrealMCP, Log, TEXT("  Setting property: %s"), *PropertyName);
         if (!JsonValue.IsValid())
         {
@@ -267,7 +312,7 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
         if (FPropertyService::Get().SetObjectProperty(ComponentTemplate, PropertyName, JsonValue, PropertyError))
         {
             OutSuccessProperties.Add(PropertyName);
-            UE_LOG(LogUnrealMCP, Log, TEXT("  ✓ Successfully set property '%s'"), *PropertyName);
+            UE_LOG(LogUnrealMCP, Log, TEXT("  âœ“ Successfully set property '%s'"), *PropertyName);
         }
         else
         {
@@ -278,7 +323,7 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
                 *PropertyError
             );
             OutFailedProperties.Add(PropertyName, ErrorMsg);
-            UE_LOG(LogUnrealMCP, Warning, TEXT("  ✗ %s"), *ErrorMsg);
+            UE_LOG(LogUnrealMCP, Warning, TEXT("  âœ— %s"), *ErrorMsg);
         }
     }
     
@@ -352,13 +397,168 @@ FString FSetComponentPropertyCommand::CreateErrorResponse(const FString& ErrorMe
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), false);
     ResponseObj->SetStringField(TEXT("error"), ErrorMessage);
-    
+
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
     FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
-    
+
     return OutputString;
 }
+
+bool FSetComponentPropertyCommand::BindComponentEvents(UBlueprint* Blueprint, const FString& ComponentName,
+                                                       const TArray<FString>& EventNames,
+                                                       TArray<FString>& OutSuccessEvents,
+                                                       TMap<FString, FString>& OutFailedEvents) const
+{
+    if (!Blueprint || !Blueprint->GeneratedClass)
+    {
+        OutFailedEvents.Add(TEXT("Blueprint"), TEXT("Invalid Blueprint or GeneratedClass"));
+        return false;
+    }
+
+    // Get the EventGraph
+    UEdGraph* EventGraph = FBlueprintEditorUtils::FindEventGraph(Blueprint);
+    if (!EventGraph)
+    {
+        OutFailedEvents.Add(TEXT("EventGraph"), TEXT("Could not find EventGraph"));
+        return false;
+    }
+
+    const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
+    if (!K2Schema)
+    {
+        OutFailedEvents.Add(TEXT("Schema"), TEXT("Could not get K2 schema"));
+        return false;
+    }
+
+    // Find the component class to get delegate properties
+    UClass* ComponentClass = nullptr;
+    FProperty* ComponentProperty = Blueprint->GeneratedClass->FindPropertyByName(FName(*ComponentName));
+    if (FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(ComponentProperty))
+    {
+        ComponentClass = ObjProp->PropertyClass;
+    }
+
+    if (!ComponentClass)
+    {
+        // Try to find it from subobjects
+        USubobjectDataSubsystem* SubobjectSubsystem = GEngine->GetEngineSubsystem<USubobjectDataSubsystem>();
+        if (SubobjectSubsystem)
+        {
+            TArray<FSubobjectDataHandle> SubobjectHandles;
+            SubobjectSubsystem->K2_GatherSubobjectDataForBlueprint(Blueprint, SubobjectHandles);
+            for (const FSubobjectDataHandle& Handle : SubobjectHandles)
+            {
+                const FSubobjectData* Data = Handle.GetData();
+                if (Data && Data->GetVariableName() == FName(*ComponentName))
+                {
+                    const UObject* Obj = Data->GetObject();
+                    if (Obj)
+                    {
+                        ComponentClass = Obj->GetClass();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!ComponentClass)
+    {
+        OutFailedEvents.Add(TEXT("Component"), FString::Printf(TEXT("Could not find component class for '%s'"), *ComponentName));
+        return false;
+    }
+
+    UE_LOG(LogUnrealMCP, Log, TEXT("BindComponentEvents: Found component class %s for %s"),
+        *ComponentClass->GetName(), *ComponentName);
+
+    // Process each event name
+    for (const FString& EventName : EventNames)
+    {
+        // Find the delegate property on the component
+        FMulticastDelegateProperty* DelegateProp = nullptr;
+        for (TFieldIterator<FMulticastDelegateProperty> PropIt(ComponentClass); PropIt; ++PropIt)
+        {
+            if (PropIt->GetName() == EventName)
+            {
+                DelegateProp = *PropIt;
+                break;
+            }
+        }
+
+        if (!DelegateProp)
+        {
+            OutFailedEvents.Add(EventName, FString::Printf(TEXT("Delegate property '%s' not found on component class '%s'"),
+                *EventName, *ComponentClass->GetName()));
+            continue;
+        }
+
+        UE_LOG(LogUnrealMCP, Log, TEXT("BindComponentEvents: Found delegate %s"), *DelegateProp->GetName());
+
+        // Create the UK2Node_AssignDelegate node
+        UK2Node_AssignDelegate* AssignNode = NewObject<UK2Node_AssignDelegate>(EventGraph);
+        if (!AssignNode)
+        {
+            OutFailedEvents.Add(EventName, TEXT("Failed to create UK2Node_AssignDelegate"));
+            continue;
+        }
+
+        // Set up the delegate reference using SetFromProperty
+        // The component variable name is needed for the self pin
+        AssignNode->SetFromProperty(DelegateProp, false, ComponentClass);
+
+        // Position the node (spread out to avoid overlap)
+        static int32 NodeOffsetY = 0;
+        AssignNode->NodePosX = 400;
+        AssignNode->NodePosY = 200 + NodeOffsetY;
+        NodeOffsetY += 300;
+
+        // Add node to graph
+        EventGraph->AddNode(AssignNode, false, false);
+        AssignNode->CreateNewGuid();
+        AssignNode->AllocateDefaultPins();  // MUST be before PostPlacedNewNode!
+        AssignNode->PostPlacedNewNode();    // This creates the attached custom event!
+
+        UE_LOG(LogUnrealMCP, Log, TEXT("BindComponentEvents: Created AssignDelegate node for %s"), *EventName);
+
+        // Create a component getter node (K2Node_VariableGet)
+        UK2Node_VariableGet* GetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+        if (GetterNode)
+        {
+            // Find the member variable reference for the component
+            FMemberReference MemberRef;
+            MemberRef.SetSelfMember(FName(*ComponentName));
+            GetterNode->VariableReference = MemberRef;
+
+            GetterNode->NodePosX = AssignNode->NodePosX - 200;
+            GetterNode->NodePosY = AssignNode->NodePosY;
+
+            EventGraph->AddNode(GetterNode, false, false);
+            GetterNode->CreateNewGuid();
+            GetterNode->PostPlacedNewNode();
+            GetterNode->AllocateDefaultPins();
+
+            // Connect getter output to AssignDelegate's self pin
+            UEdGraphPin* GetterOutputPin = GetterNode->GetValuePin();
+            UEdGraphPin* AssignSelfPin = AssignNode->FindPin(UEdGraphSchema_K2::PN_Self);
+
+            if (GetterOutputPin && AssignSelfPin)
+            {
+                K2Schema->TryCreateConnection(GetterOutputPin, AssignSelfPin);
+                UE_LOG(LogUnrealMCP, Log, TEXT("BindComponentEvents: Connected getter to AssignDelegate self pin"));
+            }
+        }
+
+        // Mark Blueprint as modified
+        FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+
+        OutSuccessEvents.Add(EventName);
+        UE_LOG(LogUnrealMCP, Log, TEXT("BindComponentEvents: Successfully bound event %s"), *EventName);
+    }
+
+    return OutSuccessEvents.Num() > 0;
+}
+
 
 
 

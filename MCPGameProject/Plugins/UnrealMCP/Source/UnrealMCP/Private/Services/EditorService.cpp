@@ -186,15 +186,23 @@ AActor* FEditorService::SpawnBlueprintActor(const FBlueprintActorSpawnParams& Pa
         OutError = FString::Printf(TEXT("Actor with name '%s' already exists"), *Params.ActorName);
         return nullptr;
     }
-    
+
+    // Validate GeneratedClass exists (Blueprint might be in error state)
+    if (!Blueprint->GeneratedClass)
+    {
+        OutError = FString::Printf(TEXT("Blueprint '%s' has no GeneratedClass - it may need to be compiled"), *Params.BlueprintName);
+        return nullptr;
+    }
+
     FTransform SpawnTransform;
     SpawnTransform.SetLocation(Params.Location);
-    SpawnTransform.SetRotation(FQuat(Params.Rotation));
+    SpawnTransform.SetRotation(Params.Rotation.Quaternion());
     SpawnTransform.SetScale3D(Params.Scale);
     
     FActorSpawnParameters SpawnParameters;
-    SpawnParameters.Name = *Params.ActorName;
-    
+    SpawnParameters.Name = FName(*Params.ActorName);
+    SpawnParameters.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Required_ErrorAndReturnNull;
+
     AActor* NewActor = World->SpawnActor<AActor>(Blueprint->GeneratedClass, SpawnTransform, SpawnParameters);
     if (!NewActor)
     {

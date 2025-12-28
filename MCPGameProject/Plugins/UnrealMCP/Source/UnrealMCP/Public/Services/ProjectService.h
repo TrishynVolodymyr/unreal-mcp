@@ -29,6 +29,18 @@ public:
     virtual FString GetProjectDirectory() const override;
     virtual bool DuplicateAsset(const FString& SourcePath, const FString& DestinationPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) override;
 
+    // Font Face operations (for TTF-based fonts)
+    virtual bool CreateFontFace(const FString& FontName, const FString& Path, const FString& SourceTexturePath, bool bUseSDF, int32 DistanceFieldSpread, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError) override;
+    virtual bool SetFontFaceProperties(const FString& FontPath, const TSharedPtr<FJsonObject>& Properties, TArray<FString>& OutSuccessProperties, TArray<FString>& OutFailedProperties, FString& OutError) override;
+    virtual TSharedPtr<FJsonObject> GetFontFaceMetadata(const FString& FontPath, FString& OutError) override;
+
+    // TTF Import - imports an external TTF file as a FontFace asset
+    virtual bool ImportTTFFont(const FString& FontName, const FString& Path, const FString& TTFFilePath, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError) override;
+
+    // Offline Font operations (for SDF atlas-based fonts)
+    virtual bool CreateOfflineFont(const FString& FontName, const FString& Path, const FString& TexturePath, const FString& MetricsFilePath, FString& OutAssetPath, FString& OutError) override;
+    virtual TSharedPtr<FJsonObject> GetFontMetadata(const FString& FontPath, FString& OutError) override;
+
 private:
     // Helper methods for struct operations
     bool CreateStructProperty(class UUserDefinedStruct* Struct, const TSharedPtr<FJsonObject>& PropertyObj) const;

@@ -185,42 +185,77 @@ UClass* FAssetDiscoveryService::FindWidgetClass(const FString& WidgetPath)
 
 UWidgetBlueprint* FAssetDiscoveryService::FindWidgetBlueprint(const FString& WidgetPath)
 {
-    UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Searching for widget blueprint: %s"), *WidgetPath);
-    
-    // Try direct loading first
+    UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Searching for widget blueprint: %s"), *WidgetPath);
+
+    // Try direct loading first (works when not in PIE)
     UWidgetBlueprint* WidgetBP = LoadObject<UWidgetBlueprint>(nullptr, *WidgetPath);
     if (WidgetBP)
     {
-        UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via direct loading: %s"), *WidgetBP->GetName());
+        UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found via direct loading: %s"), *WidgetBP->GetName());
         return WidgetBP;
     }
-    
+
     // Try with common paths
     TArray<FString> SearchPaths = GetCommonAssetSearchPaths(WidgetPath);
-    
+
     for (const FString& SearchPath : SearchPaths)
     {
+        UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Trying search path: %s"), *SearchPath);
         WidgetBP = LoadObject<UWidgetBlueprint>(nullptr, *SearchPath);
         if (WidgetBP)
         {
-            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via search path: %s"), *SearchPath);
+            UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found via search path: %s"), *SearchPath);
             return WidgetBP;
         }
     }
-    
-    // Use asset registry as fallback
-    TArray<FString> FoundWidgets = FindWidgetBlueprints(FPaths::GetBaseFilename(WidgetPath));
-    if (FoundWidgets.Num() > 0)
+
+    // Use asset registry as fallback - this works during PIE because we use GetAsset()
+    // instead of LoadObject which is blocked during PIE
+    FString SearchName = FPaths::GetBaseFilename(WidgetPath);
+    UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Searching asset registry for: %s"), *SearchName);
+
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> AssetDataList;
+
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
+    Filter.PackagePaths.Add(TEXT("/Game"));
+    Filter.bRecursivePaths = true;
+
+    AssetRegistryModule.Get().GetAssets(Filter, AssetDataList);
+
+    UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Asset registry returned %d widget blueprints"), AssetDataList.Num());
+
+    // First pass: exact match
+    for (const FAssetData& AssetData : AssetDataList)
     {
-        WidgetBP = LoadObject<UWidgetBlueprint>(nullptr, *FoundWidgets[0]);
-        if (WidgetBP)
+        if (AssetData.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
         {
-            UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found via asset registry: %s"), *FoundWidgets[0]);
-            return WidgetBP;
+            // Use GetAsset() instead of LoadObject - this works during PIE
+            WidgetBP = Cast<UWidgetBlueprint>(AssetData.GetAsset());
+            if (WidgetBP)
+            {
+                UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found exact match via asset registry: %s"), *WidgetBP->GetName());
+                return WidgetBP;
+            }
         }
     }
-    
-    UE_LOG(LogTemp, Warning, TEXT("AssetDiscoveryService: Could not find widget blueprint for: %s"), *WidgetPath);
+
+    // Second pass: contains match
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (AssetData.AssetName.ToString().Contains(SearchName, ESearchCase::IgnoreCase))
+        {
+            WidgetBP = Cast<UWidgetBlueprint>(AssetData.GetAsset());
+            if (WidgetBP)
+            {
+                UE_LOG(LogTemp, Display, TEXT("FindWidgetBlueprint: Found partial match via asset registry: %s"), *WidgetBP->GetName());
+                return WidgetBP;
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("FindWidgetBlueprint: Could not find widget blueprint for: %s"), *WidgetPath);
     return nullptr;
 }
 
@@ -638,6 +673,35 @@ UClass* FAssetDiscoveryService::ResolveObjectClass(const FString& ClassName)
         {
             UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found class via search path: %s -> %s"), *SearchPath, *FoundClass->GetName());
             return FoundClass;
+        }
+    }
+
+    // Strategy: Use asset registry to find Blueprint by name
+    // This handles cases like "BP_DialogueComponent" without requiring full path
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> AssetDataList;
+
+    FARFilter Filter;
+    Filter.PackagePaths.Add(TEXT("/Game"));
+    Filter.bRecursivePaths = true;
+    Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+
+    AssetRegistryModule.Get().GetAssets(Filter, AssetDataList);
+
+    FString SearchName = FPaths::GetBaseFilename(ClassName);
+
+    // First pass: exact match
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (AssetData.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UBlueprint* Blueprint = Cast<UBlueprint>(AssetData.GetAsset());
+            if (Blueprint && Blueprint->GeneratedClass)
+            {
+                UE_LOG(LogTemp, Display, TEXT("AssetDiscoveryService: Found Blueprint class via asset registry: %s -> %s"),
+                    *SearchName, *Blueprint->GeneratedClass->GetName());
+                return Blueprint->GeneratedClass;
+            }
         }
     }
 

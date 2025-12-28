@@ -182,22 +182,22 @@ async def modify_blueprint_component_properties(
 ) -> Dict[str, Any]:
     """
     Modify ANY properties on a Blueprint component.
-    
+
     This is a universal tool for setting component properties including:
     - WidgetClass on WidgetComponent
-    - StaticMesh on StaticMeshComponent  
+    - StaticMesh on StaticMeshComponent
     - Material on any mesh component
     - LightColor, Intensity on LightComponent
     - Any other component-specific properties
-    
+
     Args:
         blueprint_name: Name of the target Blueprint
         component_name: Name of the component to modify
         **kwargs: Component properties to set (e.g., WidgetClass, StaticMesh, Material, LightColor, etc.)
-    
+
     Returns:
         Dictionary containing success status and list of successfully set properties
-        
+
     Examples:
         # Set widget class on WidgetComponent
         modify_blueprint_component_properties(
@@ -205,7 +205,7 @@ async def modify_blueprint_component_properties(
             component_name="InteractionWidget",
             WidgetClass="/Game/Dialogue/WBP_InteractionPrompt.WBP_InteractionPrompt_C"
         )
-        
+
         # Set static mesh and material
         modify_blueprint_component_properties(
             blueprint_name="BP_Prop",
@@ -213,7 +213,7 @@ async def modify_blueprint_component_properties(
             StaticMesh="/Game/Meshes/SM_Crate",
             Material="/Game/Materials/M_Wood"
         )
-        
+
         # Set light properties
         modify_blueprint_component_properties(
             blueprint_name="BP_Lamp",
@@ -221,6 +221,20 @@ async def modify_blueprint_component_properties(
             LightColor=[1.0, 0.8, 0.6],
             Intensity=5000.0
         )
+
+    WARNING - DO NOT USE FOR COMPONENT EVENTS:
+        For Blueprint component events (OnComponentBeginOverlap, OnComponentEndOverlap, etc.),
+        DO NOT use this tool with bind_events. Instead use create_node_by_action_name:
+
+        # CORRECT way to bind component overlap events:
+        create_node_by_action_name(
+            blueprint_name="BP_MyActor",
+            function_name="ComponentBoundEvent",
+            component_name="MySphereComponent",
+            event_name="OnComponentBeginOverlap"
+        )
+
+        The bind_events parameter here is only for UMG widget events (OnClicked, etc.)
     """
     params = {
         "blueprint_name": blueprint_name,

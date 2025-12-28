@@ -12,6 +12,12 @@
 #include "Commands/Project/GetProjectMetadataCommand.h"
 #include "Commands/Project/GetStructPinNamesCommand.h"
 #include "Commands/Project/DuplicateAssetCommand.h"
+#include "Commands/Project/CreateFontFaceCommand.h"
+#include "Commands/Project/SetFontFacePropertiesCommand.h"
+#include "Commands/Project/GetFontFaceMetadataCommand.h"
+#include "Commands/Project/CreateOfflineFontCommand.h"
+#include "Commands/Project/GetFontMetadataCommand.h"
+#include "Commands/Project/CreateFontCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -53,6 +59,18 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
 
     // Register asset duplication command
     Registry.RegisterCommand(MakeShared<FDuplicateAssetCommand>(ProjectService));
+
+    // Register unified font command (recommended - consolidates all font creation methods)
+    Registry.RegisterCommand(MakeShared<FCreateFontCommand>(ProjectService));
+
+    // Register legacy font face commands (TTF-based) - kept for backwards compatibility
+    Registry.RegisterCommand(MakeShared<FCreateFontFaceCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FSetFontFacePropertiesCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FGetFontFaceMetadataCommand>(ProjectService));
+
+    // Register legacy offline font commands (SDF atlas-based) - kept for backwards compatibility
+    Registry.RegisterCommand(MakeShared<FCreateOfflineFontCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FGetFontMetadataCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }

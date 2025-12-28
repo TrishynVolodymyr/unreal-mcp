@@ -72,6 +72,9 @@ public:
 
     virtual bool RemoveWidgetFunctionGraph(const FString& WidgetName, const FString& FunctionName) override;
 
+    virtual bool ReorderWidgetChildren(const FString& WidgetName, const FString& ContainerName,
+                                      const TArray<FString>& ChildOrder) override;
+
 private:
     /** Private constructor for singleton pattern */
     FUMGService();
@@ -124,6 +127,17 @@ private:
      * Set widget placement in canvas panel slot
      */
     bool SetCanvasSlotPlacement(UWidget* Widget, const FVector2D* Position, const FVector2D* Size, const FVector2D* Alignment) const;
+
+    /**
+     * Set a property on the widget's slot (HorizontalBoxSlot, VerticalBoxSlot, etc.)
+     * Supports properties: SizeRule, VerticalAlignment, HorizontalAlignment, Padding
+     * @param Widget - The widget whose slot to modify
+     * @param PropertyName - Name of the slot property (without "Slot." prefix)
+     * @param PropertyValue - Value to set
+     * @param OutError - Error message if setting fails
+     * @return true if property was set successfully
+     */
+    bool SetSlotProperty(UWidget* Widget, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutError) const;
 
     /**
      * Add a widget as a child to another widget (parent must be a panel widget)

@@ -213,4 +213,14 @@ public:
      * @return true if the function graph was removed successfully
      */
     virtual bool RemoveWidgetFunctionGraph(const FString& WidgetName, const FString& FunctionName) = 0;
+
+    /**
+     * Reorder children within a container widget (HorizontalBox, VerticalBox, etc.)
+     * @param WidgetName - Name of the target Widget Blueprint
+     * @param ContainerName - Name of the container component
+     * @param ChildOrder - Array of child component names in desired order
+     * @return true if children were reordered successfully
+     */
+    virtual bool ReorderWidgetChildren(const FString& WidgetName, const FString& ContainerName,
+                                      const TArray<FString>& ChildOrder) = 0;
 };
