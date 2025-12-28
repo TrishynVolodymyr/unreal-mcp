@@ -18,7 +18,8 @@ from utils.widgets.widget_components import (
     set_text_block_widget_component_binding as set_text_block_widget_component_binding_impl,
     get_widget_blueprint_metadata_impl,
     create_widget_input_handler as create_widget_input_handler_impl,
-    remove_widget_function_graph as remove_widget_function_graph_impl
+    remove_widget_function_graph as remove_widget_function_graph_impl,
+    reorder_widget_children as reorder_widget_children_impl
 )
 from utils.widgets.widget_screenshot import (
     capture_widget_screenshot_impl
@@ -717,6 +718,44 @@ def register_umg_tools(mcp: FastMCP):
             )
         """
         return remove_widget_function_graph_impl(ctx, widget_name, function_name)
+
+    @mcp.tool()
+    def reorder_widget_children(
+        ctx: Context,
+        widget_name: str,
+        container_name: str,
+        child_order: List[str]
+    ) -> Dict[str, object]:
+        """
+        Reorder children within a container widget (HorizontalBox, VerticalBox, etc.).
+
+        Use this when components are in wrong visual order within a container.
+        Children will be arranged in the order specified in child_order list.
+
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            container_name: Name of the container component (e.g., "ContentBox", "ButtonsContainer")
+            child_order: List of child component names in desired left-to-right (or top-to-bottom) order
+
+        Returns:
+            Dict containing success status and updated child order
+
+        Examples:
+            # Fix order in HorizontalBox: put KeyBadge before PromptText
+            reorder_widget_children(
+                widget_name="WBP_InteractionIndicator",
+                container_name="ContentBox",
+                child_order=["KeyBadgeOuter", "PromptText"]
+            )
+
+            # Reorder buttons in a VerticalBox
+            reorder_widget_children(
+                widget_name="WBP_MainMenu",
+                container_name="ButtonsContainer",
+                child_order=["PlayButton", "SettingsButton", "QuitButton"]
+            )
+        """
+        return reorder_widget_children_impl(ctx, widget_name, container_name, child_order)
 
     logger.info("UMG tools registered successfully")
 

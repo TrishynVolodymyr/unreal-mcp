@@ -311,11 +311,17 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
             *VariableName, *BlueprintName));
     }
 
-    // Set exposure in editor
+    // Set Instance Editable (the "eye" icon in Blueprint editor)
+    // By default, AddMemberVariable sets: CPF_Edit | CPF_BlueprintVisible | CPF_DisableEditOnInstance
+    // CPF_DisableEditOnInstance means "NOT Instance Editable" (eye closed)
+    // To make Instance Editable: REMOVE CPF_DisableEditOnInstance
+    // To make NOT Instance Editable: KEEP CPF_DisableEditOnInstance (already set by default)
     if (IsExposed)
     {
-        NewVar->PropertyFlags |= CPF_Edit;
+        // Remove the disable flag to enable instance editing (open eye)
+        NewVar->PropertyFlags &= ~CPF_DisableEditOnInstance;
     }
+    // else: CPF_DisableEditOnInstance is already set by AddMemberVariable, so eye stays closed
 
     // Mark the blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);

@@ -11,6 +11,7 @@
 #include "Components/ActorComponent.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Blueprint.h"
+#include "Engine/DataTable.h"
 #include "StructUtils/UserDefinedStruct.h"
 
 bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, const FString& VariableName, const FString& VariableType, bool bIsExposed, FBlueprintCache& Cache)
@@ -38,7 +39,35 @@ bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, co
     NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Object; // Default, will be adjusted based on type
 
     // Set type based on resolved type object
-    if (UClass* ClassType = Cast<UClass>(TypeObject))
+    // Check if this is a Class reference type (TSubclassOf)
+    if (VariableType.StartsWith(TEXT("Class")) || VariableType.StartsWith(TEXT("TSubclassOf")))
+    {
+        NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Class;
+
+        // Extract the inner class type if specified: "Class<UserWidget>" -> "UserWidget"
+        FString InnerClassName;
+        int32 OpenBracket = VariableType.Find(TEXT("<"));
+        int32 CloseBracket = VariableType.Find(TEXT(">"));
+        if (OpenBracket != INDEX_NONE && CloseBracket != INDEX_NONE && CloseBracket > OpenBracket)
+        {
+            InnerClassName = VariableType.Mid(OpenBracket + 1, CloseBracket - OpenBracket - 1);
+        }
+
+        // Default to UObject if no inner class specified
+        UClass* MetaClass = UObject::StaticClass();
+        if (!InnerClassName.IsEmpty())
+        {
+            // Try to find the inner class
+            UObject* InnerClassObj = ResolveVariableType(InnerClassName);
+            if (UClass* FoundInnerClass = Cast<UClass>(InnerClassObj))
+            {
+                MetaClass = FoundInnerClass;
+            }
+        }
+        NewVar.VarType.PinSubCategoryObject = MetaClass;
+        UE_LOG(LogTemp, Log, TEXT("AddVariableToBlueprint: Creating Class reference variable with meta class '%s'"), *MetaClass->GetName());
+    }
+    else if (UClass* ClassType = Cast<UClass>(TypeObject))
     {
         NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Object;
         NewVar.VarType.PinSubCategoryObject = ClassType;
@@ -77,6 +106,14 @@ bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, co
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Struct;
             NewVar.VarType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+        }
+        else if (VariableType == TEXT("Name") || VariableType == TEXT("FName"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Name;
+        }
+        else if (VariableType == TEXT("Text") || VariableType == TEXT("FText"))
+        {
+            NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Text;
         }
         else
         {
@@ -351,9 +388,29 @@ UObject* FBlueprintPropertyService::ResolveVariableType(const FString& TypeStrin
         TypeString == TEXT("Float") || TypeString == TEXT("float") ||
         TypeString == TEXT("String") || TypeString == TEXT("FString") ||
         TypeString == TEXT("Vector") || TypeString == TEXT("FVector") ||
-        TypeString == TEXT("Rotator") || TypeString == TEXT("FRotator"))
+        TypeString == TEXT("Rotator") || TypeString == TEXT("FRotator") ||
+        TypeString == TEXT("Name") || TypeString == TEXT("FName") ||
+        TypeString == TEXT("Text") || TypeString == TEXT("FText"))
     {
         return reinterpret_cast<UObject*>(1); // Non-null placeholder for basic types
+    }
+
+    // Handle DataTable type explicitly
+    if (TypeString == TEXT("DataTable") || TypeString == TEXT("UDataTable"))
+    {
+        UClass* DataTableClass = UDataTable::StaticClass();
+        UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Resolved DataTable type"));
+        return DataTableClass;
+    }
+
+    // Handle Class reference types (TSubclassOf)
+    // Format: "Class" or "Class<ClassName>" or "TSubclassOf<ClassName>"
+    if (TypeString.StartsWith(TEXT("Class")) || TypeString.StartsWith(TEXT("TSubclassOf")))
+    {
+        // Return a special marker - we'll handle this in AddVariableToBlueprint
+        // Use UClass::StaticClass() as a marker that this is a class reference
+        UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Detected Class reference type '%s'"), *TypeString);
+        return UClass::StaticClass();
     }
 
     // Try to find as a native C++ class first
@@ -432,6 +489,33 @@ UObject* FBlueprintPropertyService::ResolveVariableType(const FString& TypeStrin
             {
                 UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found Blueprint GeneratedClass from path '%s'"), *GeneratedClassPath);
                 return LoadedClass;
+            }
+        }
+    }
+
+    // Search in Asset Registry for UserDefinedStruct assets matching this name
+    // This handles user-created structs like S_DialogueRow, S_InventoryItem, etc.
+    {
+        FARFilter StructFilter;
+        StructFilter.ClassPaths.Add(UUserDefinedStruct::StaticClass()->GetClassPathName());
+        StructFilter.bRecursiveClasses = true;
+        StructFilter.bRecursivePaths = true;
+
+        TArray<FAssetData> StructAssetDataList;
+        AssetRegistry.GetAssets(StructFilter, StructAssetDataList);
+
+        for (const FAssetData& AssetData : StructAssetDataList)
+        {
+            // Check if asset name matches our type string
+            if (AssetData.AssetName.ToString() == TypeString)
+            {
+                // Load the UserDefinedStruct
+                UUserDefinedStruct* UserStruct = Cast<UUserDefinedStruct>(AssetData.GetAsset());
+                if (UserStruct)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("ResolveVariableType: Found UserDefinedStruct '%s' via Asset Registry"), *TypeString);
+                    return UserStruct;
+                }
             }
         }
     }

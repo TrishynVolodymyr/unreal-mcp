@@ -38,6 +38,7 @@ private:
     static void RegisterGetWidgetBlueprintMetadataCommand();
     static void RegisterCreateWidgetInputHandlerCommand();
     static void RegisterRemoveWidgetFunctionGraphCommand();
+    static void RegisterReorderWidgetChildrenCommand();
 
     // Widget-specific add commands
     static void RegisterAddWidgetSwitcherCommand();

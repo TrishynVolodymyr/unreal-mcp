@@ -40,4 +40,18 @@ public:
 
     // Asset operations
     virtual bool DuplicateAsset(const FString& SourcePath, const FString& DestinationPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) = 0;
+
+    // Font Face operations (for TTF-based fonts)
+    virtual bool CreateFontFace(const FString& FontName, const FString& Path, const FString& SourceTexturePath, bool bUseSDF, int32 DistanceFieldSpread, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError) = 0;
+    virtual bool SetFontFaceProperties(const FString& FontPath, const TSharedPtr<FJsonObject>& Properties, TArray<FString>& OutSuccessProperties, TArray<FString>& OutFailedProperties, FString& OutError) = 0;
+    virtual TSharedPtr<FJsonObject> GetFontFaceMetadata(const FString& FontPath, FString& OutError) = 0;
+
+    // TTF Import - imports an external TTF file as a FontFace asset
+    // TTFFilePath: Absolute file path to the TTF file on disk
+    virtual bool ImportTTFFont(const FString& FontName, const FString& Path, const FString& TTFFilePath, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError) = 0;
+
+    // Offline Font operations (for SDF atlas-based fonts)
+    // MetricsFilePath: Absolute file path to the metrics JSON file on disk (not an Unreal asset path)
+    virtual bool CreateOfflineFont(const FString& FontName, const FString& Path, const FString& TexturePath, const FString& MetricsFilePath, FString& OutAssetPath, FString& OutError) = 0;
+    virtual TSharedPtr<FJsonObject> GetFontMetadata(const FString& FontPath, FString& OutError) = 0;
 };

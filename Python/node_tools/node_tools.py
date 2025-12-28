@@ -455,6 +455,13 @@ def register_blueprint_node_tools(mcp: FastMCP):
             auto_arrange_nodes(ctx, blueprint_name="BP_MyActor", graph_name="UpdateHealth")
         """
         try:
+            # Prohibit auto-arrange on EventGraph - too disruptive
+            if graph_name.lower() == "eventgraph":
+                return {
+                    "success": False,
+                    "error": "auto_arrange_nodes is prohibited on EventGraph. Use on specific function graphs only."
+                }
+
             params = {
                 "blueprint_name": blueprint_name,
                 "graph_name": graph_name

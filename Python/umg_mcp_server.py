@@ -127,11 +127,37 @@ Exposes UMG (Widget Blueprint) tools for Unreal Engine via MCP.
     - widget_name: Name of the target Widget Blueprint
     - component_name: Name of the component to modify
     - **kwargs: Properties to set (as keyword arguments or a dict)
+        For widget properties: Text, ColorAndOpacity, Font, etc.
+        For slot properties: Use "Slot." prefix:
+
+        HorizontalBox/VerticalBox children:
+        - Slot.SizeRule: "Auto" or "Fill"
+        - Slot.VerticalAlignment / Slot.VAlign: "Top", "Center", "Bottom", "Fill"
+        - Slot.HorizontalAlignment / Slot.HAlign: "Left", "Center", "Right", "Fill"
+        - Slot.Padding: [left, top, right, bottom] array or single number for uniform padding
+        - Slot.SizeValue: Numeric value for fill ratio
+
+        CanvasPanel children:
+        - Slot.Anchors: {"Minimum": {"X": 0, "Y": 0}, "Maximum": {"X": 1, "Y": 1}}
+        - Slot.Offsets: {"Left": 0, "Top": 0, "Right": 0, "Bottom": 0} or [left, top, right, bottom]
+        - Slot.Position: [X, Y] position in canvas
+        - Slot.Size: [Width, Height] size
+        - Slot.Alignment: [X, Y] anchor point (0.0-1.0)
+        - Slot.AutoSize: true/false for auto-sizing
+        - Slot.ZOrder: Integer for rendering order
 
   Returns: Dict containing success status and property update info
 
-  Example:
+  Examples:
+    # Set widget properties
     set_widget_component_property("MyWidget", "MyTextBlock", Text="Red Text", ColorAndOpacity={"SpecifiedColor": {"R": 1.0, "G": 0.0, "B": 0.0, "A": 1.0}})
+
+    # Set slot properties for HorizontalBox/VerticalBox children
+    set_widget_component_property("WBP_AnswerButton", "NumberBadgeWrapper", **{"Slot.SizeRule": "Auto", "Slot.VerticalAlignment": "Center"})
+    set_widget_component_property("WBP_AnswerButton", "AnswerText", **{"Slot.SizeRule": "Fill", "Slot.VerticalAlignment": "Center"})
+
+    # Set slot properties for CanvasPanel children (stretch to fill parent)
+    set_widget_component_property("WBP_AnswerButton", "MainButton", **{"Slot.Anchors": {"Minimum": {"X": 0, "Y": 0}, "Maximum": {"X": 1, "Y": 1}}, "Slot.Offsets": {"Left": 0, "Top": 0, "Right": 0, "Bottom": 0}})
 
 - **get_widget_blueprint_metadata(widget_name, fields=None, container_name="CanvasPanel_0")**
 

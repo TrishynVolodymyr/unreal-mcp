@@ -99,7 +99,14 @@ TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildVariablesInfo(UBl
         VarObj->SetStringField(TEXT("name"), Variable.VarName.ToString());
         VarObj->SetStringField(TEXT("type"), Variable.VarType.PinCategory.ToString());
         VarObj->SetStringField(TEXT("category"), Variable.Category.ToString());
-        VarObj->SetBoolField(TEXT("instance_editable"), (Variable.PropertyFlags & CPF_Edit) != 0);
+
+        // is_exposed = Instance Editable (the "eye" icon in Blueprint editor)
+        // Instance Editable requires: CPF_Edit set AND CPF_DisableEditOnInstance NOT set
+        bool bHasEdit = (Variable.PropertyFlags & CPF_Edit) != 0;
+        bool bDisabledOnInstance = (Variable.PropertyFlags & CPF_DisableEditOnInstance) != 0;
+        bool bIsExposed = bHasEdit && !bDisabledOnInstance;
+        VarObj->SetBoolField(TEXT("is_exposed"), bIsExposed);
+        VarObj->SetBoolField(TEXT("instance_editable"), bIsExposed); // Kept for backwards compatibility
         VarObj->SetBoolField(TEXT("blueprint_read_only"), (Variable.PropertyFlags & CPF_BlueprintReadOnly) != 0);
 
         if (CDO)

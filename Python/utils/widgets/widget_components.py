@@ -461,3 +461,30 @@ def get_widget_blueprint_metadata_impl(
 
     logger.info(f"Getting widget blueprint metadata for: {widget_name}, fields: {fields}")
     return send_unreal_command("get_widget_blueprint_metadata", params)
+
+
+def reorder_widget_children(
+    ctx: Context,
+    widget_name: str,
+    container_name: str,
+    child_order: List[str]
+) -> Dict[str, Any]:
+    """Implementation for reordering children within a container widget.
+
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        container_name: Name of the container (HorizontalBox, VerticalBox, etc.)
+        child_order: List of child component names in desired order
+
+    Returns:
+        Dict containing success status and updated child order
+    """
+    params = {
+        "widget_name": widget_name,
+        "container_name": container_name,
+        "child_order": child_order
+    }
+
+    logger.info(f"Reordering children in container '{container_name}' of widget '{widget_name}': {child_order}")
+    return send_unreal_command("reorder_widget_children", params)
