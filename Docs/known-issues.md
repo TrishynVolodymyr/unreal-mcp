@@ -82,44 +82,27 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
+### Material ScalarParameter DefaultValue Not Applied
+- **Affected**: `add_material_expression` with `expression_type="ScalarParameter"` and `properties={"DefaultValue": X}`
+- **Problem**: The `DefaultValue` property for ScalarParameter expressions is not being applied when specified in the properties dict.
+- **Example**: Creating ScalarParameter with `{"ParameterName": "Intensity", "DefaultValue": 5}` results in DefaultValue showing 0.0 in the editor.
+- **Workaround**: After creating the expression, use `set_material_expression_property` to set the DefaultValue separately.
+- **Root Cause**: Property name case sensitivity - the C++ code checks for `default_value` (lowercase) but Python sends `DefaultValue` (camelCase).
+- **Status**: FIXED in MaterialExpressionService.cpp - now accepts both camelCase and lowercase property names.
+
+---
+
 ## Resolved Issues
 
-Previously tracked issues have been resolved:
-
-- **No MCP Tool to Modify Function Properties** - Fixed in ModifyBlueprintFunctionPropertiesCommand.cpp
-  - Issue: Once a function was created with `create_custom_blueprint_function`, there was no way to change its properties (pure/impure, const, access specifier, etc.)
-  - Fix: Added new `modify_blueprint_function_properties` tool that can change is_pure, is_const, access_specifier, and category on existing functions.
-
-- **Blueprint Variable Default Values Not Exposed** - Fixed in GetBlueprintMetadataCommand.cpp
-  - Issue: When querying Blueprint metadata, variable default values were not included.
-  - Fix: Added CDO (Class Default Object) access to extract default values for all variable types.
-
-- **Struct Field Pin Names Hard to Discover** - Fixed in GetStructPinNamesCommand.cpp
-  - Issue: User-defined structs use GUID-based internal field names (e.g., `ItemName_F2A4BC92`) that were difficult to discover.
-  - Fix: Added `get_struct_pin_names` tool that returns both GUID-based pin names and friendly display names.
-
-- **Poor Error Messages When Function Not Found** - Fixed in BlueprintActionDatabaseNodeCreator.cpp
-  - Issue: When `create_node_by_action_name` couldn't find a function, it returned a generic "not found" error.
-  - Fix: Now searches for similar function names and includes up to 5 suggestions in the error message.
-
-- **Custom Struct Output Types in Blueprint Functions** - Fixed in BlueprintPropertyService.cpp
-  - Issue: When creating a Blueprint function with a custom struct as an output type (e.g., `/Game/Inventory/Data/S_ItemDefinition`), the output pin was created as `Float` instead of the specified struct type.
-  - Fix: Added support for loading `UUserDefinedStruct` from full asset paths in `ResolveVariableType()` function.
-
-- **Array Length Helper** - Fixed in BlueprintActionDatabaseNodeCreator.cpp
-- **TextBlock Font Size** - Fixed in UMGService.cpp (use `font_size` kwarg)
-- **Orphaned Nodes Detection** - Implemented in metadata commands (use `fields=["orphaned_nodes"]`)
-- **Node Filtering in Metadata** - Fixed in GetBlueprintMetadataCommand.cpp
-  - Issue: The `graph_nodes` field in `get_blueprint_metadata` lacked filtering capabilities that `find_blueprint_nodes` had.
-  - Fix: Added optional `node_type`, `event_type`, and `graph_name` filter parameters to `get_blueprint_metadata`.
-  - Usage: `get_blueprint_metadata(blueprint_name="BP_MyActor", fields=["graph_nodes"], node_type="Event", event_type="BeginPlay")`
-  - Note: The `find_blueprint_nodes` tool has been removed. Use `get_blueprint_metadata` with filters instead.
-
-- **Node ID Returns All-Zeros for Certain Node Types** - Fixed in GraphUtils.cpp
-  - Issue: Multiple node types returned `node_id: "00000000000000000000000000000000"` in metadata, including K2Node_FunctionEntry, K2Node_FunctionResult, and K2Node_DynamicCast. This made it impossible to reliably target these nodes for deletion/disconnection.
-  - Root Cause: Some Unreal node types have uninitialized `NodeGuid` properties where all GUID components are zero. `FGuid::IsValid()` returns false for these.
-  - Fix: Created `FGraphUtils::GetReliableNodeId()` function that checks if `NodeGuid.IsValid()` and falls back to generating a unique ID from the object's `GetUniqueID()` when the GUID is invalid. Updated 11 files across the codebase to use this function.
-  - Generated IDs use format: `OBJID_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` (32 hex chars derived from object's unique ID)
+- **Material Expression Connections Return Success But Don't Persist** - Fixed in MaterialExpressionService.cpp
+  - Issue: `connect_material_expressions` returned `success: true` but connections were lost after reopening the material.
+  - Root Cause: Code was using graph-level connections (`MakeLinkTo()`, `TryCreateConnection()`) and syncing in wrong direction (`LinkMaterialExpressionsFromGraph()`). MaterialGraph is transient - rebuilt from expressions on load.
+  - Fix: Use UE5's `ConnectExpression()` method and sync graph FROM expressions:
+    ```cpp
+    SourceExpr->ConnectExpression(TargetInput, Params.SourceOutputIndex);
+    Material->MaterialGraph->LinkGraphNodesFromMaterial();  // Expressions → Graph
+    ```
+  - Key insight: `LinkGraphNodesFromMaterial()` = Expressions → Graph (CORRECT). `LinkMaterialExpressionsFromGraph()` = Graph → Expressions (UNRELIABLE for persistence).
 
 ## Notes
 

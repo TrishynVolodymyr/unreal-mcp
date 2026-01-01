@@ -8,12 +8,14 @@
 #include "Commands/DataTableCommandRegistration.h"
 #include "Commands/EditorCommandRegistration.h"
 #include "Commands/UMGCommandRegistration.h"
+#include "Commands/MaterialCommandRegistration.h"
 #include "Services/BlueprintActionService.h"
 // Legacy adapter removed
 #include "Services/BlueprintService.h"
 #include "Services/ProjectService.h"
 #include "Services/DataTableService.h"
 #include "Services/EditorService.h"
+#include "Services/MaterialService.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -108,7 +110,10 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
     
     // Register UMG commands
     FUMGCommandRegistration::RegisterAllUMGCommands();
-    
+
+    // Register Material commands
+    FMaterialCommandRegistration::RegisterAllCommands();
+
     UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::RegisterAllCommands: All command types registered"));
 }
 
@@ -149,7 +154,8 @@ void FUnrealMCPMainDispatcher::Shutdown()
     FDataTableCommandRegistration::UnregisterAllCommands();
     FEditorCommandRegistration::UnregisterAllCommands();
     FUMGCommandRegistration::UnregisterAllUMGCommands();
-    
+    FMaterialCommandRegistration::UnregisterAllCommands();
+
     // Clear the entire registry
     FUnrealMCPCommandRegistry::Get().ClearRegistry();
     

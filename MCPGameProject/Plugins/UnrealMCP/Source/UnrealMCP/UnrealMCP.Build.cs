@@ -84,7 +84,8 @@ public class UnrealMCP : ModuleRules
 					"UnrealEd",
 					"PropertyEditor",      // For widget property editing
 					"ToolMenus",           // For editor UI
-					"BlueprintEditorLibrary" // For Blueprint utilities
+					"BlueprintEditorLibrary", // For Blueprint utilities
+					"MaterialEditor"       // For Material Editor refresh notifications
 				}
 			);
 		}
