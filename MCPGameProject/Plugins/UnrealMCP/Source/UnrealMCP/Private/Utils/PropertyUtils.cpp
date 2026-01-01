@@ -47,6 +47,18 @@ bool FPropertyUtils::SetObjectProperty(UObject* Object, const FString& PropertyN
         ((FStrProperty*)Property)->SetPropertyValue(PropertyAddr, Value->AsString());
         return true;
     }
+    else if (Property->IsA<FNameProperty>())
+    {
+        FString StringValue = Value->AsString();
+        ((FNameProperty*)Property)->SetPropertyValue(PropertyAddr, FName(*StringValue));
+        return true;
+    }
+    else if (Property->IsA<FTextProperty>())
+    {
+        FString StringValue = Value->AsString();
+        ((FTextProperty*)Property)->SetPropertyValue(PropertyAddr, FText::FromString(StringValue));
+        return true;
+    }
     else if (Property->IsA<FByteProperty>())
     {
         FByteProperty* ByteProp = CastField<FByteProperty>(Property);

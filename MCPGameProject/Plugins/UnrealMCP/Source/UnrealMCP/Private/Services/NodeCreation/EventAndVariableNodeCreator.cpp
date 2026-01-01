@@ -10,6 +10,7 @@
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_BreakStruct.h"
 #include "K2Node_MakeStruct.h"
+#include "K2Node_CallParentFunction.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
@@ -361,6 +362,34 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 		// Try to find the variable or component in the Blueprint
 		bool bFound = false;
 
+		// NEW: Check if ExternalClassName refers to an ancestor Blueprint class
+		// If so, we should check parent class variables (accessible via self), not skip to ActionDatabase
+		bool bIsParentBlueprintClass = false;
+		if (!ExternalClassName.IsEmpty() && Blueprint->ParentClass)
+		{
+			// Check if ExternalClassName matches any class in the parent hierarchy
+			for (UClass* ParentCheck = Blueprint->ParentClass; ParentCheck; ParentCheck = ParentCheck->GetSuperClass())
+			{
+				FString ParentClassName = ParentCheck->GetName();
+				// Remove common prefixes for comparison
+				ParentClassName.RemoveFromStart(TEXT("BP_"));
+				ParentClassName.RemoveFromEnd(TEXT("_C"));
+
+				FString CheckName = ExternalClassName;
+				CheckName.RemoveFromStart(TEXT("BP_"));
+				CheckName.RemoveFromEnd(TEXT("_C"));
+
+				if (ParentClassName.Equals(CheckName, ESearchCase::IgnoreCase) ||
+					ParentCheck->GetName().Equals(ExternalClassName, ESearchCase::IgnoreCase))
+				{
+					bIsParentBlueprintClass = true;
+					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: ExternalClassName '%s' matches parent class '%s' - will check inherited variables"),
+						*ExternalClassName, *ParentCheck->GetName());
+					break;
+				}
+			}
+		}
+
 		// NEW FEATURE: Support function parameters when scope="function" or scope="auto"
 		// Function parameters are local variables in function graphs
 		bool bShouldCheckFunctionParams = Scope.Equals(TEXT("function"), ESearchCase::IgnoreCase) ||
@@ -505,10 +534,15 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 		// If an external class is specified, skip self-member variable creation entirely
 		// This allows the flow to continue to TryCreateNodeUsingBlueprintActionDatabase
 		// which will properly create an external member getter for the specified class
-		if (!ExternalClassName.IsEmpty())
+		// EXCEPTION: If the external class is a parent Blueprint class, inherited variables ARE accessible via self
+		if (!ExternalClassName.IsEmpty() && !bIsParentBlueprintClass)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: External class '%s' specified - skipping self-member variable check to allow external member creation"), *ExternalClassName);
+			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: External class '%s' specified (not a parent) - skipping self-member variable check to allow external member creation"), *ExternalClassName);
 			bShouldCheckBlueprintVars = false;
+		}
+		else if (bIsParentBlueprintClass)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: External class '%s' is a parent Blueprint - will check inherited variables via GeneratedClass"), *ExternalClassName);
 		}
 
 		if (!bFound && bShouldCheckBlueprintVars)
@@ -578,6 +612,73 @@ bool FEventAndVariableNodeCreator::TryCreateVariableNode(const FString& Function
 					UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Created component reference for '%s'"), *VarName);
 					break;
 				}
+			}
+		}
+
+		// NEW: If not found locally, check parent class hierarchy for inherited variables
+		// This applies when:
+		// 1. class_name was explicitly set to a parent Blueprint class (bIsParentBlueprintClass=true), OR
+		// 2. No class_name was specified and variable wasn't found locally (fallback check)
+		if (!bFound && (bIsParentBlueprintClass || ExternalClassName.IsEmpty()))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Checking parent class hierarchy for inherited variable '%s'"), *VarName);
+
+			// Check GeneratedClass properties - this includes inherited variables
+			if (Blueprint->GeneratedClass)
+			{
+				for (TFieldIterator<FProperty> PropIt(Blueprint->GeneratedClass); PropIt; ++PropIt)
+				{
+					FProperty* Property = *PropIt;
+					if (Property && Property->GetName().Equals(VarName, ESearchCase::IgnoreCase))
+					{
+						// Found the property! Check if it's from a parent class (not locally defined)
+						UClass* PropertyOwner = Property->GetOwnerClass();
+						bool bIsInherited = PropertyOwner && PropertyOwner != Blueprint->GeneratedClass;
+
+						if (bIsInherited || bIsParentBlueprintClass)
+						{
+							UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Found inherited variable '%s' from class '%s'"),
+								*VarName, PropertyOwner ? *PropertyOwner->GetName() : TEXT("Unknown"));
+
+							// Inherited variables are accessible via self
+							if (bIsGetter)
+							{
+								UK2Node_VariableGet* GetterNode = NewObject<UK2Node_VariableGet>(EventGraph);
+								GetterNode->VariableReference.SetSelfMember(FName(*VarName));
+								GetterNode->NodePosX = PositionX;
+								GetterNode->NodePosY = PositionY;
+								GetterNode->CreateNewGuid();
+								EventGraph->AddNode(GetterNode, true, true);
+								GetterNode->PostPlacedNewNode();
+								GetterNode->AllocateDefaultPins();
+								OutNode = GetterNode;
+								OutNodeTitle = FString::Printf(TEXT("Get %s"), *VarName);
+								OutNodeType = TEXT("UK2Node_VariableGet");
+							}
+							else
+							{
+								UK2Node_VariableSet* SetterNode = NewObject<UK2Node_VariableSet>(EventGraph);
+								SetterNode->VariableReference.SetSelfMember(FName(*VarName));
+								SetterNode->NodePosX = PositionX;
+								SetterNode->NodePosY = PositionY;
+								SetterNode->CreateNewGuid();
+								EventGraph->AddNode(SetterNode, true, true);
+								SetterNode->PostPlacedNewNode();
+								SetterNode->AllocateDefaultPins();
+								OutNode = SetterNode;
+								OutNodeTitle = FString::Printf(TEXT("Set %s"), *VarName);
+								OutNodeType = TEXT("UK2Node_VariableSet");
+							}
+							bFound = true;
+							break;
+						}
+					}
+				}
+			}
+
+			if (!bFound)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Variable '%s' not found in parent class hierarchy"), *VarName);
 			}
 		}
 
@@ -848,4 +949,116 @@ bool FEventAndVariableNodeCreator::TryCreateStructNode(const FString& FunctionNa
 	}
 
 	return false;
+}
+
+bool FEventAndVariableNodeCreator::TryCreateCallParentFunctionNode(const FString& FunctionName, TSharedPtr<FJsonObject> ParamsObject,
+	UBlueprint* Blueprint, UEdGraph* EventGraph, int32 PositionX, int32 PositionY,
+	UEdGraphNode*& OutNode, FString& OutNodeTitle, FString& OutNodeType, FString& OutErrorMessage)
+{
+	// Check for "Parent: FunctionName" or "CallParentFunction" pattern
+	FString ParentFunctionName;
+
+	if (FunctionName.StartsWith(TEXT("Parent: "), ESearchCase::IgnoreCase))
+	{
+		ParentFunctionName = FunctionName.RightChop(8); // Remove "Parent: " prefix
+	}
+	else if (FunctionName.StartsWith(TEXT("Parent:"), ESearchCase::IgnoreCase))
+	{
+		ParentFunctionName = FunctionName.RightChop(7); // Remove "Parent:" prefix
+	}
+	else if (FunctionName.Equals(TEXT("CallParentFunction"), ESearchCase::IgnoreCase))
+	{
+		// Get function name from kwargs
+		if (ParamsObject.IsValid())
+		{
+			if (!ParamsObject->TryGetStringField(TEXT("parent_function"), ParentFunctionName))
+			{
+				const TSharedPtr<FJsonObject>* KwargsObject;
+				if (ParamsObject->TryGetObjectField(TEXT("kwargs"), KwargsObject) && KwargsObject->IsValid())
+				{
+					(*KwargsObject)->TryGetStringField(TEXT("parent_function"), ParentFunctionName);
+				}
+			}
+		}
+
+		if (ParentFunctionName.IsEmpty())
+		{
+			OutErrorMessage = TEXT("CallParentFunction requires 'parent_function' parameter specifying the function name to call");
+			return true;
+		}
+	}
+	else
+	{
+		return false; // Not a parent function call pattern
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("TryCreateCallParentFunctionNode: Creating parent call for function '%s'"), *ParentFunctionName);
+
+	// Find the parent class
+	UClass* ParentClass = Blueprint->ParentClass;
+	if (!ParentClass)
+	{
+		OutErrorMessage = FString::Printf(TEXT("Blueprint '%s' has no parent class"), *Blueprint->GetName());
+		return true;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("TryCreateCallParentFunctionNode: Parent class is '%s'"), *ParentClass->GetName());
+
+	// Find the function in the parent class hierarchy
+	UFunction* ParentFunction = ParentClass->FindFunctionByName(FName(*ParentFunctionName));
+	if (!ParentFunction)
+	{
+		// Try with common prefixes
+		TArray<FString> FunctionNameVariants = {
+			ParentFunctionName,
+			FString::Printf(TEXT("BP_%s"), *ParentFunctionName),
+			FString::Printf(TEXT("K2_%s"), *ParentFunctionName)
+		};
+
+		for (const FString& Variant : FunctionNameVariants)
+		{
+			ParentFunction = ParentClass->FindFunctionByName(FName(*Variant));
+			if (ParentFunction)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("TryCreateCallParentFunctionNode: Found function with variant name '%s'"), *Variant);
+				break;
+			}
+		}
+	}
+
+	if (!ParentFunction)
+	{
+		OutErrorMessage = FString::Printf(TEXT("Function '%s' not found in parent class '%s' or its hierarchy"),
+			*ParentFunctionName, *ParentClass->GetName());
+		return true;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("TryCreateCallParentFunctionNode: Found parent function '%s' in class '%s'"),
+		*ParentFunction->GetName(), *ParentFunction->GetOwnerClass()->GetName());
+
+	// Create the UK2Node_CallParentFunction node
+	UK2Node_CallParentFunction* ParentCallNode = NewObject<UK2Node_CallParentFunction>(EventGraph);
+	if (!ParentCallNode)
+	{
+		OutErrorMessage = TEXT("Failed to create UK2Node_CallParentFunction object");
+		return true;
+	}
+
+	// Initialize the node with the parent function
+	ParentCallNode->SetFromFunction(ParentFunction);
+	ParentCallNode->NodePosX = PositionX;
+	ParentCallNode->NodePosY = PositionY;
+
+	// Add node to graph and set up pins
+	EventGraph->AddNode(ParentCallNode, true, false);
+	ParentCallNode->CreateNewGuid();
+	ParentCallNode->PostPlacedNewNode();
+	ParentCallNode->AllocateDefaultPins();
+
+	OutNode = ParentCallNode;
+	OutNodeTitle = FString::Printf(TEXT("Parent: %s"), *ParentFunctionName);
+	OutNodeType = TEXT("UK2Node_CallParentFunction");
+
+	UE_LOG(LogTemp, Warning, TEXT("TryCreateCallParentFunctionNode: Successfully created parent function call node for '%s'"), *ParentFunctionName);
+	return true;
 }

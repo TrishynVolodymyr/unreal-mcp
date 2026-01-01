@@ -5,6 +5,7 @@
 
 // Forward declarations
 class UScriptStruct;
+class UEnum;
 class FProperty;
 
 /**
@@ -50,6 +51,14 @@ public:
      * @return Found struct or nullptr
      */
     UScriptStruct* FindCustomStruct(const FString& StructName) const;
+
+    /**
+     * Find a custom user-defined enum by name using Asset Registry.
+     * Searches with and without E_ prefix (e.g., "E_QuestStatus", "QuestStatus").
+     * @param EnumName - Name of the enum to find
+     * @return Found enum or nullptr
+     */
+    UEnum* FindCustomEnum(const FString& EnumName) const;
 
 private:
     /** Private constructor for singleton pattern */

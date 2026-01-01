@@ -21,9 +21,9 @@ FString FBlueprintActionService::SearchBlueprintActions(const FString& SearchQue
     return UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(SearchQuery, Category, MaxResults, BlueprintName);
 }
 
-FString FBlueprintActionService::GetNodePinInfo(const FString& NodeName, const FString& PinName)
+FString FBlueprintActionService::GetNodePinInfo(const FString& NodeName, const FString& PinName, const FString& ClassName)
 {
-    return UUnrealMCPBlueprintActionCommands::GetNodePinInfo(NodeName, PinName);
+    return UUnrealMCPBlueprintActionCommands::GetNodePinInfo(NodeName, PinName, ClassName);
 }
 
 FString FBlueprintActionService::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams)

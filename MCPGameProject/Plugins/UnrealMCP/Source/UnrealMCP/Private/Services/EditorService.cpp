@@ -79,7 +79,17 @@ TArray<AActor*> FEditorService::FindActorsByName(const FString& Pattern)
 AActor* FEditorService::FindActorByName(const FString& ActorName)
 {
     TArray<AActor*> AllActors = GetActorsInLevel();
-    
+
+    // First try to match by actor label (display name in World Outliner)
+    for (AActor* Actor : AllActors)
+    {
+        if (Actor && Actor->GetActorLabel() == ActorName)
+        {
+            return Actor;
+        }
+    }
+
+    // Fallback: try to match by internal FName
     for (AActor* Actor : AllActors)
     {
         if (Actor && Actor->GetName() == ActorName)
@@ -87,7 +97,7 @@ AActor* FEditorService::FindActorByName(const FString& ActorName)
             return Actor;
         }
     }
-    
+
     return nullptr;
 }
 
@@ -209,7 +219,10 @@ AActor* FEditorService::SpawnBlueprintActor(const FBlueprintActorSpawnParams& Pa
         OutError = TEXT("Failed to spawn blueprint actor");
         return nullptr;
     }
-    
+
+    // Set the actor label (display name in World Outliner) to the requested name
+    NewActor->SetActorLabel(Params.ActorName);
+
     return NewActor;
 }
 

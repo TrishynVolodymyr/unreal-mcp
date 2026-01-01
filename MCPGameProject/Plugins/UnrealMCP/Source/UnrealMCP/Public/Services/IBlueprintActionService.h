@@ -51,11 +51,17 @@ public:
 
     /**
      * Get specific information about a Blueprint node's pin including expected types
-     * @param NodeName - Name of the Blueprint node
-     * @param PinName - Name of the specific pin
-     * @return JSON string containing pin information
+     * @param NodeName - Name of the Blueprint node (e.g., "Create Widget", "Map Add")
+     * @param PinName - Name of the specific pin (e.g., "Class", "TargetMap", "Key")
+     * @param ClassName - Optional class name to disambiguate library functions (e.g., "BlueprintMapLibrary")
+     * @return JSON string containing pin information including:
+     *         - pin_type: Type category (object, class, exec, wildcard, etc.)
+     *         - expected_type: Specific type expected
+     *         - is_reference: Whether parameter is by-reference
+     *         - is_wildcard: Whether pin type resolves on connection
+     *         - hint: Usage hints for special pins (wildcard, container)
      */
-    virtual FString GetNodePinInfo(const FString& NodeName, const FString& PinName) = 0;
+    virtual FString GetNodePinInfo(const FString& NodeName, const FString& PinName, const FString& ClassName = TEXT("")) = 0;
 
     /**
      * Create a blueprint node by discovered action/function name

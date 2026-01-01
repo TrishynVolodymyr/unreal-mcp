@@ -223,20 +223,27 @@ FString FSetNodePinValueCommand::Execute(const FString& Parameters)
             
             if (EnumValue == INDEX_NONE)
             {
-                // Try to find by short name (e.g., "World")
+                // Try to find by short name (e.g., "World") or display name (for user-defined enums)
                 for (int32 i = 0; i < EnumType->NumEnums() - 1; ++i) // -1 to skip MAX value
                 {
                     FString EnumName = EnumType->GetNameStringByIndex(i);
                     FString ShortName = EnumName;
-                    
+
                     // Remove enum prefix (e.g., "ESplineCoordinateSpace::World" -> "World")
                     int32 ColonPos;
                     if (EnumName.FindLastChar(':', ColonPos))
                     {
                         ShortName = EnumName.RightChop(ColonPos + 1);
                     }
-                    
-                    if (ShortName.Equals(Value, ESearchCase::IgnoreCase) || EnumName.Equals(Value, ESearchCase::IgnoreCase))
+
+                    // Also get the display name for user-defined enums
+                    // User-defined enums have internal names like "NewEnumerator0" but display names like "Active"
+                    FText DisplayNameText = EnumType->GetDisplayNameTextByIndex(i);
+                    FString DisplayName = DisplayNameText.ToString();
+
+                    if (ShortName.Equals(Value, ESearchCase::IgnoreCase) ||
+                        EnumName.Equals(Value, ESearchCase::IgnoreCase) ||
+                        DisplayName.Equals(Value, ESearchCase::IgnoreCase))
                     {
                         EnumValue = i;
                         EnumDisplayName = EnumName;

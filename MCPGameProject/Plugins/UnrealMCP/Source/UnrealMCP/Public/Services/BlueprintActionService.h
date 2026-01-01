@@ -18,6 +18,6 @@ public:
     virtual FString GetActionsForClass(const FString& ClassName, const FString& SearchFilter, int32 MaxResults) override;
     virtual FString GetActionsForClassHierarchy(const FString& ClassName, const FString& SearchFilter, int32 MaxResults) override;
     virtual FString SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults, const FString& BlueprintName) override;
-    virtual FString GetNodePinInfo(const FString& NodeName, const FString& PinName) override;
+    virtual FString GetNodePinInfo(const FString& NodeName, const FString& PinName, const FString& ClassName = TEXT("")) override;
     virtual FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams) override;
 };

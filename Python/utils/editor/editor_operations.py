@@ -77,6 +77,29 @@ def set_actor_property(
     }
     return send_unreal_command("set_actor_property", params)
 
+
+def set_actor_properties(
+    ctx: Context,
+    name: str,
+    properties: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Implementation for setting multiple properties on an actor in a single call.
+
+    Args:
+        ctx: The MCP context
+        name: Name of the actor
+        properties: List of property dicts, each with 'name' and 'value' keys
+
+    Returns:
+        Dict containing success status and details about which properties were set
+    """
+    params = {
+        "name": name,
+        "properties": properties
+    }
+    return send_unreal_command("set_actor_property", params)
+
+
 def get_actor_property(
     ctx: Context,
     name: str,

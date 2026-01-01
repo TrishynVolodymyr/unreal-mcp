@@ -424,6 +424,82 @@ def register_project_tools(mcp: FastMCP):
             return {"success": False, "message": error_msg}
 
     @mcp.tool()
+    def update_enum(
+        ctx: Context,
+        enum_name: str,
+        values: List[Dict[str, str]],
+        path: str = "/Game/Blueprints",
+        description: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Update an existing Unreal user-defined enum.
+
+        Replaces all existing enum values with the new set of values.
+
+        Args:
+            enum_name: Name of the enum to update (e.g., "E_ItemType")
+            values: List of enum values. Can be either:
+                    - Simple strings: ["Weapon", "Armor", "Consumable"]
+                    - Objects with name and description: [{"name": "Weapon", "description": "Melee or ranged weapons"}]
+            path: Path where the enum exists
+            description: Optional new description for the enum
+
+        Returns:
+            Dictionary with the update status
+
+        Examples:
+            # Update enum with simple string values
+            update_enum(
+                enum_name="E_QuestStatus",
+                values=["Available", "Active", "Completed", "Failed"],
+                path="/Game/Quests/Data"
+            )
+
+            # Update enum with per-value descriptions
+            update_enum(
+                enum_name="E_ItemRarity",
+                values=[
+                    {"name": "Common", "description": "Basic items"},
+                    {"name": "Uncommon", "description": "Better than average"},
+                    {"name": "Rare", "description": "Hard to find items"},
+                    {"name": "Epic", "description": "Very powerful items"},
+                    {"name": "Legendary", "description": "The rarest items"}
+                ],
+                path="/Game/Inventory/Data",
+                description="Item rarity levels"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "enum_name": enum_name,
+                "values": values,
+                "path": path,
+                "description": description
+            }
+
+            logger.info(f"Updating enum '{enum_name}' with {len(values)} values at '{path}'")
+            response = unreal.send_command("update_enum", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Enum update response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error updating enum: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
     def get_project_metadata(
         ctx: Context,
         fields: List[str] = None,

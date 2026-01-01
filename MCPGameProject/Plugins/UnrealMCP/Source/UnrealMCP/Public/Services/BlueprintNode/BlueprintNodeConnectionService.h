@@ -127,11 +127,13 @@ public:
      * @param TargetNode - Target node
      * @param TargetPinName - Name of the target pin
      * @param OutAutoInsertedNodes - Optional array to receive info about auto-inserted nodes
+     * @param OutErrorMessage - Optional string to receive detailed error message on failure
      * @return true if connection succeeded (with or without cast node)
      */
     bool ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName,
                                   UEdGraphNode* TargetNode, const FString& TargetPinName,
-                                  TArray<FAutoInsertedNodeInfo>* OutAutoInsertedNodes = nullptr);
+                                  TArray<FAutoInsertedNodeInfo>* OutAutoInsertedNodes = nullptr,
+                                  FString* OutErrorMessage = nullptr);
 
     /**
      * Find a node by ID or special type identifiers (for Entry/Exit nodes)
