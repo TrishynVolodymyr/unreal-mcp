@@ -285,17 +285,29 @@ bool FBlueprintNodeConnectionService::ConnectBlueprintNodesEnhanced(UBlueprint* 
         }
 
         TArray<FAutoInsertedNodeInfo> AutoInsertedNodes;
+        FString ConnectionErrorMessage;
         bool bConnectionSucceeded = ConnectNodesWithAutoCast(SearchGraph, SourceNode, Connection.SourcePin,
-                                                              TargetNode, Connection.TargetPin, &AutoInsertedNodes);
+                                                              TargetNode, Connection.TargetPin, &AutoInsertedNodes, &ConnectionErrorMessage);
 
         Result.bSuccess = bConnectionSucceeded;
         Result.AutoInsertedNodes = AutoInsertedNodes;
 
         if (!bConnectionSucceeded)
         {
-            Result.ErrorMessage = FString::Printf(TEXT("Failed to connect '%s'.%s -> '%s'.%s"),
-                *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.SourcePin,
-                *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.TargetPin);
+            // Use detailed error message if available, otherwise fall back to generic
+            if (!ConnectionErrorMessage.IsEmpty())
+            {
+                Result.ErrorMessage = FString::Printf(TEXT("Failed to connect '%s'.%s -> '%s'.%s: %s"),
+                    *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.SourcePin,
+                    *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.TargetPin,
+                    *ConnectionErrorMessage);
+            }
+            else
+            {
+                Result.ErrorMessage = FString::Printf(TEXT("Failed to connect '%s'.%s -> '%s'.%s"),
+                    *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.SourcePin,
+                    *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *Connection.TargetPin);
+            }
             bAllSucceeded = false;
         }
 
@@ -395,10 +407,14 @@ bool FBlueprintNodeConnectionService::ConnectPins(UEdGraphNode* SourceNode, cons
     return bSuccess;
 }
 
-bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName, TArray<FAutoInsertedNodeInfo>* OutAutoInsertedNodes)
+bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, UEdGraphNode* SourceNode, const FString& SourcePinName, UEdGraphNode* TargetNode, const FString& TargetPinName, TArray<FAutoInsertedNodeInfo>* OutAutoInsertedNodes, FString* OutErrorMessage)
 {
     if (!Graph || !SourceNode || !TargetNode)
     {
+        if (OutErrorMessage)
+        {
+            *OutErrorMessage = TEXT("Invalid graph or node(s)");
+        }
         return false;
     }
 
@@ -415,9 +431,14 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
 
     if (!SourcePin || !TargetPin)
     {
-        UE_LOG(LogTemp, Error, TEXT("Could not find pins - Source '%s': %s, Target '%s': %s"),
+        FString ErrorMsg = FString::Printf(TEXT("Pin not found - Source '%s': %s, Target '%s': %s"),
                *SourcePinName, SourcePin ? TEXT("FOUND") : TEXT("NOT FOUND"),
                *TargetPinName, TargetPin ? TEXT("FOUND") : TEXT("NOT FOUND"));
+        UE_LOG(LogTemp, Error, TEXT("%s"), *ErrorMsg);
+        if (OutErrorMessage)
+        {
+            *OutErrorMessage = ErrorMsg;
+        }
         return false;
     }
 
@@ -428,7 +449,36 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
         FPinConnectionResponse Response = Schema->CanCreateConnection(SourcePin, TargetPin);
         if (Response.Response == CONNECT_RESPONSE_DISALLOW)
         {
-            UE_LOG(LogTemp, Error, TEXT("Connection not allowed by schema: %s"), *Response.Message.ToString());
+            // Build a detailed error message with pin type information
+            FString SourcePinType = SourcePin->PinType.PinCategory.ToString();
+            FString TargetPinType = TargetPin->PinType.PinCategory.ToString();
+            bool bSourceIsWildcard = (SourcePinType == TEXT("wildcard"));
+            bool bTargetIsWildcard = (TargetPinType == TEXT("wildcard"));
+            bool bTargetIsReference = TargetPin->PinType.bIsReference;
+
+            FString DetailedError = FString::Printf(
+                TEXT("Connection rejected: %s\n")
+                TEXT("  Source pin '%s' type: %s%s\n")
+                TEXT("  Target pin '%s' type: %s%s%s"),
+                *Response.Message.ToString(),
+                *SourcePinName, *SourcePinType, bSourceIsWildcard ? TEXT(" (wildcard - needs typed connection first)") : TEXT(""),
+                *TargetPinName, *TargetPinType,
+                bTargetIsWildcard ? TEXT(" (wildcard - needs typed connection first)") : TEXT(""),
+                bTargetIsReference ? TEXT(" (reference parameter)") : TEXT(""));
+
+            // Add hint for container operations with wildcard pins
+            if (bTargetIsWildcard || bSourceIsWildcard)
+            {
+                DetailedError += TEXT("\n\nHINT: This function has wildcard pins (like Map_Add, Array_Add).");
+                DetailedError += TEXT("\nConnect your typed container variable FIRST to resolve the wildcard types,");
+                DetailedError += TEXT("\nthen connect other pins (Key, Value, etc.).");
+            }
+
+            UE_LOG(LogTemp, Error, TEXT("%s"), *DetailedError);
+            if (OutErrorMessage)
+            {
+                *OutErrorMessage = DetailedError;
+            }
             return false;
         }
     }

@@ -89,8 +89,131 @@ FString FAddBlueprintVariableCommand::Execute(const FString& Parameters)
     }
     TypeStr.TrimStartAndEndInline();
 
+    // Handle Map containers: Map<KeyType, ValueType>
+    if (TypeStr.StartsWith(TEXT("Map<")) && TypeStr.EndsWith(TEXT(">")))
+    {
+        // Extract key and value types from Map<KeyType, ValueType>
+        FString InnerTypes = TypeStr.Mid(4, TypeStr.Len() - 5); // Remove "Map<" and ">"
+
+        // Find the comma separator (handle nested types)
+        int32 CommaPos = INDEX_NONE;
+        int32 BracketDepth = 0;
+        for (int32 i = 0; i < InnerTypes.Len(); i++)
+        {
+            TCHAR c = InnerTypes[i];
+            if (c == '<') BracketDepth++;
+            else if (c == '>') BracketDepth--;
+            else if (c == ',' && BracketDepth == 0)
+            {
+                CommaPos = i;
+                break;
+            }
+        }
+
+        if (CommaPos == INDEX_NONE)
+        {
+            return CreateErrorResponse(FString::Printf(TEXT("Invalid Map type format: %s. Expected Map<KeyType, ValueType>"), *VariableType));
+        }
+
+        FString KeyTypeStr = InnerTypes.Left(CommaPos).TrimStartAndEnd();
+        FString ValueTypeStr = InnerTypes.Mid(CommaPos + 1).TrimStartAndEnd();
+
+        UE_LOG(LogTemp, Display, TEXT("AddBlueprintVariable: Parsing Map - KeyType='%s', ValueType='%s'"), *KeyTypeStr, *ValueTypeStr);
+
+        // Helper lambda to resolve a type string to FEdGraphPinType
+        auto ResolveTypeString = [this](const FString& TypeString, FEdGraphPinType& OutPinType) -> bool
+        {
+            if (TypeString.Equals(TEXT("Name"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Name;
+                return true;
+            } else if (TypeString.Equals(TEXT("String"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
+                return true;
+            } else if (TypeString.Equals(TEXT("Integer"), ESearchCase::IgnoreCase) || TypeString.Equals(TEXT("Int"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Int;
+                return true;
+            } else if (TypeString.Equals(TEXT("Float"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+                OutPinType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
+                return true;
+            } else if (TypeString.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
+                return true;
+            } else if (TypeString.Equals(TEXT("Text"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
+                return true;
+            } else if (TypeString.Equals(TEXT("Vector"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                OutPinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
+                return true;
+            } else if (TypeString.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                OutPinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
+                return true;
+            } else if (TypeString.Equals(TEXT("Transform"), ESearchCase::IgnoreCase)) {
+                OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                OutPinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
+                return true;
+            } else {
+                // Try struct
+                UScriptStruct* FoundStruct = FAssetDiscoveryService::Get().FindStructType(TypeString);
+                if (FoundStruct) {
+                    OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+                    OutPinType.PinSubCategoryObject = FoundStruct;
+                    return true;
+                }
+                // Try enum
+                UEnum* FoundEnum = FAssetDiscoveryService::Get().FindEnumType(TypeString);
+                if (FoundEnum) {
+                    OutPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+                    OutPinType.PinSubCategoryObject = FoundEnum;
+                    return true;
+                }
+                // Try object/class
+                UClass* FoundClass = FAssetDiscoveryService::Get().ResolveObjectClass(TypeString);
+                if (!FoundClass) {
+                    FoundClass = FAssetDiscoveryService::Get().FindWidgetClass(TypeString);
+                }
+                if (FoundClass) {
+                    OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+                    OutPinType.PinSubCategoryObject = FoundClass;
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Resolve key type
+        FEdGraphPinType KeyPinType;
+        if (!ResolveTypeString(KeyTypeStr, KeyPinType))
+        {
+            return CreateErrorResponse(FString::Printf(TEXT("Could not resolve Map key type: %s"), *KeyTypeStr));
+        }
+
+        // Resolve value type
+        FEdGraphPinType ValuePinType;
+        if (!ResolveTypeString(ValueTypeStr, ValuePinType))
+        {
+            return CreateErrorResponse(FString::Printf(TEXT("Could not resolve Map value type: %s"), *ValueTypeStr));
+        }
+
+        // Set up the Map type
+        // The key type info goes in the main PinType fields
+        PinType.PinCategory = KeyPinType.PinCategory;
+        PinType.PinSubCategory = KeyPinType.PinSubCategory;
+        PinType.PinSubCategoryObject = KeyPinType.PinSubCategoryObject;
+        PinType.ContainerType = EPinContainerType::Map;
+
+        // The value type info goes in PinValueType
+        PinType.PinValueType.TerminalCategory = ValuePinType.PinCategory;
+        PinType.PinValueType.TerminalSubCategory = ValuePinType.PinSubCategory;
+        PinType.PinValueType.TerminalSubCategoryObject = ValuePinType.PinSubCategoryObject;
+
+        bTypeResolved = true;
+        UE_LOG(LogTemp, Display, TEXT("AddBlueprintVariable: Successfully resolved Map type Map<%s, %s>"), *KeyTypeStr, *ValueTypeStr);
+    }
     // Handle array containers
-    if (TypeStr.EndsWith(TEXT("[]"))) 
+    else if (TypeStr.EndsWith(TEXT("[]")))
     {
         // Array type
         FString InnerType = TypeStr.LeftChop(2);

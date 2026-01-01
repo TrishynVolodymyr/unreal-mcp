@@ -262,6 +262,17 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
             }
             // Otherwise succeeded
         }
+        // Try call parent function node creation (Parent: FunctionName)
+        else if (FEventAndVariableNodeCreator::Get().TryCreateCallParentFunctionNode(EffectiveFunctionName, ParamsObject, Blueprint, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType, ErrorMessage))
+        {
+            // Call parent function node handled (might have succeeded or failed with error)
+            if (!ErrorMessage.IsEmpty())
+            {
+                // Failed with specific error
+                return FNodeResultBuilder::BuildNodeResult(false, ErrorMessage);
+            }
+            // Otherwise succeeded
+        }
         // Try to create arithmetic or comparison operations directly
         else if (FArithmeticNodeCreator::TryCreateArithmeticOrComparisonNode(EffectiveFunctionName, EventGraph, PositionX, PositionY, NewNode, NodeTitle, NodeType))
         {
@@ -370,6 +381,18 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
     // Collect warnings and connection results for enhanced response
     TArray<FString> Warnings;
     TArray<TSharedPtr<FJsonObject>> ConnectionResults;
+
+    // Auto-set bPrintToLog=true for Print String nodes (for debugging via log file analysis)
+    if (EffectiveFunctionName.Equals(TEXT("PrintString"), ESearchCase::IgnoreCase) ||
+        NodeTitle.Contains(TEXT("Print String")))
+    {
+        UEdGraphPin* PrintToLogPin = NewNode->FindPin(TEXT("bPrintToLog"));
+        if (PrintToLogPin)
+        {
+            PrintToLogPin->DefaultValue = TEXT("true");
+            UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Auto-set bPrintToLog=true for Print String node"));
+        }
+    }
 
     // Apply pin values if provided
     if (ParamsObject.IsValid() && ParamsObject->HasField(TEXT("pin_values")))

@@ -34,9 +34,10 @@ FString FGetNodePinInfoCommand::Execute(const FString& Parameters)
 
     FString NodeName = ParamsObj->GetStringField(TEXT("node_name"));
     FString PinName = ParamsObj->GetStringField(TEXT("pin_name"));
+    FString ClassName = ParamsObj->HasField(TEXT("class_name")) ? ParamsObj->GetStringField(TEXT("class_name")) : TEXT("");
 
     // Execute the service method
-    return BlueprintActionService->GetNodePinInfo(NodeName, PinName);
+    return BlueprintActionService->GetNodePinInfo(NodeName, PinName, ClassName);
 }
 
 FString FGetNodePinInfoCommand::GetCommandName() const

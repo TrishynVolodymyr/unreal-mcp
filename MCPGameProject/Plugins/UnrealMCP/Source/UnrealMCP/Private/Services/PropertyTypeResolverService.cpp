@@ -1,5 +1,6 @@
 #include "Services/PropertyTypeResolverService.h"
 #include "StructUtils/UserDefinedStruct.h"
+#include "Engine/UserDefinedEnum.h"
 #include "Engine/Texture2D.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
@@ -152,6 +153,15 @@ bool FPropertyTypeResolverService::ResolveBaseType(const FString& BaseType, FEdG
         return true;
     }
 
+    // Try to find a custom enum (E_ prefix convention or any user-defined enum)
+    UEnum* FoundEnum = FindCustomEnum(BaseType);
+    if (FoundEnum)
+    {
+        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+        OutPinType.PinSubCategoryObject = FoundEnum;
+        return true;
+    }
+
     // Try to find a custom struct
     UScriptStruct* FoundStruct = FindCustomStruct(BaseType);
     if (FoundStruct)
@@ -282,5 +292,67 @@ UScriptStruct* FPropertyTypeResolverService::FindCustomStruct(const FString& Str
     }
 
     UE_LOG(LogTemp, Warning, TEXT("PropertyTypeResolver: No struct found for '%s'"), *StructName);
+    return nullptr;
+}
+
+UEnum* FPropertyTypeResolverService::FindCustomEnum(const FString& EnumName) const
+{
+    UE_LOG(LogTemp, Display, TEXT("PropertyTypeResolver: Dynamic search for enum '%s'"), *EnumName);
+
+    // Use Asset Registry to search for UserDefinedEnum assets dynamically
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    // Search for UserDefinedEnum assets
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UUserDefinedEnum::StaticClass()->GetClassPathName());
+    Filter.bRecursiveClasses = true;
+
+    TArray<FAssetData> EnumAssets;
+    AssetRegistry.GetAssets(Filter, EnumAssets);
+
+    // Look for matching enum names (try multiple variations)
+    TArray<FString> NameVariations;
+    NameVariations.Add(EnumName);
+    // Try without E_ prefix if present
+    if (EnumName.StartsWith(TEXT("E_")))
+    {
+        NameVariations.Add(EnumName.Mid(2));
+    }
+    // Try with E_ prefix if not present
+    else
+    {
+        NameVariations.Add(FString::Printf(TEXT("E_%s"), *EnumName));
+    }
+
+    for (const FAssetData& AssetData : EnumAssets)
+    {
+        FString AssetName = AssetData.AssetName.ToString();
+
+        for (const FString& NameVariation : NameVariations)
+        {
+            if (AssetName.Equals(NameVariation, ESearchCase::IgnoreCase))
+            {
+                UObject* LoadedAsset = AssetData.GetAsset();
+                if (UUserDefinedEnum* UserEnum = Cast<UUserDefinedEnum>(LoadedAsset))
+                {
+                    UE_LOG(LogTemp, Display, TEXT("PropertyTypeResolver: Found enum '%s'"), *UserEnum->GetPathName());
+                    return UserEnum;
+                }
+            }
+        }
+    }
+
+    // Also try direct loading for built-in enums
+    for (const FString& NameVariation : NameVariations)
+    {
+        UEnum* FoundEnum = LoadObject<UEnum>(nullptr, *NameVariation);
+        if (FoundEnum)
+        {
+            return FoundEnum;
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("PropertyTypeResolver: No enum found for '%s'"), *EnumName);
     return nullptr;
 }

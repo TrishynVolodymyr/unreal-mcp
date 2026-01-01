@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Environment Notes
+
+**Windows Command Compatibility in Bash Tool:**
+- `dir /s /b` does NOT work - use PowerShell instead
+- File search: `powershell -Command "Get-ChildItem -Path 'X:\path' -Recurse -Filter '*.ext' | Select-Object -ExpandProperty FullName"`
+- Basic listing: `ls -la` works
+
+**UE Source Code Location:**
+- UE 5.7 source is at: `E:\code\unreal-mcp\ues\UnrealEngine-5.7\UnrealEngine-5.7\Engine\`
+- NOT at `E:\code\ues\` - the ues folder is INSIDE this project root
+
 ## Build & Launch Commands
 
 ### Building the C++ Plugin
@@ -416,6 +427,61 @@ The codebase has undergone significant refactoring to improve modularity and mai
 5. **Command Registration Pattern**: Centralized registry with category-specific registration functions
 
 When adding new features, follow these established patterns for consistency and maintainability.
+
+## MCP Tool Development: Trace Before Change (CRITICAL)
+
+**⚠️ ALWAYS trace the COMPLETE code flow before modifying MCP tools.**
+
+MCP node creation has a complex multi-stage dispatch flow. DO NOT make changes based on assumptions about a single file. The flow involves multiple files with fallback logic.
+
+**How it works (JUST AN EXAMPLE):**
+1. If `class_name` matches a parent Blueprint class, checks `GeneratedClass` properties
+2. If variable not found locally and no `class_name` specified, automatically checks parent hierarchy
+3. Inherited variables use `SetSelfMember` since they're accessible via self reference
+
+### Before Modifying MCP Tools:
+
+1. **Read ALL files in the dispatch chain** - not just the file where you think the fix goes
+2. **Understand which stage handles what** - see flow diagram above
+3. **Check fallback logic** - many stages have "if not found, try next" patterns
+4. **Test with logging** - each stage logs to `LogTemp` with function name prefix
+5. **Verify the issue isn't handled elsewhere** - the fix might belong in a different stage
+
+## Runtime Debugging via Print String
+
+**Print String nodes created via MCP automatically have `bPrintToLog=true`.**
+
+This means all Print String output is written to the UE log file, enabling post-mortem analysis by AI after PIE sessions.
+
+### Log File Location
+```
+MCPGameProject/Saved/Logs/MCPGameProject.log
+```
+
+### Log Category
+Print String output uses the `LogBlueprintUserMessages` category. To filter:
+```python
+Grep(pattern="LogBlueprintUserMessages", path="MCPGameProject/Saved/Logs/MCPGameProject.log")
+```
+
+### Workflow for AI-Assisted Debugging
+1. AI adds Print String nodes to Blueprint functions for tracing
+2. User runs PIE and reproduces the issue
+3. User stops PIE
+4. AI reads log file via `Read` tool to analyze runtime behavior
+5. AI identifies the issue based on logged values
+
+### Reading the Log
+```python
+# AI can read the log after PIE session ends
+Read(file_path="unreal-mcp/MCPGameProject/Saved/Logs/MCPGameProject.log")
+```
+
+### Log Accumulation Note
+The log file persists across multiple PIE sessions within the same Editor session. When debugging iteratively:
+- Use distinctive prefixes in Print String messages (e.g., `[DEBUG:FunctionName]`)
+- Look for the MOST RECENT occurrences of your trace messages
+- A new Editor launch creates a new log file
 
 ## Known Issues and Future Improvements
 

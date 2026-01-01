@@ -1,4 +1,5 @@
 #include "Services/BlueprintService.h"
+#include "Services/PropertyTypeResolverService.h"
 #include "Services/Blueprint/BlueprintCacheService.h"
 #include "Services/Blueprint/BlueprintCreationService.h"
 #include "Services/Blueprint/BlueprintPropertyService.h"
@@ -491,6 +492,15 @@ bool FBlueprintService::ConvertStringToPinType(const FString& TypeString, FEdGra
         }
     }
     
+    // Try to find custom enum by name (supports E_* prefix convention)
+    UEnum* FoundEnum = FPropertyTypeResolverService::Get().FindCustomEnum(TypeString);
+    if (FoundEnum)
+    {
+        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+        OutPinType.PinSubCategoryObject = FoundEnum;
+        return true;
+    }
+
     // Try to find custom struct or class by name
     UObject* FoundType = PropertyService->ResolveVariableType(TypeString);
     if (FoundType)
@@ -508,7 +518,7 @@ bool FBlueprintService::ConvertStringToPinType(const FString& TypeString, FEdGra
             return true;
         }
     }
-    
+
     UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::ConvertStringToPinType: Unknown type '%s'"), *TypeString);
     return false;
 }

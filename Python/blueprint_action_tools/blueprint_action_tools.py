@@ -220,40 +220,56 @@ def register_blueprint_action_tools(mcp: FastMCP):
     def inspect_node_pin_connection(
         ctx: Context,
         node_name: str,
-        pin_name: str
+        pin_name: str,
+        class_name: str = ""
     ) -> Dict[str, Any]:
         """
         Inspect Blueprint node pin connection details including expected types and compatibility info.
-        
+
         Args:
-            node_name: Name of the Blueprint node (e.g., "Create Widget", "Get Controller", "Cast to PlayerController")
-            pin_name: Name of the specific pin (e.g., "Owning Player", "Class", "Return Value", "Target")
-        
+            node_name: Name of the Blueprint node (e.g., "Create Widget", "Get Controller", "Map Add")
+            pin_name: Name of the specific pin (e.g., "Owning Player", "Class", "TargetMap", "Key")
+            class_name: Optional class name to disambiguate library functions (e.g., "BlueprintMapLibrary")
+
         Returns:
             Dict containing:
                 - success: Boolean indicating if the operation succeeded
                 - node_name: The node name that was queried
                 - pin_name: The pin name that was queried
                 - pin_info: Detailed information about the pin including:
-                    - pin_type: Type category (object, class, exec, etc.)
+                    - pin_type: Type category (object, class, exec, wildcard, etc.)
                     - expected_type: Specific type expected (PlayerController, Class<UserWidget>, etc.)
                     - description: Description of the pin's purpose
                     - is_required: Whether the pin must be connected
                     - is_input: Whether it's an input (true) or output (false) pin
+                    - is_reference: Whether the parameter is passed by reference
+                    - is_wildcard: Whether this is a wildcard pin that resolves on connection
                 - message: Status message
                 - available_pins: List of available pins if the node is known but pin is not found
-        
+                - hint: Usage hints for special pins (wildcard, container operations)
+
         Examples:
             # Inspect the Class pin on Create Widget node
             inspect_node_pin_connection(node_name="Create Widget", pin_name="Class")
-            
+
             # Inspect the Target pin on Get Controller node
             inspect_node_pin_connection(node_name="Get Controller", pin_name="Target")
-            
-            # Inspect the Owning Player pin on Create Widget node
-            inspect_node_pin_connection(node_name="Create Widget", pin_name="Owning Player")
+
+            # Inspect the TargetMap pin on Map Add (library function)
+            inspect_node_pin_connection(
+                node_name="Map Add",
+                pin_name="TargetMap",
+                class_name="BlueprintMapLibrary"
+            )
+
+            # Inspect an Array operation pin
+            inspect_node_pin_connection(
+                node_name="Array Add",
+                pin_name="TargetArray",
+                class_name="KismetArrayLibrary"
+            )
         """
-        return inspect_node_pin_connection_impl(ctx, node_name, pin_name)
+        return inspect_node_pin_connection_impl(ctx, node_name, pin_name, class_name)
 
     @mcp.tool()
     def create_node_by_action_name(
@@ -284,8 +300,27 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Use class_name="BP_DialogueNPC" to get the getter for the NPC's variable
         - This creates a getter with a Target pin expecting that specific class type
 
+        **CONTAINER OPERATIONS (Map, Array, Set) - CRITICAL**:
+        Container library functions (BlueprintMapLibrary, KismetArrayLibrary, BlueprintSetLibrary)
+        have WILDCARD pins that resolve their types when connected. Key points:
+
+        1. **Wildcard Pins**: Map_Add, Array_Add, Set_Add etc. have wildcard TargetMap/TargetArray/TargetSet
+           pins. These become typed AFTER you connect a typed container to them.
+
+        2. **Connection Order**: FIRST connect your typed container variable, THEN the wildcard pins
+           will resolve to match that type, and you can connect Key/Value pins.
+
+        3. **Reference Parameters**: Container functions modify the container in-place via reference.
+           Connecting a Get Variable node works - Blueprint handles reference semantics internally.
+
+        Container operation examples:
+        - Map: Map_Add, Map_Remove, Map_Find, Map_Contains, Map_Keys, Map_Values (BlueprintMapLibrary)
+        - Array: Array_Add, Array_Remove, Array_Find, Array_Contains (KismetArrayLibrary)
+        - Set: Set_Add, Set_Remove, Set_Contains, Set_Union (BlueprintSetLibrary)
+
         **WORKING NODE TYPES**:
         - Function calls (KismetMathLibrary, GameplayStatics, etc.)
+        - Container operations (BlueprintMapLibrary, KismetArrayLibrary, BlueprintSetLibrary)
         - For Each Loop (Map) - UK2Node_MapForEach
         - For Each Loop (Set) - UK2Node_SetForEach
         - Control flow nodes (Branch, Sequence, etc.)
@@ -294,6 +329,30 @@ def register_blueprint_action_tools(mcp: FastMCP):
         - Cast nodes
         - Enhanced Input Action events (e.g., IA_Jump, IA_Move, IA_Interact)
         - Component Bound Events (OnComponentBeginOverlap, etc.) - use component_name + event_name kwargs
+
+        **WILDCARD MATH/COMPARISON OPERATORS - USE SIMPLE SYMBOLS**:
+        For math and comparison nodes, use simple operator symbols - NOT type-specific function names.
+        These create wildcard nodes that auto-detect types from their connections:
+
+        | Use This | NOT This (will fail) |
+        |----------|----------------------|
+        | `>=`     | `GreaterEqual_IntInt` |
+        | `<=`     | `LessEqual_IntInt` |
+        | `>`      | `Greater_IntInt` |
+        | `<`      | `Less_IntInt` |
+        | `==`     | `EqualEqual_IntInt` |
+        | `!=`     | `NotEqual_IntInt` |
+        | `+`      | `Add_IntInt` |
+        | `-`      | `Subtract_IntInt` |
+        | `*`      | `Multiply_IntInt` |
+        | `/`      | `Divide_IntInt` |
+
+        Example:
+            # CORRECT - creates wildcard >= node
+            create_node_by_action_name(blueprint_name="BP_Test", function_name=">=")
+
+            # WRONG - will fail, type-specific functions don't exist in action database
+            create_node_by_action_name(blueprint_name="BP_Test", function_name="GreaterEqual_IntInt")
 
         Args:
             blueprint_name: Name of the target Blueprint (e.g., "BP_MyActor")
@@ -422,6 +481,36 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 target_graph="InitializeDialogue",
                 scope="function",  # Explicitly search function parameters only
                 node_position=[200, 100]
+            )
+
+            # ============ CONTAINER OPERATIONS ============
+            # Map operations - Add to a Map variable
+            # Step 1: Create the Map_Add node (has wildcard pins initially)
+            create_node_by_action_name(
+                blueprint_name="BP_QuestManager",
+                function_name="Map_Add",
+                class_name="BlueprintMapLibrary",
+                target_graph="ActivateQuest",
+                node_position=[400, 100]
+            )
+            # Step 2: Connect your typed Map variable to TargetMap pin FIRST
+            # This resolves the wildcard pins to match your map's key/value types
+            # Step 3: Then connect Key and Value pins
+
+            # Array operations - Add to an Array variable
+            create_node_by_action_name(
+                blueprint_name="BP_Inventory",
+                function_name="Array_Add",
+                class_name="KismetArrayLibrary",
+                node_position=[300, 100]
+            )
+
+            # Set operations - Add to a Set variable
+            create_node_by_action_name(
+                blueprint_name="BP_TagManager",
+                function_name="Set_Add",
+                class_name="BlueprintSetLibrary",
+                node_position=[300, 100]
             )
         """
         return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, target_graph=target_graph, **kwargs)

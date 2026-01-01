@@ -28,6 +28,7 @@ These videos showcase systems built entirely through AI assistants using unreal-
 | Demo | AI Assistant | Implementation Plan |
 |------|--------------|---------------------|
 | [Simple Dialogue System](https://www.youtube.com/watch?v=qRZYDYq8np4) | ChatGPT 5.1 Codex Max | [dialogue-plan](Docs/Implementation-Examples/dialogue-plan/) |
+| [Branching Dialogue System](https://www.youtube.com/watch?v=s8949Xcvyow) | Claude Opus 4.5 | [dialogue-branching-plan](Docs/Implementation-Examples/dialogue-branching-plan/) |
 | [Inventory System](https://www.youtube.com/watch?v=psqTS8jX-NI) | Claude Opus 4.5 | [inventory-plan](Docs/Implementation-Examples/inventory-plan/) |
 | [Lootable Extension](https://www.youtube.com/watch?v=VRl7xGooVSw) | Claude Opus 4.5 | [loot-plan](Docs/Implementation-Examples/loot-plan/) |
 

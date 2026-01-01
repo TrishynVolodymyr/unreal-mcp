@@ -57,13 +57,14 @@ public:
     static FString SearchBlueprintActions(const FString& SearchQuery, const FString& Category = TEXT(""), int32 MaxResults = 50, const FString& BlueprintName = TEXT(""));
 
     /**
-     * Get specific node pin information
-     * @param NodeName - Name of the node
-     * @param PinName - Name of the pin
-     * @return JSON string containing pin information
+     * Get specific node pin information including library functions
+     * @param NodeName - Name of the node (e.g., "Create Widget", "Map Add")
+     * @param PinName - Name of the pin (e.g., "Class", "TargetMap")
+     * @param ClassName - Optional class name to disambiguate (e.g., "BlueprintMapLibrary")
+     * @return JSON string containing pin information including wildcard/reference status
      */
     UFUNCTION(BlueprintCallable, Category = "Unreal MCP Blueprint Actions")
-    static FString GetNodePinInfo(const FString& NodeName, const FString& PinName);
+    static FString GetNodePinInfo(const FString& NodeName, const FString& PinName, const FString& ClassName = TEXT(""));
 
     /**
      * Create a blueprint node by discovered action/function name

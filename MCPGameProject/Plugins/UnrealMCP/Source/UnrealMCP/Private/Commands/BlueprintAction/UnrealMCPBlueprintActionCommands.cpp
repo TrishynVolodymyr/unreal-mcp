@@ -102,10 +102,10 @@ FString UUnrealMCPBlueprintActionCommands::GetActionsForClassHierarchy(const FSt
     return Service.GetActionsForClassHierarchy(ClassName, SearchFilter, MaxResults);
 }
 
-FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeName, const FString& PinName)
+FString UUnrealMCPBlueprintActionCommands::GetNodePinInfo(const FString& NodeName, const FString& PinName, const FString& ClassName)
 {
     FBlueprintNodePinInfoService Service;
-    return Service.GetNodePinInfo(NodeName, PinName);
+    return Service.GetNodePinInfo(NodeName, PinName, ClassName);
 }
 
 FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString& SearchQuery, const FString& Category, int32 MaxResults, const FString& BlueprintName)

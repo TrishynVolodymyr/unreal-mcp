@@ -59,6 +59,15 @@ public:
 		UEdGraph* EventGraph, int32 PositionX, int32 PositionY,
 		UEdGraphNode*& OutNode, FString& OutNodeTitle, FString& OutNodeType, FString& OutErrorMessage);
 
+	/**
+	 * Try to create a call parent function node (Parent: FunctionName)
+	 * Used to call parent class implementation of an overridden function
+	 * @return true if this function handled the node creation
+	 */
+	bool TryCreateCallParentFunctionNode(const FString& FunctionName, TSharedPtr<FJsonObject> ParamsObject,
+		UBlueprint* Blueprint, UEdGraph* EventGraph, int32 PositionX, int32 PositionY,
+		UEdGraphNode*& OutNode, FString& OutNodeTitle, FString& OutNodeType, FString& OutErrorMessage);
+
 private:
 	/** Private constructor for singleton pattern */
 	FEventAndVariableNodeCreator() = default;

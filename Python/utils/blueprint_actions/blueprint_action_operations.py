@@ -302,13 +302,30 @@ def search_blueprint_actions(
 def get_node_pin_info(
     ctx: Context,
     node_name: str,
-    pin_name: str
+    pin_name: str,
+    class_name: str = ""
 ) -> Dict[str, Any]:
-    """Implementation for inspecting Blueprint node pin connection details and compatibility."""
+    """
+    Implementation for inspecting Blueprint node pin connection details and compatibility.
+
+    For library functions (BlueprintMapLibrary, KismetArrayLibrary, etc.), specify class_name
+    to disambiguate when multiple functions have the same name.
+
+    Args:
+        ctx: MCP context
+        node_name: Name of the node (e.g., "Map Add", "Array Add")
+        pin_name: Name of the pin (e.g., "TargetMap", "Key", "Value")
+        class_name: Optional class name for disambiguation (e.g., "BlueprintMapLibrary")
+
+    Returns:
+        Dict containing pin info including is_wildcard, is_reference for container functions.
+    """
     params = {
         "node_name": node_name,
         "pin_name": pin_name
     }
+    if class_name:
+        params["class_name"] = class_name
     return send_unreal_command("get_node_pin_info", params)
 
 

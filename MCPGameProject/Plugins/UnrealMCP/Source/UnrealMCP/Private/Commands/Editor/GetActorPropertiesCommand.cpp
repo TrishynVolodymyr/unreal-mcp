@@ -3,6 +3,8 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Engine/DataTable.h"
 
 FGetActorPropertiesCommand::FGetActorPropertiesCommand(IEditorService& InEditorService)
     : EditorService(InEditorService)
@@ -109,9 +111,122 @@ FString FGetActorPropertiesCommand::CreateSuccessResponse(AActor* Actor) const
     
     // Additional properties
     ResponseObj->SetBoolField(TEXT("hidden"), Actor->IsHidden());
-    ResponseObj->SetStringField(TEXT("mobility"), Actor->GetRootComponent() ? 
+    ResponseObj->SetStringField(TEXT("mobility"), Actor->GetRootComponent() ?
         UEnum::GetValueAsString(Actor->GetRootComponent()->Mobility) : TEXT("Unknown"));
-    
+
+    // Blueprint variables - check if this is a Blueprint-generated class
+    UClass* ActorClass = Actor->GetClass();
+    if (ActorClass && ActorClass->IsChildOf(AActor::StaticClass()))
+    {
+        TSharedPtr<FJsonObject> BlueprintVarsObj = MakeShared<FJsonObject>();
+        bool bHasBlueprintVars = false;
+
+        // Iterate through all properties defined in this class (not inherited from native)
+        for (TFieldIterator<FProperty> PropIt(ActorClass, EFieldIteratorFlags::ExcludeSuper); PropIt; ++PropIt)
+        {
+            FProperty* Property = *PropIt;
+            if (!Property) continue;
+
+            // Skip non-blueprint editable properties
+            if (!Property->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible))
+                continue;
+
+            FString PropName = Property->GetName();
+            void* ValuePtr = Property->ContainerPtrToValuePtr<void>(Actor);
+
+            // Handle different property types
+            if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
+            {
+                FString Value = StrProp->GetPropertyValue(ValuePtr);
+                BlueprintVarsObj->SetStringField(PropName, Value);
+                bHasBlueprintVars = true;
+            }
+            else if (FNameProperty* NameProp = CastField<FNameProperty>(Property))
+            {
+                FName Value = NameProp->GetPropertyValue(ValuePtr);
+                BlueprintVarsObj->SetStringField(PropName, Value.ToString());
+                bHasBlueprintVars = true;
+            }
+            else if (FTextProperty* TextProp = CastField<FTextProperty>(Property))
+            {
+                FText Value = TextProp->GetPropertyValue(ValuePtr);
+                BlueprintVarsObj->SetStringField(PropName, Value.ToString());
+                bHasBlueprintVars = true;
+            }
+            else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+            {
+                bool Value = BoolProp->GetPropertyValue(ValuePtr);
+                BlueprintVarsObj->SetBoolField(PropName, Value);
+                bHasBlueprintVars = true;
+            }
+            else if (FIntProperty* IntProp = CastField<FIntProperty>(Property))
+            {
+                int32 Value = IntProp->GetPropertyValue(ValuePtr);
+                BlueprintVarsObj->SetNumberField(PropName, Value);
+                bHasBlueprintVars = true;
+            }
+            else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Property))
+            {
+                float Value = FloatProp->GetPropertyValue(ValuePtr);
+                BlueprintVarsObj->SetNumberField(PropName, Value);
+                bHasBlueprintVars = true;
+            }
+            else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Property))
+            {
+                double Value = DoubleProp->GetPropertyValue(ValuePtr);
+                BlueprintVarsObj->SetNumberField(PropName, Value);
+                bHasBlueprintVars = true;
+            }
+            else if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Property))
+            {
+                UObject* ObjValue = ObjProp->GetPropertyValue(ValuePtr);
+                if (ObjValue)
+                {
+                    // For DataTables and other assets, get the path
+                    BlueprintVarsObj->SetStringField(PropName, ObjValue->GetPathName());
+                }
+                else
+                {
+                    BlueprintVarsObj->SetStringField(PropName, TEXT("None"));
+                }
+                bHasBlueprintVars = true;
+            }
+            else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+            {
+                FNumericProperty* UnderlyingProp = EnumProp->GetUnderlyingProperty();
+                int64 Value = UnderlyingProp->GetSignedIntPropertyValue(ValuePtr);
+                UEnum* Enum = EnumProp->GetEnum();
+                if (Enum)
+                {
+                    BlueprintVarsObj->SetStringField(PropName, Enum->GetNameStringByValue(Value));
+                }
+                else
+                {
+                    BlueprintVarsObj->SetNumberField(PropName, Value);
+                }
+                bHasBlueprintVars = true;
+            }
+            else if (FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+            {
+                uint8 Value = ByteProp->GetPropertyValue(ValuePtr);
+                if (ByteProp->Enum)
+                {
+                    BlueprintVarsObj->SetStringField(PropName, ByteProp->Enum->GetNameStringByValue(Value));
+                }
+                else
+                {
+                    BlueprintVarsObj->SetNumberField(PropName, Value);
+                }
+                bHasBlueprintVars = true;
+            }
+        }
+
+        if (bHasBlueprintVars)
+        {
+            ResponseObj->SetObjectField(TEXT("blueprint_variables"), BlueprintVarsObj);
+        }
+    }
+
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
     FJsonSerializer::Serialize(ResponseObj.ToSharedRef(), Writer);
