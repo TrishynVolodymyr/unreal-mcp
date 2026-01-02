@@ -19,6 +19,7 @@
 #include "Commands/Project/CreateOfflineFontCommand.h"
 #include "Commands/Project/GetFontMetadataCommand.h"
 #include "Commands/Project/CreateFontCommand.h"
+#include "Commands/Project/SearchAssetsCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -61,6 +62,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
 
     // Register asset duplication command
     Registry.RegisterCommand(MakeShared<FDuplicateAssetCommand>(ProjectService));
+
+    // Register asset search command (uses FAssetDiscoveryService singleton, no ProjectService needed)
+    Registry.RegisterCommand(MakeShared<FSearchAssetsCommand>());
 
     // Register unified font command (recommended - consolidates all font creation methods)
     Registry.RegisterCommand(MakeShared<FCreateFontCommand>(ProjectService));

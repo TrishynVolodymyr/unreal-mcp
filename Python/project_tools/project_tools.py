@@ -1206,4 +1206,89 @@ def register_project_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
+    @mcp.tool()
+    def search_assets(
+        ctx: Context,
+        search_query: str,
+        asset_type: str = "",
+        path: str = "/Game",
+        max_results: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Search for assets by name with optional type filtering.
+
+        Uses Unreal Engine's Asset Registry for efficient querying across
+        the project content. Supports filtering by asset class type.
+
+        Args:
+            search_query: Name or partial name to search for (case-insensitive)
+            asset_type: Optional asset class filter. Common types:
+                - "Texture2D" or "Texture" - Texture assets
+                - "Material" - Material assets
+                - "MaterialInstance" - Material instances
+                - "StaticMesh" - Static mesh assets
+                - "SkeletalMesh" - Skeletal mesh assets
+                - "SoundWave" or "Sound" - Audio assets
+                - "Blueprint" - Blueprint classes
+                - "WidgetBlueprint" or "Widget" - UMG widget blueprints
+                - "DataTable" - Data table assets
+                - "AnimSequence" or "Animation" - Animation sequences
+                - "NiagaraSystem" or "Niagara" - Niagara particle systems
+            path: Root path to search in (default: "/Game"). Use "/Engine" for engine content.
+            max_results: Maximum number of results to return (default: 50, max: 500)
+
+        Returns:
+            Dictionary containing:
+                - success: Whether the search completed
+                - search_query: The query that was used
+                - asset_type: The type filter applied (or "all")
+                - path: The search path
+                - count: Number of matching assets found
+                - total_scanned: Total assets scanned
+                - assets: Array of matching assets, each with:
+                    - name: Asset name
+                    - path: Full asset path
+                    - package_path: Package path
+                    - class_name: Asset class name
+
+        Examples:
+            # Search for noise textures in engine content
+            search_assets(search_query="Noise", asset_type="Texture2D", path="/Engine")
+
+            # Search for all blueprints containing "Player"
+            search_assets(search_query="Player", asset_type="Blueprint")
+
+            # Search for any asset containing "Fire"
+            search_assets(search_query="Fire")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "search_query": search_query,
+                "asset_type": asset_type,
+                "path": path,
+                "max_results": max_results
+            }
+
+            logger.info(f"Searching assets: query='{search_query}', type='{asset_type}', path='{path}'")
+            response = unreal.send_command("search_assets", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Search assets response: found {response.get('count', 0)} matches")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error searching assets: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
     logger.info("Project tools registered successfully")
