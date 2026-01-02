@@ -85,7 +85,8 @@ public class UnrealMCP : ModuleRules
 					"PropertyEditor",      // For widget property editing
 					"ToolMenus",           // For editor UI
 					"BlueprintEditorLibrary", // For Blueprint utilities
-					"MaterialEditor"       // For Material Editor refresh notifications
+					"MaterialEditor",      // For Material Editor refresh notifications
+					"EditorFramework"      // For FToolkitManager (finding open Material Editors)
 				}
 			);
 		}

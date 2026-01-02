@@ -4,6 +4,7 @@
 #include "IMaterialEditor.h"
 #include "MaterialGraph/MaterialGraph.h"
 #include "MaterialGraph/MaterialGraphNode.h"
+#include "MaterialGraph/MaterialGraphNode_Root.h"  // For UMaterialGraphNode_Root
 #include "MaterialGraph/MaterialGraphSchema.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Misc/PackageName.h"
@@ -36,6 +37,7 @@
 #include "Materials/MaterialExpressionFrac.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
+#include "Toolkits/ToolkitManager.h"  // For FToolkitManager - correct API for finding Material Editor
 
 // Singleton instance
 TUniquePtr<FMaterialExpressionService> FMaterialExpressionService::Instance;
@@ -1040,53 +1042,123 @@ bool FMaterialExpressionService::ConnectToMaterialOutput(
         return false;
     }
 
-    // Connect using direct assignment - the UE5 pattern that actually persists
-    Expression->Modify();
-    Material->Modify();
-    MaterialInput->Expression = Expression;
-    MaterialInput->OutputIndex = OutputIndex;
+    // Check if material editor is open using FToolkitManager (like UE does internally)
+    // UAssetEditorSubsystem->FindEditorForAsset() does NOT work for Material Editors!
+    TSharedPtr<IMaterialEditor> MaterialEditor;
+    TSharedPtr<IToolkit> FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(Material);
 
-    UE_LOG(LogTemp, Log, TEXT("Connected expression %s output %d to material property %s"),
-        *Expression->GetName(), OutputIndex, *MaterialProperty);
+    UE_LOG(LogTemp, Warning, TEXT("FToolkitManager check: Material=%s, IsInGameThread=%s, FoundEditor=%s"),
+        *Material->GetPathName(),
+        IsInGameThread() ? TEXT("YES") : TEXT("NO"),
+        FoundAssetEditor.IsValid() ? TEXT("VALID") : TEXT("NULL"));
 
-    // Mark dirty but DON'T call PreEditChange/PostEditChange as they can trigger rebuild
-    Material->MarkPackageDirty();
-
-    // Save the package to persist changes to disk
-    UPackage* Package = Material->GetOutermost();
-    if (Package)
+    if (FoundAssetEditor.IsValid())
     {
-        FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
-        FSavePackageArgs SaveArgs;
-        SaveArgs.TopLevelFlags = RF_Standalone;
-        UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-        UE_LOG(LogTemp, Log, TEXT("Saved material package: %s"), *PackageFileName);
+        MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(FoundAssetEditor);
+        UE_LOG(LogTemp, Warning, TEXT("After cast: MaterialEditor=%s"),
+            MaterialEditor.IsValid() ? TEXT("VALID") : TEXT("NULL"));
     }
 
-    // Sync the visual graph links from the expression connections and refresh UI
-    if (Material->MaterialGraph)
+    // When editor is open, use the material from the editor (it has the live MaterialGraph)
+    UMaterial* WorkingMaterial = Material;
+    if (MaterialEditor.IsValid())
     {
-        Material->MaterialGraph->LinkGraphNodesFromMaterial();
-        Material->MaterialGraph->NotifyGraphChanged();
-    }
-
-    // Notify any open Material Editor to refresh
-    if (GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
+        UMaterialInterface* EditorMatInterface = MaterialEditor->GetMaterialInterface();
+        if (UMaterial* EditorMat = Cast<UMaterial>(EditorMatInterface))
         {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
-            if (EditorInstance)
+            WorkingMaterial = EditorMat;
+            UE_LOG(LogTemp, Warning, TEXT("Using editor's material instance (MaterialGraph=%s)"),
+                WorkingMaterial->MaterialGraph ? TEXT("EXISTS") : TEXT("NULL"));
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Condition check: MaterialEditor=%s, MaterialGraph=%s"),
+        MaterialEditor.IsValid() ? TEXT("VALID") : TEXT("NULL"),
+        WorkingMaterial->MaterialGraph ? TEXT("EXISTS") : TEXT("NULL"));
+
+    if (MaterialEditor.IsValid() && WorkingMaterial->MaterialGraph)
+    {
+        // EDITOR IS OPEN: Connect at EdGraph level first, then sync to Material
+        // This is UE's intended flow - EdGraph is source of truth when editor is open
+        UMaterialGraphNode* ExprGraphNode = Cast<UMaterialGraphNode>(Expression->GraphNode);
+        UMaterialGraphNode_Root* RootNode = WorkingMaterial->MaterialGraph->RootNode;
+
+        if (ExprGraphNode && RootNode)
+        {
+            int32 InputIndex = WorkingMaterial->MaterialGraph->GetInputIndexForProperty(MatProperty);
+            if (InputIndex != INDEX_NONE)
             {
-                TSharedPtr<IMaterialEditor> MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(
-                    TSharedPtr<IAssetEditorInstance>(EditorInstance, [](IAssetEditorInstance*){}));
-                if (MaterialEditor.IsValid())
+                UEdGraphPin* InputPin = RootNode->GetInputPin(InputIndex);
+                UEdGraphPin* OutputPin = ExprGraphNode->GetOutputPin(OutputIndex);
+
+                if (InputPin && OutputPin)
                 {
+                    // Modify for undo
+                    WorkingMaterial->MaterialGraph->Modify();
+
+                    // Make visual connection at EdGraph level
+                    InputPin->MakeLinkTo(OutputPin);
+
+                    // Sync Material FROM Graph - this writes the visual link to material data
+                    WorkingMaterial->MaterialGraph->LinkMaterialExpressionsFromGraph();
+
+                    // Standard refresh (now safe - it syncs FROM graph which has our connection)
                     MaterialEditor->UpdateMaterialAfterGraphChange();
+
+                    WorkingMaterial->MarkPackageDirty();
+
+                    UE_LOG(LogTemp, Log, TEXT("Connected expression %s to %s via EdGraph (editor open)"),
+                        *Expression->GetName(), *MaterialProperty);
+                }
+                else
+                {
+                    OutError = TEXT("Failed to get input/output pins from graph nodes");
+                    return false;
                 }
             }
+            else
+            {
+                OutError = FString::Printf(TEXT("Property %s not found in material inputs (InputIndex was INDEX_NONE)"), *MaterialProperty);
+                return false;
+            }
         }
+        else
+        {
+            OutError = FString::Printf(TEXT("Expression GraphNode (%s) or RootNode (%s) not available"),
+                ExprGraphNode ? TEXT("valid") : TEXT("null"),
+                RootNode ? TEXT("valid") : TEXT("null"));
+            return false;
+        }
+    }
+    else
+    {
+        // EDITOR IS CLOSED: Connect at Material level (data) and save
+        Expression->Modify();
+        Material->Modify();
+        if (Material->MaterialGraph)
+        {
+            Material->MaterialGraph->Modify();
+        }
+
+        // Connect at material data level using UE5's built-in ConnectExpression()
+        Expression->ConnectExpression(MaterialInput, OutputIndex);
+
+        Material->MarkPackageDirty();
+
+        // Save the package to persist changes to disk
+        UPackage* Package = Material->GetOutermost();
+        if (Package)
+        {
+            FString PackageFileName = FPackageName::LongPackageNameToFilename(
+                Package->GetName(), FPackageName::GetAssetPackageExtension());
+            FSavePackageArgs SaveArgs;
+            SaveArgs.TopLevelFlags = RF_Standalone;
+            UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
+            UE_LOG(LogTemp, Log, TEXT("Saved material package: %s"), *PackageFileName);
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("Connected expression %s to %s via Material (editor closed)"),
+            *Expression->GetName(), *MaterialProperty);
     }
 
     UE_LOG(LogTemp, Log, TEXT("Connected expression to %s in material %s"), *MaterialProperty, *MaterialPath);
