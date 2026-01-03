@@ -314,23 +314,39 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
         }
         if (Properties->HasField(TEXT("default_value")) || Properties->HasField(TEXT("DefaultValue")))
         {
+            // Use PreEditChange/PostEditChangeProperty to properly notify the property system
+            FProperty* DefaultValueProp = ScalarParam->GetClass()->FindPropertyByName(TEXT("DefaultValue"));
+            ScalarParam->PreEditChange(DefaultValueProp);
+
             ScalarParam->DefaultValue = Properties->HasField(TEXT("default_value"))
                 ? Properties->GetNumberField(TEXT("default_value"))
                 : Properties->GetNumberField(TEXT("DefaultValue"));
+
+            FPropertyChangedEvent PropertyChangedEvent(DefaultValueProp);
+            ScalarParam->PostEditChangeProperty(PropertyChangedEvent);
         }
     }
-    // Handle VectorParameter
+    // Handle VectorParameter - support both camelCase and lowercase
     else if (UMaterialExpressionVectorParameter* VectorParam = Cast<UMaterialExpressionVectorParameter>(Expression))
     {
-        if (Properties->HasField(TEXT("parameter_name")))
+        if (Properties->HasField(TEXT("parameter_name")) || Properties->HasField(TEXT("ParameterName")))
         {
-            VectorParam->SetParameterName(FName(*Properties->GetStringField(TEXT("parameter_name"))));
+            FString ParamName = Properties->HasField(TEXT("parameter_name"))
+                ? Properties->GetStringField(TEXT("parameter_name"))
+                : Properties->GetStringField(TEXT("ParameterName"));
+            VectorParam->SetParameterName(FName(*ParamName));
         }
-        if (Properties->HasField(TEXT("default_value")))
+        if (Properties->HasField(TEXT("default_value")) || Properties->HasField(TEXT("DefaultValue")))
         {
             const TArray<TSharedPtr<FJsonValue>>* ColorArray;
-            if (Properties->TryGetArrayField(TEXT("default_value"), ColorArray) && ColorArray->Num() >= 3)
+            FString FieldName = Properties->HasField(TEXT("default_value")) ? TEXT("default_value") : TEXT("DefaultValue");
+            if (Properties->TryGetArrayField(FieldName, ColorArray) && ColorArray->Num() >= 3)
             {
+                // Use PreEditChange/PostEditChangeProperty to properly notify the property system
+                // This ensures the Material Editor details panel updates
+                FProperty* DefaultValueProp = VectorParam->GetClass()->FindPropertyByName(TEXT("DefaultValue"));
+                VectorParam->PreEditChange(DefaultValueProp);
+
                 VectorParam->DefaultValue.R = (*ColorArray)[0]->AsNumber();
                 VectorParam->DefaultValue.G = (*ColorArray)[1]->AsNumber();
                 VectorParam->DefaultValue.B = (*ColorArray)[2]->AsNumber();
@@ -338,6 +354,9 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                 {
                     VectorParam->DefaultValue.A = (*ColorArray)[3]->AsNumber();
                 }
+
+                FPropertyChangedEvent PropertyChangedEvent(DefaultValueProp);
+                VectorParam->PostEditChangeProperty(PropertyChangedEvent);
             }
         }
     }
@@ -351,6 +370,29 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
             if (Texture)
             {
                 TextureSampleExpr->Texture = Texture;
+            }
+        }
+        // Handle SamplerType property
+        // Values: 0=Color, 1=Grayscale, 2=Alpha, 3=Normal, 4=Masks, 5=DistanceFieldFont, 6=LinearColor, 7=LinearGrayscale
+        if (Properties->HasField(TEXT("SamplerType")) || Properties->HasField(TEXT("sampler_type")))
+        {
+            int32 SamplerTypeValue = Properties->HasField(TEXT("SamplerType"))
+                ? (int32)Properties->GetNumberField(TEXT("SamplerType"))
+                : (int32)Properties->GetNumberField(TEXT("sampler_type"));
+
+            // Use PreEditChange/PostEditChangeProperty for proper notification
+            FProperty* SamplerTypeProp = TextureSampleExpr->GetClass()->FindPropertyByName(TEXT("SamplerType"));
+            if (SamplerTypeProp)
+            {
+                TextureSampleExpr->PreEditChange(SamplerTypeProp);
+                TextureSampleExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
+                FPropertyChangedEvent PropertyChangedEvent(SamplerTypeProp);
+                TextureSampleExpr->PostEditChangeProperty(PropertyChangedEvent);
+            }
+            else
+            {
+                // Fallback if property not found
+                TextureSampleExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
             }
         }
     }
@@ -777,10 +819,31 @@ bool FMaterialExpressionService::ConnectExpressions(
         return false;
     }
 
-    // CRITICAL: Must connect at EXPRESSION level, not graph level!
-    // MaterialGraph is TRANSIENT - it's rebuilt from expression connections on load.
-    // Graph-level connections (MakeLinkTo) are lost when the material reloads.
-    // Therefore, we set FExpressionInput directly, then sync graph FROM expressions.
+    // Close Material Editor if open (we'll reopen after save)
+    // This ensures our changes persist and aren't overwritten by the editor's in-memory state
+    bool bEditorWasOpen = false;
+    if (GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
+            if (EditorInstance)
+            {
+                bEditorWasOpen = true;
+                // Save package BEFORE closing to avoid save dialog prompt
+                UPackage* Package = Material->GetOutermost();
+                if (Package && Package->IsDirty())
+                {
+                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
+                    FSavePackageArgs SaveArgs;
+                    SaveArgs.TopLevelFlags = RF_Standalone;
+                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
+                }
+                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
+            }
+        }
+    }
 
     // Mark objects for modification (Undo/Redo support)
     SourceExpr->Modify();
@@ -799,21 +862,15 @@ bool FMaterialExpressionService::ConnectExpressions(
         *SourceExpr->GetName(), Params.SourceOutputIndex,
         *TargetExpr->GetName(), *Params.TargetInputName);
 
-    // DEBUG: Verify connection was set correctly
-    UE_LOG(LogTemp, Warning, TEXT("After ConnectExpression: TargetInput->Expression = %p (expected: %p)"),
-        TargetInput->Expression, SourceExpr);
-
     // Ensure MaterialGraph exists for visual sync
     if (!Material->MaterialGraph)
     {
-        // Create the material graph if it doesn't exist
         Material->MaterialGraph = CastChecked<UMaterialGraph>(
             FBlueprintEditorUtils::CreateNewGraph(Material, NAME_None, UMaterialGraph::StaticClass(), UMaterialGraphSchema::StaticClass()));
         Material->MaterialGraph->Material = Material;
     }
 
     // Sync the visual graph FROM expressions (expressions are the source of truth)
-    // This is the opposite of LinkMaterialExpressionsFromGraph() which was causing the bug
     Material->MaterialGraph->LinkGraphNodesFromMaterial();
     Material->MaterialGraph->NotifyGraphChanged();
 
@@ -829,22 +886,13 @@ bool FMaterialExpressionService::ConnectExpressions(
         UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
     }
 
-    // Notify Material Editor to refresh
-    if (GEditor)
+    // Reopen editor if it was open
+    if (bEditorWasOpen && GEditor)
     {
         UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
         if (AssetEditorSubsystem)
         {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
-            if (EditorInstance)
-            {
-                TSharedPtr<IMaterialEditor> MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(
-                    TSharedPtr<IAssetEditorInstance>(EditorInstance, [](IAssetEditorInstance*){}));
-                if (MaterialEditor.IsValid())
-                {
-                    MaterialEditor->UpdateMaterialAfterGraphChange();
-                }
-            }
+            AssetEditorSubsystem->OpenEditorForAsset(Material);
         }
     }
 
@@ -871,6 +919,31 @@ bool FMaterialExpressionService::ConnectExpressionsBatch(
     if (!Material)
     {
         return false;
+    }
+
+    // Close Material Editor if open (we'll reopen after save)
+    bool bEditorWasOpen = false;
+    if (GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
+            if (EditorInstance)
+            {
+                bEditorWasOpen = true;
+                // Save package BEFORE closing to avoid save dialog prompt
+                UPackage* Package = Material->GetOutermost();
+                if (Package && Package->IsDirty())
+                {
+                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
+                    FSavePackageArgs SaveArgs;
+                    SaveArgs.TopLevelFlags = RF_Standalone;
+                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
+                }
+                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
+            }
+        }
     }
 
     // Mark material for modification once
@@ -971,22 +1044,13 @@ bool FMaterialExpressionService::ConnectExpressionsBatch(
         UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
     }
 
-    // Notify Material Editor once
-    if (GEditor)
+    // Reopen editor if it was open
+    if (bEditorWasOpen && GEditor)
     {
         UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
         if (AssetEditorSubsystem)
         {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
-            if (EditorInstance)
-            {
-                TSharedPtr<IMaterialEditor> MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(
-                    TSharedPtr<IAssetEditorInstance>(EditorInstance, [](IAssetEditorInstance*){}));
-                if (MaterialEditor.IsValid())
-                {
-                    MaterialEditor->UpdateMaterialAfterGraphChange();
-                }
-            }
+            AssetEditorSubsystem->OpenEditorForAsset(Material);
         }
     }
 
@@ -1042,126 +1106,80 @@ bool FMaterialExpressionService::ConnectToMaterialOutput(
         return false;
     }
 
-    // Check if material editor is open using FToolkitManager (like UE does internally)
-    // UAssetEditorSubsystem->FindEditorForAsset() does NOT work for Material Editors!
-    TSharedPtr<IMaterialEditor> MaterialEditor;
-    TSharedPtr<IToolkit> FoundAssetEditor = FToolkitManager::Get().FindEditorForAsset(Material);
-
-    UE_LOG(LogTemp, Warning, TEXT("FToolkitManager check: Material=%s, IsInGameThread=%s, FoundEditor=%s"),
-        *Material->GetPathName(),
-        IsInGameThread() ? TEXT("YES") : TEXT("NO"),
-        FoundAssetEditor.IsValid() ? TEXT("VALID") : TEXT("NULL"));
-
-    if (FoundAssetEditor.IsValid())
+    // Close Material Editor if open (we'll reopen after save)
+    // This ensures our changes persist and aren't overwritten by the editor's in-memory state
+    bool bEditorWasOpen = false;
+    if (GEditor)
     {
-        MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(FoundAssetEditor);
-        UE_LOG(LogTemp, Warning, TEXT("After cast: MaterialEditor=%s"),
-            MaterialEditor.IsValid() ? TEXT("VALID") : TEXT("NULL"));
-    }
-
-    // When editor is open, use the material from the editor (it has the live MaterialGraph)
-    UMaterial* WorkingMaterial = Material;
-    if (MaterialEditor.IsValid())
-    {
-        UMaterialInterface* EditorMatInterface = MaterialEditor->GetMaterialInterface();
-        if (UMaterial* EditorMat = Cast<UMaterial>(EditorMatInterface))
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
         {
-            WorkingMaterial = EditorMat;
-            UE_LOG(LogTemp, Warning, TEXT("Using editor's material instance (MaterialGraph=%s)"),
-                WorkingMaterial->MaterialGraph ? TEXT("EXISTS") : TEXT("NULL"));
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("Condition check: MaterialEditor=%s, MaterialGraph=%s"),
-        MaterialEditor.IsValid() ? TEXT("VALID") : TEXT("NULL"),
-        WorkingMaterial->MaterialGraph ? TEXT("EXISTS") : TEXT("NULL"));
-
-    if (MaterialEditor.IsValid() && WorkingMaterial->MaterialGraph)
-    {
-        // EDITOR IS OPEN: Connect at EdGraph level first, then sync to Material
-        // This is UE's intended flow - EdGraph is source of truth when editor is open
-        UMaterialGraphNode* ExprGraphNode = Cast<UMaterialGraphNode>(Expression->GraphNode);
-        UMaterialGraphNode_Root* RootNode = WorkingMaterial->MaterialGraph->RootNode;
-
-        if (ExprGraphNode && RootNode)
-        {
-            int32 InputIndex = WorkingMaterial->MaterialGraph->GetInputIndexForProperty(MatProperty);
-            if (InputIndex != INDEX_NONE)
+            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
+            if (EditorInstance)
             {
-                UEdGraphPin* InputPin = RootNode->GetInputPin(InputIndex);
-                UEdGraphPin* OutputPin = ExprGraphNode->GetOutputPin(OutputIndex);
-
-                if (InputPin && OutputPin)
+                bEditorWasOpen = true;
+                // Save package BEFORE closing to avoid save dialog prompt
+                UPackage* Package = Material->GetOutermost();
+                if (Package && Package->IsDirty())
                 {
-                    // Modify for undo
-                    WorkingMaterial->MaterialGraph->Modify();
-
-                    // Make visual connection at EdGraph level
-                    InputPin->MakeLinkTo(OutputPin);
-
-                    // Sync Material FROM Graph - this writes the visual link to material data
-                    WorkingMaterial->MaterialGraph->LinkMaterialExpressionsFromGraph();
-
-                    // Standard refresh (now safe - it syncs FROM graph which has our connection)
-                    MaterialEditor->UpdateMaterialAfterGraphChange();
-
-                    WorkingMaterial->MarkPackageDirty();
-
-                    UE_LOG(LogTemp, Log, TEXT("Connected expression %s to %s via EdGraph (editor open)"),
-                        *Expression->GetName(), *MaterialProperty);
+                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
+                    FSavePackageArgs SaveArgs;
+                    SaveArgs.TopLevelFlags = RF_Standalone;
+                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
                 }
-                else
-                {
-                    OutError = TEXT("Failed to get input/output pins from graph nodes");
-                    return false;
-                }
-            }
-            else
-            {
-                OutError = FString::Printf(TEXT("Property %s not found in material inputs (InputIndex was INDEX_NONE)"), *MaterialProperty);
-                return false;
+                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
             }
         }
-        else
-        {
-            OutError = FString::Printf(TEXT("Expression GraphNode (%s) or RootNode (%s) not available"),
-                ExprGraphNode ? TEXT("valid") : TEXT("null"),
-                RootNode ? TEXT("valid") : TEXT("null"));
-            return false;
-        }
     }
-    else
+
+    // Mark objects for modification (Undo/Redo support)
+    Expression->Modify();
+    Material->Modify();
+    if (Material->MaterialGraph)
     {
-        // EDITOR IS CLOSED: Connect at Material level (data) and save
-        Expression->Modify();
-        Material->Modify();
-        if (Material->MaterialGraph)
-        {
-            Material->MaterialGraph->Modify();
-        }
-
-        // Connect at material data level using UE5's built-in ConnectExpression()
-        Expression->ConnectExpression(MaterialInput, OutputIndex);
-
-        Material->MarkPackageDirty();
-
-        // Save the package to persist changes to disk
-        UPackage* Package = Material->GetOutermost();
-        if (Package)
-        {
-            FString PackageFileName = FPackageName::LongPackageNameToFilename(
-                Package->GetName(), FPackageName::GetAssetPackageExtension());
-            FSavePackageArgs SaveArgs;
-            SaveArgs.TopLevelFlags = RF_Standalone;
-            UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-            UE_LOG(LogTemp, Log, TEXT("Saved material package: %s"), *PackageFileName);
-        }
-
-        UE_LOG(LogTemp, Log, TEXT("Connected expression %s to %s via Material (editor closed)"),
-            *Expression->GetName(), *MaterialProperty);
+        Material->MaterialGraph->Modify();
     }
 
-    UE_LOG(LogTemp, Log, TEXT("Connected expression to %s in material %s"), *MaterialProperty, *MaterialPath);
+    // Connect at material data level using UE5's built-in ConnectExpression()
+    Expression->ConnectExpression(MaterialInput, OutputIndex);
+
+    // Ensure MaterialGraph exists for visual sync
+    if (!Material->MaterialGraph)
+    {
+        Material->MaterialGraph = CastChecked<UMaterialGraph>(
+            FBlueprintEditorUtils::CreateNewGraph(Material, NAME_None, UMaterialGraph::StaticClass(), UMaterialGraphSchema::StaticClass()));
+        Material->MaterialGraph->Material = Material;
+    }
+
+    // Sync the visual graph FROM expressions
+    Material->MaterialGraph->LinkGraphNodesFromMaterial();
+    Material->MaterialGraph->NotifyGraphChanged();
+
+    // Mark package dirty and save
+    Material->MarkPackageDirty();
+
+    UPackage* Package = Material->GetOutermost();
+    if (Package)
+    {
+        FString PackageFileName = FPackageName::LongPackageNameToFilename(
+            Package->GetName(), FPackageName::GetAssetPackageExtension());
+        FSavePackageArgs SaveArgs;
+        SaveArgs.TopLevelFlags = RF_Standalone;
+        UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
+    }
+
+    // Reopen editor if it was open
+    if (bEditorWasOpen && GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            AssetEditorSubsystem->OpenEditorForAsset(Material);
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Connected expression %s to %s in material %s"),
+        *Expression->GetName(), *MaterialProperty, *MaterialPath);
 
     return true;
 }
@@ -1190,6 +1208,8 @@ bool FMaterialExpressionService::GetGraphMetadata(
     bool bIncludeExpressions = bIncludeAll || Fields->Contains(TEXT("expressions"));
     bool bIncludeConnections = bIncludeAll || Fields->Contains(TEXT("connections"));
     bool bIncludeMaterialOutputs = bIncludeAll || Fields->Contains(TEXT("material_outputs"));
+    bool bIncludeOrphans = bIncludeAll || Fields->Contains(TEXT("orphans"));
+    bool bIncludeFlow = Fields && Fields->Contains(TEXT("flow"));  // Flow is opt-in, not included in "*"
 
     UMaterialEditorOnlyData* EditorData = Material->GetEditorOnlyData();
     if (!EditorData)
@@ -1280,6 +1300,146 @@ bool FMaterialExpressionService::GetGraphMetadata(
         OutMetadata->SetObjectField(TEXT("material_outputs"), OutputsObj);
     }
 
+    // Orphan detection - find expressions whose outputs are not used anywhere
+    if (bIncludeOrphans)
+    {
+        // Build a set of all expressions that have their output connected somewhere
+        TSet<UMaterialExpression*> UsedExpressions;
+
+        // Check connections to other expressions' inputs
+        for (UMaterialExpression* Expr : Expressions)
+        {
+            if (!Expr) continue;
+            for (int32 i = 0; i < Expr->GetInputsView().Num(); ++i)
+            {
+                FExpressionInput* Input = Expr->GetInput(i);
+                if (Input && Input->Expression)
+                {
+                    UsedExpressions.Add(Input->Expression);
+                }
+            }
+        }
+
+        // Check connections to material outputs
+        auto CheckMaterialOutput = [&](EMaterialProperty Prop) {
+            FExpressionInput* Input = Material->GetExpressionInputForProperty(Prop);
+            if (Input && Input->Expression)
+            {
+                UsedExpressions.Add(Input->Expression);
+            }
+        };
+
+        CheckMaterialOutput(MP_BaseColor);
+        CheckMaterialOutput(MP_Metallic);
+        CheckMaterialOutput(MP_Specular);
+        CheckMaterialOutput(MP_Roughness);
+        CheckMaterialOutput(MP_Normal);
+        CheckMaterialOutput(MP_EmissiveColor);
+        CheckMaterialOutput(MP_Opacity);
+        CheckMaterialOutput(MP_OpacityMask);
+        CheckMaterialOutput(MP_WorldPositionOffset);
+        CheckMaterialOutput(MP_AmbientOcclusion);
+        CheckMaterialOutput(MP_Refraction);
+        CheckMaterialOutput(MP_SubsurfaceColor);
+
+        // Find orphans - expressions not in UsedExpressions
+        TArray<TSharedPtr<FJsonValue>> OrphanArray;
+        for (UMaterialExpression* Expr : Expressions)
+        {
+            if (!Expr) continue;
+            if (!UsedExpressions.Contains(Expr))
+            {
+                TSharedPtr<FJsonObject> OrphanObj = MakeShared<FJsonObject>();
+                OrphanObj->SetStringField(TEXT("expression_id"), Expr->MaterialExpressionGuid.ToString());
+                OrphanObj->SetStringField(TEXT("expression_type"), Expr->GetClass()->GetName().Replace(TEXT("MaterialExpression"), TEXT("")));
+                OrphanObj->SetStringField(TEXT("description"), Expr->GetDescription());
+                OrphanArray.Add(MakeShared<FJsonValueObject>(OrphanObj));
+            }
+        }
+
+        OutMetadata->SetArrayField(TEXT("orphans"), OrphanArray);
+        OutMetadata->SetBoolField(TEXT("has_orphans"), OrphanArray.Num() > 0);
+        OutMetadata->SetNumberField(TEXT("orphan_count"), OrphanArray.Num());
+    }
+
+    // Flow visualization - trace paths from source nodes to material outputs
+    if (bIncludeFlow)
+    {
+        TSharedPtr<FJsonObject> FlowObj = MakeShared<FJsonObject>();
+
+        // Helper to trace path from a material output back to source nodes
+        auto TraceFlow = [&](EMaterialProperty Prop, const FString& PropName) {
+            FExpressionInput* Input = Material->GetExpressionInputForProperty(Prop);
+            if (!Input || !Input->Expression) return;
+
+            TArray<TSharedPtr<FJsonValue>> PathArray;
+            TSet<UMaterialExpression*> Visited;
+            TArray<UMaterialExpression*> Stack;
+            Stack.Push(Input->Expression);
+
+            while (Stack.Num() > 0)
+            {
+                UMaterialExpression* Current = Stack.Pop();
+                if (!Current || Visited.Contains(Current)) continue;
+                Visited.Add(Current);
+
+                TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
+                NodeObj->SetStringField(TEXT("expression_id"), Current->MaterialExpressionGuid.ToString());
+                NodeObj->SetStringField(TEXT("expression_type"), Current->GetClass()->GetName().Replace(TEXT("MaterialExpression"), TEXT("")));
+                NodeObj->SetStringField(TEXT("description"), Current->GetDescription());
+
+                // Find what this node connects to (downstream)
+                TArray<TSharedPtr<FJsonValue>> DownstreamArray;
+                for (UMaterialExpression* OtherExpr : Expressions)
+                {
+                    if (!OtherExpr) continue;
+                    for (int32 i = 0; i < OtherExpr->GetInputsView().Num(); ++i)
+                    {
+                        FExpressionInput* OtherInput = OtherExpr->GetInput(i);
+                        if (OtherInput && OtherInput->Expression == Current)
+                        {
+                            TSharedPtr<FJsonObject> DownObj = MakeShared<FJsonObject>();
+                            DownObj->SetStringField(TEXT("target_id"), OtherExpr->MaterialExpressionGuid.ToString());
+                            DownObj->SetStringField(TEXT("target_input"), OtherExpr->GetInputName(i).ToString());
+                            DownstreamArray.Add(MakeShared<FJsonValueObject>(DownObj));
+                        }
+                    }
+                }
+                NodeObj->SetArrayField(TEXT("connects_to"), DownstreamArray);
+
+                PathArray.Add(MakeShared<FJsonValueObject>(NodeObj));
+
+                // Add upstream nodes to stack
+                for (int32 i = 0; i < Current->GetInputsView().Num(); ++i)
+                {
+                    FExpressionInput* UpstreamInput = Current->GetInput(i);
+                    if (UpstreamInput && UpstreamInput->Expression)
+                    {
+                        Stack.Push(UpstreamInput->Expression);
+                    }
+                }
+            }
+
+            if (PathArray.Num() > 0)
+            {
+                FlowObj->SetArrayField(PropName, PathArray);
+            }
+        };
+
+        TraceFlow(MP_BaseColor, TEXT("BaseColor"));
+        TraceFlow(MP_Metallic, TEXT("Metallic"));
+        TraceFlow(MP_Specular, TEXT("Specular"));
+        TraceFlow(MP_Roughness, TEXT("Roughness"));
+        TraceFlow(MP_Normal, TEXT("Normal"));
+        TraceFlow(MP_EmissiveColor, TEXT("EmissiveColor"));
+        TraceFlow(MP_Opacity, TEXT("Opacity"));
+        TraceFlow(MP_OpacityMask, TEXT("OpacityMask"));
+        TraceFlow(MP_WorldPositionOffset, TEXT("WorldPositionOffset"));
+        TraceFlow(MP_AmbientOcclusion, TEXT("AmbientOcclusion"));
+
+        OutMetadata->SetObjectField(TEXT("flow"), FlowObj);
+    }
+
     return true;
 }
 
@@ -1309,6 +1469,31 @@ bool FMaterialExpressionService::DeleteExpression(
     {
         OutError = TEXT("Could not access material editor data");
         return false;
+    }
+
+    // Close Material Editor if open (we'll reopen after save)
+    bool bEditorWasOpen = false;
+    if (GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
+            if (EditorInstance)
+            {
+                bEditorWasOpen = true;
+                // Save package BEFORE closing to avoid save dialog prompt
+                UPackage* Package = Material->GetOutermost();
+                if (Package && Package->IsDirty())
+                {
+                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
+                    FSavePackageArgs SaveArgs;
+                    SaveArgs.TopLevelFlags = RF_Standalone;
+                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
+                }
+                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
+            }
+        }
     }
 
     // Disconnect all connections to/from this expression
@@ -1354,6 +1539,27 @@ bool FMaterialExpressionService::DeleteExpression(
     // Recompile the material
     RecompileMaterial(Material);
 
+    // Save the package
+    UPackage* Package = Material->GetOutermost();
+    if (Package)
+    {
+        FString PackageFileName = FPackageName::LongPackageNameToFilename(
+            Package->GetName(), FPackageName::GetAssetPackageExtension());
+        FSavePackageArgs SaveArgs;
+        SaveArgs.TopLevelFlags = RF_Standalone;
+        UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
+    }
+
+    // Reopen editor if it was open
+    if (bEditorWasOpen && GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            AssetEditorSubsystem->OpenEditorForAsset(Material);
+        }
+    }
+
     UE_LOG(LogTemp, Log, TEXT("Deleted expression from material %s"), *MaterialPath);
 
     return true;
@@ -1392,7 +1598,35 @@ bool FMaterialExpressionService::SetExpressionProperty(
     // Apply the property
     ApplyExpressionProperties(Expression, Properties);
 
-    // Save the package to persist changes to disk (same pattern as ConnectExpressions)
+    // Check if material editor is open and close it (we'll reopen after save)
+    bool bEditorWasOpen = false;
+    if (GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
+            if (EditorInstance)
+            {
+                bEditorWasOpen = true;
+                // Save package BEFORE closing to avoid save dialog prompt
+                UPackage* Package = Material->GetOutermost();
+                if (Package && Package->IsDirty())
+                {
+                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
+                    FSavePackageArgs SaveArgs;
+                    SaveArgs.TopLevelFlags = RF_Standalone;
+                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
+                }
+                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
+            }
+        }
+    }
+
+    // Use RecompileMaterial which does full refresh including RebuildGraph()
+    RecompileMaterial(Material);
+
+    // Save the package to persist changes to disk
     UPackage* Package = Material->GetOutermost();
     if (Package)
     {
@@ -1402,34 +1636,160 @@ bool FMaterialExpressionService::SetExpressionProperty(
         UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
     }
 
-    // Sync the visual graph and refresh UI
-    if (Material->MaterialGraph)
-    {
-        Material->MaterialGraph->LinkGraphNodesFromMaterial();
-        Material->MaterialGraph->NotifyGraphChanged();
-    }
-
-    // Notify any open Material Editor to refresh
-    if (GEditor)
+    // Reopen the editor if it was open
+    if (bEditorWasOpen && GEditor)
     {
         UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
         if (AssetEditorSubsystem)
         {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
-            if (EditorInstance)
-            {
-                TSharedPtr<IMaterialEditor> MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(
-                    TSharedPtr<IAssetEditorInstance>(EditorInstance, [](IAssetEditorInstance*){}));
-                if (MaterialEditor.IsValid())
-                {
-                    MaterialEditor->UpdateMaterialAfterGraphChange();
-                    MaterialEditor->ForceRefreshExpressionPreviews();
-                }
-            }
+            AssetEditorSubsystem->OpenEditorForAsset(Material);
         }
     }
 
     UE_LOG(LogTemp, Log, TEXT("Set property %s on expression in material %s"), *PropertyName, *MaterialPath);
+
+    return true;
+}
+
+bool FMaterialExpressionService::CompileMaterial(
+    const FString& MaterialPath,
+    TSharedPtr<FJsonObject>& OutResult,
+    FString& OutError)
+{
+    // Find the material
+    UMaterial* Material = FindAndValidateMaterial(MaterialPath, OutError);
+    if (!Material)
+    {
+        return false;
+    }
+
+    OutResult = MakeShared<FJsonObject>();
+
+    // Recompile the material (this triggers shader compilation)
+    RecompileMaterial(Material);
+
+    // Capture shader compilation errors
+    TArray<TSharedPtr<FJsonValue>> CompileErrorsArray;
+    bool bHasCompileErrors = false;
+
+    // Get errors from material resources for each quality level
+    // Use current shader platform (GetFeatureLevelShaderPlatform converts feature level to shader platform)
+    EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel);
+
+    for (int32 QualityLevel = 0; QualityLevel < EMaterialQualityLevel::Num; ++QualityLevel)
+    {
+        const FMaterialResource* MaterialResource = Material->GetMaterialResource(
+            ShaderPlatform,
+            (EMaterialQualityLevel::Type)QualityLevel);
+
+        if (MaterialResource)
+        {
+            const TArray<FString>& Errors = MaterialResource->GetCompileErrors();
+            for (const FString& Error : Errors)
+            {
+                TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
+                ErrorObj->SetStringField(TEXT("error"), Error);
+                ErrorObj->SetNumberField(TEXT("quality_level"), QualityLevel);
+                CompileErrorsArray.Add(MakeShared<FJsonValueObject>(ErrorObj));
+                bHasCompileErrors = true;
+            }
+        }
+    }
+
+    // Get editor data for orphan detection
+    UMaterialEditorOnlyData* EditorData = Material->GetEditorOnlyData();
+    if (!EditorData)
+    {
+        OutResult->SetBoolField(TEXT("success"), !bHasCompileErrors);
+        OutResult->SetStringField(TEXT("material_path"), MaterialPath);
+        OutResult->SetBoolField(TEXT("has_orphans"), false);
+        OutResult->SetNumberField(TEXT("orphan_count"), 0);
+        OutResult->SetArrayField(TEXT("compile_errors"), CompileErrorsArray);
+        OutResult->SetBoolField(TEXT("has_compile_errors"), bHasCompileErrors);
+        OutResult->SetNumberField(TEXT("compile_error_count"), CompileErrorsArray.Num());
+        OutResult->SetStringField(TEXT("message"), bHasCompileErrors
+            ? FString::Printf(TEXT("Material has %d compile errors"), CompileErrorsArray.Num())
+            : TEXT("Material compiled successfully"));
+        return true;
+    }
+
+    const TArray<TObjectPtr<UMaterialExpression>>& Expressions = EditorData->ExpressionCollection.Expressions;
+
+    // Build set of used expressions (same logic as GetGraphMetadata)
+    TSet<UMaterialExpression*> UsedExpressions;
+
+    // Check connections to other expressions' inputs
+    for (UMaterialExpression* Expr : Expressions)
+    {
+        if (!Expr) continue;
+        for (int32 i = 0; i < Expr->GetInputsView().Num(); ++i)
+        {
+            FExpressionInput* Input = Expr->GetInput(i);
+            if (Input && Input->Expression)
+            {
+                UsedExpressions.Add(Input->Expression);
+            }
+        }
+    }
+
+    // Check connections to material outputs
+    auto CheckMaterialOutput = [&](EMaterialProperty Prop) {
+        FExpressionInput* Input = Material->GetExpressionInputForProperty(Prop);
+        if (Input && Input->Expression)
+        {
+            UsedExpressions.Add(Input->Expression);
+        }
+    };
+
+    CheckMaterialOutput(MP_BaseColor);
+    CheckMaterialOutput(MP_Metallic);
+    CheckMaterialOutput(MP_Specular);
+    CheckMaterialOutput(MP_Roughness);
+    CheckMaterialOutput(MP_Normal);
+    CheckMaterialOutput(MP_EmissiveColor);
+    CheckMaterialOutput(MP_Opacity);
+    CheckMaterialOutput(MP_OpacityMask);
+    CheckMaterialOutput(MP_WorldPositionOffset);
+    CheckMaterialOutput(MP_AmbientOcclusion);
+    CheckMaterialOutput(MP_Refraction);
+    CheckMaterialOutput(MP_SubsurfaceColor);
+
+    // Find orphans
+    TArray<TSharedPtr<FJsonValue>> OrphanArray;
+    for (UMaterialExpression* Expr : Expressions)
+    {
+        if (!Expr) continue;
+        if (!UsedExpressions.Contains(Expr))
+        {
+            TSharedPtr<FJsonObject> OrphanObj = MakeShared<FJsonObject>();
+            OrphanObj->SetStringField(TEXT("expression_id"), Expr->MaterialExpressionGuid.ToString());
+            OrphanObj->SetStringField(TEXT("expression_type"), Expr->GetClass()->GetName().Replace(TEXT("MaterialExpression"), TEXT("")));
+            OrphanObj->SetStringField(TEXT("description"), Expr->GetDescription());
+            OrphanArray.Add(MakeShared<FJsonValueObject>(OrphanObj));
+        }
+    }
+
+    // Build result
+    OutResult->SetBoolField(TEXT("success"), !bHasCompileErrors);
+    OutResult->SetStringField(TEXT("material_path"), MaterialPath);
+    OutResult->SetArrayField(TEXT("orphans"), OrphanArray);
+    OutResult->SetBoolField(TEXT("has_orphans"), OrphanArray.Num() > 0);
+    OutResult->SetNumberField(TEXT("orphan_count"), OrphanArray.Num());
+    OutResult->SetNumberField(TEXT("expression_count"), Expressions.Num());
+    OutResult->SetArrayField(TEXT("compile_errors"), CompileErrorsArray);
+    OutResult->SetBoolField(TEXT("has_compile_errors"), bHasCompileErrors);
+    OutResult->SetNumberField(TEXT("compile_error_count"), CompileErrorsArray.Num());
+
+    if (bHasCompileErrors)
+    {
+        OutResult->SetStringField(TEXT("message"), FString::Printf(TEXT("Material has %d compile errors. %d expressions, %d orphans"), CompileErrorsArray.Num(), Expressions.Num(), OrphanArray.Num()));
+    }
+    else
+    {
+        OutResult->SetStringField(TEXT("message"), FString::Printf(TEXT("Material compiled successfully. %d expressions, %d orphans"), Expressions.Num(), OrphanArray.Num()));
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Compiled material %s: %d expressions, %d orphans, %d compile errors"), *MaterialPath, Expressions.Num(), OrphanArray.Num(), CompileErrorsArray.Num());
 
     return true;
 }

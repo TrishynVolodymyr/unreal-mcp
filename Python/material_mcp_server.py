@@ -27,11 +27,14 @@ Exposes Material-related tools for Unreal Engine via MCP.
 - connect_expression_to_material_output(material_path, expression_id, output_index, material_property)
     Connect an expression to a material output (BaseColor, Emissive, etc.)
 - get_material_graph_metadata(material_path, fields)
-    Get all expressions, connections, and outputs in the material graph.
+    Get all expressions, connections, outputs, orphans, and flow in the material graph.
+    Fields: "expressions", "connections", "material_outputs", "orphans", "flow", "*"
 - delete_material_expression(material_path, expression_id)
     Remove an expression from the graph.
 - set_material_expression_property(material_path, expression_id, property_name, value)
     Modify a property on an existing expression.
+- compile_material(material_path)
+    Compile/apply material and return validation info including orphan detection.
 
 See the main server or tool docstrings for argument details and examples.
 """

@@ -211,6 +211,18 @@ public:
         const TSharedPtr<FJsonValue>& Value,
         FString& OutError);
 
+    /**
+     * Compile/apply a material and return validation info including orphans
+     * @param MaterialPath - Path to the material
+     * @param OutResult - Output JSON with compile results including orphan info
+     * @param OutError - Error message if compilation fails
+     * @return true if compiled successfully
+     */
+    bool CompileMaterial(
+        const FString& MaterialPath,
+        TSharedPtr<FJsonObject>& OutResult,
+        FString& OutError);
+
 private:
     /** Singleton instance */
     static TUniquePtr<FMaterialExpressionService> Instance;

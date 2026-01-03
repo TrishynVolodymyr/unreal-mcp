@@ -231,11 +231,12 @@ bool FNiagaraService::AddEmitterToSystem(const FString& SystemPath, const FStrin
         // Find the handle and rename it
         for (int32 i = 0; i < System->GetEmitterHandles().Num(); i++)
         {
-            const FNiagaraEmitterHandle& Handle = System->GetEmitterHandle(i);
+            FNiagaraEmitterHandle& Handle = System->GetEmitterHandle(i);
             if (Handle.GetId() == OutEmitterHandleId)
             {
                 System->Modify();
-                // Note: SetName requires non-const access which may need different approach
+                Handle.SetName(FName(*EmitterName), *System);
+                UE_LOG(LogNiagaraService, Log, TEXT("Renamed emitter handle to '%s'"), *EmitterName);
                 break;
             }
         }
@@ -243,6 +244,15 @@ bool FNiagaraService::AddEmitterToSystem(const FString& SystemPath, const FStrin
 
     // Mark dirty and refresh
     MarkSystemDirty(System);
+
+    // Broadcast post-edit change to trigger parameter map rebuilding
+    // This is what the engine does after adding emitters - fixes ParameterMap traversal errors
+    System->OnSystemPostEditChange().Broadcast(System);
+
+    // Request synchronous compilation and wait for it to complete
+    System->RequestCompile(false);
+    System->WaitForCompilationComplete();
+
     RefreshEditors(System);
 
     UE_LOG(LogNiagaraService, Log, TEXT("Added emitter '%s' to system '%s' with handle ID: %s"),
@@ -581,9 +591,16 @@ bool FNiagaraService::AddModule(const FNiagaraModuleAddParams& Params, FString& 
     // Get the module node ID
     OutModuleId = NewModuleNode->NodeGuid.ToString();
 
-    // Mark system dirty and request recompile
+    // Mark system dirty
     MarkSystemDirty(System);
+
+    // Broadcast post-edit change to trigger parameter map rebuilding
+    // This is critical for fixing "ParameterMap traversal" errors
+    System->OnSystemPostEditChange().Broadcast(System);
+
+    // Request synchronous compilation and wait for it to complete
     System->RequestCompile(false);
+    System->WaitForCompilationComplete();
 
     // Refresh editors
     RefreshEditors(System);
@@ -947,9 +964,15 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
     // Notify graph of changes
     Graph->NotifyGraphChanged();
 
-    // Mark system dirty and request recompile
+    // Mark system dirty
     MarkSystemDirty(System);
+
+    // Broadcast post-edit change to trigger parameter map rebuilding
+    System->OnSystemPostEditChange().Broadcast(System);
+
+    // Request synchronous compilation and wait for it to complete
     System->RequestCompile(false);
+    System->WaitForCompilationComplete();
 
     // Refresh editors
     RefreshEditors(System);
@@ -1511,9 +1534,15 @@ bool FNiagaraService::AddRenderer(const FNiagaraRendererParams& Params, FString&
     // Get renderer ID (use name or generate one)
     OutRendererId = NewRenderer->GetName();
 
-    // Mark dirty and request recompile
+    // Mark dirty
     MarkSystemDirty(System);
+
+    // Broadcast post-edit change to trigger parameter map rebuilding
+    System->OnSystemPostEditChange().Broadcast(System);
+
+    // Request synchronous compilation and wait for it to complete
     System->RequestCompile(false);
+    System->WaitForCompilationComplete();
 
     // Refresh editors
     RefreshEditors(System);
@@ -1645,9 +1674,15 @@ bool FNiagaraService::SetRendererProperty(const FString& SystemPath, const FStri
         return false;
     }
 
-    // Mark dirty and request recompile
+    // Mark dirty
     MarkSystemDirty(System);
+
+    // Broadcast post-edit change to trigger parameter map rebuilding
+    System->OnSystemPostEditChange().Broadcast(System);
+
+    // Request synchronous compilation and wait for it to complete
     System->RequestCompile(false);
+    System->WaitForCompilationComplete();
 
     // Refresh editors
     RefreshEditors(System);
@@ -2010,6 +2045,43 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
         }
 
         OutMetadata->SetArrayField(TEXT("modules_by_emitter"), EmitterModulesArray);
+    }
+
+    // Renderers - extract from each emitter in the system
+    if (bIncludeAll || Fields->Contains(TEXT("renderers")))
+    {
+        TArray<TSharedPtr<FJsonValue>> EmitterRenderersArray;
+
+        for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+        {
+            FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
+            if (!EmitterData)
+            {
+                continue;
+            }
+
+            TSharedPtr<FJsonObject> EmitterRendererObj = MakeShared<FJsonObject>();
+            EmitterRendererObj->SetStringField(TEXT("emitter_name"), Handle.GetName().ToString());
+
+            TArray<TSharedPtr<FJsonValue>> RenderersArray;
+            for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+            {
+                if (Renderer)
+                {
+                    TSharedPtr<FJsonObject> RendererObj = MakeShared<FJsonObject>();
+                    RendererObj->SetStringField(TEXT("name"), Renderer->GetName());
+                    RendererObj->SetStringField(TEXT("type"), Renderer->GetClass()->GetName());
+                    RendererObj->SetBoolField(TEXT("enabled"), Renderer->GetIsEnabled());
+                    RenderersArray.Add(MakeShared<FJsonValueObject>(RendererObj));
+                }
+            }
+
+            EmitterRendererObj->SetArrayField(TEXT("renderers"), RenderersArray);
+            EmitterRendererObj->SetNumberField(TEXT("renderer_count"), RenderersArray.Num());
+            EmitterRenderersArray.Add(MakeShared<FJsonValueObject>(EmitterRendererObj));
+        }
+
+        OutMetadata->SetArrayField(TEXT("renderers_by_emitter"), EmitterRenderersArray);
     }
 }
 

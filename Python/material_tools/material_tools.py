@@ -15,7 +15,8 @@ from utils.materials.material_operations import (
     connect_expression_to_material_output as connect_expression_to_material_output_impl,
     get_material_graph_metadata as get_material_graph_metadata_impl,
     delete_material_expression as delete_material_expression_impl,
-    set_material_expression_property as set_material_expression_property_impl
+    set_material_expression_property as set_material_expression_property_impl,
+    compile_material as compile_material_impl
 )
 
 logger = logging.getLogger("UnrealMCP")
@@ -230,14 +231,26 @@ def register_material_tools(mcp: FastMCP):
 
         Args:
             material_path: Path to material
-            fields: Filter: "expressions"|"connections"|"outputs"|"*" (default all)
+            fields: Filter fields to include:
+                - "expressions": All expression nodes
+                - "connections": All connections between nodes
+                - "material_outputs": Which nodes connect to material outputs
+                - "orphans": Nodes whose outputs are not connected (dead-end nodes)
+                - "flow": Full path trace from each material output back to source nodes
+                - "*": All fields except flow (default)
 
         Returns:
-            Dict with: expressions[] (id, type, position, properties, inputs, outputs),
-            connections[] (source_id, source_output, target_id, target_input), outputs{}
+            Dict with:
+            - expressions[] (id, type, position, inputs, outputs)
+            - connections[] (source_id, source_output, target_id, target_input)
+            - material_outputs{} (which expressions connect to which outputs)
+            - orphans[] (expression_id, expression_type, description) - nodes not used
+            - has_orphans (bool), orphan_count (int)
+            - flow{} (per-output path showing all nodes in the chain)
 
         Example:
-            get_material_graph_metadata("/Game/Materials/M_Fire")
+            get_material_graph_metadata("/Game/Materials/M_Fire", ["orphans"])
+            get_material_graph_metadata("/Game/Materials/M_Fire", ["flow"])
         """
         return get_material_graph_metadata_impl(ctx, material_path, fields)
 
@@ -276,5 +289,28 @@ def register_material_tools(mcp: FastMCP):
         return set_material_expression_property_impl(
             ctx, material_path, expression_id, property_name, property_value
         )
+
+    @mcp.tool()
+    def compile_material(
+        ctx: Context,
+        material_path: str
+    ) -> Dict[str, Any]:
+        """
+        Compile/apply a material and return validation info including orphan detection.
+
+        This triggers shader compilation and returns information about the material graph,
+        including any orphan nodes (expressions whose outputs are not connected to anything).
+
+        Args:
+            material_path: Path to material
+
+        Returns:
+            Dict with: success, material_path, has_orphans, orphan_count, expression_count,
+            orphans[] (expression_id, expression_type, description), message
+
+        Example:
+            compile_material("/Game/VFX/Materials/M_Fire")
+        """
+        return compile_material_impl(ctx, material_path)
 
     logger.info("Material tools registered successfully")

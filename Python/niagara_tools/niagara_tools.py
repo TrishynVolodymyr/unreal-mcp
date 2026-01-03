@@ -85,13 +85,21 @@ def register_niagara_tools(mcp: FastMCP):
 
         Args:
             asset_path: Path to the Niagara asset
-            fields: Filter: "emitters"|"modules"|"parameters"|"renderers"|"data_interfaces"|"*"
+            fields: Filter: "emitters"|"modules"|"parameters"|"renderers"|"status"|"*"
 
         Returns:
-            Dict with: asset_type, emitters[], modules{}, parameters[], renderers[], data_interfaces[]
+            For Systems:
+                - emitters[]: List of emitter handles (name, id, enabled, emitter_path)
+                - modules_by_emitter[]: Modules per emitter (spawn_modules, update_modules)
+                - renderers_by_emitter[]: Renderers per emitter (name, type, enabled, renderer_count)
+                - parameters[]: Exposed system parameters
+                - compile_status: "Valid" or "Invalid"
+            For Emitters:
+                - renderers[]: Direct renderer list
+                - version: Emitter version GUID
 
         Example:
-            get_niagara_metadata("/Game/VFX/NS_Fire")
+            get_niagara_metadata("/Game/VFX/NS_Fire", ["renderers"])
         """
         params = {"asset_path": asset_path}
         if fields is not None:
