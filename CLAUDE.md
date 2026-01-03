@@ -13,6 +13,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - UE 5.7 source is at: `E:\code\unreal-mcp\ues\UnrealEngine-5.7\UnrealEngine-5.7\Engine\`
 - NOT at `E:\code\ues\` - the ues folder is INSIDE this project root
 
+**MCP Connection Errors:**
+- `[WinError 10054] An existing connection was forcibly closed by the remote host` - This means Unreal Engine has **crashed**. Check the crash log for the call stack and restart the editor.
+
 ## Build & Launch Commands
 
 ### Building the C++ Plugin

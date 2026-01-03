@@ -86,7 +86,12 @@ public class UnrealMCP : ModuleRules
 					"ToolMenus",           // For editor UI
 					"BlueprintEditorLibrary", // For Blueprint utilities
 					"MaterialEditor",      // For Material Editor refresh notifications
-					"EditorFramework"      // For FToolkitManager (finding open Material Editors)
+					"EditorFramework",     // For FToolkitManager (finding open Material Editors)
+					// Niagara VFX support
+					"Niagara",             // Core Niagara runtime
+					"NiagaraCore",         // Niagara core types
+					"NiagaraEditor",       // Niagara editor utilities (factories, graph utilities)
+					"NiagaraShader"        // Niagara shader compilation
 				}
 			);
 		}
