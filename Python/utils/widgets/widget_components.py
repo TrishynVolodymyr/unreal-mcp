@@ -97,35 +97,6 @@ def add_child_widget_component_to_parent(
     logger.info(f"Adding child '{child_component_name}' to parent '{parent_component_name}' in widget '{widget_name}'")
     return send_unreal_command("add_child_widget_component_to_parent", params)
 
-def create_parent_and_child_widget_components(
-    ctx: Context,
-    widget_name: str,
-    parent_component_name: str,
-    child_component_name: str,
-    parent_component_type: str = "Border",
-    child_component_type: str = "TextBlock",
-    parent_position: List[float] = [0.0, 0.0],
-    parent_size: List[float] = [300.0, 200.0],
-    child_attributes: Dict[str, Any] = None
-) -> Dict[str, Any]:
-    """Implementation for creating a new parent widget component with a new child component."""
-    if child_attributes is None:
-        child_attributes = {}
-        
-    params = {
-        "blueprint_name": widget_name,
-        "parent_component_name": parent_component_name,
-        "child_component_name": child_component_name,
-        "parent_component_type": parent_component_type,
-        "child_component_type": child_component_type,
-        "parent_position": parent_position,
-        "parent_size": parent_size,
-        "child_attributes": child_attributes or {}
-    }
-    
-    logger.info(f"Creating parent '{parent_component_name}' ({parent_component_type}) with child '{child_component_name}' ({child_component_type}) in widget '{widget_name}'")
-    return send_unreal_command("create_parent_and_child_widget_components", params)
-
 def set_widget_component_placement(
     ctx: Context,
     widget_name: str,

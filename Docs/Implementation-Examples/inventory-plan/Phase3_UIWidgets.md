@@ -64,15 +64,25 @@ The slot uses the following component hierarchy:
 #### MCP TOOL CALLS
 
 ```python
-# Create Border with Image inside
-create_parent_and_child_widget_components(
+# Create Border (parent)
+add_widget_component_to_widget(
+    widget_name="WBP_InventorySlot",
+    component_name="SlotBackground",
+    component_type="Border",
+    position=[0.0, 0.0],
+    size=[64.0, 64.0]
+)
+
+# Create Image and add as child to Border
+add_widget_component_to_widget(
+    widget_name="WBP_InventorySlot",
+    component_name="ItemIcon",
+    component_type="Image"
+)
+add_child_widget_component_to_parent(
     widget_name="WBP_InventorySlot",
     parent_component_name="SlotBackground",
-    child_component_name="ItemIcon",
-    parent_component_type="Border",
-    child_component_type="Image",
-    parent_position=[0.0, 0.0],
-    parent_size=[64.0, 64.0]
+    child_component_name="ItemIcon"
 )
 
 # Add stack count text (bottom-right)
@@ -285,15 +295,25 @@ create_umg_widget_blueprint(
 #### MCP TOOL CALLS
 
 ```python
-# Create Border with VerticalBox inside
-create_parent_and_child_widget_components(
+# Create Border (parent)
+add_widget_component_to_widget(
+    widget_name="WBP_ItemContextMenu",
+    component_name="MenuBackground",
+    component_type="Border",
+    position=[0.0, 0.0],
+    size=[100.0, 80.0]
+)
+
+# Create VerticalBox and add as child to Border
+add_widget_component_to_widget(
+    widget_name="WBP_ItemContextMenu",
+    component_name="ButtonContainer",
+    component_type="VerticalBox"
+)
+add_child_widget_component_to_parent(
     widget_name="WBP_ItemContextMenu",
     parent_component_name="MenuBackground",
-    child_component_name="ButtonContainer",
-    parent_component_type="Border",
-    child_component_type="VerticalBox",
-    parent_position=[0.0, 0.0],
-    parent_size=[100.0, 80.0]
+    child_component_name="ButtonContainer"
 )
 
 # Add Use button
@@ -603,7 +623,7 @@ create_umg_widget_blueprint(
 ### All Done Via MCP Tools
 - [x] `create_umg_widget_blueprint` used for all 4 widgets
 - [x] `add_widget_component_to_widget` used for components
-- [x] `create_parent_and_child_widget_components` used for nested layouts
+- [x] `add_child_widget_component_to_parent` used for nested layouts
 - [x] `set_widget_component_property` used for styling and SelfHitTestInvisible
 - [x] `add_blueprint_variable` used for all variables
 - [x] `create_custom_blueprint_function` used for all functions

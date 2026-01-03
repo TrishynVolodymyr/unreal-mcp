@@ -6,7 +6,6 @@
 #include "Commands/UMG/AddWidgetComponentCommand.h"
 #include "Commands/UMG/SetWidgetPropertyCommand.h"
 #include "Commands/UMG/AddChildWidgetCommand.h"
-#include "Commands/UMG/CreateParentChildWidgetCommand.h"
 #include "Commands/UMG/SetWidgetPlacementCommand.h"
 #include "Commands/UMG/CaptureWidgetScreenshotCommand.h"
 #include "Commands/UMG/GetWidgetBlueprintMetadataCommand.h"
@@ -32,7 +31,6 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterAddWidgetComponentCommand();
     RegisterSetWidgetPropertyCommand();
     RegisterAddChildWidgetCommand();
-    RegisterCreateParentChildWidgetCommand();
     RegisterSetWidgetPlacementCommand();
     RegisterCaptureWidgetScreenshotCommand();
     RegisterGetWidgetBlueprintMetadataCommand();
@@ -230,12 +228,6 @@ void FUMGCommandRegistration::RegisterAddChildWidgetCommand()
     // Create shared pointer to the UMG service singleton for the new architecture
     TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
     TSharedPtr<FAddChildWidgetCommand> Command = MakeShared<FAddChildWidgetCommand>(UMGServicePtr);
-    RegisterAndTrackCommand(Command);
-}
-
-void FUMGCommandRegistration::RegisterCreateParentChildWidgetCommand()
-{
-    TSharedPtr<FCreateParentChildWidgetCommand> Command = MakeShared<FCreateParentChildWidgetCommand>(FUMGService::Get());
     RegisterAndTrackCommand(Command);
 }
 

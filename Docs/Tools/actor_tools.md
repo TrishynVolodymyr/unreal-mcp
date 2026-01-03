@@ -236,25 +236,19 @@ Set a property on a light component.
 
 ### spawn_actor
 
-Create a new basic Unreal Engine actor in the current level.
+Spawn an actor in the current level. Supports both built-in types and Blueprint actors.
 
 **Parameters:**
-- `name` (string) **REQUIRED** - The name to give the new actor (must be unique)
-- `type` (string) **REQUIRED** - The type of built-in actor to create. Supported types:
-  - StaticMeshActor: Basic static mesh actor
-  - PointLight: Point light source
-  - SpotLight: Spot light source
-  - DirectionalLight: Directional light source
-  - CameraActor: Camera actor
+- `name` (string) **REQUIRED** - Unique name for the spawned actor
+- `type` (string) **REQUIRED** - Actor type:
+  - Built-in: "StaticMeshActor"|"PointLight"|"SpotLight"|"DirectionalLight"|"CameraActor"
+  - Blueprint: "/Game/Blueprints/BP_Enemy" or "BP_Enemy"
 - `location` (array, optional) - The [x, y, z] world location to spawn at
 - `rotation` (array, optional) - The [pitch, yaw, roll] rotation in degrees
 
-**Returns:**
-- Dict containing the created actor's properties
-
 **Examples:**
 ```json
-// Spawn a point light at origin
+// Spawn a point light
 {
   "command": "spawn_actor",
   "params": {
@@ -263,52 +257,13 @@ Create a new basic Unreal Engine actor in the current level.
   }
 }
 
-// Spawn a static mesh at a specific location
+// Spawn a Blueprint actor
 {
   "command": "spawn_actor",
   "params": {
-    "name": "MyCube",
-    "type": "StaticMeshActor",
-    "location": [100, 200, 50],
-    "rotation": [0, 45, 0]
-  }
-}
-```
-
-### spawn_blueprint_actor
-
-Spawn an actor from a Blueprint class in the current level.
-
-**Parameters:**
-- `blueprint_name` (string) **REQUIRED** - Path to the Blueprint to spawn from. Can be:
-  - Absolute path: "/Game/Blueprints/BP_Character"
-  - Relative path: "BP_Character" (will be prefixed with "/Game/Blueprints/")
-- `actor_name` (string) **REQUIRED** - Name to give the spawned actor instance (must be unique)
-- `location` (array, optional) - The [x, y, z] world location to spawn at
-- `rotation` (array, optional) - The [pitch, yaw, roll] rotation in degrees
-
-**Returns:**
-- Dict containing the spawned actor's properties
-
-**Examples:**
-```json
-// Spawn a blueprint actor with a relative path
-{
-  "command": "spawn_blueprint_actor",
-  "params": {
-    "blueprint_name": "BP_Character",
-    "actor_name": "MyCharacter_1"
-  }
-}
-
-// Spawn a blueprint actor with a full path
-{
-  "command": "spawn_blueprint_actor",
-  "params": {
-    "blueprint_name": "/Game/Characters/BP_Enemy",
-    "actor_name": "Enemy_1",
-    "location": [100, 200, 50],
-    "rotation": [0, 45, 0]
+    "name": "Enemy_1",
+    "type": "/Game/Characters/BP_Enemy",
+    "location": [100, 200, 50]
   }
 }
 ```
@@ -360,7 +315,7 @@ Supported actor types for the `create_actor` command:
 - **Solution**: Ensure proper data types - use string values for all property_value parameters
 
 **Error: "Blueprint not found"**
-- **Cause**: Incorrect Blueprint path in spawn_blueprint_actor
+- **Cause**: Incorrect Blueprint path in spawn_actor
 - **Solution**: Use full paths like "/Game/Blueprints/BP_Actor" or verify Blueprint exists
 
 **Error: "Actor name already exists"**
@@ -393,17 +348,16 @@ Supported actor types for the `create_actor` command:
 
 ### Actor Type Reference (Updated)
 
-**Basic Actor Types (spawn_actor):**
+**Built-in Actor Types:**
 - `StaticMeshActor` - Basic static mesh actor
 - `PointLight` - Point light source
-- `SpotLight` - Spot light source  
+- `SpotLight` - Spot light source
 - `DirectionalLight` - Directional light source
 - `CameraActor` - Camera actor
 
-**Blueprint Actors (spawn_blueprint_actor):**
-- Custom Blueprint classes created in the project
-- Must specify full path or relative path from /Game/Blueprints/
-- Can have custom components, logic, and properties
+**Blueprint Actors:**
+- Use spawn_actor with Blueprint path (e.g., "/Game/Blueprints/BP_Enemy" or "BP_Enemy")
+- Custom Blueprint classes with components, logic, and properties
 
 ### Debugging Workflow
 

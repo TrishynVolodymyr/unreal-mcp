@@ -6,13 +6,12 @@ Current tool inventory. This list evolves as tools are added, removed, or consol
 
 | Tool | Purpose |
 |------|---------|
-| `spawn_actor` | Spawn actor in level |
+| `spawn_actor` | Spawn actor (built-in or Blueprint) |
 | `delete_actor` | Delete actor from level |
 | `set_actor_transform` | Set actor position/rotation/scale |
 | `get_actor_properties` | Get actor property values |
 | `set_actor_property` | Set actor property |
 | `set_light_property` | Set light-specific properties |
-| `spawn_blueprint_actor` | Spawn BP actor in level |
 | `get_level_metadata` | Get level information |
 
 ## blueprintMCP — Blueprint Structure
@@ -38,7 +37,6 @@ Current tool inventory. This list evolves as tools are added, removed, or consol
 | `bind_widget_component_event` | Bind widget event |
 | `set_text_block_widget_component_binding` | Bind text block |
 | `add_child_widget_component_to_parent` | Add child to parent |
-| `create_parent_and_child_widget_components` | Create hierarchy |
 | `set_widget_component_placement` | Set widget placement |
 | `add_widget_component_to_widget` | Add component |
 | `set_widget_component_property` | Set widget property |
