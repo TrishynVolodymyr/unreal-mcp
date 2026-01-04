@@ -1,0 +1,13 @@
+[project]
+name = "comfyui-mcp-server"
+version = "0.1.0"
+description = "MCP Server for AI control of ComfyUI workflows"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.4.1",
+    "httpx>=0.24.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
