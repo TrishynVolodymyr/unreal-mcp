@@ -34,6 +34,7 @@
 #include "EdGraphSchema_Niagara.h"
 #include "NiagaraTypes.h"
 #include "NiagaraParameterMapHistory.h"
+#include "NiagaraCommon.h"  // For FNiagaraUtilities::ConvertVariableToRapidIterationConstantName
 
 DEFINE_LOG_CATEGORY_STATIC(LogNiagaraService, Log, All);
 
@@ -591,21 +592,18 @@ bool FNiagaraService::AddModule(const FNiagaraModuleAddParams& Params, FString& 
     // Get the module node ID
     OutModuleId = NewModuleNode->NodeGuid.ToString();
 
-    // Mark system dirty
+    // Mark system dirty - DON'T trigger recompilation here
+    // Recompilation will happen when compile_niagara_asset is called explicitly
+    // This prevents invalidating rapid iteration parameters that were set earlier
     MarkSystemDirty(System);
 
-    // Broadcast post-edit change to trigger parameter map rebuilding
-    // This is critical for fixing "ParameterMap traversal" errors
-    System->OnSystemPostEditChange().Broadcast(System);
-
-    // Request synchronous compilation and wait for it to complete
-    System->RequestCompile(false);
-    System->WaitForCompilationComplete();
+    // Notify graph of changes without full recompilation
+    Graph->NotifyGraphChanged();
 
     // Refresh editors
     RefreshEditors(System);
 
-    UE_LOG(LogNiagaraService, Log, TEXT("Added module '%s' to emitter '%s' stage '%s' with ID: %s"),
+    UE_LOG(LogNiagaraService, Log, TEXT("Added module '%s' to emitter '%s' stage '%s' with ID: %s (deferred compilation)"),
         *Params.ModulePath, *Params.EmitterName, *Params.Stage, *OutModuleId);
 
     return true;
@@ -848,50 +846,56 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
             return false;
         }
 
-        // Get input type and metadata
+        // Get input type
         FNiagaraTypeDefinition InputType = FoundInput->GetType();
-        TOptional<FNiagaraVariableMetaData> InputMetaData = ModuleGraph->GetMetaData(*FoundInput);
-        FGuid InputVariableGuid = InputMetaData.IsSet() ? InputMetaData->GetVariableGuid() : FGuid();
 
-        // Create aliased parameter handle
-        FNiagaraParameterHandle AliasedHandle = FNiagaraParameterHandle::CreateAliasedModuleParameterHandle(
-            FoundInput->GetName(),
-            FName(*ModuleNode->GetFunctionName())
-        );
+        // Check if this is a rapid iteration type (simple types that can be set directly on the parameter store)
+        // We implement our own check since FNiagaraStackGraphUtilities::IsRapidIterationType is not exported
+        bool bIsRapidIterationType =
+            InputType == FNiagaraTypeDefinition::GetFloatDef() ||
+            InputType == FNiagaraTypeDefinition::GetIntDef() ||
+            InputType == FNiagaraTypeDefinition::GetBoolDef() ||
+            InputType == FNiagaraTypeDefinition::GetVec2Def() ||
+            InputType == FNiagaraTypeDefinition::GetVec3Def() ||
+            InputType == FNiagaraTypeDefinition::GetVec4Def() ||
+            InputType == FNiagaraTypeDefinition::GetColorDef() ||
+            InputType == FNiagaraTypeDefinition::GetQuatDef();
 
-        // Get or create the override pin
-        UEdGraphPin& OverridePin = FNiagaraStackGraphUtilities::GetOrCreateStackFunctionInputOverridePin(
-            *ModuleNode,
-            AliasedHandle,
-            InputType,
-            InputVariableGuid,
-            FGuid()
-        );
+        if (!bIsRapidIterationType)
+        {
+            OutError = FString::Printf(TEXT("Input type '%s' for '%s' is not a rapid iteration type. Only Float, Int, Bool, Vec2, Vec3, Vec4, Color, Quat are supported."),
+                *InputType.GetName(), *Params.InputName);
+            return false;
+        }
 
-        // Parse the value and set it on the override pin
+        // Clean up the value string (remove parentheses and extra spaces for vector/color types)
+        FString CleanValueStr = ValueStr;
+        CleanValueStr.TrimStartAndEndInline();
+        CleanValueStr = CleanValueStr.Replace(TEXT("("), TEXT(""));
+        CleanValueStr = CleanValueStr.Replace(TEXT(")"), TEXT(""));
+        CleanValueStr = CleanValueStr.Replace(TEXT(" "), TEXT(""));
+
+        // Parse the value into a variable
         FNiagaraVariable TempVariable(InputType, NAME_None);
-
-        // Handle different types
-        FString TypeHint = Params.ValueType.ToLower();
         bool bValueSet = false;
 
         if (InputType == FNiagaraTypeDefinition::GetFloatDef())
         {
-            float FloatValue = FCString::Atof(*ValueStr);
+            float FloatValue = FCString::Atof(*CleanValueStr);
             TempVariable.AllocateData();
             TempVariable.SetValue<float>(FloatValue);
             bValueSet = true;
         }
         else if (InputType == FNiagaraTypeDefinition::GetIntDef())
         {
-            int32 IntValue = FCString::Atoi(*ValueStr);
+            int32 IntValue = FCString::Atoi(*CleanValueStr);
             TempVariable.AllocateData();
             TempVariable.SetValue<int32>(IntValue);
             bValueSet = true;
         }
         else if (InputType == FNiagaraTypeDefinition::GetBoolDef())
         {
-            bool BoolValue = ValueStr.Equals(TEXT("true"), ESearchCase::IgnoreCase) || ValueStr.Equals(TEXT("1"));
+            bool BoolValue = CleanValueStr.Equals(TEXT("true"), ESearchCase::IgnoreCase) || CleanValueStr.Equals(TEXT("1"));
             TempVariable.AllocateData();
             TempVariable.SetValue<FNiagaraBool>(FNiagaraBool(BoolValue));
             bValueSet = true;
@@ -899,7 +903,7 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
         else if (InputType == FNiagaraTypeDefinition::GetVec3Def())
         {
             TArray<FString> Components;
-            ValueStr.ParseIntoArray(Components, TEXT(","), true);
+            CleanValueStr.ParseIntoArray(Components, TEXT(","), true);
             if (Components.Num() >= 3)
             {
                 FVector3f Vec(FCString::Atof(*Components[0]), FCString::Atof(*Components[1]), FCString::Atof(*Components[2]));
@@ -911,7 +915,7 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
         else if (InputType == FNiagaraTypeDefinition::GetColorDef())
         {
             TArray<FString> Components;
-            ValueStr.ParseIntoArray(Components, TEXT(","), true);
+            CleanValueStr.ParseIntoArray(Components, TEXT(","), true);
             if (Components.Num() >= 4)
             {
                 FLinearColor Color(FCString::Atof(*Components[0]), FCString::Atof(*Components[1]),
@@ -932,49 +936,56 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
 
         if (!bValueSet)
         {
-            OutError = FString::Printf(TEXT("Unsupported input type '%s' for input '%s'. Supported types: Float, Int, Bool, Vec3, Color"),
-                *InputType.GetName(), *Params.InputName);
+            OutError = FString::Printf(TEXT("Could not parse value '%s' for input type '%s'"),
+                *ValueStr, *InputType.GetName());
             return false;
         }
 
-        // Convert to pin default value string
-        const UEdGraphSchema_Niagara* Schema = GetDefault<UEdGraphSchema_Niagara>();
-        FString PinDefaultValue;
-        if (!Schema->TryGetPinDefaultValueFromNiagaraVariable(TempVariable, PinDefaultValue))
-        {
-            OutError = FString::Printf(TEXT("Could not convert value to pin default for input '%s'"), *Params.InputName);
-            return false;
-        }
+        // Create the aliased module parameter name (ModuleName.InputName format)
+        FNiagaraParameterHandle AliasedHandle = FNiagaraParameterHandle::CreateAliasedModuleParameterHandle(
+            FoundInput->GetName(),
+            FName(*ModuleNode->GetFunctionName())
+        );
 
-        // Set the override pin value
-        OverridePin.Modify();
-        OverridePin.DefaultValue = PinDefaultValue;
+        // For rapid iteration types, we must use Script->RapidIterationParameters directly
+        // NOT override pins - override pins cause graph corruption when other graph changes occur
 
-        // Mark the node for synchronization
-        UNiagaraNode* OverrideNode = Cast<UNiagaraNode>(OverridePin.GetOwningNode());
-        if (OverrideNode)
-        {
-            OverrideNode->MarkNodeRequiresSynchronization(TEXT("Module input override value changed"), true);
-        }
+        // Get emitter unique name for the rapid iteration parameter name
+        FString UniqueEmitterName = EmitterHandle.GetInstance().Emitter->GetUniqueEmitterName();
 
-        UE_LOG(LogNiagaraService, Log, TEXT("Set input '%s' on module '%s' via override pin system to '%s'"),
-            *Params.InputName, *Params.ModuleName, *PinDefaultValue);
+        // Create the input variable with the aliased name
+        FNiagaraVariable InputVariable(InputType, FName(*AliasedHandle.GetParameterHandleString().ToString()));
+
+        // Convert to rapid iteration constant name using the exported utility
+        FNiagaraVariable RapidIterationVariable = FNiagaraUtilities::ConvertVariableToRapidIterationConstantName(
+            InputVariable,
+            *UniqueEmitterName,
+            ScriptUsage
+        );
+
+        // Allocate data for the rapid iteration variable
+        RapidIterationVariable.AllocateData();
+
+        // Copy the parsed value data to the rapid iteration variable
+        FMemory::Memcpy(RapidIterationVariable.GetData(), TempVariable.GetData(), InputType.GetSize());
+
+        // Set the parameter data on the script's RapidIterationParameters store
+        Script->Modify();
+        bool bAddParameterIfMissing = true;
+        Script->RapidIterationParameters.SetParameterData(
+            RapidIterationVariable.GetData(),
+            RapidIterationVariable,
+            bAddParameterIfMissing
+        );
+
+        UE_LOG(LogNiagaraService, Log, TEXT("Set input '%s' on module '%s' via rapid iteration parameter '%s'"),
+            *Params.InputName, *Params.ModuleName, *RapidIterationVariable.GetName().ToString());
     }
 
-    // Notify graph of changes
-    Graph->NotifyGraphChanged();
-
-    // Mark system dirty
+    // Mark system dirty (but don't force recompile - rapid iteration params work without it)
     MarkSystemDirty(System);
 
-    // Broadcast post-edit change to trigger parameter map rebuilding
-    System->OnSystemPostEditChange().Broadcast(System);
-
-    // Request synchronous compilation and wait for it to complete
-    System->RequestCompile(false);
-    System->WaitForCompilationComplete();
-
-    // Refresh editors
+    // Refresh editors to show updated values
     RefreshEditors(System);
 
     UE_LOG(LogNiagaraService, Log, TEXT("Set input '%s' on module '%s' in emitter '%s' stage '%s' to '%s'"),

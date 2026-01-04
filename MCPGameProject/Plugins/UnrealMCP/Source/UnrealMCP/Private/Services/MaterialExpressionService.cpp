@@ -35,6 +35,15 @@
 #include "Materials/MaterialExpressionOneMinus.h"
 #include "Materials/MaterialExpressionSine.h"
 #include "Materials/MaterialExpressionFrac.h"
+// Particle/VFX expressions
+#include "Materials/MaterialExpressionParticleColor.h"
+#include "Materials/MaterialExpressionVertexColor.h"
+#include "Materials/MaterialExpressionSphereMask.h"
+#include "Materials/MaterialExpressionDotProduct.h"
+#include "Materials/MaterialExpressionDistance.h"
+#include "Materials/MaterialExpressionNormalize.h"
+#include "Materials/MaterialExpressionSaturate.h"
+#include "Materials/MaterialExpressionSquareRoot.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 #include "Toolkits/ToolkitManager.h"  // For FToolkitManager - correct API for finding Material Editor
@@ -98,6 +107,21 @@ UClass* FMaterialExpressionService::GetExpressionClassFromTypeName(const FString
         ExpressionTypeMap.Add(TEXT("Time"), UMaterialExpressionTime::StaticClass());
         ExpressionTypeMap.Add(TEXT("Panner"), UMaterialExpressionPanner::StaticClass());
         ExpressionTypeMap.Add(TEXT("TexCoord"), UMaterialExpressionTextureCoordinate::StaticClass());
+        ExpressionTypeMap.Add(TEXT("TextureCoordinate"), UMaterialExpressionTextureCoordinate::StaticClass());
+
+        // Math operations (additional)
+        ExpressionTypeMap.Add(TEXT("Dot"), UMaterialExpressionDotProduct::StaticClass());
+        ExpressionTypeMap.Add(TEXT("DotProduct"), UMaterialExpressionDotProduct::StaticClass());
+        ExpressionTypeMap.Add(TEXT("Distance"), UMaterialExpressionDistance::StaticClass());
+        ExpressionTypeMap.Add(TEXT("Normalize"), UMaterialExpressionNormalize::StaticClass());
+        ExpressionTypeMap.Add(TEXT("Saturate"), UMaterialExpressionSaturate::StaticClass());
+        ExpressionTypeMap.Add(TEXT("Sqrt"), UMaterialExpressionSquareRoot::StaticClass());
+        ExpressionTypeMap.Add(TEXT("SquareRoot"), UMaterialExpressionSquareRoot::StaticClass());
+
+        // Particle/VFX expressions
+        ExpressionTypeMap.Add(TEXT("ParticleColor"), UMaterialExpressionParticleColor::StaticClass());
+        ExpressionTypeMap.Add(TEXT("VertexColor"), UMaterialExpressionVertexColor::StaticClass());
+        ExpressionTypeMap.Add(TEXT("SphereMask"), UMaterialExpressionSphereMask::StaticClass());
     }
 
     return ExpressionTypeMap.FindRef(TypeName);

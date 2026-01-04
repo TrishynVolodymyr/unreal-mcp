@@ -685,4 +685,53 @@ def register_project_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
+    @mcp.tool()
+    def capture_viewport_screenshot(
+        ctx: Context,
+        output_path: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Capture a screenshot of the active editor viewport.
+
+        Saves a PNG image of the current viewport and returns the file path.
+        Useful for AI to visually inspect the current state of the scene.
+
+        Args:
+            output_path: Optional full path for the output file. If not provided,
+                        saves to MCPGameProject/Saved/Screenshots/MCP/ with timestamp.
+
+        Returns:
+            Dict with: success, file_path, width, height, message
+
+        Example:
+            capture_viewport_screenshot()
+            capture_viewport_screenshot(output_path="C:/Screenshots/my_screenshot.png")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {}
+            if output_path:
+                params["output_path"] = output_path
+
+            logger.info("Capturing viewport screenshot")
+            response = unreal.send_command("capture_viewport_screenshot", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Viewport screenshot captured: {response.get('file_path', 'unknown')}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error capturing viewport screenshot: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
     logger.info("Project tools registered successfully")

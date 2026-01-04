@@ -92,7 +92,59 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
+### NiagaraMCP set_module_input + add_module_to_emitter Combination Causes Compilation Errors
+- **Affected**: `set_module_input` combined with `add_module_to_emitter` in niagaraMCP
+- **Problem**: Using BOTH tools on the same system causes compilation errors. Each tool works fine independently:
+  - `set_module_input` alone → compiles OK
+  - `add_module_to_emitter` alone → compiles OK
+  - BOTH together (any order) → compilation fails
+- **Symptoms**: After combining both operations, `compile_niagara_asset` returns errors like:
+  - `Default found for AddVelocity.Rotation Coordinate Space, but not found in ParameterMap traversal`
+  - `Default found for Local.AddVelocity.TransformedVector, but not found in ParameterMap traversal`
+  - `Default found for SystemLocation.Offset Coordinate Space, but not found in ParameterMap traversal`
+- **Root Cause Investigation**:
+  1. **Rapid iteration parameters**: Tried setting values via `Script->RapidIterationParameters.SetParameterData()` using `FNiagaraUtilities::ConvertVariableToRapidIterationConstantName()` - still fails when combined with add_module
+  2. **Override pins**: Tried using `FNiagaraStackGraphUtilities::GetOrCreateStackFunctionInputOverridePin()` - also causes corruption
+  3. **AffectedScripts**: Niagara internally uses `FNiagaraStackGraphUtilities::FindAffectedScripts()` to set parameters on ALL affected scripts (not just one). This function is NOT exported (no NIAGARAEDITOR_API).
+  4. **Hypothesis**: My implementation sets rapid iteration params on ONE script, but Niagara expects them on ALL affected scripts. When `add_module_to_emitter` modifies the graph, the parameter map gets rebuilt, but only finds the parameter on one script, causing desync.
+- **Key source files investigated**:
+  - `NiagaraStackFunctionInput.cpp` - `SetLocalValue()` at line 2178
+  - `NiagaraStackGraphUtilities.cpp` - `CreateRapidIterationParameter()` at line 2792
+  - `NiagaraCommon.h` - `FNiagaraUtilities::ConvertVariableToRapidIterationConstantName()` at line 1559
+- **Impact**: Cannot fully configure Niagara emitters programmatically when adding new modules
+- **Workaround**:
+  1. Use `add_module_to_emitter` to add all modules first
+  2. Compile the system
+  3. Configure module inputs manually in Unreal Editor
+  4. OR skip `set_module_input` entirely and rely on module default values
+- **Future Fix**: Need to either export `FindAffectedScripts` or implement equivalent logic to set parameters on all affected scripts
+
+---
+
+### NiagaraMCP Module Search Returns Empty Results
+- **Affected**: `search_niagara_modules` in niagaraMCP
+- **Problem**: Searching for common Niagara modules returns 0 results even when modules exist
+- **Examples Tested**:
+  - `search_niagara_modules("Curl Noise")` → 0 results
+  - `search_niagara_modules("Scale Sprite Size")` → 0 results
+  - `search_niagara_modules("Scale Color")` → 0 results
+  - `search_niagara_modules("Shape Location")` → 0 results
+- **Impact**: Cannot discover available Niagara modules programmatically; must know exact module paths
+- **Workaround**: Use known module paths directly (e.g., `/Niagara/Modules/...`)
+- **Root Cause**: Likely querying wrong asset registry class or path filter is too restrictive
+
+---
+
 ## Resolved Issues
+
+- **MaterialMCP Missing Expression Types for Particle/VFX** - Fixed in MaterialExpressionService.cpp
+  - Added: `ParticleColor`, `VertexColor`, `SphereMask`, `Dot`/`DotProduct`, `Distance`, `Normalize`, `Saturate`, `Sqrt`/`SquareRoot`, `TextureCoordinate`
+  - Enables creation of proper particle materials that read Niagara color/alpha attributes
+
+- **MaterialMCP Operations Trigger "Apply Changes" Dialog** - Fixed in MaterialExpressionService.cpp
+  - Issue: Multiple operations triggered Material Editor's "apply changes?" dialog when editor was open, blocking MCP
+  - Fix: Added PreEditChange/PostEditChange + MarkPackageDirty before CloseAllEditorsForAsset() in all 5 locations
+  - Affected functions: ConnectExpressions, ConnectExpressionsBatch, ConnectToMaterialOutput, DeleteExpression, SetExpressionProperty
 
 - **Material Expression Connections Return Success But Don't Persist** - Fixed in MaterialExpressionService.cpp
   - Issue: `connect_material_expressions` returned `success: true` but connections were lost after reopening the material.
