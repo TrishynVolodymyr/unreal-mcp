@@ -156,12 +156,6 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetAsChild(const TSha
     return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("add_child_widget_component_to_parent"), Params);
 }
 
-TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateWidgetComponentWithChild(const TSharedPtr<FJsonObject>& Params)
-{
-    // Route through new architecture - all UMG commands now use the service layer and command registry
-    return FUnrealMCPMainDispatcher::Get().HandleCommand(TEXT("create_parent_and_child_widget_components"), Params);
-}
-
 TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetComponent(const TSharedPtr<FJsonObject>& Params)
 {
     // Route through new architecture - all UMG commands now use the service layer and command registry

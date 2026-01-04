@@ -734,58 +734,6 @@ bool FUMGService::AddChildWidgetComponentToParent(const FString& BlueprintName, 
     return true;
 }
 
-bool FUMGService::CreateParentAndChildWidgetComponents(const FString& BlueprintName, const FString& ParentComponentName,
-                                                     const FString& ChildComponentName, const FString& ParentComponentType,
-                                                     const FString& ChildComponentType, const FVector2D& ParentPosition,
-                                                     const FVector2D& ParentSize, const TSharedPtr<FJsonObject>& ChildAttributes)
-{
-    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
-    if (!WidgetBlueprint)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to find widget blueprint: %s"), *BlueprintName);
-        return false;
-    }
-
-    if (!WidgetBlueprint->WidgetTree)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Widget blueprint has no WidgetTree: %s"), *BlueprintName);
-        return false;
-    }
-
-    // Create the parent component
-    TSharedPtr<FJsonObject> EmptyKwargs = MakeShared<FJsonObject>();
-    FString ParentError;
-    UWidget* ParentWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ParentComponentName, ParentComponentType, ParentPosition, ParentSize, EmptyKwargs, ParentError);
-    if (!ParentWidget)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create parent widget component: %s - %s"), *ParentComponentName, *ParentError);
-        return false;
-    }
-
-    // Create the child component
-    FString ChildError;
-    UWidget* ChildWidget = WidgetComponentService->CreateWidgetComponent(WidgetBlueprint, ChildComponentName, ChildComponentType, FVector2D(0.0f, 0.0f), FVector2D(100.0f, 50.0f), ChildAttributes, ChildError);
-    if (!ChildWidget)
-    {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to create child widget component: %s - %s"), *ChildComponentName, *ChildError);
-        return false;
-    }
-
-    // Add child to parent
-    if (!AddWidgetToParent(ChildWidget, ParentWidget))
-    {
-        UE_LOG(LogTemp, Error, TEXT("UMGService: Failed to add child widget to parent"));
-        return false;
-    }
-
-    // Save the blueprint
-    WidgetBlueprint->MarkPackageDirty();
-    FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
-    UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
-
-    return true;
-}
-
 UWidgetBlueprint* FUMGService::FindWidgetBlueprint(const FString& BlueprintNameOrPath) const
 {
     // Check if we already have a full path

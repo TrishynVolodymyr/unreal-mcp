@@ -135,25 +135,6 @@ public:
                                                const FVector2D& ParentSize = FVector2D(300.0f, 200.0f)) = 0;
 
     /**
-     * Create a new parent widget component with a new child component
-     * @param BlueprintName - Name of the target widget blueprint
-     * @param ParentComponentName - Name for the new parent component
-     * @param ChildComponentName - Name for the new child component
-     * @param ParentComponentType - Type of parent component to create
-     * @param ChildComponentType - Type of child component to create
-     * @param ParentPosition - Position of the parent component
-     * @param ParentSize - Size of the parent component
-     * @param ChildAttributes - Additional attributes for the child component
-     * @return true if both components were created successfully
-     */
-    virtual bool CreateParentAndChildWidgetComponents(const FString& BlueprintName, const FString& ParentComponentName,
-                                                    const FString& ChildComponentName, const FString& ParentComponentType = TEXT("Border"),
-                                                    const FString& ChildComponentType = TEXT("TextBlock"),
-                                                    const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
-                                                    const FVector2D& ParentSize = FVector2D(300.0f, 200.0f),
-                                                    const TSharedPtr<FJsonObject>& ChildAttributes = nullptr) = 0;
-
-    /**
      * Get hierarchical layout information for all components within a UMG Widget Blueprint
      * @param BlueprintName - Name of the target widget blueprint
      * @param OutLayoutInfo - Output JSON object containing hierarchical component layout information

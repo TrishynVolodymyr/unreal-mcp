@@ -413,7 +413,7 @@ bind_widget_component_event(
 - [ ] `create_custom_blueprint_function` used
 - [ ] `create_node_by_action_name` used
 - [ ] `connect_blueprint_nodes` used
-- [ ] `spawn_blueprint_actor` used
+- [ ] `spawn_actor` used (with Blueprint path)
 - [ ] All blueprints compile
 
 ---

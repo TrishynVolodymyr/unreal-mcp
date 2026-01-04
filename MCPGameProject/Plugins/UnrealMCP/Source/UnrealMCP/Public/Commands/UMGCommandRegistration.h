@@ -61,7 +61,6 @@ private:
     
     // Parent-child widget commands
     static void RegisterAddChildWidgetCommand();
-    static void RegisterCreateParentChildWidgetCommand();
     
     /**
      * Helper to register a command and track it for cleanup

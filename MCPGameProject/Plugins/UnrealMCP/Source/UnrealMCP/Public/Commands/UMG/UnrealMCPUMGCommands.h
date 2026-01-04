@@ -252,21 +252,6 @@ private:
     TSharedPtr<FJsonObject> HandleAddWidgetAsChild(const TSharedPtr<FJsonObject>& Params);
 
     /**
-     * Create a new parent widget component with a new child component
-     * @param Params - Must include:
-     *                "blueprint_name" - Name of the target Widget Blueprint
-     *                "parent_component_name" - Name for the new parent component
-     *                "child_component_name" - Name for the new child component
-     *                "parent_component_type" - Type of parent component to create (optional)
-     *                "child_component_type" - Type of child component to create (optional)
-     *                "parent_position" - [X, Y] position of the parent component (optional)
-     *                "parent_size" - [Width, Height] of the parent component (optional)
-     *                "child_attributes" - Additional attributes for the child component (optional)
-     * @return JSON response with the component creation details
-     */
-    TSharedPtr<FJsonObject> HandleCreateWidgetComponentWithChild(const TSharedPtr<FJsonObject>& Params);
-
-    /**
      * Unified function to add any type of widget component to a UMG Widget Blueprint
      * @param Params - Must include:
      *                "blueprint_name" - Name of the target Widget Blueprint

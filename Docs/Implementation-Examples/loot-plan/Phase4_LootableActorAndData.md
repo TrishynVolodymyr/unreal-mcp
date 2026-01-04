@@ -498,9 +498,9 @@ Place a test chest in level with items.
 
 ```python
 # Place test lootable in level
-spawn_blueprint_actor(
-    blueprint_name="/Game/Loot/Blueprints/BP_LootableBase",
-    actor_name="TestLootChest",
+spawn_actor(
+    name="TestLootChest",
+    type="/Game/Loot/Blueprints/BP_LootableBase",
     location=[500, 0, 100]
 )
 ```

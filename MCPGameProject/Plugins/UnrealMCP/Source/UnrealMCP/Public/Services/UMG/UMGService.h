@@ -53,13 +53,6 @@ public:
                                                const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
                                                const FVector2D& ParentSize = FVector2D(300.0f, 200.0f)) override;
 
-    virtual bool CreateParentAndChildWidgetComponents(const FString& BlueprintName, const FString& ParentComponentName,
-                                                    const FString& ChildComponentName, const FString& ParentComponentType = TEXT("Border"),
-                                                    const FString& ChildComponentType = TEXT("TextBlock"),
-                                                    const FVector2D& ParentPosition = FVector2D(0.0f, 0.0f),
-                                                    const FVector2D& ParentSize = FVector2D(300.0f, 200.0f),
-                                                    const TSharedPtr<FJsonObject>& ChildAttributes = nullptr) override;
-
     virtual bool GetWidgetComponentLayout(const FString& BlueprintName, TSharedPtr<FJsonObject>& OutLayoutInfo) override;
 
     virtual bool CaptureWidgetScreenshot(const FString& BlueprintName, int32 Width, int32 Height,

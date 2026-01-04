@@ -265,7 +265,7 @@ WBP_ItemTooltip (Widget Blueprint)
 |------|---------|
 | `create_umg_widget_blueprint` | Create widget blueprints |
 | `add_widget_component_to_widget` | Add UI components |
-| `create_parent_and_child_widget_components` | Create nested widgets |
+| `add_child_widget_component_to_parent` | Create nested widgets |
 | `set_widget_component_property` | Configure widget properties (including Visibility) |
 | `bind_widget_component_event` | Bind click/mouse events |
 
