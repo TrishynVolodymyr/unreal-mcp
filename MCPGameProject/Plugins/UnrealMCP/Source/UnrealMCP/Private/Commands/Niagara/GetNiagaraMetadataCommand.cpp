@@ -18,6 +18,41 @@ FString FGetNiagaraMetadataCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(Error);
     }
 
+    // Check if module_inputs is requested
+    bool bRequestModuleInputs = Params.Fields.Contains(TEXT("module_inputs"));
+
+    if (bRequestModuleInputs)
+    {
+        // Validate required params for module_inputs
+        if (Params.EmitterName.IsEmpty() || Params.ModuleName.IsEmpty() || Params.Stage.IsEmpty())
+        {
+            return CreateErrorResponse(TEXT("module_inputs field requires emitter_name, module_name, and stage parameters"));
+        }
+
+        TSharedPtr<FJsonObject> InputsMetadata;
+        bool bSuccess = NiagaraService.GetModuleInputs(Params.AssetPath, Params.EmitterName, Params.ModuleName, Params.Stage, InputsMetadata);
+
+        if (!bSuccess || !InputsMetadata.IsValid())
+        {
+            FString ErrorMsg;
+            if (InputsMetadata.IsValid() && InputsMetadata->HasField(TEXT("error")))
+            {
+                ErrorMsg = InputsMetadata->GetStringField(TEXT("error"));
+            }
+            else
+            {
+                ErrorMsg = TEXT("Failed to get module inputs");
+            }
+            return CreateErrorResponse(ErrorMsg);
+        }
+
+        FString OutputString;
+        TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+        FJsonSerializer::Serialize(InputsMetadata.ToSharedRef(), Writer);
+        return OutputString;
+    }
+
+    // Standard metadata request
     TSharedPtr<FJsonObject> Metadata;
     const TArray<FString>* FieldsPtr = Params.Fields.Num() > 0 ? &Params.Fields : nullptr;
 
@@ -87,6 +122,11 @@ bool FGetNiagaraMetadataCommand::ParseParameters(const FString& JsonString, FGet
             }
         }
     }
+
+    // Parse optional params for module_inputs field
+    JsonObject->TryGetStringField(TEXT("emitter_name"), OutParams.EmitterName);
+    JsonObject->TryGetStringField(TEXT("module_name"), OutParams.ModuleName);
+    JsonObject->TryGetStringField(TEXT("stage"), OutParams.Stage);
 
     if (OutParams.AssetPath.IsEmpty())
     {

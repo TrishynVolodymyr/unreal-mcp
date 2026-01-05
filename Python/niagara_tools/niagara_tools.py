@@ -78,14 +78,20 @@ def register_niagara_tools(mcp: FastMCP):
     def get_niagara_metadata(
         ctx: Context,
         asset_path: str,
-        fields: List[str] = None
+        fields: List[str] = None,
+        emitter_name: str = None,
+        module_name: str = None,
+        stage: str = None
     ) -> Dict[str, Any]:
         """
         Get metadata about a Niagara System or Emitter.
 
         Args:
             asset_path: Path to the Niagara asset
-            fields: Filter: "emitters"|"modules"|"parameters"|"renderers"|"status"|"*"
+            fields: Filter: "emitters"|"modules"|"parameters"|"renderers"|"status"|"module_inputs"|"*"
+            emitter_name: Required for "module_inputs" field - name of the emitter
+            module_name: Required for "module_inputs" field - name of the module
+            stage: Required for "module_inputs" field - "Spawn"|"Update"|"Event"
 
         Returns:
             For Systems:
@@ -97,13 +103,27 @@ def register_niagara_tools(mcp: FastMCP):
             For Emitters:
                 - renderers[]: Direct renderer list
                 - version: Emitter version GUID
+            For module_inputs field:
+                - module_name: Actual module name
+                - emitter_name: Emitter containing the module
+                - stage: Stage the module is in
+                - inputs[]: Array of {name, type, value, is_connected}
+                - input_count: Number of inputs
 
         Example:
             get_niagara_metadata("/Game/VFX/NS_Fire", ["renderers"])
+            get_niagara_metadata("/Game/VFX/NS_Fire", ["module_inputs"],
+                                 emitter_name="FireCore", module_name="SpawnRate", stage="Spawn")
         """
         params = {"asset_path": asset_path}
         if fields is not None:
             params["fields"] = fields
+        if emitter_name is not None:
+            params["emitter_name"] = emitter_name
+        if module_name is not None:
+            params["module_name"] = module_name
+        if stage is not None:
+            params["stage"] = stage
         logger.info(f"Getting metadata for Niagara asset '{asset_path}'")
         return send_unreal_command("get_niagara_metadata", params)
 

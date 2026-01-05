@@ -441,6 +441,17 @@ public:
     virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) = 0;
 
     /**
+     * Get input values for a specific module
+     * @param SystemPath - Path to the Niagara System
+     * @param EmitterName - Name of the emitter containing the module
+     * @param ModuleName - Name of the module
+     * @param Stage - Stage the module is in ("Spawn", "Update", "Event")
+     * @param OutInputs - Output JSON object with module inputs
+     * @return true if inputs were retrieved successfully
+     */
+    virtual bool GetModuleInputs(const FString& SystemPath, const FString& EmitterName, const FString& ModuleName, const FString& Stage, TSharedPtr<FJsonObject>& OutInputs) = 0;
+
+    /**
      * Compile a Niagara System or Emitter
      * @param AssetPath - Path to the asset to compile
      * @param OutError - Error message if compilation fails

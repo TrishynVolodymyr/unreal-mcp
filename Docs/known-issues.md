@@ -121,6 +121,35 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
+### NiagaraMCP add_renderer Creates Duplicate When Template Has Inherited Renderer
+- **Affected**: `add_renderer` in niagaraMCP when emitter uses a template
+- **Problem**: When creating emitters from templates (which most do), the template already includes an inherited renderer (shown with lock icon in UI). Calling `add_renderer` then adds a SECOND renderer, causing duplicate rendering.
+- **Symptoms**:
+  - Each emitter shows 2 renderers: one inherited (locked), one added (unlocked)
+  - Visual artifacts - solid masses instead of proper particles
+  - One renderer may use correct material, other uses default/none
+  - Double particle counts, performance impact
+- **Example**: Creating fire emitter from template, then calling `add_renderer("Sprite")` results in:
+  - `Sprite Renderer` (locked, inherited from template) - uses template's default material
+  - `SpriteRenderer` (unlocked, MCP-added) - uses material we specified
+- **Root Cause**: MCP workflow doesn't check for existing inherited renderers before adding new ones
+- **Mitigation (Partial)**: `add_emitter_to_system` now returns `existing_renderers` array with info about inherited renderers, plus a `note` field advising to use `set_renderer_property` instead of `add_renderer`. Example response:
+  ```json
+  {
+    "success": true,
+    "emitter_handle_id": "...",
+    "emitter_name": "FireCore",
+    "existing_renderers": [{"name": "Renderer", "type": "Sprite", "enabled": true}],
+    "note": "Emitter has 1 existing renderer(s). Use set_renderer_property to configure them instead of adding new ones."
+  }
+  ```
+- **AI Workflow**: After `add_emitter_to_system`, check `existing_renderers`. If non-empty, use `set_renderer_property` on the inherited renderer (usually named "Renderer") instead of calling `add_renderer`.
+- **Workaround for existing systems with duplicates**:
+  1. Set material on the inherited "Renderer" using `set_renderer_property`
+  2. Manually delete the duplicate renderer in Unreal Editor (MCP cannot delete inherited renderers)
+
+---
+
 ### NiagaraMCP Module Search Returns Empty Results
 - **Affected**: `search_niagara_modules` in niagaraMCP
 - **Problem**: Searching for common Niagara modules returns 0 results even when modules exist
@@ -136,6 +165,12 @@ This file tracks MCP tool limitations discovered during development. When encoun
 ---
 
 ## Resolved Issues
+
+- **NiagaraMCP set_renderer_property Enum Properties Not Supported** - Fixed in NiagaraService.cpp
+  - Issue: Enum properties like `Alignment`, `FacingMode`, `SortMode` on sprite renderers couldn't be set
+  - Fix: Added `FEnumProperty` and `FByteProperty` handling to `SetRendererProperty()`
+  - Now supports all enum properties with helpful error messages listing valid values
+  - Example: `set_renderer_property(..., "Alignment", "VelocityAligned")` now works
 
 - **MaterialMCP Missing Expression Types for Particle/VFX** - Fixed in MaterialExpressionService.cpp
   - Added: `ParticleColor`, `VertexColor`, `SphereMask`, `Dot`/`DotProduct`, `Distance`, `Normalize`, `Saturate`, `Sqrt`/`SquareRoot`, `TextureCoordinate`
