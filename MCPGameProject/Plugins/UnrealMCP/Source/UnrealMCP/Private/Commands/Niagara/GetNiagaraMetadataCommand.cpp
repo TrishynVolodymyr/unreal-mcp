@@ -56,7 +56,7 @@ FString FGetNiagaraMetadataCommand::Execute(const FString& Parameters)
     TSharedPtr<FJsonObject> Metadata;
     const TArray<FString>* FieldsPtr = Params.Fields.Num() > 0 ? &Params.Fields : nullptr;
 
-    bool bSuccess = NiagaraService.GetMetadata(Params.AssetPath, FieldsPtr, Metadata);
+    bool bSuccess = NiagaraService.GetMetadata(Params.AssetPath, FieldsPtr, Metadata, Params.EmitterName, Params.Stage);
 
     if (!bSuccess || !Metadata.IsValid())
     {

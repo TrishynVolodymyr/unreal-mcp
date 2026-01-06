@@ -14,7 +14,7 @@
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
 
-bool FNiagaraService::GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata)
+bool FNiagaraService::GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName, const FString& Stage)
 {
     OutMetadata = MakeShared<FJsonObject>();
 
@@ -25,7 +25,7 @@ bool FNiagaraService::GetMetadata(const FString& AssetPath, const TArray<FString
         OutMetadata->SetStringField(TEXT("asset_type"), TEXT("NiagaraSystem"));
         OutMetadata->SetStringField(TEXT("asset_path"), AssetPath);
         OutMetadata->SetStringField(TEXT("asset_name"), System->GetName());
-        AddSystemMetadata(System, Fields, OutMetadata);
+        AddSystemMetadata(System, Fields, OutMetadata, EmitterName, Stage);
         OutMetadata->SetBoolField(TEXT("success"), true);
         return true;
     }

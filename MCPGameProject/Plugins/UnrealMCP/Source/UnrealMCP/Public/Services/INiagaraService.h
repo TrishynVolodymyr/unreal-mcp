@@ -436,9 +436,11 @@ public:
      * @param AssetPath - Path to the asset
      * @param Fields - Optional fields to include (nullptr = all)
      * @param OutMetadata - Output JSON object with metadata
+     * @param EmitterName - Optional emitter name filter (required for "modules" field)
+     * @param Stage - Optional stage filter for "modules" field ("Spawn"|"Update"|"Render")
      * @return true if metadata was retrieved successfully
      */
-    virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) = 0;
+    virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName = TEXT(""), const FString& Stage = TEXT("")) = 0;
 
     /**
      * Get input values for a specific module

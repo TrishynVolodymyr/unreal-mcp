@@ -25,6 +25,6 @@ private:
     };
 
     bool ParseParameters(const FString& JsonString, FCompileParams& OutParams, FString& OutError) const;
-    FString CreateSuccessResponse() const;
+    FString CreateSuccessResponse(const FString& Warnings = TEXT("")) const;
     FString CreateErrorResponse(const FString& ErrorMessage) const;
 };

@@ -183,7 +183,7 @@ UNiagaraDataInterface* FNiagaraService::CreateDataInterfaceByType(const FString&
     return nullptr;
 }
 
-void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) const
+void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName, const FString& Stage) const
 {
     bool bIncludeAll = !Fields || Fields->Num() == 0 || Fields->Contains(TEXT("*"));
 
@@ -235,10 +235,10 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
         OutMetadata->SetArrayField(TEXT("parameters"), ParamsArray);
     }
 
-    // Modules - extract from each emitter's scripts
-    if (bIncludeAll || Fields->Contains(TEXT("modules")))
+    // Module list - compact summary (just names, no details)
+    if (Fields && Fields->Contains(TEXT("module_list")))
     {
-        TArray<TSharedPtr<FJsonValue>> EmitterModulesArray;
+        TArray<TSharedPtr<FJsonValue>> EmitterSummaryArray;
 
         for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
         {
@@ -248,23 +248,22 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
                 continue;
             }
 
-            TSharedPtr<FJsonObject> EmitterModuleObj = MakeShared<FJsonObject>();
-            EmitterModuleObj->SetStringField(TEXT("emitter_name"), Handle.GetName().ToString());
+            TSharedPtr<FJsonObject> EmitterObj = MakeShared<FJsonObject>();
+            EmitterObj->SetStringField(TEXT("emitter_name"), Handle.GetName().ToString());
 
-            // Helper lambda to extract modules from a script
-            auto ExtractModulesFromScript = [](UNiagaraScript* Script, const FString& StageName) -> TArray<TSharedPtr<FJsonValue>>
+            // Helper lambda to extract module names only
+            auto ExtractModuleNames = [](UNiagaraScript* Script) -> TArray<TSharedPtr<FJsonValue>>
             {
-                TArray<TSharedPtr<FJsonValue>> ModulesArray;
-
+                TArray<TSharedPtr<FJsonValue>> NamesArray;
                 if (!Script)
                 {
-                    return ModulesArray;
+                    return NamesArray;
                 }
 
                 UNiagaraScriptSource* ScriptSource = Cast<UNiagaraScriptSource>(Script->GetLatestSource());
                 if (!ScriptSource || !ScriptSource->NodeGraph)
                 {
-                    return ModulesArray;
+                    return NamesArray;
                 }
 
                 for (UEdGraphNode* Node : ScriptSource->NodeGraph->Nodes)
@@ -272,36 +271,129 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
                     UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Node);
                     if (FunctionNode)
                     {
-                        TSharedPtr<FJsonObject> ModuleObj = MakeShared<FJsonObject>();
-                        ModuleObj->SetStringField(TEXT("name"), FunctionNode->GetFunctionName());
-                        ModuleObj->SetStringField(TEXT("node_id"), FunctionNode->NodeGuid.ToString());
-                        ModuleObj->SetStringField(TEXT("stage"), StageName);
-
-                        // Get the module script path if available
-                        if (UNiagaraScript* FunctionScript = FunctionNode->FunctionScript)
-                        {
-                            ModuleObj->SetStringField(TEXT("script_path"), FunctionScript->GetPathName());
-                        }
-
-                        ModulesArray.Add(MakeShared<FJsonValueObject>(ModuleObj));
+                        NamesArray.Add(MakeShared<FJsonValueString>(FunctionNode->GetFunctionName()));
                     }
                 }
-
-                return ModulesArray;
+                return NamesArray;
             };
 
-            // Extract from Spawn script
-            TArray<TSharedPtr<FJsonValue>> SpawnModules = ExtractModulesFromScript(EmitterData->SpawnScriptProps.Script, TEXT("Spawn"));
-            EmitterModuleObj->SetArrayField(TEXT("spawn_modules"), SpawnModules);
-
-            // Extract from Update script
-            TArray<TSharedPtr<FJsonValue>> UpdateModules = ExtractModulesFromScript(EmitterData->UpdateScriptProps.Script, TEXT("Update"));
-            EmitterModuleObj->SetArrayField(TEXT("update_modules"), UpdateModules);
-
-            EmitterModulesArray.Add(MakeShared<FJsonValueObject>(EmitterModuleObj));
+            EmitterObj->SetArrayField(TEXT("spawn_modules"), ExtractModuleNames(EmitterData->SpawnScriptProps.Script));
+            EmitterObj->SetArrayField(TEXT("update_modules"), ExtractModuleNames(EmitterData->UpdateScriptProps.Script));
+            EmitterSummaryArray.Add(MakeShared<FJsonValueObject>(EmitterObj));
         }
 
-        OutMetadata->SetArrayField(TEXT("modules_by_emitter"), EmitterModulesArray);
+        OutMetadata->SetArrayField(TEXT("module_list"), EmitterSummaryArray);
+    }
+
+    // Modules - requires emitter_name + stage filters to avoid excessive data
+    if (Fields && Fields->Contains(TEXT("modules")))
+    {
+        if (EmitterName.IsEmpty() || Stage.IsEmpty())
+        {
+            OutMetadata->SetStringField(TEXT("modules_error"),
+                TEXT("'modules' field requires 'emitter_name' AND 'stage' parameters.\n")
+                TEXT("Valid stages: 'Spawn', 'Update', 'Render'\n")
+                TEXT("Use 'module_list' field for a compact summary of all emitters."));
+        }
+        else
+        {
+            // Find the specific emitter
+            const FNiagaraEmitterHandle* TargetHandle = nullptr;
+            for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+            {
+                if (Handle.GetName().ToString().Equals(EmitterName, ESearchCase::IgnoreCase))
+                {
+                    TargetHandle = &Handle;
+                    break;
+                }
+            }
+
+            if (!TargetHandle)
+            {
+                OutMetadata->SetStringField(TEXT("modules_error"), FString::Printf(TEXT("Emitter '%s' not found"), *EmitterName));
+            }
+            else
+            {
+                FVersionedNiagaraEmitterData* EmitterData = TargetHandle->GetEmitterData();
+                if (EmitterData)
+                {
+                    // Helper lambda to extract full module details
+                    auto ExtractModulesFromScript = [](UNiagaraScript* Script, const FString& StageName) -> TArray<TSharedPtr<FJsonValue>>
+                    {
+                        TArray<TSharedPtr<FJsonValue>> ModulesArray;
+                        if (!Script)
+                        {
+                            return ModulesArray;
+                        }
+
+                        UNiagaraScriptSource* ScriptSource = Cast<UNiagaraScriptSource>(Script->GetLatestSource());
+                        if (!ScriptSource || !ScriptSource->NodeGraph)
+                        {
+                            return ModulesArray;
+                        }
+
+                        for (UEdGraphNode* Node : ScriptSource->NodeGraph->Nodes)
+                        {
+                            UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Node);
+                            if (FunctionNode)
+                            {
+                                TSharedPtr<FJsonObject> ModuleObj = MakeShared<FJsonObject>();
+                                ModuleObj->SetStringField(TEXT("name"), FunctionNode->GetFunctionName());
+                                ModuleObj->SetStringField(TEXT("node_id"), FunctionNode->NodeGuid.ToString());
+                                ModuleObj->SetStringField(TEXT("stage"), StageName);
+
+                                if (UNiagaraScript* FunctionScript = FunctionNode->FunctionScript)
+                                {
+                                    ModuleObj->SetStringField(TEXT("script_path"), FunctionScript->GetPathName());
+                                }
+
+                                ModulesArray.Add(MakeShared<FJsonValueObject>(ModuleObj));
+                            }
+                        }
+                        return ModulesArray;
+                    };
+
+                    TSharedPtr<FJsonObject> ModulesObj = MakeShared<FJsonObject>();
+                    ModulesObj->SetStringField(TEXT("emitter_name"), EmitterName);
+                    ModulesObj->SetStringField(TEXT("stage"), Stage);
+
+                    if (Stage.Equals(TEXT("Spawn"), ESearchCase::IgnoreCase))
+                    {
+                        ModulesObj->SetArrayField(TEXT("modules"), ExtractModulesFromScript(EmitterData->SpawnScriptProps.Script, TEXT("Spawn")));
+                    }
+                    else if (Stage.Equals(TEXT("Update"), ESearchCase::IgnoreCase))
+                    {
+                        ModulesObj->SetArrayField(TEXT("modules"), ExtractModulesFromScript(EmitterData->UpdateScriptProps.Script, TEXT("Update")));
+                    }
+                    else if (Stage.Equals(TEXT("Render"), ESearchCase::IgnoreCase))
+                    {
+                        // Extract renderers
+                        TArray<TSharedPtr<FJsonValue>> RenderersArray;
+                        for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+                        {
+                            if (Renderer)
+                            {
+                                TSharedPtr<FJsonObject> RendererObj = MakeShared<FJsonObject>();
+                                RendererObj->SetStringField(TEXT("name"), Renderer->GetName());
+                                RendererObj->SetStringField(TEXT("type"), Renderer->GetClass()->GetName());
+                                RendererObj->SetBoolField(TEXT("enabled"), Renderer->GetIsEnabled());
+                                RenderersArray.Add(MakeShared<FJsonValueObject>(RendererObj));
+                            }
+                        }
+                        ModulesObj->SetArrayField(TEXT("modules"), RenderersArray);
+                    }
+                    else
+                    {
+                        OutMetadata->SetStringField(TEXT("modules_error"), FString::Printf(TEXT("Invalid stage '%s'. Use 'Spawn', 'Update', or 'Render'"), *Stage));
+                    }
+
+                    if (!OutMetadata->HasField(TEXT("modules_error")))
+                    {
+                        OutMetadata->SetObjectField(TEXT("modules"), ModulesObj);
+                    }
+                }
+            }
+        }
     }
 
     // Renderers - extract from each emitter in the system

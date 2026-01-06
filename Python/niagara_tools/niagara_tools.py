@@ -88,15 +88,25 @@ def register_niagara_tools(mcp: FastMCP):
 
         Args:
             asset_path: Path to the Niagara asset
-            fields: Filter: "emitters"|"modules"|"parameters"|"renderers"|"status"|"module_inputs"|"*"
-            emitter_name: Required for "module_inputs" field - name of the emitter
+            fields: Filter fields to include:
+                - "emitters": All emitter handles (no filter required)
+                - "module_list": Compact module summary for all emitters (no filter required)
+                - "modules": Detailed modules (requires emitter_name + stage)
+                - "parameters": Exposed system parameters (no filter required)
+                - "renderers": Renderers by emitter (no filter required)
+                - "status": Compilation status (no filter required)
+                - "module_inputs": Detailed inputs for one module (requires emitter_name, module_name, stage)
+                - "*": All fields except modules (default if None)
+            emitter_name: Required for "modules" and "module_inputs" fields - name of the emitter
             module_name: Required for "module_inputs" field - name of the module
-            stage: Required for "module_inputs" field - "Spawn"|"Update"|"Event"
+            stage: Required for "modules" field - "Spawn"|"Update"|"Render"
+                   Required for "module_inputs" field - "Spawn"|"Update"|"Event"
 
         Returns:
             For Systems:
                 - emitters[]: List of emitter handles (name, id, enabled, emitter_path)
-                - modules_by_emitter[]: Modules per emitter (spawn_modules, update_modules)
+                - module_list[]: Compact summary per emitter (spawn_modules[], update_modules[] as names only)
+                - modules{}: Detailed modules for one emitter/stage (requires filters)
                 - renderers_by_emitter[]: Renderers per emitter (name, type, enabled, renderer_count)
                 - parameters[]: Exposed system parameters
                 - compile_status: "Valid" or "Invalid"
@@ -112,6 +122,9 @@ def register_niagara_tools(mcp: FastMCP):
 
         Example:
             get_niagara_metadata("/Game/VFX/NS_Fire", ["renderers"])
+            get_niagara_metadata("/Game/VFX/NS_Fire", ["module_list"])
+            get_niagara_metadata("/Game/VFX/NS_Fire", ["modules"],
+                                 emitter_name="FireCore", stage="Spawn")
             get_niagara_metadata("/Game/VFX/NS_Fire", ["module_inputs"],
                                  emitter_name="FireCore", module_name="SpawnRate", stage="Spawn")
         """

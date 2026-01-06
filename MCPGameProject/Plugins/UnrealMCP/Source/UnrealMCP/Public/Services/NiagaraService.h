@@ -41,7 +41,7 @@ public:
     virtual UNiagaraSystem* CreateSystem(const FNiagaraSystemCreationParams& Params, FString& OutSystemPath, FString& OutError) override;
     virtual UNiagaraEmitter* CreateEmitter(const FNiagaraEmitterCreationParams& Params, FString& OutEmitterPath, FString& OutError) override;
     virtual bool AddEmitterToSystem(const FString& SystemPath, const FString& EmitterPath, const FString& EmitterName, FGuid& OutEmitterHandleId, FString& OutError) override;
-    virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) override;
+    virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName = TEXT(""), const FString& Stage = TEXT("")) override;
     virtual bool GetModuleInputs(const FString& SystemPath, const FString& EmitterName, const FString& ModuleName, const FString& Stage, TSharedPtr<FJsonObject>& OutInputs) override;
     virtual bool CompileAsset(const FString& AssetPath, FString& OutError) override;
 
@@ -157,8 +157,10 @@ private:
      * @param System - System to get metadata from
      * @param Fields - Optional fields filter
      * @param OutMetadata - Output JSON object
+     * @param EmitterName - Optional emitter name filter (required for "modules" field)
+     * @param Stage - Optional stage filter for "modules" field
      */
-    void AddSystemMetadata(UNiagaraSystem* System, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) const;
+    void AddSystemMetadata(UNiagaraSystem* System, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName = TEXT(""), const FString& Stage = TEXT("")) const;
 
     /**
      * Add emitter metadata to JSON object
