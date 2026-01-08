@@ -834,6 +834,105 @@ bool FProjectService::CreateEnum(const FString& EnumName, const FString& Path, c
     return true;
 }
 
+bool FProjectService::UpdateEnum(const FString& EnumName, const FString& Path, const FString& Description, const TArray<FString>& Values, const TMap<FString, FString>& ValueDescriptions, FString& OutError)
+{
+    // Validate that we have at least one value
+    if (Values.Num() == 0)
+    {
+        OutError = TEXT("At least one enum value is required");
+        return false;
+    }
+
+    // Build the asset path
+    FString PackagePath = Path;
+    if (!PackagePath.EndsWith(TEXT("/")))
+    {
+        PackagePath += TEXT("/");
+    }
+    FString PackageName = PackagePath + EnumName;
+
+    // Check if the enum exists
+    if (!UEditorAssetLibrary::DoesAssetExist(PackageName))
+    {
+        OutError = FString::Printf(TEXT("Enum does not exist: %s"), *PackageName);
+        return false;
+    }
+
+    // Load the existing enum
+    UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(PackageName);
+    UUserDefinedEnum* ExistingEnum = Cast<UUserDefinedEnum>(LoadedAsset);
+    if (!ExistingEnum)
+    {
+        OutError = FString::Printf(TEXT("Failed to load enum: %s"), *PackageName);
+        return false;
+    }
+
+    // Update the enum description if provided
+    if (!Description.IsEmpty())
+    {
+#if WITH_EDITORONLY_DATA
+        ExistingEnum->EnumDescription = FText::FromString(Description);
+#endif
+        ExistingEnum->SetMetaData(TEXT("ToolTip"), *Description);
+    }
+
+    // Remove all existing enumerators (except MAX)
+    // Work backwards to avoid index shifting
+    int32 CurrentCount = ExistingEnum->NumEnums() - 1; // -1 to skip MAX
+    for (int32 i = CurrentCount - 1; i >= 0; --i)
+    {
+        FEnumEditorUtils::RemoveEnumeratorFromUserDefinedEnum(ExistingEnum, i);
+    }
+
+    // Add the new enumerators
+    for (int32 i = 0; i < Values.Num(); ++i)
+    {
+        // Add a new enumerator (creates with default name like NewEnumerator0)
+        FEnumEditorUtils::AddNewEnumeratorForUserDefinedEnum(ExistingEnum);
+
+        // Get the index of the newly added enumerator (it's added at the end, before MAX)
+        int32 NewIndex = ExistingEnum->NumEnums() - 2; // -1 for MAX, -1 for 0-based
+
+        // Set the display name for this enumerator
+        FText DisplayName = FText::FromString(Values[i]);
+        FEnumEditorUtils::SetEnumeratorDisplayName(ExistingEnum, NewIndex, DisplayName);
+    }
+
+    // Set per-value descriptions (tooltips) if provided
+    if (ValueDescriptions.Num() > 0)
+    {
+        for (int32 i = 0; i < ExistingEnum->NumEnums() - 1; ++i) // -1 to skip _MAX
+        {
+            FText DisplayNameText = ExistingEnum->GetDisplayNameTextByIndex(i);
+            FString DisplayNameStr = DisplayNameText.ToString();
+
+            if (const FString* ValueDesc = ValueDescriptions.Find(DisplayNameStr))
+            {
+                if (!ValueDesc->IsEmpty())
+                {
+                    ExistingEnum->SetMetaData(TEXT("ToolTip"), **ValueDesc, i);
+                }
+            }
+        }
+    }
+
+    // Mark the enum as modified and save
+    ExistingEnum->Modify();
+    ExistingEnum->MarkPackageDirty();
+    UPackage* Package = ExistingEnum->GetPackage();
+    if (Package)
+    {
+        Package->MarkPackageDirty();
+    }
+
+    // Save the asset
+    UEditorAssetLibrary::SaveAsset(PackageName, false);
+
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Updated enum '%s' with %d values"), *EnumName, Values.Num());
+
+    return true;
+}
+
 // Enhanced Input methods - placeholder implementations
 bool FProjectService::CreateEnhancedInputAction(const FString& ActionName, const FString& Path, const FString& Description, const FString& ValueType, FString& OutAssetPath, FString& OutError)
 {
