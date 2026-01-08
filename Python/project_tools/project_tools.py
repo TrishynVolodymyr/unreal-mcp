@@ -424,82 +424,6 @@ def register_project_tools(mcp: FastMCP):
             return {"success": False, "message": error_msg}
 
     @mcp.tool()
-    def update_enum(
-        ctx: Context,
-        enum_name: str,
-        values: List[Dict[str, str]],
-        path: str = "/Game/Blueprints",
-        description: str = ""
-    ) -> Dict[str, Any]:
-        """
-        Update an existing Unreal user-defined enum.
-
-        Replaces all existing enum values with the new set of values.
-
-        Args:
-            enum_name: Name of the enum to update (e.g., "E_ItemType")
-            values: List of enum values. Can be either:
-                    - Simple strings: ["Weapon", "Armor", "Consumable"]
-                    - Objects with name and description: [{"name": "Weapon", "description": "Melee or ranged weapons"}]
-            path: Path where the enum exists
-            description: Optional new description for the enum
-
-        Returns:
-            Dictionary with the update status
-
-        Examples:
-            # Update enum with simple string values
-            update_enum(
-                enum_name="E_QuestStatus",
-                values=["Available", "Active", "Completed", "Failed"],
-                path="/Game/Quests/Data"
-            )
-
-            # Update enum with per-value descriptions
-            update_enum(
-                enum_name="E_ItemRarity",
-                values=[
-                    {"name": "Common", "description": "Basic items"},
-                    {"name": "Uncommon", "description": "Better than average"},
-                    {"name": "Rare", "description": "Hard to find items"},
-                    {"name": "Epic", "description": "Very powerful items"},
-                    {"name": "Legendary", "description": "The rarest items"}
-                ],
-                path="/Game/Inventory/Data",
-                description="Item rarity levels"
-            )
-        """
-        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-
-        try:
-            unreal = get_unreal_connection()
-            if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
-                return {"success": False, "message": "Failed to connect to Unreal Engine"}
-
-            params = {
-                "enum_name": enum_name,
-                "values": values,
-                "path": path,
-                "description": description
-            }
-
-            logger.info(f"Updating enum '{enum_name}' with {len(values)} values at '{path}'")
-            response = unreal.send_command("update_enum", params)
-
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-
-            logger.info(f"Enum update response: {response}")
-            return response
-
-        except Exception as e:
-            error_msg = f"Error updating enum: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
-
-    @mcp.tool()
     def get_project_metadata(
         ctx: Context,
         fields: List[str] = None,
@@ -1206,60 +1130,60 @@ def register_project_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
+    # ========================================
+    # DataAsset Tools
+    # ========================================
+
     @mcp.tool()
-    def search_assets(
+    def create_data_asset(
         ctx: Context,
-        search_query: str,
-        asset_type: str = "",
-        path: str = "/Game",
-        max_results: int = 50
+        name: str,
+        asset_class: str,
+        folder_path: str = "/Game",
+        properties: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
-        Search for assets by name with optional type filtering.
+        Create a new DataAsset of a specified class.
 
-        Uses Unreal Engine's Asset Registry for efficient querying across
-        the project content. Supports filtering by asset class type.
+        This tool creates UDataAsset subclass instances, which are useful for
+        storing game configuration data like ability sets, item definitions,
+        character archetypes, etc.
 
         Args:
-            search_query: Name or partial name to search for (case-insensitive)
-            asset_type: Optional asset class filter. Common types:
-                - "Texture2D" or "Texture" - Texture assets
-                - "Material" - Material assets
-                - "MaterialInstance" - Material instances
-                - "StaticMesh" - Static mesh assets
-                - "SkeletalMesh" - Skeletal mesh assets
-                - "SoundWave" or "Sound" - Audio assets
-                - "Blueprint" - Blueprint classes
-                - "WidgetBlueprint" or "Widget" - UMG widget blueprints
-                - "DataTable" - Data table assets
-                - "AnimSequence" or "Animation" - Animation sequences
-                - "NiagaraSystem" or "Niagara" - Niagara particle systems
-            path: Root path to search in (default: "/Game"). Use "/Engine" for engine content.
-            max_results: Maximum number of results to return (default: 50, max: 500)
+            name: Name of the DataAsset to create (e.g., "DA_AbilitySet_Warrior")
+            asset_class: Class name of the DataAsset. Can be:
+                - Simple name: "AbilitySet", "SkillTreeDataAsset"
+                - Full path: "/Script/MyGame.AbilitySet"
+            folder_path: Path where to create the asset (default: "/Game")
+            properties: Optional dict of initial property values to set
 
         Returns:
             Dictionary containing:
-                - success: Whether the search completed
-                - search_query: The query that was used
-                - asset_type: The type filter applied (or "all")
-                - path: The search path
-                - count: Number of matching assets found
-                - total_scanned: Total assets scanned
-                - assets: Array of matching assets, each with:
-                    - name: Asset name
-                    - path: Full asset path
-                    - package_path: Package path
-                    - class_name: Asset class name
+            - success: Whether the DataAsset was created
+            - name: Name of the created asset
+            - asset_class: The class used
+            - folder_path: Where it was created
+            - asset_path: Full path to the created asset
+            - message: Status message
 
         Examples:
-            # Search for noise textures in engine content
-            search_assets(search_query="Noise", asset_type="Texture2D", path="/Engine")
+            # Create an AbilitySet DataAsset
+            create_data_asset(
+                name="DA_AbilitySet_Warrior",
+                asset_class="AbilitySet",
+                folder_path="/Game/Data/Abilities"
+            )
 
-            # Search for all blueprints containing "Player"
-            search_assets(search_query="Player", asset_type="Blueprint")
-
-            # Search for any asset containing "Fire"
-            search_assets(search_query="Fire")
+            # Create a DataAsset with initial properties
+            create_data_asset(
+                name="DA_EnemyConfig_Boss",
+                asset_class="BossAttackPatternDataAsset",
+                folder_path="/Game/Data/Enemies",
+                properties={
+                    "DisplayName": "Corrupted Guardian",
+                    "DifficultyRating": 5
+                }
+            )
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
 
@@ -1270,20 +1194,350 @@ def register_project_tools(mcp: FastMCP):
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
 
             params = {
-                "search_query": search_query,
-                "asset_type": asset_type,
-                "path": path,
-                "max_results": max_results
+                "name": name,
+                "asset_class": asset_class,
+                "folder_path": folder_path
             }
 
-            logger.info(f"Searching assets: query='{search_query}', type='{asset_type}', path='{path}'")
+            if properties:
+                params["properties"] = properties
+
+            logger.info(f"Creating DataAsset '{name}' of class '{asset_class}' at '{folder_path}'")
+            response = unreal.send_command("create_data_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Create DataAsset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error creating DataAsset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def set_data_asset_property(
+        ctx: Context,
+        asset_path: str,
+        property_name: str,
+        property_value: Any
+    ) -> Dict[str, Any]:
+        """
+        Set a property on an existing DataAsset.
+
+        Args:
+            asset_path: Full path to the DataAsset (e.g., "/Game/Data/DA_AbilitySet_Warrior")
+            property_name: Name of the property to set
+            property_value: Value to set (type must match property type)
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the property was set
+            - asset_path: Path to the modified asset
+            - property_name: The property that was modified
+            - message: Status message
+
+        Examples:
+            # Set a string property
+            set_data_asset_property(
+                asset_path="/Game/Data/DA_EnemyConfig",
+                property_name="DisplayName",
+                property_value="Shadow Crawler"
+            )
+
+            # Set a numeric property
+            set_data_asset_property(
+                asset_path="/Game/Data/DA_EnemyConfig",
+                property_name="MaxHealth",
+                property_value=1000.0
+            )
+
+            # Set a boolean property
+            set_data_asset_property(
+                asset_path="/Game/Data/DA_EnemyConfig",
+                property_name="bIsElite",
+                property_value=True
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path,
+                "property_name": property_name,
+                "property_value": property_value
+            }
+
+            logger.info(f"Setting property '{property_name}' on '{asset_path}'")
+            response = unreal.send_command("set_data_asset_property", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Set DataAsset property response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error setting DataAsset property: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def get_data_asset_metadata(
+        ctx: Context,
+        asset_path: str
+    ) -> Dict[str, Any]:
+        """
+        Get metadata and properties from a DataAsset.
+
+        Args:
+            asset_path: Full path to the DataAsset (e.g., "/Game/Data/DA_AbilitySet_Warrior")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the asset was found
+            - asset_path: Path to the asset
+            - metadata: Object containing:
+                - class_name: The DataAsset's class name
+                - properties: Dictionary of property names and values
+                - referenced_assets: List of assets this DataAsset references
+
+        Examples:
+            # Get metadata for an ability set
+            get_data_asset_metadata(asset_path="/Game/Data/DA_AbilitySet_Warrior")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path
+            }
+
+            logger.info(f"Getting metadata for DataAsset '{asset_path}'")
+            response = unreal.send_command("get_data_asset_metadata", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Get DataAsset metadata response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error getting DataAsset metadata: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    # ========================================
+    # Asset Management Tools
+    # ========================================
+
+    @mcp.tool()
+    def rename_asset(
+        ctx: Context,
+        asset_path: str,
+        new_name: str
+    ) -> Dict[str, Any]:
+        """
+        Rename an asset (Blueprint, Widget, DataTable, Material, etc.).
+
+        Args:
+            asset_path: Full path to the asset (e.g., "/Game/Blueprints/BP_OldName")
+            new_name: New name for the asset (e.g., "BP_NewName")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the rename succeeded
+            - old_path: Original asset path
+            - new_name: The new asset name
+            - new_asset_path: Full path to the renamed asset
+            - message: Status message
+
+        Examples:
+            # Rename a Blueprint
+            rename_asset(
+                asset_path="/Game/Blueprints/BP_Enemy",
+                new_name="BP_BasicEnemy"
+            )
+
+            # Rename a DataTable
+            rename_asset(
+                asset_path="/Game/Data/DT_Items",
+                new_name="DT_InventoryItems"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path,
+                "new_name": new_name
+            }
+
+            logger.info(f"Renaming asset '{asset_path}' to '{new_name}'")
+            response = unreal.send_command("rename_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Rename asset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error renaming asset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def move_asset(
+        ctx: Context,
+        asset_path: str,
+        destination_folder: str
+    ) -> Dict[str, Any]:
+        """
+        Move an asset to a different folder.
+
+        Args:
+            asset_path: Full path to the asset (e.g., "/Game/Blueprints/BP_Enemy")
+            destination_folder: Destination folder path (e.g., "/Game/Enemies/Blueprints")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the move succeeded
+            - old_path: Original asset path
+            - destination_folder: The destination folder
+            - new_asset_path: Full path to the moved asset
+            - message: Status message
+
+        Examples:
+            # Move a Blueprint to a different folder
+            move_asset(
+                asset_path="/Game/Blueprints/BP_Enemy",
+                destination_folder="/Game/Enemies/Blueprints"
+            )
+
+            # Organize DataAssets into a subfolder
+            move_asset(
+                asset_path="/Game/Data/DA_AbilitySet",
+                destination_folder="/Game/Data/Abilities"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path,
+                "destination_folder": destination_folder
+            }
+
+            logger.info(f"Moving asset '{asset_path}' to '{destination_folder}'")
+            response = unreal.send_command("move_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Move asset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error moving asset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def search_assets(
+        ctx: Context,
+        pattern: str = None,
+        asset_class: str = None,
+        folder: str = None
+    ) -> Dict[str, Any]:
+        """
+        Search for assets by pattern, class, or folder.
+
+        At least one of pattern, asset_class, or folder must be provided.
+
+        Args:
+            pattern: Wildcard pattern to match asset names (e.g., "BP_Enemy*", "*DataAsset*")
+            asset_class: Filter by asset class (e.g., "Blueprint", "DataTable", "AbilitySet")
+            folder: Search within a specific folder (e.g., "/Game/Enemies")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the search succeeded
+            - count: Number of assets found
+            - assets: Array of asset information, each containing:
+                - name: Asset name
+                - path: Full asset path
+                - class: Asset class
+            - pattern: The pattern used (if provided)
+            - asset_class: The class filter used (if provided)
+            - folder: The folder searched (if provided)
+
+        Examples:
+            # Find all Blueprints starting with BP_Enemy
+            search_assets(pattern="BP_Enemy*", asset_class="Blueprint")
+
+            # Find all DataAssets in a folder
+            search_assets(folder="/Game/Data", asset_class="DataAsset")
+
+            # Find all assets matching a pattern
+            search_assets(pattern="*AbilitySet*")
+
+            # Find all assets of a specific custom class
+            search_assets(asset_class="BossAttackPatternDataAsset")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            if not pattern and not asset_class and not folder:
+                return {"success": False, "message": "At least one of pattern, asset_class, or folder must be provided"}
+
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {}
+            if pattern:
+                params["pattern"] = pattern
+            if asset_class:
+                params["asset_class"] = asset_class
+            if folder:
+                params["folder"] = folder
+
+            logger.info(f"Searching assets with pattern='{pattern}', class='{asset_class}', folder='{folder}'")
             response = unreal.send_command("search_assets", params)
 
             if not response:
                 logger.error("No response from Unreal Engine")
                 return {"success": False, "message": "No response from Unreal Engine"}
 
-            logger.info(f"Search assets response: found {response.get('count', 0)} matches")
+            logger.info(f"Search assets response: found {response.get('count', 0)} assets")
             return response
 
         except Exception as e:

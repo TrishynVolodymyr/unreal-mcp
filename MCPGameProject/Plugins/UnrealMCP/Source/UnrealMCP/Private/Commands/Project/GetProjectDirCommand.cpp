@@ -17,10 +17,15 @@ FString FGetProjectDirCommand::Execute(const FString& Parameters)
     // Get project directory
     FString ProjectDir = ProjectService->GetProjectDirectory();
 
+    // Get project name (used as module name for /Script/{ProjectName} paths)
+    FString ProjectName = FApp::GetProjectName();
+
     // Create success response
     TSharedPtr<FJsonObject> ResponseData = MakeShared<FJsonObject>();
     ResponseData->SetBoolField(TEXT("success"), true);
     ResponseData->SetStringField(TEXT("project_dir"), ProjectDir);
+    ResponseData->SetStringField(TEXT("project_name"), ProjectName);
+    ResponseData->SetStringField(TEXT("module_path"), FString::Printf(TEXT("/Script/%s"), *ProjectName));
 
     // Convert response to JSON string
     FString OutputString;
@@ -28,4 +33,3 @@ FString FGetProjectDirCommand::Execute(const FString& Parameters)
     FJsonSerializer::Serialize(ResponseData.ToSharedRef(), Writer);
     return OutputString;
 }
-

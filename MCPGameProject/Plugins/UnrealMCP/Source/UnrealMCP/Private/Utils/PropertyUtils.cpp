@@ -2,6 +2,7 @@
 #include "Utils/GeometryUtils.h"
 #include "EditorAssetLibrary.h"
 #include "JsonObjectConverter.h"
+#include "Engine/Blueprint.h"
 
 bool FPropertyUtils::SetObjectProperty(UObject* Object, const FString& PropertyName,
                                      const TSharedPtr<FJsonValue>& Value, FString& OutErrorMessage)
@@ -45,18 +46,6 @@ bool FPropertyUtils::SetObjectProperty(UObject* Object, const FString& PropertyN
     else if (Property->IsA<FStrProperty>())
     {
         ((FStrProperty*)Property)->SetPropertyValue(PropertyAddr, Value->AsString());
-        return true;
-    }
-    else if (Property->IsA<FNameProperty>())
-    {
-        FString StringValue = Value->AsString();
-        ((FNameProperty*)Property)->SetPropertyValue(PropertyAddr, FName(*StringValue));
-        return true;
-    }
-    else if (Property->IsA<FTextProperty>())
-    {
-        FString StringValue = Value->AsString();
-        ((FTextProperty*)Property)->SetPropertyValue(PropertyAddr, FText::FromString(StringValue));
         return true;
     }
     else if (Property->IsA<FByteProperty>())
@@ -305,9 +294,100 @@ bool FPropertyUtils::SetObjectProperty(UObject* Object, const FString& PropertyN
         }
         return false;
     }
+    // Handle TSubclassOf<T> properties (FClassProperty) - MUST be checked BEFORE FObjectProperty
+    // because FClassProperty inherits from FObjectProperty
+    else if (FClassProperty* ClassProp = CastField<FClassProperty>(Property))
+    {
+        if (Value->Type == EJson::String)
+        {
+            FString ClassPath = Value->AsString();
+
+            if (ClassPath.IsEmpty())
+            {
+                // Set to nullptr for empty string
+                ClassProp->SetObjectPropertyValue(PropertyAddr, nullptr);
+                UE_LOG(LogTemp, Display, TEXT("Set class property %s to nullptr"), *PropertyName);
+                return true;
+            }
+
+            UClass* ClassValue = nullptr;
+
+            // If path looks like a Blueprint path (starts with /Game/), handle specially
+            if (ClassPath.StartsWith(TEXT("/Game/")))
+            {
+                FString BlueprintPath = ClassPath;
+
+                // Remove _C suffix if present to get the Blueprint asset path
+                if (BlueprintPath.EndsWith(TEXT("_C")))
+                {
+                    // Path format: /Game/Path/Name.Name_C -> /Game/Path/Name
+                    int32 DotIndex;
+                    if (BlueprintPath.FindLastChar('.', DotIndex))
+                    {
+                        BlueprintPath = BlueprintPath.Left(DotIndex);
+                    }
+                }
+
+                // Try loading as Blueprint first
+                UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *BlueprintPath);
+                if (Blueprint && Blueprint->GeneratedClass)
+                {
+                    ClassValue = Blueprint->GeneratedClass;
+                    UE_LOG(LogTemp, Display, TEXT("Loaded Blueprint class for %s: %s -> %s"),
+                          *PropertyName, *ClassPath, *ClassValue->GetName());
+                }
+                else
+                {
+                    // Try loading the _C path directly as a class
+                    ClassValue = LoadClass<UObject>(nullptr, *ClassPath);
+                    if (ClassValue)
+                    {
+                        UE_LOG(LogTemp, Display, TEXT("Loaded class directly for %s: %s"),
+                              *PropertyName, *ClassPath);
+                    }
+                }
+            }
+            else
+            {
+                // Try loading as a native class path (e.g., /Script/Engine.Actor)
+                ClassValue = LoadClass<UObject>(nullptr, *ClassPath);
+                if (ClassValue)
+                {
+                    UE_LOG(LogTemp, Display, TEXT("Loaded native class for %s: %s"),
+                          *PropertyName, *ClassPath);
+                }
+            }
+
+            if (!ClassValue)
+            {
+                OutErrorMessage = FString::Printf(TEXT("Could not load class from path: %s"), *ClassPath);
+                return false;
+            }
+
+            // Validate class compatibility with TSubclassOf constraint
+            UClass* MetaClass = ClassProp->MetaClass;
+            if (MetaClass && !ClassValue->IsChildOf(MetaClass))
+            {
+                OutErrorMessage = FString::Printf(TEXT("Class '%s' is not a subclass of '%s'"),
+                                                 *ClassValue->GetName(), *MetaClass->GetName());
+                return false;
+            }
+
+            ClassProp->SetObjectPropertyValue(PropertyAddr, ClassValue);
+            UE_LOG(LogTemp, Display, TEXT("Set class property %s to %s"),
+                  *PropertyName, *ClassValue->GetPathName());
+            return true;
+        }
+        else
+        {
+            OutErrorMessage = FString::Printf(TEXT("Class property %s requires a string path value"), *PropertyName);
+            return false;
+        }
+    }
+    // Handle object references (like DataTable, Blueprint classes, etc.)
+    // NOTE: This MUST come after FClassProperty check because FClassProperty inherits from FObjectProperty
     else if (FObjectProperty* ObjectProp = CastField<FObjectProperty>(Property))
     {
-        // Handle object references (like DataTable, Blueprint classes, etc.)
         if (Value->Type == EJson::String)
         {
             FString AssetPath = Value->AsString();

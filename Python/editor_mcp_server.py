@@ -3,132 +3,72 @@ Editor MCP Server
 
 Exposes Editor-related tools for Unreal Engine via MCP.
 
-## Tools
+## Self-Documentation
 
-- get_actors_in_level()
-    Get a list of all actors in the current level.
-- find_actors_by_name(pattern)
-    Find actors by name pattern.
-- spawn_actor(name, type, location=None, rotation=None)
-    Create a new basic Unreal Engine actor in the current level.
-- delete_actor(name)
-    Delete an actor by name.
-- set_actor_transform(name, location=None, rotation=None, scale=None)
-    Set the transform of an actor.
-- get_actor_properties(name)
-    Get all properties of an actor.
-- set_actor_property(name, property_name, property_value)
-    Set a property on an actor.
-- set_light_property(name, property_name, property_value)
-    Set a property on a light component.
+Use get_mcp_help() to discover available tools and their capabilities:
+    get_mcp_help()                              # List all tools
+    get_mcp_help(tool_name="spawn_actor")       # Detailed help for specific tool
 
-## Editor Tools
-### Viewport and Screenshots
-- `focus_viewport(target, location, distance, orientation)` - Focus viewport
-- `take_screenshot(filename, show_ui, resolution)` - Capture screenshots
+## spawn_actor - Comprehensive Actor Spawning
 
-### Actor Management
-- **get_actors_in_level()**
-  
-  Get a list of all actors in the current level.
-  
-  Returns: List of actors in the current level with their properties.
-  
-  Example:
-    actors = get_actors_in_level()
-    for actor in actors:
-        print(actor["name"])
+Supports all common actor types with type-specific configuration:
 
-- **find_actors_by_name(pattern)**
-  
-  Find actors by name pattern (supports wildcards using *).
-  
-  Args:
-    - pattern (str): Name pattern to search for
-  
-  Returns: List of actor names matching the pattern.
-  
-  Example:
-    lights = find_actors_by_name("*PointLight*")
-    player = find_actors_by_name("Player*")
+TYPE RESOLUTION:
+    1. Friendly names: StaticMeshActor, TriggerBox, PlayerStart, etc.
+    2. Blueprint paths: "Blueprint:/Game/Path/To/BP_Name"
+    3. Native class paths: "Class:/Script/Engine.TriggerBox"
+    4. Direct paths: "/Game/Path/To/BP_Name"
 
-- **spawn_actor(name, type, location=None, rotation=None)**
-  
-  Create a new basic Unreal Engine actor in the current level (built-in types only).
-  
-  Args:
-    - name (str): The name to give the new actor (must be unique)
-    - type (str): The type of built-in actor to create (StaticMeshActor, PointLight, SpotLight, DirectionalLight, CameraActor)
-    - location (list): The [x, y, z] world location to spawn at
-    - rotation (list): The [pitch, yaw, roll] rotation in degrees
-  
-  Returns: Dict containing the created actor's properties.
-  
-  Example:
-    spawn_actor(name="MyLight", type="PointLight")
-    spawn_actor(name="MyCube", type="StaticMeshActor", location=[100, 200, 50], rotation=[0, 45, 0])
+SUPPORTED TYPES:
+    Basic Actors:
+        StaticMeshActor, PointLight, SpotLight, DirectionalLight, CameraActor
 
-- **delete_actor(name)**
-  
-  Delete an actor by name.
-  
-  Args:
-    - name (str): Name of the actor to delete
-  
-  Returns: Dict containing response information.
-  
-  Example:
-    delete_actor(name="MyCube")
+    Volumes/BSP:
+        TriggerBox, TriggerSphere, TriggerCapsule, BlockingVolume,
+        NavMeshBoundsVolume, PhysicsVolume, AudioVolume, PostProcessVolume,
+        LightmassImportanceVolume, KillZVolume, PainCausingVolume
 
-- **set_actor_transform(name, location=None, rotation=None, scale=None)**
-  
-  Set the transform of an actor.
-  
-  Args:
-    - name (str): Name of the actor
-    - location (list): Optional [X, Y, Z] position
-    - rotation (list): Optional [Pitch, Yaw, Roll] rotation in degrees
-    - scale (list): Optional [X, Y, Z] scale
-  
-  Returns: Dict containing response information.
-  
-  Example:
-    set_actor_transform(name="MyCube", location=[100, 200, 50])
-    set_actor_transform(name="MyCube", rotation=[0, 0, 45])
-    set_actor_transform(name="MyCube", scale=[2.0, 2.0, 2.0])
-    set_actor_transform(name="MyCube", location=[100, 200, 50], rotation=[0, 0, 45], scale=[2.0, 2.0, 2.0])
+    Utility Actors:
+        TextRenderActor, PlayerStart, TargetPoint, DecalActor, Note,
+        ExponentialHeightFog, SkyLight, SphereReflectionCapture, BoxReflectionCapture
 
-- **get_actor_properties(name)**
-  
-  Get all properties of an actor.
-  
-  Args:
-    - name (str): Name of the actor
-  
-  Returns: Dict containing actor properties.
-  
-  Example:
-    props = get_actor_properties(name="MyCube")
-    print(props["transform"]["location"])
+BASICSHAPES (for mesh_path):
+    /Engine/BasicShapes/Cube, /Engine/BasicShapes/Sphere,
+    /Engine/BasicShapes/Cylinder, /Engine/BasicShapes/Cone, /Engine/BasicShapes/Plane
 
-- **set_actor_property(name, property_name, property_value)**
-  
-  Set a property on an actor.
-  
-  Args:
-    - name (str): Name of the actor
-    - property_name (str): Name of the property to set
-    - property_value: Value to set the property to (various types)
-  
-  Returns: Dict containing response information.
-  
-  Example:
-    set_actor_property(name="MyPointLight", property_name="LightColor", property_value=[255, 0, 0, 255])
-    set_actor_property(name="MyCube", property_name="Mobility", property_value="Movable")
-    set_actor_property(name="MyCube", property_name="bHidden", property_value=True)
-    set_actor_property(name="PointLightTest", property_name="Intensity", property_value=5000.0)
+Examples:
+    # Platform using BasicShapes cube
+    spawn_actor(name="Platform1", type="StaticMeshActor",
+               mesh_path="/Engine/BasicShapes/Cube", scale=[10, 10, 0.5])
 
-See the main server or tool docstrings for argument details and examples.
+    # Text label
+    spawn_actor(name="Label1", type="TextRenderActor",
+               text_content="JUMP HERE", text_size=50)
+
+    # Trigger zone
+    spawn_actor(name="Checkpoint1", type="TriggerBox",
+               box_extent=[200, 200, 100])
+
+    # Player spawn
+    spawn_actor(name="PlayerSpawn", type="PlayerStart")
+
+    # Custom Blueprint
+    spawn_actor(name="MyPortal", type="Blueprint:/Game/Testing/BP_TestPortal")
+
+    # ANY native class
+    spawn_actor(name="Volume", type="Class:/Script/Engine.CameraBlockingVolume")
+
+## Other Tools
+- get_mcp_help(tool_name) - Get help for any tool (START HERE)
+- get_level_metadata() - Get actors and level info
+- delete_actor(name) - Delete an actor
+- set_actor_transform(name, location, rotation, scale) - Set transform
+- get_actor_properties(name) - Get actor properties
+- set_actor_property(name, property_name, value) - Set property
+- set_light_property(name, property_name, value) - Set light property
+- spawn_blueprint_actor() - Legacy Blueprint spawning (use spawn_actor instead)
+
+See tool docstrings for full argument details, or use get_mcp_help(tool_name="...").
 """
 from mcp.server.fastmcp import FastMCP
 from editor_tools.editor_tools import register_editor_tools

@@ -11,6 +11,8 @@
 #include "Commands/Editor/SetActorPropertyCommand.h"
 #include "Commands/Editor/SetLightPropertyCommand.h"
 #include "Commands/Editor/GetLevelMetadataCommand.h"
+#include "Commands/Editor/BatchDeleteActorsCommand.h"
+#include "Commands/Editor/BatchSpawnActorsCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -32,6 +34,10 @@ void FEditorCommandRegistration::RegisterAllCommands()
 
     // Register consolidated metadata command (replaces get_actors_in_level, find_actors_by_name)
     RegisterAndTrackCommand(MakeShared<FGetLevelMetadataCommand>(EditorService));
+
+    // Register batch operations
+    RegisterAndTrackCommand(MakeShared<FBatchDeleteActorsCommand>(EditorService));
+    RegisterAndTrackCommand(MakeShared<FBatchSpawnActorsCommand>(EditorService));
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:

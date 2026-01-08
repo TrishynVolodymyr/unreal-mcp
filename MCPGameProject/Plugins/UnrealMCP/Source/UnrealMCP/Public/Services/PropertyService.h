@@ -38,10 +38,12 @@ private:
      * @param PropertyData - Pointer to property data
      * @param JsonValue - JSON value to convert and set
      * @param OutError - Error message if conversion fails
+     * @param Outer - Optional outer object for creating instanced subobjects
      * @return true if property was set successfully
      */
-    bool SetPropertyFromJson(FProperty* Property, void* PropertyData, 
-                           const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const;
+    bool SetPropertyFromJson(FProperty* Property, void* PropertyData,
+                           const TSharedPtr<FJsonValue>& JsonValue, FString& OutError,
+                           UObject* Outer = nullptr) const;
     
     /**
      * Get property value as JSON with proper type conversion
@@ -97,4 +99,44 @@ private:
      */
     bool SetStructPropertyFromJson(FStructProperty* StructProp, void* PropertyData,
                                    const TSharedPtr<FJsonValue>& JsonValue, FString& OutError) const;
+
+    /**
+     * Set array property values from JSON array
+     * Supports arrays of primitives, structs (including FGameplayTag), and enums
+     * @param ArrayProp - Array property to set
+     * @param PropertyData - Pointer to array property data
+     * @param JsonArray - JSON array of values
+     * @param OutError - Error message if conversion fails
+     * @param Outer - Optional outer object for creating instanced subobjects
+     * @return true if array was set successfully
+     */
+    bool SetArrayPropertyFromJson(FArrayProperty* ArrayProp, void* PropertyData,
+                                  const TArray<TSharedPtr<FJsonValue>>& JsonArray, FString& OutError,
+                                  UObject* Outer = nullptr) const;
+
+    /**
+     * Set array of instanced UObjects from JSON array
+     * Each JSON element must be an object with "_class" specifying the class path
+     * and additional fields for the object's properties.
+     * Example: [{"_class": "/Script/Module.ClassName", "Property1": value}, ...]
+     * @param ArrayProp - Array property (inner must be FObjectProperty)
+     * @param PropertyData - Pointer to array property data
+     * @param JsonArray - JSON array of object definitions
+     * @param Outer - Outer object for creating subobjects
+     * @param OutError - Error message if conversion fails
+     * @return true if array was set successfully
+     */
+    bool SetInstancedObjectArrayFromJson(FArrayProperty* ArrayProp, void* PropertyData,
+                                         const TArray<TSharedPtr<FJsonValue>>& JsonArray,
+                                         UObject* Outer, FString& OutError) const;
+
+    /**
+     * Create a single instanced UObject from JSON definition
+     * @param JsonObject - JSON object with "_class" and property values
+     * @param Outer - Outer object for the new instance
+     * @param OutError - Error message if creation fails
+     * @return Created UObject or nullptr on failure
+     */
+    UObject* CreateInstancedObjectFromJson(const TSharedPtr<FJsonObject>& JsonObject,
+                                           UObject* Outer, FString& OutError) const;
 };

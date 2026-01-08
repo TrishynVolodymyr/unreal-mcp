@@ -1,63 +1,543 @@
+#!/usr/bin/env python3
 """
 Niagara MCP Server
 
-Exposes Niagara VFX-related tools for Unreal Engine via MCP.
-
-## Tools
-
-### Core Asset Management (Feature 1)
-- create_niagara_system(name, path, template)
-    Create a new Niagara System asset.
-- create_niagara_emitter(name, path, template)
-    Create a new standalone Niagara Emitter asset.
-- add_emitter_to_system(system_path, emitter_path, emitter_name)
-    Add an emitter to an existing Niagara System.
-- get_niagara_metadata(asset_path, fields)
-    Get metadata about a Niagara System or Emitter.
-- compile_niagara_asset(asset_path)
-    Compile a Niagara System or Emitter.
-
-### Module System (Feature 2)
-- add_module_to_emitter(system_path, emitter_name, module_path, stage, index)
-    Add a module to a specific stage of an emitter.
-- search_niagara_modules(search_query, stage_filter, max_results)
-    Search available Niagara modules in the asset registry.
-- set_module_input(system_path, emitter_name, module_name, stage, input_name, value, value_type)
-    Set an input value on a module.
-
-### Parameters (Feature 3)
-- add_niagara_parameter(system_path, parameter_name, parameter_type, default_value, scope)
-    Add a parameter to a Niagara System.
-- set_niagara_parameter(system_path, parameter_name, value)
-    Set the default value of a Niagara parameter.
-
-### Data Interfaces (Feature 4)
-- add_data_interface(system_path, emitter_name, interface_type, interface_name)
-    Add a Data Interface to an emitter.
-- set_data_interface_property(system_path, emitter_name, interface_name, property_name, property_value)
-    Set a property on a Data Interface.
-
-### Renderers (Feature 5)
-- add_renderer(system_path, emitter_name, renderer_type, renderer_name)
-    Add a renderer to an emitter.
-- set_renderer_property(system_path, emitter_name, renderer_name, property_name, property_value)
-    Set a property on a renderer.
-
-### Level Integration (Feature 6)
-- spawn_niagara_actor(system_path, actor_name, location, rotation, auto_activate)
-    Spawn a Niagara System actor in the level.
-
-See the main server or tool docstrings for argument details and examples.
+This server provides MCP tools for Niagara VFX operations in Unreal Engine,
+including creating systems, managing emitters, setting parameters, and
+configuring renderers.
 """
-from mcp.server.fastmcp import FastMCP
-from niagara_tools.niagara_tools import register_niagara_tools
 
-mcp = FastMCP(
-    "niagaraMCP",
-    description="Niagara VFX tools for Unreal via MCP"
-)
+import asyncio
+import json
+from typing import Any, Dict, List
 
-register_niagara_tools(mcp)
+from fastmcp import FastMCP
+
+# Initialize FastMCP app
+app = FastMCP("Niagara MCP Server")
+
+# TCP connection settings
+TCP_HOST = "127.0.0.1"
+TCP_PORT = 55557
+
+
+async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Send a command to the Unreal Engine TCP server."""
+    try:
+        # Create the command payload
+        command_data = {
+            "type": command_type,
+            "params": params
+        }
+
+        # Convert to JSON string
+        json_data = json.dumps(command_data)
+
+        # Connect to TCP server
+        reader, writer = await asyncio.open_connection(TCP_HOST, TCP_PORT)
+
+        # Send command
+        writer.write(json_data.encode('utf-8'))
+        writer.write(b'\n')  # Add newline delimiter
+        await writer.drain()
+
+        # Read response
+        response_data = await reader.read(49152)  # Read up to 48KB
+        response_str = response_data.decode('utf-8').strip()
+
+        # Close connection
+        writer.close()
+        await writer.wait_closed()
+
+        # Parse JSON response
+        if response_str:
+            try:
+                return json.loads(response_str)
+            except json.JSONDecodeError as json_err:
+                return {"success": False, "error": f"JSON decode error: {str(json_err)}, Response: {response_str[:200]}"}
+        else:
+            return {"success": False, "error": "Empty response from server"}
+
+    except Exception as e:
+        return {"success": False, "error": f"TCP communication error: {str(e)}"}
+
+
+# ============================================================================
+# Niagara System Creation
+# ============================================================================
+
+@app.tool()
+async def create_niagara_system(
+    name: str,
+    folder_path: str = "",
+    base_system: str = "",
+    auto_activate: bool = True
+) -> Dict[str, Any]:
+    """
+    Create a new Niagara System.
+
+    Niagara Systems are the top-level containers for visual effects, containing
+    one or more emitters that define particle behavior and appearance.
+
+    Args:
+        name: Name of the Niagara System (e.g., "NS_FireExplosion")
+        folder_path: Optional folder path for the asset (e.g., "/Game/Effects/Fire")
+        base_system: Optional path to an existing system to duplicate from
+        auto_activate: Whether the system auto-activates when spawned (default: True)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether creation was successful
+        - name: Name of the created system
+        - path: Full asset path
+        - auto_activate: Whether auto-activate is enabled
+        - message: Success/error message
+
+    Example:
+        create_niagara_system(
+            name="NS_FireExplosion",
+            folder_path="/Game/Effects/Fire",
+            auto_activate=True
+        )
+    """
+    params = {"name": name}
+    if folder_path:
+        params["folder_path"] = folder_path
+    if base_system:
+        params["base_system"] = base_system
+    params["auto_activate"] = auto_activate
+
+    return await send_tcp_command("create_niagara_system", params)
+
+
+@app.tool()
+async def duplicate_niagara_system(
+    source_system: str,
+    new_name: str,
+    folder_path: str = ""
+) -> Dict[str, Any]:
+    """
+    Duplicate an existing Niagara System to create a variation.
+
+    This is useful for creating variations of effects while preserving
+    all emitters, parameters, and configuration.
+
+    Args:
+        source_system: Path or name of the source Niagara System
+        new_name: Name for the new duplicated system
+        folder_path: Optional folder path for the new asset
+
+    Returns:
+        Dictionary containing:
+        - success: Whether duplication was successful
+        - name: Name of the duplicated system
+        - path: Full asset path
+        - message: Success/error message
+
+    Example:
+        duplicate_niagara_system(
+            source_system="NS_FireExplosion",
+            new_name="NS_FireExplosion_Blue",
+            folder_path="/Game/Effects/Fire"
+        )
+    """
+    params = {
+        "source_system": source_system,
+        "new_name": new_name
+    }
+    if folder_path:
+        params["folder_path"] = folder_path
+
+    return await send_tcp_command("duplicate_niagara_system", params)
+
+
+@app.tool()
+async def get_niagara_system_metadata(
+    system: str
+) -> Dict[str, Any]:
+    """
+    Get metadata and configuration from a Niagara System.
+
+    Retrieves information about the system including all emitters,
+    their enabled states, and exposed parameters.
+
+    Args:
+        system: Path or name of the Niagara System
+
+    Returns:
+        Dictionary containing:
+        - success: Whether retrieval was successful
+        - name: System name
+        - path: Full asset path
+        - auto_activate: Whether auto-activate is enabled
+        - emitters: Array of emitter info objects with:
+            - name: Emitter name
+            - path: Emitter asset path
+            - enabled: Whether the emitter is enabled
+
+    Example:
+        get_niagara_system_metadata(system="NS_FireExplosion")
+    """
+    params = {"system": system}
+    return await send_tcp_command("get_niagara_system_metadata", params)
+
+
+@app.tool()
+async def compile_niagara_system(
+    system: str
+) -> Dict[str, Any]:
+    """
+    Compile and save a Niagara System.
+
+    Forces recompilation of all emitters and saves the system asset.
+    Use this after making changes to ensure they're persisted.
+
+    Args:
+        system: Path or name of the Niagara System to compile
+
+    Returns:
+        Dictionary containing:
+        - success: Whether compilation was successful
+        - system: Name of the compiled system
+        - message: Success/error message
+
+    Example:
+        compile_niagara_system(system="NS_FireExplosion")
+    """
+    params = {"system": system}
+    return await send_tcp_command("compile_niagara_system", params)
+
+
+# ============================================================================
+# Emitter Operations
+# ============================================================================
+
+@app.tool()
+async def add_emitter_to_system(
+    system: str,
+    emitter: str
+) -> Dict[str, Any]:
+    """
+    Add an emitter to a Niagara System.
+
+    Emitters define individual particle behaviors within a system.
+    Multiple emitters can be combined for complex effects.
+
+    Args:
+        system: Path or name of the target Niagara System
+        emitter: Path or name of the emitter to add
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the emitter was added successfully
+        - system: Name of the system
+        - emitter: Name of the added emitter
+        - message: Success/error message
+
+    Example:
+        add_emitter_to_system(
+            system="NS_FireExplosion",
+            emitter="/Game/Effects/Emitters/Sparks"
+        )
+    """
+    params = {
+        "system": system,
+        "emitter": emitter
+    }
+    return await send_tcp_command("add_emitter_to_system", params)
+
+
+@app.tool()
+async def remove_emitter_from_system(
+    system: str,
+    emitter: str
+) -> Dict[str, Any]:
+    """
+    Remove an emitter from a Niagara System.
+
+    Args:
+        system: Path or name of the target Niagara System
+        emitter: Name of the emitter to remove (as it appears in the system)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the emitter was removed successfully
+        - system: Name of the system
+        - emitter: Name of the removed emitter
+        - message: Success/error message
+
+    Example:
+        remove_emitter_from_system(
+            system="NS_FireExplosion",
+            emitter="Sparks"
+        )
+    """
+    params = {
+        "system": system,
+        "emitter": emitter
+    }
+    return await send_tcp_command("remove_emitter_from_system", params)
+
+
+@app.tool()
+async def set_emitter_enabled(
+    system: str,
+    emitter: str,
+    enabled: bool = True
+) -> Dict[str, Any]:
+    """
+    Enable or disable an emitter in a Niagara System.
+
+    Disabled emitters remain in the system but don't spawn particles.
+    Useful for creating effect variants without removing emitters.
+
+    Args:
+        system: Path or name of the target Niagara System
+        emitter: Name of the emitter to enable/disable
+        enabled: Whether to enable (True) or disable (False) the emitter
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the operation was successful
+        - system: Name of the system
+        - emitter: Name of the emitter
+        - enabled: The new enabled state
+        - message: Success/error message
+
+    Example:
+        set_emitter_enabled(
+            system="NS_FireExplosion",
+            emitter="Smoke",
+            enabled=False
+        )
+    """
+    params = {
+        "system": system,
+        "emitter": emitter,
+        "enabled": enabled
+    }
+    return await send_tcp_command("set_emitter_enabled", params)
+
+
+# ============================================================================
+# Parameter Operations
+# ============================================================================
+
+@app.tool()
+async def set_niagara_float_param(
+    system: str,
+    param_name: str,
+    value: float
+) -> Dict[str, Any]:
+    """
+    Set a float parameter on a Niagara System.
+
+    Float parameters control numeric values like spawn rates, sizes,
+    lifetimes, speeds, and other scalar properties.
+
+    Args:
+        system: Path or name of the Niagara System
+        param_name: Name of the float parameter (e.g., "SpawnRate", "ParticleSize")
+        value: Float value to set
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the parameter was set successfully
+        - system: Name of the system
+        - param_name: Name of the parameter
+        - value: The value that was set
+        - message: Success/error message
+
+    Example:
+        set_niagara_float_param(
+            system="NS_FireExplosion",
+            param_name="SpawnRate",
+            value=500.0
+        )
+    """
+    params = {
+        "system": system,
+        "param_name": param_name,
+        "value": value
+    }
+    return await send_tcp_command("set_niagara_float_param", params)
+
+
+@app.tool()
+async def set_niagara_vector_param(
+    system: str,
+    param_name: str,
+    x: float,
+    y: float,
+    z: float
+) -> Dict[str, Any]:
+    """
+    Set a vector parameter on a Niagara System.
+
+    Vector parameters control 3D values like velocities, positions,
+    scales, and other directional properties.
+
+    Args:
+        system: Path or name of the Niagara System
+        param_name: Name of the vector parameter (e.g., "InitialVelocity", "SpawnLocation")
+        x: X component of the vector
+        y: Y component of the vector
+        z: Z component of the vector
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the parameter was set successfully
+        - system: Name of the system
+        - param_name: Name of the parameter
+        - value: Array [X, Y, Z] that was set
+        - message: Success/error message
+
+    Example:
+        set_niagara_vector_param(
+            system="NS_FireExplosion",
+            param_name="InitialVelocity",
+            x=0.0, y=0.0, z=500.0
+        )
+    """
+    params = {
+        "system": system,
+        "param_name": param_name,
+        "x": x,
+        "y": y,
+        "z": z
+    }
+    return await send_tcp_command("set_niagara_vector_param", params)
+
+
+@app.tool()
+async def set_niagara_color_param(
+    system: str,
+    param_name: str,
+    r: float,
+    g: float,
+    b: float,
+    a: float = 1.0
+) -> Dict[str, Any]:
+    """
+    Set a color parameter on a Niagara System.
+
+    Color parameters control particle colors, emissive values,
+    and other RGBA properties.
+
+    Args:
+        system: Path or name of the Niagara System
+        param_name: Name of the color parameter (e.g., "ParticleColor", "EmissiveColor")
+        r: Red component (0.0-1.0, can exceed 1.0 for HDR/emissive)
+        g: Green component
+        b: Blue component
+        a: Alpha component (default: 1.0)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the parameter was set successfully
+        - system: Name of the system
+        - param_name: Name of the parameter
+        - value: Array [R, G, B, A] that was set
+        - message: Success/error message
+
+    Example:
+        set_niagara_color_param(
+            system="NS_FireExplosion",
+            param_name="ParticleColor",
+            r=1.0, g=0.5, b=0.0, a=1.0
+        )
+    """
+    params = {
+        "system": system,
+        "param_name": param_name,
+        "r": r,
+        "g": g,
+        "b": b,
+        "a": a
+    }
+    return await send_tcp_command("set_niagara_color_param", params)
+
+
+@app.tool()
+async def get_niagara_parameters(
+    system: str
+) -> Dict[str, Any]:
+    """
+    Get all user-exposed parameters from a Niagara System.
+
+    Returns all parameters that have been exposed for external control,
+    including their current values.
+
+    Args:
+        system: Path or name of the Niagara System
+
+    Returns:
+        Dictionary containing:
+        - success: Whether retrieval was successful
+        - system: Name of the system
+        - path: Full asset path
+        - parameters: Array of parameter info objects with:
+            - name: Parameter name
+            - value: Current value as string
+
+    Example:
+        get_niagara_parameters(system="NS_FireExplosion")
+    """
+    params = {"system": system}
+    return await send_tcp_command("get_niagara_parameters", params)
+
+
+# ============================================================================
+# Renderer Operations
+# ============================================================================
+
+@app.tool()
+async def add_renderer_to_emitter(
+    system: str,
+    emitter: str,
+    renderer_type: str
+) -> Dict[str, Any]:
+    """
+    Add a renderer to an emitter in a Niagara System.
+
+    Renderers define how particles are visually displayed. Different
+    renderer types support different visual styles.
+
+    Args:
+        system: Path or name of the Niagara System
+        emitter: Name of the emitter to add the renderer to
+        renderer_type: Type of renderer to add:
+            - "Sprite": 2D billboard particles (most common)
+            - "Mesh": 3D mesh particles
+            - "Ribbon": Connected trail/ribbon particles
+            - "Light": Light-emitting particles
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the renderer was added successfully
+        - system: Name of the system
+        - emitter: Name of the emitter
+        - renderer_type: Type of renderer added
+        - message: Success/error message
+
+    Example:
+        add_renderer_to_emitter(
+            system="NS_FireExplosion",
+            emitter="Sparks",
+            renderer_type="Sprite"
+        )
+    """
+    params = {
+        "system": system,
+        "emitter": emitter,
+        "renderer_type": renderer_type
+    }
+    return await send_tcp_command("add_renderer_to_emitter", params)
+
+
+# ============================================================================
+# Run Server
+# ============================================================================
 
 if __name__ == "__main__":
-    mcp.run(transport='stdio')
+    app.run()

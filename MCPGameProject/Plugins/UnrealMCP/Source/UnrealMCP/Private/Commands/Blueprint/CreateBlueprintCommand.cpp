@@ -141,82 +141,37 @@ UClass* FCreateBlueprintCommand::ResolveParentClass(const FString& ParentClassNa
 {
     if (ParentClassName.IsEmpty())
     {
-        return AActor::StaticClass(); // Default
+        return AActor::StaticClass(); // Default for empty input
     }
 
-    // First, try to find a Blueprint parent
-    UClass* BlueprintParentClass = FindBlueprintParentClass(ParentClassName);
-    if (BlueprintParentClass)
-    {
-        return BlueprintParentClass;
-    }
+    UE_LOG(LogTemp, Log, TEXT("FCreateBlueprintCommand::ResolveParentClass: Resolving '%s'"), *ParentClassName);
 
-    // Fall back to native C++ class resolution
-    FString ClassName = ParentClassName;
-
-    // Add appropriate prefix if not present
-    if (!ClassName.StartsWith(TEXT("A")) && !ClassName.StartsWith(TEXT("U")))
+    // For explicit /Game/ paths, try Blueprint parent search first
+    // This handles cases like "/Game/Blueprints/BP_BaseItem" as parent
+    if (ParentClassName.StartsWith(TEXT("/Game/")))
     {
-        if (ClassName.EndsWith(TEXT("Component")))
+        UClass* BlueprintParentClass = FindBlueprintParentClass(ParentClassName);
+        if (BlueprintParentClass)
         {
-            ClassName = TEXT("U") + ClassName;
-        }
-        else
-        {
-            ClassName = TEXT("A") + ClassName;
+            UE_LOG(LogTemp, Log, TEXT("FCreateBlueprintCommand::ResolveParentClass: Found via Blueprint search: %s"), *BlueprintParentClass->GetName());
+            return BlueprintParentClass;
         }
     }
 
-    // Try direct StaticClass lookup for common classes
-    if (ClassName == TEXT("APawn"))
+    // For simple names and /Script/ paths, use centralized resolution service
+    // This properly resolves native UObject classes like ItemObject, WeaponObject, DataAsset
+    FString ErrorMessage;
+    UClass* ResolvedClass = FAssetDiscoveryService::Get().ResolveParentClassForBlueprint(ParentClassName, ErrorMessage);
+
+    if (ResolvedClass)
     {
-        return APawn::StaticClass();
-    }
-    else if (ClassName == TEXT("AActor"))
-    {
-        return AActor::StaticClass();
-    }
-    else if (ClassName == TEXT("ACharacter"))
-    {
-        return ACharacter::StaticClass();
-    }
-    else if (ClassName == TEXT("APlayerController"))
-    {
-        return APlayerController::StaticClass();
-    }
-    else if (ClassName == TEXT("AGameModeBase"))
-    {
-        return AGameModeBase::StaticClass();
-    }
-    else if (ClassName == TEXT("UActorComponent"))
-    {
-        return UActorComponent::StaticClass();
-    }
-    else if (ClassName == TEXT("USceneComponent"))
-    {
-        return USceneComponent::StaticClass();
+        UE_LOG(LogTemp, Log, TEXT("FCreateBlueprintCommand::ResolveParentClass: Found via AssetDiscoveryService: %s"), *ResolvedClass->GetName());
+        return ResolvedClass;
     }
 
-    // Try loading from common module paths
-    TArray<FString> ModulePaths = {
-        TEXT("/Script/Engine"),
-        TEXT("/Script/GameplayAbilities"),
-        TEXT("/Script/AIModule"),
-        TEXT("/Script/Game"),
-        TEXT("/Script/CoreUObject")
-    };
-
-    for (const FString& ModulePath : ModulePaths)
-    {
-        const FString ClassPath = FString::Printf(TEXT("%s.%s"), *ModulePath, *ClassName);
-        if (UClass* FoundClass = LoadClass<UObject>(nullptr, *ClassPath))
-        {
-            return FoundClass;
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("FCreateBlueprintCommand::ResolveParentClass: Could not resolve parent class '%s'"), *ParentClassName);
-    return AActor::StaticClass(); // Fallback to Actor
+    // Log the error and fall back to AActor for backward compatibility
+    UE_LOG(LogTemp, Warning, TEXT("FCreateBlueprintCommand::ResolveParentClass: %s - Defaulting to AActor"), *ErrorMessage);
+    return AActor::StaticClass();
 }
 
 UClass* FCreateBlueprintCommand::FindBlueprintParentClass(const FString& ParentClassName) const
