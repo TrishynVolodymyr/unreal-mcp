@@ -26,6 +26,7 @@
 #include "Commands/Material/GetMaterialExpressionMetadataCommand.h"
 #include "Commands/Material/DeleteMaterialExpressionCommand.h"
 #include "Commands/Material/SetMaterialExpressionPropertyCommand.h"
+#include "Commands/Material/CompileMaterialCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FMaterialCommandRegistration::RegisteredCommands;
 
@@ -60,6 +61,7 @@ void FMaterialCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FGetMaterialExpressionMetadataCommand>());
     RegisterAndTrackCommand(MakeShared<FDeleteMaterialExpressionCommand>());
     RegisterAndTrackCommand(MakeShared<FSetMaterialExpressionPropertyCommand>());
+    RegisterAndTrackCommand(MakeShared<FCompileMaterialCommand>());
 
     UE_LOG(LogTemp, Log, TEXT("Registered %d Material commands"), RegisteredCommands.Num());
 }

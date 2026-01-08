@@ -248,3 +248,16 @@ def set_material_expression_property(
 
     logger.info(f"Setting property '{property_name}' on expression {expression_id} to {property_value}")
     return send_unreal_command("set_material_expression_property", params)
+
+
+def compile_material(
+    ctx: Context,
+    material_path: str
+) -> Dict[str, Any]:
+    """Implementation for compiling a material and getting validation info."""
+    params = {
+        "material_path": material_path
+    }
+
+    logger.info(f"Compiling material '{material_path}'")
+    return send_unreal_command("compile_material", params)

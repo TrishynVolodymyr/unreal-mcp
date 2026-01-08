@@ -1,0 +1,399 @@
+#include "Services/MaterialExpressionService.h"
+#include "MaterialEditingLibrary.h"  // Official UE material editing API
+#include "MaterialEditorUtilities.h"
+#include "IMaterialEditor.h"
+#include "MaterialGraph/MaterialGraph.h"
+#include "MaterialGraph/MaterialGraphNode.h"
+#include "MaterialGraph/MaterialGraphSchema.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "Materials/MaterialExpressionConstant.h"
+#include "Materials/MaterialExpressionConstant2Vector.h"
+#include "Materials/MaterialExpressionConstant3Vector.h"
+#include "Materials/MaterialExpressionConstant4Vector.h"
+#include "Materials/MaterialExpressionTextureSample.h"
+#include "Materials/MaterialExpressionTextureSampleParameter2D.h"
+#include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionVectorParameter.h"
+#include "Materials/MaterialExpressionTextureObjectParameter.h"
+#include "Materials/MaterialExpressionComponentMask.h"
+#include "Materials/MaterialExpressionTextureCoordinate.h"
+#include "Materials/MaterialExpressionPanner.h"
+#include "Dom/JsonValue.h"
+#include "Engine/Texture.h"
+
+UMaterialExpression* FMaterialExpressionService::CreateExpressionByType(UMaterial* Material, const FString& TypeName)
+{
+    UClass* ExpressionClass = GetExpressionClassFromTypeName(TypeName);
+    if (!ExpressionClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Unknown expression type: %s"), *TypeName);
+        return nullptr;
+    }
+
+    // Create the expression with the material as the outer
+    UMaterialExpression* NewExpression = NewObject<UMaterialExpression>(Material, ExpressionClass);
+    if (!NewExpression)
+    {
+        return nullptr;
+    }
+
+    // Generate a unique GUID for this expression
+    NewExpression->UpdateMaterialExpressionGuid(true, true);
+
+    return NewExpression;
+}
+
+void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* Expression, const TSharedPtr<FJsonObject>& Properties)
+{
+    if (!Expression || !Properties.IsValid())
+    {
+        return;
+    }
+
+    // Handle Constant expression
+    if (UMaterialExpressionConstant* ConstExpr = Cast<UMaterialExpressionConstant>(Expression))
+    {
+        if (Properties->HasField(TEXT("value")))
+        {
+            ConstExpr->R = Properties->GetNumberField(TEXT("value"));
+        }
+        if (Properties->HasField(TEXT("R")))
+        {
+            ConstExpr->R = Properties->GetNumberField(TEXT("R"));
+        }
+    }
+    // Handle Constant2Vector
+    else if (UMaterialExpressionConstant2Vector* Const2Expr = Cast<UMaterialExpressionConstant2Vector>(Expression))
+    {
+        if (Properties->HasField(TEXT("R")))
+            Const2Expr->R = Properties->GetNumberField(TEXT("R"));
+        if (Properties->HasField(TEXT("G")))
+            Const2Expr->G = Properties->GetNumberField(TEXT("G"));
+    }
+    // Handle Constant3Vector (color)
+    else if (UMaterialExpressionConstant3Vector* Const3Expr = Cast<UMaterialExpressionConstant3Vector>(Expression))
+    {
+        if (Properties->HasField(TEXT("constant")))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* ColorArray;
+            if (Properties->TryGetArrayField(TEXT("constant"), ColorArray) && ColorArray->Num() >= 3)
+            {
+                Const3Expr->Constant.R = (*ColorArray)[0]->AsNumber();
+                Const3Expr->Constant.G = (*ColorArray)[1]->AsNumber();
+                Const3Expr->Constant.B = (*ColorArray)[2]->AsNumber();
+            }
+        }
+    }
+    // Handle Constant4Vector
+    else if (UMaterialExpressionConstant4Vector* Const4Expr = Cast<UMaterialExpressionConstant4Vector>(Expression))
+    {
+        if (Properties->HasField(TEXT("constant")))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* ColorArray;
+            if (Properties->TryGetArrayField(TEXT("constant"), ColorArray) && ColorArray->Num() >= 4)
+            {
+                Const4Expr->Constant.R = (*ColorArray)[0]->AsNumber();
+                Const4Expr->Constant.G = (*ColorArray)[1]->AsNumber();
+                Const4Expr->Constant.B = (*ColorArray)[2]->AsNumber();
+                Const4Expr->Constant.A = (*ColorArray)[3]->AsNumber();
+            }
+        }
+    }
+    // Handle ScalarParameter - support both camelCase and lowercase
+    else if (UMaterialExpressionScalarParameter* ScalarParam = Cast<UMaterialExpressionScalarParameter>(Expression))
+    {
+        if (Properties->HasField(TEXT("parameter_name")) || Properties->HasField(TEXT("ParameterName")))
+        {
+            FString ParamName = Properties->HasField(TEXT("parameter_name"))
+                ? Properties->GetStringField(TEXT("parameter_name"))
+                : Properties->GetStringField(TEXT("ParameterName"));
+            ScalarParam->SetParameterName(FName(*ParamName));
+        }
+        if (Properties->HasField(TEXT("default_value")) || Properties->HasField(TEXT("DefaultValue")))
+        {
+            float NewValue = Properties->HasField(TEXT("default_value"))
+                ? Properties->GetNumberField(TEXT("default_value"))
+                : Properties->GetNumberField(TEXT("DefaultValue"));
+
+            // Set value directly - PostEditChangeProperty is unsafe because expressions
+            // added via EditorData don't have their Material member set, and
+            // ScalarParameter::PostEditChangeProperty broadcasts a delegate that expects Material to be valid.
+            // RecompileMaterial() is called later anyway to handle recompilation.
+            ScalarParam->DefaultValue = NewValue;
+        }
+    }
+    // Handle VectorParameter - support both camelCase and lowercase
+    else if (UMaterialExpressionVectorParameter* VectorParam = Cast<UMaterialExpressionVectorParameter>(Expression))
+    {
+        if (Properties->HasField(TEXT("parameter_name")) || Properties->HasField(TEXT("ParameterName")))
+        {
+            FString ParamName = Properties->HasField(TEXT("parameter_name"))
+                ? Properties->GetStringField(TEXT("parameter_name"))
+                : Properties->GetStringField(TEXT("ParameterName"));
+            VectorParam->SetParameterName(FName(*ParamName));
+        }
+        if (Properties->HasField(TEXT("default_value")) || Properties->HasField(TEXT("DefaultValue")))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* ColorArray;
+            FString FieldName = Properties->HasField(TEXT("default_value")) ? TEXT("default_value") : TEXT("DefaultValue");
+            if (Properties->TryGetArrayField(FieldName, ColorArray) && ColorArray->Num() >= 3)
+            {
+                // Set values directly - PostEditChangeProperty is unsafe (see ScalarParameter comment above)
+                VectorParam->DefaultValue.R = (*ColorArray)[0]->AsNumber();
+                VectorParam->DefaultValue.G = (*ColorArray)[1]->AsNumber();
+                VectorParam->DefaultValue.B = (*ColorArray)[2]->AsNumber();
+                if (ColorArray->Num() >= 4)
+                {
+                    VectorParam->DefaultValue.A = (*ColorArray)[3]->AsNumber();
+                }
+            }
+        }
+    }
+    // Handle TextureSample
+    else if (UMaterialExpressionTextureSample* TextureSampleExpr = Cast<UMaterialExpressionTextureSample>(Expression))
+    {
+        if (Properties->HasField(TEXT("texture")))
+        {
+            FString TexturePath = Properties->GetStringField(TEXT("texture"));
+            UTexture* Texture = LoadObject<UTexture>(nullptr, *TexturePath);
+            if (Texture)
+            {
+                TextureSampleExpr->Texture = Texture;
+            }
+        }
+        // Handle SamplerType property
+        // Values: 0=Color, 1=Grayscale, 2=Alpha, 3=Normal, 4=Masks, 5=DistanceFieldFont, 6=LinearColor, 7=LinearGrayscale
+        if (Properties->HasField(TEXT("SamplerType")) || Properties->HasField(TEXT("sampler_type")))
+        {
+            int32 SamplerTypeValue = Properties->HasField(TEXT("SamplerType"))
+                ? (int32)Properties->GetNumberField(TEXT("SamplerType"))
+                : (int32)Properties->GetNumberField(TEXT("sampler_type"));
+
+            // Use PreEditChange/PostEditChangeProperty for proper notification
+            FProperty* SamplerTypeProp = TextureSampleExpr->GetClass()->FindPropertyByName(TEXT("SamplerType"));
+            if (SamplerTypeProp)
+            {
+                TextureSampleExpr->PreEditChange(SamplerTypeProp);
+                TextureSampleExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
+                FPropertyChangedEvent PropertyChangedEvent(SamplerTypeProp);
+                TextureSampleExpr->PostEditChangeProperty(PropertyChangedEvent);
+            }
+            else
+            {
+                // Fallback if property not found
+                TextureSampleExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
+            }
+        }
+    }
+    // Handle TextureCoordinate
+    else if (UMaterialExpressionTextureCoordinate* TexCoordExpr = Cast<UMaterialExpressionTextureCoordinate>(Expression))
+    {
+        if (Properties->HasField(TEXT("coordinate_index")))
+        {
+            TexCoordExpr->CoordinateIndex = (int32)Properties->GetNumberField(TEXT("coordinate_index"));
+        }
+        if (Properties->HasField(TEXT("u_tiling")))
+        {
+            TexCoordExpr->UTiling = Properties->GetNumberField(TEXT("u_tiling"));
+        }
+        if (Properties->HasField(TEXT("v_tiling")))
+        {
+            TexCoordExpr->VTiling = Properties->GetNumberField(TEXT("v_tiling"));
+        }
+    }
+    // Handle Panner - support both camelCase and lowercase
+    else if (UMaterialExpressionPanner* PannerExpr = Cast<UMaterialExpressionPanner>(Expression))
+    {
+        if (Properties->HasField(TEXT("speed_x")) || Properties->HasField(TEXT("SpeedX")))
+        {
+            PannerExpr->SpeedX = Properties->HasField(TEXT("speed_x"))
+                ? Properties->GetNumberField(TEXT("speed_x"))
+                : Properties->GetNumberField(TEXT("SpeedX"));
+        }
+        if (Properties->HasField(TEXT("speed_y")) || Properties->HasField(TEXT("SpeedY")))
+        {
+            PannerExpr->SpeedY = Properties->HasField(TEXT("speed_y"))
+                ? Properties->GetNumberField(TEXT("speed_y"))
+                : Properties->GetNumberField(TEXT("SpeedY"));
+        }
+    }
+    // Handle ComponentMask
+    else if (UMaterialExpressionComponentMask* MaskExpr = Cast<UMaterialExpressionComponentMask>(Expression))
+    {
+        if (Properties->HasField(TEXT("R")) || Properties->HasField(TEXT("r")))
+        {
+            MaskExpr->R = Properties->HasField(TEXT("R"))
+                ? Properties->GetBoolField(TEXT("R"))
+                : Properties->GetBoolField(TEXT("r"));
+        }
+        if (Properties->HasField(TEXT("G")) || Properties->HasField(TEXT("g")))
+        {
+            MaskExpr->G = Properties->HasField(TEXT("G"))
+                ? Properties->GetBoolField(TEXT("G"))
+                : Properties->GetBoolField(TEXT("g"));
+        }
+        if (Properties->HasField(TEXT("B")) || Properties->HasField(TEXT("b")))
+        {
+            MaskExpr->B = Properties->HasField(TEXT("B"))
+                ? Properties->GetBoolField(TEXT("B"))
+                : Properties->GetBoolField(TEXT("b"));
+        }
+        if (Properties->HasField(TEXT("A")) || Properties->HasField(TEXT("a")))
+        {
+            MaskExpr->A = Properties->HasField(TEXT("A"))
+                ? Properties->GetBoolField(TEXT("A"))
+                : Properties->GetBoolField(TEXT("a"));
+        }
+    }
+}
+
+UMaterialExpression* FMaterialExpressionService::AddExpression(
+    const FMaterialExpressionCreationParams& Params,
+    TSharedPtr<FJsonObject>& OutExpressionInfo,
+    FString& OutError)
+{
+    // Validate parameters
+    if (!Params.IsValid(OutError))
+    {
+        return nullptr;
+    }
+
+    // Find the material
+    UMaterial* Material = FindAndValidateMaterial(Params.MaterialPath, OutError);
+    if (!Material)
+    {
+        return nullptr;
+    }
+
+    // Get expression class
+    UClass* ExpressionClass = GetExpressionClassFromTypeName(Params.ExpressionType);
+    if (!ExpressionClass)
+    {
+        OutError = FString::Printf(TEXT("Unknown expression type: %s"), *Params.ExpressionType);
+        return nullptr;
+    }
+
+    UMaterialExpression* NewExpression = nullptr;
+    FVector2D NodePos(Params.Position.X, Params.Position.Y);
+
+    // Try to use IMaterialEditor if the material is open in an editor
+    // This provides proper UI refresh including SGraphEditor notification
+    // NOTE: Must use UAssetEditorSubsystem->FindEditorForAsset, NOT FMaterialEditorUtilities::GetIMaterialEditorForObject
+    // because GetIMaterialEditorForObject expects an object inside the material (like a graph), not the material itself
+    TSharedPtr<IMaterialEditor> MaterialEditor;
+    if (GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, /*bFocusIfOpen*/ false);
+            if (EditorInstance)
+            {
+                MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(TSharedPtr<IAssetEditorInstance>(EditorInstance, [](IAssetEditorInstance*){}));
+            }
+        }
+    }
+    if (MaterialEditor.IsValid())
+    {
+        // Use the editor's CreateNewMaterialExpression which handles UI refresh properly
+        NewExpression = MaterialEditor->CreateNewMaterialExpression(
+            ExpressionClass,
+            NodePos,
+            /*bAutoSelect*/ false,
+            /*bAutoAssignResource*/ false,
+            Material->MaterialGraph
+        );
+
+        if (NewExpression)
+        {
+            // Ensure expression is in the ExpressionCollection (for proper serialization/querying)
+            UMaterialEditorOnlyData* EditorData = Material->GetEditorOnlyData();
+            if (EditorData && !EditorData->ExpressionCollection.Expressions.Contains(NewExpression))
+            {
+                EditorData->ExpressionCollection.AddExpression(NewExpression);
+            }
+
+            // Apply type-specific properties after creation
+            if (Params.Properties.IsValid())
+            {
+                ApplyExpressionProperties(NewExpression, Params.Properties);
+            }
+
+            // Mark dirty after property changes
+            Material->MarkPackageDirty();
+
+            // IMPORTANT: Refresh the Material Editor UI after creating the expression
+            // CreateNewMaterialExpression handles the initial node creation, but we need
+            // to explicitly refresh for the node to become visible in the graph view
+            if (Material->MaterialGraph)
+            {
+                Material->MaterialGraph->NotifyGraphChanged();
+            }
+            MaterialEditor->UpdateMaterialAfterGraphChange();
+            MaterialEditor->ForceRefreshExpressionPreviews();
+        }
+    }
+    else
+    {
+        // Fallback: Material editor not open, create expression manually
+        NewExpression = CreateExpressionByType(Material, Params.ExpressionType);
+        if (!NewExpression)
+        {
+            OutError = FString::Printf(TEXT("Failed to create expression type: %s"), *Params.ExpressionType);
+            return nullptr;
+        }
+
+        // Set position
+        NewExpression->MaterialExpressionEditorX = (int32)Params.Position.X;
+        NewExpression->MaterialExpressionEditorY = (int32)Params.Position.Y;
+
+        // Apply type-specific properties
+        if (Params.Properties.IsValid())
+        {
+            ApplyExpressionProperties(NewExpression, Params.Properties);
+        }
+
+        // Add to material's expression collection
+        UMaterialEditorOnlyData* EditorData = Material->GetEditorOnlyData();
+        if (EditorData)
+        {
+            EditorData->ExpressionCollection.AddExpression(NewExpression);
+        }
+
+        // Add to the material graph to create the visual node
+        if (Material->MaterialGraph)
+        {
+            Material->MaterialGraph->AddExpression(NewExpression, /*bUserInvoked*/ true);
+        }
+
+        // Recompile the material
+        RecompileMaterial(Material);
+    }
+
+    if (!NewExpression)
+    {
+        OutError = TEXT("Failed to create expression");
+        return nullptr;
+    }
+
+    // Build output info
+    OutExpressionInfo = MakeShared<FJsonObject>();
+    OutExpressionInfo->SetBoolField(TEXT("success"), true);
+    OutExpressionInfo->SetStringField(TEXT("expression_id"), NewExpression->MaterialExpressionGuid.ToString());
+    OutExpressionInfo->SetStringField(TEXT("expression_type"), Params.ExpressionType);
+
+    TArray<TSharedPtr<FJsonValue>> PositionArray;
+    PositionArray.Add(MakeShared<FJsonValueNumber>(NewExpression->MaterialExpressionEditorX));
+    PositionArray.Add(MakeShared<FJsonValueNumber>(NewExpression->MaterialExpressionEditorY));
+    OutExpressionInfo->SetArrayField(TEXT("position"), PositionArray);
+
+    OutExpressionInfo->SetArrayField(TEXT("inputs"), GetInputPinInfo(NewExpression));
+    OutExpressionInfo->SetArrayField(TEXT("outputs"), GetOutputPinInfo(NewExpression));
+    OutExpressionInfo->SetStringField(TEXT("message"), FString::Printf(TEXT("Expression %s added successfully"), *Params.ExpressionType));
+
+    UE_LOG(LogTemp, Log, TEXT("Added expression %s to material %s (via %s)"),
+        *Params.ExpressionType, *Params.MaterialPath,
+        MaterialEditor.IsValid() ? TEXT("MaterialEditor") : TEXT("manual"));
+
+    return NewExpression;
+}

@@ -453,6 +453,9 @@ This is a fork and continuation of the original [unreal-mcp](https://github.com/
 
 **Note:** The original project indicated MIT License in its README. This fork formally adopts and continues under the MIT License with proper attribution to the original author.
 
+### Contributors
+- **[asseti6](https://github.com/asseti6)** - Animation Blueprint support, batch actor operations, enhanced Material Instance tools, Niagara parameter helpers, DataAsset tools, runtime help system
+
 ### Built With
 - [FastMCP](https://github.com/anthropics/fastmcp) - Python MCP framework by Anthropic
 - [Model Context Protocol](https://modelcontextprotocol.io/) - AI integration standard

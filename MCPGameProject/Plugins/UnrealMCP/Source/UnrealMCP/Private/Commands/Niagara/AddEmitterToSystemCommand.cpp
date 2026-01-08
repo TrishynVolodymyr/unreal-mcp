@@ -2,6 +2,9 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "NiagaraSystem.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraRendererProperties.h"
 
 FAddEmitterToSystemCommand::FAddEmitterToSystemCommand(INiagaraService& InNiagaraService)
     : NiagaraService(InNiagaraService)
@@ -32,7 +35,15 @@ FString FAddEmitterToSystemCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(Error);
     }
 
-    return CreateSuccessResponse(EmitterHandleId);
+    // Determine the actual emitter name (either custom name or from the emitter asset)
+    FString ActualEmitterName = Params.EmitterName;
+    if (ActualEmitterName.IsEmpty())
+    {
+        // Extract name from emitter path (e.g., "/Game/VFX/NE_Fire" -> "NE_Fire")
+        ActualEmitterName = FPaths::GetBaseFilename(Params.EmitterPath);
+    }
+
+    return CreateSuccessResponse(EmitterHandleId, Params.SystemPath, ActualEmitterName);
 }
 
 FString FAddEmitterToSystemCommand::GetCommandName() const
@@ -88,12 +99,62 @@ bool FAddEmitterToSystemCommand::ParseParameters(const FString& JsonString, FAdd
     return true;
 }
 
-FString FAddEmitterToSystemCommand::CreateSuccessResponse(const FGuid& EmitterHandleId) const
+FString FAddEmitterToSystemCommand::CreateSuccessResponse(const FGuid& EmitterHandleId, const FString& SystemPath, const FString& EmitterName) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
     ResponseObj->SetStringField(TEXT("emitter_handle_id"), EmitterHandleId.ToString());
-    ResponseObj->SetStringField(TEXT("message"), TEXT("Emitter added to system successfully"));
+    ResponseObj->SetStringField(TEXT("emitter_name"), EmitterName);
+
+    // Query the system to get renderer info for the newly added emitter
+    TArray<TSharedPtr<FJsonValue>> RenderersArray;
+    UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *SystemPath);
+    if (System)
+    {
+        // Find the emitter handle we just added
+        for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+        {
+            if (Handle.GetId() == EmitterHandleId)
+            {
+                FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
+                if (EmitterData)
+                {
+                    for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+                    {
+                        if (Renderer)
+                        {
+                            TSharedPtr<FJsonObject> RendererObj = MakeShared<FJsonObject>();
+                            RendererObj->SetStringField(TEXT("name"), Renderer->GetName());
+
+                            // Get simple type name (e.g., "Sprite" from "NiagaraSpriteRendererProperties")
+                            FString TypeName = Renderer->GetClass()->GetName();
+                            TypeName = TypeName.Replace(TEXT("Niagara"), TEXT(""));
+                            TypeName = TypeName.Replace(TEXT("RendererProperties"), TEXT(""));
+                            RendererObj->SetStringField(TEXT("type"), TypeName);
+
+                            RendererObj->SetBoolField(TEXT("enabled"), Renderer->GetIsEnabled());
+                            RenderersArray.Add(MakeShared<FJsonValueObject>(RendererObj));
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    ResponseObj->SetArrayField(TEXT("existing_renderers"), RenderersArray);
+
+    // Add helpful note if renderers exist
+    if (RenderersArray.Num() > 0)
+    {
+        ResponseObj->SetStringField(TEXT("note"),
+            FString::Printf(TEXT("Emitter has %d existing renderer(s). Use set_renderer_property to configure them instead of adding new ones."),
+            RenderersArray.Num()));
+    }
+    else
+    {
+        ResponseObj->SetStringField(TEXT("message"), TEXT("Emitter added to system successfully"));
+    }
 
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

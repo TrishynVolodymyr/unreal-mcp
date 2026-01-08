@@ -604,7 +604,7 @@ async def add_niagara_parameter(
     system: str,
     parameter_name: str,
     parameter_type: str,
-    default_value: str = "",
+    default_value: str | int | float | bool | list = "",
     scope: str = "user"
 ) -> Dict[str, Any]:
     """
@@ -623,12 +623,12 @@ async def add_niagara_parameter(
             - "Bool": Boolean true/false
             - "Vector": 3D vector (X, Y, Z)
             - "LinearColor": RGBA color value
-        default_value: Optional default value as JSON string. Examples:
-            - Float: "100.0"
-            - Int: "5"
-            - Bool: "true"
-            - Vector: "[0.0, 0.0, 100.0]" or "{"x": 0, "y": 0, "z": 100}"
-            - LinearColor: "[1.0, 0.5, 0.0, 1.0]" or "{"r": 1, "g": 0.5, "b": 0, "a": 1}"
+        default_value: Optional default value. Accepts native types or strings:
+            - Float: 100.0 or "100.0"
+            - Int: 5 or "5"
+            - Bool: True or "true"
+            - Vector: [0.0, 0.0, 100.0] or "0,0,100"
+            - LinearColor: [1.0, 0.5, 0.0, 1.0] or "1.0,0.5,0.0,1.0"
         scope: Parameter scope (default: "user"):
             - "user": User-exposed parameter (prefixed with "User.")
             - "system": System-level parameter (prefixed with "System.")
@@ -649,7 +649,7 @@ async def add_niagara_parameter(
             system="NS_FireExplosion",
             parameter_name="SpawnRate",
             parameter_type="Float",
-            default_value="500.0"
+            default_value=500.0
         )
 
         # Add a color parameter with default orange
@@ -657,7 +657,7 @@ async def add_niagara_parameter(
             system="NS_FireExplosion",
             parameter_name="ParticleColor",
             parameter_type="LinearColor",
-            default_value="[1.0, 0.5, 0.0, 1.0]"
+            default_value=[1.0, 0.5, 0.0, 1.0]
         )
 
         # Add a vector parameter for velocity
@@ -665,7 +665,7 @@ async def add_niagara_parameter(
             system="NS_FireExplosion",
             parameter_name="InitialVelocity",
             parameter_type="Vector",
-            default_value="[0.0, 0.0, 200.0]"
+            default_value=[0.0, 0.0, 200.0]
         )
 
         # Add a boolean toggle
@@ -673,7 +673,7 @@ async def add_niagara_parameter(
             system="NS_FireExplosion",
             parameter_name="EnableTrails",
             parameter_type="Bool",
-            default_value="true"
+            default_value=True
         )
     """
     params = {
@@ -682,10 +682,11 @@ async def add_niagara_parameter(
         "parameter_type": parameter_type,
         "scope": scope
     }
-    if default_value:
-        # Ensure default_value is a string even if FastMCP parsed JSON-like input
-        # E.g., "[1.0, 0.5, 0.0, 1.0]" might get parsed as a Python list
-        if isinstance(default_value, (list, dict)):
+    if default_value is not None and default_value != "":
+        # Convert default_value to string format expected by C++
+        if isinstance(default_value, bool):
+            params["default_value"] = "true" if default_value else "false"
+        elif isinstance(default_value, (list, dict)):
             import json
             params["default_value"] = json.dumps(default_value)
         else:

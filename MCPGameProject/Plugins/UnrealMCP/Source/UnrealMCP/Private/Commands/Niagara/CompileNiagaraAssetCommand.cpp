@@ -25,7 +25,8 @@ FString FCompileNiagaraAssetCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(Error);
     }
 
-    return CreateSuccessResponse();
+    // Return success response with any warnings
+    return CreateSuccessResponse(Error);
 }
 
 FString FCompileNiagaraAssetCommand::GetCommandName() const
@@ -66,11 +67,19 @@ bool FCompileNiagaraAssetCommand::ParseParameters(const FString& JsonString, FCo
     return true;
 }
 
-FString FCompileNiagaraAssetCommand::CreateSuccessResponse() const
+FString FCompileNiagaraAssetCommand::CreateSuccessResponse(const FString& Warnings) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
-    ResponseObj->SetStringField(TEXT("message"), TEXT("Asset compiled successfully"));
+
+    if (Warnings.IsEmpty())
+    {
+        ResponseObj->SetStringField(TEXT("message"), TEXT("Asset compiled successfully"));
+    }
+    else
+    {
+        ResponseObj->SetStringField(TEXT("message"), Warnings);
+    }
 
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

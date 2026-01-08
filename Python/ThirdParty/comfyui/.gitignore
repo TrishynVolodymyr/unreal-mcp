@@ -1,0 +1,11 @@
+# Environment configuration (contains user-specific paths)
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/
+.idea/

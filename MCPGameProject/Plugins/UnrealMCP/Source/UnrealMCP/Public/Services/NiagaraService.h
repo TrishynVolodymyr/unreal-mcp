@@ -3,6 +3,9 @@
 #include "CoreMinimal.h"
 #include "Services/INiagaraService.h"
 
+// Log category for Niagara service - shared across all split implementation files
+DECLARE_LOG_CATEGORY_EXTERN(LogNiagaraService, Log, All);
+
 // Forward declarations
 class UNiagaraSystem;
 class UNiagaraEmitter;
@@ -38,7 +41,8 @@ public:
     virtual UNiagaraSystem* CreateSystem(const FNiagaraSystemCreationParams& Params, FString& OutSystemPath, FString& OutError) override;
     virtual UNiagaraEmitter* CreateEmitter(const FNiagaraEmitterCreationParams& Params, FString& OutEmitterPath, FString& OutError) override;
     virtual bool AddEmitterToSystem(const FString& SystemPath, const FString& EmitterPath, const FString& EmitterName, FGuid& OutEmitterHandleId, FString& OutError) override;
-    virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) override;
+    virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName = TEXT(""), const FString& Stage = TEXT("")) override;
+    virtual bool GetModuleInputs(const FString& SystemPath, const FString& EmitterName, const FString& ModuleName, const FString& Stage, TSharedPtr<FJsonObject>& OutInputs) override;
     virtual bool CompileAsset(const FString& AssetPath, FString& OutError) override;
     virtual bool DuplicateSystem(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutNewPath, FString& OutError) override;
 
@@ -49,6 +53,7 @@ public:
     virtual bool AddModule(const FNiagaraModuleAddParams& Params, FString& OutModuleId, FString& OutError) override;
     virtual bool SearchModules(const FString& SearchQuery, const FString& StageFilter, int32 MaxResults, TArray<TSharedPtr<FJsonObject>>& OutModules) override;
     virtual bool SetModuleInput(const FNiagaraModuleInputParams& Params, FString& OutError) override;
+    virtual bool MoveModule(const FNiagaraModuleMoveParams& Params, FString& OutError) override;
 
     // ========================================================================
     // INiagaraService interface implementation - Parameters
@@ -154,8 +159,10 @@ private:
      * @param System - System to get metadata from
      * @param Fields - Optional fields filter
      * @param OutMetadata - Output JSON object
+     * @param EmitterName - Optional emitter name filter (required for "modules" field)
+     * @param Stage - Optional stage filter for "modules" field
      */
-    void AddSystemMetadata(UNiagaraSystem* System, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) const;
+    void AddSystemMetadata(UNiagaraSystem* System, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName = TEXT(""), const FString& Stage = TEXT("")) const;
 
     /**
      * Add emitter metadata to JSON object

@@ -298,7 +298,6 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     TEXT("create_umg_widget_blueprint"),
                     TEXT("bind_widget_component_event"),
                     TEXT("set_text_block_widget_component_binding"),
-                    TEXT("create_parent_and_child_widget_components"),
                     TEXT("add_child_widget_component_to_parent"),
                     TEXT("set_widget_component_placement"),
                     TEXT("add_widget_component_to_widget"),

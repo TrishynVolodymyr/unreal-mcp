@@ -27,6 +27,6 @@ private:
     };
 
     bool ParseParameters(const FString& JsonString, FAddEmitterParams& OutParams, FString& OutError) const;
-    FString CreateSuccessResponse(const FGuid& EmitterHandleId) const;
+    FString CreateSuccessResponse(const FGuid& EmitterHandleId, const FString& SystemPath, const FString& EmitterName) const;
     FString CreateErrorResponse(const FString& ErrorMessage) const;
 };

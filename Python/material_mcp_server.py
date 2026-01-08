@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """
-Material MCP Server
-
-This server provides MCP tools for Material Instance operations in Unreal Engine,
-including creating material instances, setting parameters (scalar, vector, texture),
-batch operations, and metadata retrieval.
+Material MCP Server - Material and Material Instance tools for Unreal Engine.
+Includes: create_material, create_material_instance, set parameters, batch ops.
 """
 
 import asyncio

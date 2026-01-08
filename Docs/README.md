@@ -178,6 +178,9 @@ Many workflows combine multiple tools:
 
 ## 📖 Additional Resources
 
+### Optimization
+- **[Context Optimization Guide](Context-Optimization.md)** - Reduce AI context usage by disabling unused MCP servers and skills
+
 ### Technical Documentation
 - **[Tools](Tools/README.md)** - Technical implementation details and API reference
 - **[Architecture Guide](../MCPGameProject/Plugins/UnrealMCP/Documentation/Architecture_Guide.md)** - C++ plugin architecture

@@ -23,6 +23,10 @@ private:
     {
         FString AssetPath;
         TArray<FString> Fields;
+        // Optional params for module_inputs field
+        FString EmitterName;
+        FString ModuleName;
+        FString Stage;
     };
 
     bool ParseParameters(const FString& JsonString, FGetMetadataParams& OutParams, FString& OutError) const;

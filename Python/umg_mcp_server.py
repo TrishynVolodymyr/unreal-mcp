@@ -67,25 +67,6 @@ Exposes UMG (Widget Blueprint) tools for Unreal Engine via MCP.
   Example:
     add_child_widget_component_to_parent(widget_name="MyWidget", parent_component_name="ContentBorder", child_component_name="HeaderText")
 
-- **create_parent_and_child_widget_components(widget_name, parent_component_name, child_component_name, parent_component_type="Border", child_component_type="TextBlock", parent_position=[0.0, 0.0], parent_size=[300.0, 200.0], child_attributes=None)**
-
-  Create a new parent widget component with a new child component (one parent, one child).
-
-  Args:
-    - widget_name: Name of the target Widget Blueprint
-    - parent_component_name: Name for the new parent component
-    - child_component_name: Name for the new child component
-    - parent_component_type: Type of parent component to create (e.g., "Border", "VerticalBox")
-    - child_component_type: Type of child component to create (e.g., "TextBlock", "Button")
-    - parent_position: [X, Y] position of the parent component
-    - parent_size: [Width, Height] of the parent component
-    - child_attributes: Additional attributes for the child component (content, colors, etc.)
-
-  Returns: Dict containing success status and component creation information
-
-  Example:
-    create_parent_and_child_widget_components(widget_name="MyWidget", parent_component_name="HeaderBorder", child_component_name="TitleText", parent_component_type="Border", child_component_type="TextBlock", parent_position=[50.0, 50.0], parent_size=[400.0, 100.0], child_attributes={"text": "Welcome to My Game", "font_size": 24})
-
 - **set_widget_component_placement(widget_name, component_name, position=None, size=None, alignment=None)**
 
   Change the placement (position/size) of a widget component.

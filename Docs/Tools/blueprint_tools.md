@@ -233,34 +233,6 @@ Set common Pawn properties on a Blueprint.
 }
 ```
 
-### spawn_blueprint_actor
-
-Spawn an actor from a Blueprint.
-
-**Parameters:**
-- `blueprint_name` (string) - The name of the Blueprint to spawn
-- `actor_name` (string) - The name for the spawned actor
-- `location` (array, optional) - [X, Y, Z] coordinates for the actor's position, defaults to [0, 0, 0]
-- `rotation` (array, optional) - [Pitch, Yaw, Roll] values for the actor's rotation, defaults to [0, 0, 0]
-- `scale` (array, optional) - [X, Y, Z] values for the actor's scale, defaults to [1, 1, 1]
-
-**Returns:**
-- Information about the spawned actor including success status and message
-
-**Example:**
-```json
-{
-  "command": "spawn_blueprint_actor",
-  "params": {
-    "blueprint_name": "MyActor",
-    "actor_name": "MyActorInstance",
-    "location": [0, 0, 100],
-    "rotation": [0, 45, 0],
-    "scale": [1, 1, 1]
-  }
-}
-```
-
 ### add_blueprint_variable
 
 Add a variable to a Blueprint. Supports built-in types, arrays, and custom structures.

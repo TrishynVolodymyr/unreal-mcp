@@ -1,8 +1,4 @@
-"""
-Project Tools for Unreal MCP.
-
-This module provides tools for managing project-wide settings and configuration.
-"""
+"""Project Tools for Unreal MCP."""
 
 import logging
 from typing import Dict, Any, List
@@ -11,12 +7,12 @@ from utils.project.struct_operations import create_struct as create_struct_impl
 from utils.project.struct_operations import update_struct as update_struct_impl
 from utils.project.struct_operations import get_project_metadata as get_project_metadata_impl
 
-# Get logger
 logger = logging.getLogger("UnrealMCP")
+
 
 def register_project_tools(mcp: FastMCP):
     """Register project tools with the MCP server."""
-    
+
     @mcp.tool()
     def create_input_mapping(
         ctx: Context,
@@ -26,42 +22,39 @@ def register_project_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Create an input mapping for the project.
-        
+
         Args:
             action_name: Name of the input action
             key: Key to bind (SpaceBar, LeftMouseButton, etc.)
             input_type: Type of input mapping (Action or Axis)
-            
-        Returns:
-            Response indicating success or failure
-        
+
         Example:
             create_input_mapping(action_name="Jump", key="SpaceBar")
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-        
+
         try:
             unreal = get_unreal_connection()
             if not unreal:
                 logger.error("Failed to connect to Unreal Engine")
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
+
             params = {
                 "action_name": action_name,
                 "key": key,
                 "input_type": input_type
             }
-            
+
             logger.info(f"Creating input mapping '{action_name}' with key '{key}'")
             response = unreal.send_command("create_input_mapping", params)
-            
+
             if not response:
                 logger.error("No response from Unreal Engine")
                 return {"success": False, "message": "No response from Unreal Engine"}
-            
+
             logger.info(f"Input mapping creation response: {response}")
             return response
-            
+
         except Exception as e:
             error_msg = f"Error creating input mapping: {e}"
             logger.error(error_msg)
@@ -77,44 +70,41 @@ def register_project_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Create an Enhanced Input Action asset.
-        
+
         Args:
             action_name: Name of the input action (will add IA_ prefix if not present)
             path: Path where to create the action asset
             description: Optional description for the action
-            value_type: Type of input action ("Digital", "Analog", "Axis2D", "Axis3D")
-            
-        Returns:
-            Response indicating success or failure with asset details
-        
+            value_type: "Digital"|"Analog"|"Axis2D"|"Axis3D"
+
         Example:
             create_enhanced_input_action(action_name="Jump", value_type="Digital")
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-        
+
         try:
             unreal = get_unreal_connection()
             if not unreal:
                 logger.error("Failed to connect to Unreal Engine")
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
+
             params = {
                 "action_name": action_name,
                 "path": path,
                 "description": description,
                 "value_type": value_type
             }
-            
+
             logger.info(f"Creating Enhanced Input Action '{action_name}' with value type '{value_type}'")
             response = unreal.send_command("create_enhanced_input_action", params)
-            
+
             if not response:
                 logger.error("No response from Unreal Engine")
                 return {"success": False, "message": "No response from Unreal Engine"}
-            
+
             logger.info(f"Enhanced Input Action creation response: {response}")
             return response
-            
+
         except Exception as e:
             error_msg = f"Error creating Enhanced Input Action: {e}"
             logger.error(error_msg)
@@ -129,42 +119,39 @@ def register_project_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Create an Input Mapping Context asset.
-        
+
         Args:
             context_name: Name of the mapping context (will add IMC_ prefix if not present)
             path: Path where to create the context asset
             description: Optional description for the context
-            
-        Returns:
-            Response indicating success or failure with asset details
-        
+
         Example:
             create_input_mapping_context(context_name="Default")
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-        
+
         try:
             unreal = get_unreal_connection()
             if not unreal:
                 logger.error("Failed to connect to Unreal Engine")
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
+
             params = {
                 "context_name": context_name,
                 "path": path,
                 "description": description
             }
-            
+
             logger.info(f"Creating Input Mapping Context '{context_name}'")
             response = unreal.send_command("create_input_mapping_context", params)
-            
+
             if not response:
                 logger.error("No response from Unreal Engine")
                 return {"success": False, "message": "No response from Unreal Engine"}
-            
+
             logger.info(f"Input Mapping Context creation response: {response}")
             return response
-            
+
         except Exception as e:
             error_msg = f"Error creating Input Mapping Context: {e}"
             logger.error(error_msg)
@@ -183,7 +170,7 @@ def register_project_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Add a key mapping to an Input Mapping Context.
-        
+
         Args:
             context_path: Full path to the Input Mapping Context asset
             action_path: Full path to the Input Action asset
@@ -192,10 +179,7 @@ def register_project_tools(mcp: FastMCP):
             ctrl: Whether Ctrl modifier is required
             alt: Whether Alt modifier is required
             cmd: Whether Cmd modifier is required
-            
-        Returns:
-            Response indicating success or failure
-        
+
         Example:
             add_mapping_to_context(
                 context_path="/Game/Input/IMC_Default",
@@ -204,13 +188,13 @@ def register_project_tools(mcp: FastMCP):
             )
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-        
+
         try:
             unreal = get_unreal_connection()
             if not unreal:
                 logger.error("Failed to connect to Unreal Engine")
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
+
             params = {
                 "context_path": context_path,
                 "action_path": action_path,
@@ -220,17 +204,17 @@ def register_project_tools(mcp: FastMCP):
                 "alt": alt,
                 "cmd": cmd
             }
-            
+
             logger.info(f"Adding mapping for '{key}' to context '{context_path}' -> action '{action_path}'")
             response = unreal.send_command("add_mapping_to_context", params)
-            
+
             if not response:
                 logger.error("No response from Unreal Engine")
                 return {"success": False, "message": "No response from Unreal Engine"}
-            
+
             logger.info(f"Add mapping to context response: {response}")
             return response
-            
+
         except Exception as e:
             error_msg = f"Error adding mapping to context: {e}"
             logger.error(error_msg)
@@ -251,43 +235,40 @@ def register_project_tools(mcp: FastMCP):
             folder_path: Path to create, relative to project root.
                        Use "Content/..." prefix for content browser folders.
 
-        Returns:
-            Dictionary with the creation status and folder path
-            
         Examples:
             # Create a content browser folder
             create_folder(folder_path="Content/MyGameContent")
-            
+
             # Create a regular project folder
             create_folder(folder_path="Intermediate/MyTools")
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
-        
+
         try:
             unreal = get_unreal_connection()
             if not unreal:
                 logger.error("Failed to connect to Unreal Engine")
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
-            
+
             params = {
                 "folder_path": folder_path
             }
-            
+
             logger.info(f"Creating folder: {folder_path}")
             response = unreal.send_command("create_folder", params)
-            
+
             if not response:
                 logger.error("No response from Unreal Engine")
                 return {"success": False, "message": "No response from Unreal Engine"}
-            
+
             logger.info(f"Folder creation response: {response}")
             return response
-            
+
         except Exception as e:
             error_msg = f"Error creating folder: {e}"
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
-    
+
     @mcp.tool()
     def create_struct(
         ctx: Context,
@@ -298,7 +279,7 @@ def register_project_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Create a new Unreal struct.
-        
+
         Args:
             struct_name: Name of the struct to create
             properties: List of property dictionaries, each containing:
@@ -307,10 +288,7 @@ def register_project_tools(mcp: FastMCP):
                         - description: (Optional) Property description
             path: Path where to create the struct
             description: Optional description for the struct
-            
-        Returns:
-            Dictionary with the creation status and struct path
-            
+
         Examples:
             # Create a simple Item struct
             create_struct(
@@ -343,8 +321,6 @@ def register_project_tools(mcp: FastMCP):
                         - description: (Optional) Property description
             path: Path where the struct exists
             description: Optional description for the struct
-        Returns:
-            Dictionary with the update status and struct path
         """
         return update_struct_impl(ctx, struct_name, properties, path, description)
 
@@ -367,30 +343,12 @@ def register_project_tools(mcp: FastMCP):
             path: Path where to create the enum asset
             description: Optional description for the enum (shown in Enum Description field)
 
-        Returns:
-            Dictionary with the creation status and enum path
-
-        Examples:
-            # Simple enum (values as strings)
+        Example:
             create_enum(
                 enum_name="E_ItemType",
                 values=["Weapon", "Armor", "Consumable", "Material", "QuestItem"],
                 path="/Game/Inventory/Data",
                 description="Categories for inventory items"
-            )
-
-            # Enum with per-value descriptions
-            create_enum(
-                enum_name="E_EquipmentSlot",
-                values=[
-                    {"name": "None", "description": "No slot assigned"},
-                    {"name": "Head", "description": "Helmet slot"},
-                    {"name": "Chest", "description": "Body armor slot"},
-                    {"name": "Hands", "description": "Gloves slot"},
-                    {"name": "Feet", "description": "Boots slot"}
-                ],
-                path="/Game/Inventory/Data",
-                description="Equipment slots for equippable items"
             )
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
@@ -422,6 +380,43 @@ def register_project_tools(mcp: FastMCP):
             error_msg = f"Error creating enum: {e}"
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def update_enum(
+        ctx: Context,
+        enum_name: str,
+        values: List[Dict[str, str]],
+        path: str = "/Game/Blueprints",
+        description: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Update an existing Unreal user-defined enum.
+
+        Args:
+            enum_name: Name of the enum to update
+            values: List of enum values
+            path: Path where the enum exists
+            description: Optional new description
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "enum_name": enum_name,
+                "values": values,
+                "path": path,
+                "description": description
+            }
+
+            response = unreal.send_command("update_enum", params)
+            return response if response else {"success": False, "message": "No response from Unreal Engine"}
+
+        except Exception as e:
+            return {"success": False, "message": f"Error updating enum: {e}"}
 
     @mcp.tool()
     def get_project_metadata(
@@ -519,18 +514,8 @@ def register_project_tools(mcp: FastMCP):
                 - type: The field's type
                 - is_guid_name: Whether the pin_name contains a GUID suffix
 
-        Examples:
-            # Get field names for an inventory slot struct
+        Example:
             get_struct_pin_names(struct_name="S_InventorySlot")
-            # Returns: {
-            #     "fields": [
-            #         {"pin_name": "ItemID_ABC123...", "display_name": "ItemID", "type": "Name"},
-            #         {"pin_name": "StackCount_DEF456...", "display_name": "StackCount", "type": "int32"}
-            #     ]
-            # }
-
-            # Get field names using full path
-            get_struct_pin_names(struct_name="/Game/Inventory/Data/S_ItemDefinition")
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
 
@@ -578,41 +563,10 @@ def register_project_tools(mcp: FastMCP):
             destination_path: Optional destination folder path. If not provided, uses the same
                             folder as the source asset.
 
-        Returns:
-            Dictionary containing:
-            - success: Whether the duplication succeeded
-            - source_path: The original asset path
-            - destination_path: The destination folder
-            - new_name: The new asset name
-            - new_asset_path: Full path to the newly created asset
-            - message: Status message
-
-        Examples:
-            # Duplicate an inventory slot to create a loot slot in the same folder
+        Example:
             duplicate_asset(
                 source_path="/Game/Inventory/UI/WBP_InventorySlot",
                 new_name="WBP_LootSlot"
-            )
-
-            # Duplicate to a different folder
-            duplicate_asset(
-                source_path="/Game/Inventory/UI/WBP_InventorySlot",
-                new_name="WBP_LootSlot",
-                destination_path="/Game/Loot/UI"
-            )
-
-            # Duplicate a Blueprint actor
-            duplicate_asset(
-                source_path="/Game/Blueprints/BP_BaseEnemy",
-                new_name="BP_BossEnemy",
-                destination_path="/Game/Blueprints/Enemies"
-            )
-
-            # Duplicate a DataTable
-            duplicate_asset(
-                source_path="/Game/Data/DT_Items",
-                new_name="DT_LootItems",
-                destination_path="/Game/Loot/Data"
             )
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
@@ -1162,28 +1116,7 @@ def register_project_tools(mcp: FastMCP):
             - success: Whether the DataAsset was created
             - name: Name of the created asset
             - asset_class: The class used
-            - folder_path: Where it was created
             - asset_path: Full path to the created asset
-            - message: Status message
-
-        Examples:
-            # Create an AbilitySet DataAsset
-            create_data_asset(
-                name="DA_AbilitySet_Warrior",
-                asset_class="AbilitySet",
-                folder_path="/Game/Data/Abilities"
-            )
-
-            # Create a DataAsset with initial properties
-            create_data_asset(
-                name="DA_EnemyConfig_Boss",
-                asset_class="BossAttackPatternDataAsset",
-                folder_path="/Game/Data/Enemies",
-                properties={
-                    "DisplayName": "Corrupted Guardian",
-                    "DifficultyRating": 5
-                }
-            )
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
 
@@ -1542,6 +1475,55 @@ def register_project_tools(mcp: FastMCP):
 
         except Exception as e:
             error_msg = f"Error searching assets: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def capture_viewport_screenshot(
+        ctx: Context,
+        output_path: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Capture a screenshot of the active editor viewport.
+
+        Saves a PNG image of the current viewport and returns the file path.
+        Useful for AI to visually inspect the current state of the scene.
+
+        Args:
+            output_path: Optional full path for the output file. If not provided,
+                        saves to MCPGameProject/Saved/Screenshots/MCP/ with timestamp.
+
+        Returns:
+            Dict with: success, file_path, width, height, message
+
+        Example:
+            capture_viewport_screenshot()
+            capture_viewport_screenshot(output_path="C:/Screenshots/my_screenshot.png")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {}
+            if output_path:
+                params["output_path"] = output_path
+
+            logger.info("Capturing viewport screenshot")
+            response = unreal.send_command("capture_viewport_screenshot", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Viewport screenshot captured: {response.get('file_path', 'unknown')}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error capturing viewport screenshot: {e}"
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 

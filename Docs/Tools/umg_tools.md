@@ -116,43 +116,6 @@ Add a widget component as a child to another component.
 }
 ```
 
-### create_parent_and_child_widget_components
-
-Create a new parent widget component with a new child component.
-
-**Parameters:**
-- `widget_name` (string) - Name of the target Widget Blueprint
-- `parent_component_name` (string) - Name for the new parent component
-- `child_component_name` (string) - Name for the new child component
-- `parent_component_type` (string, optional) - Type of parent component to create, defaults to "Border"
-- `child_component_type` (string, optional) - Type of child component to create, defaults to "TextBlock"
-- `parent_position` (array, optional) - [X, Y] position of the parent component, defaults to [0.0, 0.0]
-- `parent_size` (array, optional) - [Width, Height] of the parent component, defaults to [300.0, 200.0]
-- `child_attributes` (object, optional) - Additional attributes for the child component (content, colors, etc.)
-
-**Returns:**
-- Dict containing success status and component creation information
-
-**Example:**
-```json
-{
-  "command": "create_parent_and_child_widget_components",
-  "params": {
-    "widget_name": "MyWidget",
-    "parent_component_name": "HeaderBorder",
-    "child_component_name": "TitleText",
-    "parent_component_type": "Border",
-    "child_component_type": "TextBlock",
-    "parent_position": [50.0, 50.0],
-    "parent_size": [400.0, 100.0],
-    "child_attributes": {
-      "text": "Welcome to My Game",
-      "font_size": 24
-    }
-  }
-}
-```
-
 ### set_widget_component_placement
 
 Change the placement (position/size) of a widget component.
@@ -364,7 +327,7 @@ The following tools have been removed and replaced by `get_widget_blueprint_meta
 ### Widget Creation Workflow
 
 1. **Create Widget Blueprint**: Use `create_umg_widget_blueprint` to create a new widget
-2. **Add Components**: Use `add_widget_component_to_widget` or `create_parent_and_child_widget_components` to add UI elements
+2. **Add Components**: Use `add_widget_component_to_widget` to add UI elements, then `add_child_widget_component_to_parent` for nesting
 3. **Set Properties**: Use `set_widget_component_property` to configure component appearance and behavior
 4. **Bind Events**: Use `bind_widget_component_event` to handle user interactions
 5. **Verify Layout**: Use `get_widget_blueprint_metadata` with `fields=["layout"]` to inspect the widget structure

@@ -26,6 +26,7 @@
 #include "Commands/Project/RenameAssetCommand.h"
 #include "Commands/Project/MoveAssetCommand.h"
 #include "Commands/Project/SearchAssetsCommand.h"
+#include "Commands/Project/CaptureViewportScreenshotCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -69,6 +70,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register asset management commands
     Registry.RegisterCommand(MakeShared<FDuplicateAssetCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FDeleteAssetCommand>(ProjectService));
+
+    // Register viewport screenshot command
+    Registry.RegisterCommand(MakeShared<FCaptureViewportScreenshotCommand>());
 
     // Register unified font command (recommended - consolidates all font creation methods)
     Registry.RegisterCommand(MakeShared<FCreateFontCommand>(ProjectService));
