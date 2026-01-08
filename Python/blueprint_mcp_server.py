@@ -136,6 +136,43 @@ async def add_blueprint_variable(
     
     return await send_tcp_command("add_blueprint_variable", params)
 
+
+@app.tool()
+async def delete_blueprint_variable(
+    blueprint_name: str,
+    variable_name: str
+) -> Dict[str, Any]:
+    """
+    Delete a variable from a Blueprint.
+
+    Args:
+        blueprint_name: Name of the target Blueprint
+        variable_name: Name of the variable to delete
+
+    Returns:
+        Response indicating success or failure with the deleted variable name
+
+    Examples:
+        # Delete a variable named "Speed" from an Animation Blueprint
+        delete_blueprint_variable(
+            blueprint_name="ABP_LocomotionMM_Base",
+            variable_name="Speed"
+        )
+
+        # Delete an orphaned cached reference variable
+        delete_blueprint_variable(
+            blueprint_name="ABP_Combat_Base",
+            variable_name="CachedPawn"
+        )
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "variable_name": variable_name
+    }
+
+    return await send_tcp_command("delete_blueprint_variable", params)
+
+
 @app.tool()
 async def add_component_to_blueprint(
     blueprint_name: str,

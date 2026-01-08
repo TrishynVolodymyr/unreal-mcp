@@ -45,13 +45,13 @@ public:
 private:
     /** Singleton instance */
     static TUniquePtr<FEditorService> Instance;
-    
+
     /**
      * Get the current editor world
      * @return Editor world or nullptr if not available
      */
     UWorld* GetEditorWorld() const;
-    
+
     /**
      * Spawn actor of specific type
      * @param ActorClass - Class of actor to spawn
@@ -59,13 +59,26 @@ private:
      * @param Location - Spawn location
      * @param Rotation - Spawn rotation
      * @param Scale - Spawn scale
+     * @param Params - Full spawn parameters for type-specific configuration
      * @param OutError - Error message if spawning fails
      * @return Spawned actor or nullptr
      */
-    AActor* SpawnActorOfType(UClass* ActorClass, const FString& Name, const FVector& Location, const FRotator& Rotation, const FVector& Scale, FString& OutError);
-    
+    AActor* SpawnActorOfType(UClass* ActorClass, const FString& Name, const FVector& Location, const FRotator& Rotation, const FVector& Scale, const FActorSpawnParams& Params, FString& OutError);
+
+    /**
+     * Configure spawned actor with type-specific settings
+     * @param NewActor - The spawned actor to configure
+     * @param Params - Parameters containing type-specific configuration
+     */
+    void ConfigureSpawnedActor(AActor* NewActor, const FActorSpawnParams& Params);
+
     /**
      * Get actor class from type string
+     * Supports:
+     *   - Friendly name aliases (StaticMeshActor, TriggerBox, etc.)
+     *   - Blueprint paths: "Blueprint:/Game/Path/BP_Name"
+     *   - Native class paths: "Class:/Script/Engine.TriggerBox"
+     *   - Direct paths: "/Game/Path" (tries Blueprint then Class)
      * @param TypeString - String representation of actor type
      * @return Actor class or nullptr if not found
      */

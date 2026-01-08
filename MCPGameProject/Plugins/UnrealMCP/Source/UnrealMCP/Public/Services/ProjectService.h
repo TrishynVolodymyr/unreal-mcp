@@ -29,6 +29,15 @@ public:
     virtual TArray<TSharedPtr<FJsonObject>> ListInputMappingContexts(const FString& Path, bool& bOutSuccess, FString& OutError) override;
     virtual FString GetProjectDirectory() const override;
     virtual bool DuplicateAsset(const FString& SourcePath, const FString& DestinationPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) override;
+    virtual bool DeleteAsset(const FString& AssetPath, FString& OutError) override;
+    virtual bool RenameAsset(const FString& AssetPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) override;
+    virtual bool MoveAsset(const FString& AssetPath, const FString& DestinationFolder, FString& OutNewAssetPath, FString& OutError) override;
+    virtual TArray<TSharedPtr<FJsonObject>> SearchAssets(const FString& Pattern, const FString& AssetClass, const FString& Folder, bool& bOutSuccess, FString& OutError) override;
+
+    // DataAsset operations
+    virtual bool CreateDataAsset(const FString& Name, const FString& AssetClass, const FString& FolderPath, const TSharedPtr<FJsonObject>& Properties, FString& OutAssetPath, FString& OutError) override;
+    virtual bool SetDataAssetProperty(const FString& AssetPath, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutError) override;
+    virtual TSharedPtr<FJsonObject> GetDataAssetMetadata(const FString& AssetPath, FString& OutError) override;
 
     // Font Face operations (for TTF-based fonts)
     virtual bool CreateFontFace(const FString& FontName, const FString& Path, const FString& SourceTexturePath, bool bUseSDF, int32 DistanceFieldSpread, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError) override;

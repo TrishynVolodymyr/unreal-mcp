@@ -12,22 +12,94 @@ struct UNREALMCP_API FActorSpawnParams
 {
     /** Name of the actor to spawn */
     FString Name;
-    
-    /** Type of actor to spawn */
+
+    /** Type of actor to spawn
+     *  Supports:
+     *  - Friendly names: StaticMeshActor, PointLight, TriggerBox, PlayerStart, etc.
+     *  - Blueprint paths: "Blueprint:/Game/Path/BP_Name"
+     *  - Native class paths: "Class:/Script/Engine.TriggerBox"
+     *  - Direct paths: "/Game/Path/BP_Name" (tries Blueprint then Class)
+     */
     FString Type;
-    
+
     /** Location to spawn the actor */
     FVector Location = FVector::ZeroVector;
-    
+
     /** Rotation of the spawned actor */
     FRotator Rotation = FRotator::ZeroRotator;
-    
+
     /** Scale of the spawned actor */
     FVector Scale = FVector::OneVector;
-    
+
+    // ============================================
+    // StaticMeshActor parameters
+    // ============================================
+
+    /** Path to mesh asset (e.g., "/Engine/BasicShapes/Cube") */
+    FString MeshPath;
+
+    // ============================================
+    // TextRenderActor parameters
+    // ============================================
+
+    /** Text content to display */
+    FString TextContent;
+
+    /** Text world size */
+    float TextSize = 100.0f;
+
+    /** Text color (RGBA) */
+    FLinearColor TextColor = FLinearColor::White;
+
+    /** Horizontal text alignment (0=Left, 1=Center, 2=Right) */
+    int32 TextHAlign = 1;
+
+    /** Vertical text alignment (0=Top, 1=Center, 2=Bottom) */
+    int32 TextVAlign = 1;
+
+    // ============================================
+    // Volume parameters (TriggerBox, BlockingVolume, etc.)
+    // ============================================
+
+    /** Box extent for box-shaped volumes */
+    FVector BoxExtent = FVector(100.0f);
+
+    /** Sphere radius for sphere-shaped volumes */
+    float SphereRadius = 100.0f;
+
+    // ============================================
+    // PlayerStart parameters
+    // ============================================
+
+    /** Tag for player start selection */
+    FString PlayerStartTag;
+
+    // ============================================
+    // DecalActor parameters
+    // ============================================
+
+    /** Decal size (X, Y, Z) */
+    FVector DecalSize = FVector(128.0f, 256.0f, 256.0f);
+
+    /** Path to decal material */
+    FString DecalMaterialPath;
+
+    // ============================================
+    // InvisibleWall / Collision parameters
+    // ============================================
+
+    /** Whether the actor should be hidden in game (useful for invisible walls) */
+    bool bHiddenInGame = false;
+
+    /** Whether the actor should block all collision (BlockAll profile) */
+    bool bBlocksAll = false;
+
+    /** Whether to show collision wireframe in editor (for invisible walls) */
+    bool bShowCollisionInEditor = true;
+
     /** Default constructor */
     FActorSpawnParams() = default;
-    
+
     /**
      * Validate the parameters
      * @param OutError - Error message if validation fails

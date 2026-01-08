@@ -22,6 +22,15 @@ Get up and running in 15 minutes! This guide walks you through:
 
 Comprehensive guides for each tool category. Each guide includes natural language examples, advanced patterns, and real-world workflows.
 
+### 🎬 [Animation Tools](Animation-Tools.md)
+Create and manage Animation Blueprints, state machines, and animation variables
+- Create Animation Blueprints for skeletons
+- Build state machines with states and transitions
+- Add animation variables (Float, Bool, Vector, etc.)
+- Configure animation slots for montage playback
+- Connect AnimGraph nodes to output pose
+- Link animation layers for modular animation logic
+
 ### 🎮 [Blueprint Tools](Blueprint-Tools.md)
 Create and manage Blueprint classes, components, variables, and game logic
 - Create Blueprints with custom parent classes
@@ -64,6 +73,26 @@ Control the Unreal Engine editor, manage actors, transforms, and scene objects
 - Control viewport camera
 - Query and modify actor properties
 
+### 🎨 [Material Tools](Material-Tools.md)
+Create and manage Material Instances and their parameters
+- Create Material Instances from parent materials
+- Set scalar parameters (Metallic, Roughness, etc.)
+- Set vector/color parameters (BaseColor, EmissiveColor)
+- Set texture parameters (Diffuse, Normal, Roughness maps)
+- Batch set multiple parameters in one operation
+- Query available parameters from materials
+- Duplicate Material Instances for variants
+
+### ✨ [Niagara Tools](Niagara-Tools.md)
+Create and manage Niagara particle systems, emitters, and VFX
+- Create Niagara Systems for visual effects
+- Add emitters from templates (Sprite, Ribbon, Mesh, Light)
+- Configure float, vector, and color parameters
+- Add renderers with custom materials
+- Enable/disable emitters dynamically
+- Duplicate systems for effect variants
+- Compile and validate systems
+
 ### 📊 [DataTable Tools](DataTable-Tools.md)
 Manage structured game data, create tables, and perform CRUD operations
 - Create DataTables with custom structs
@@ -103,6 +132,17 @@ Organize projects, manage input systems, create structs, and handle project stru
 - Use Blueprint Action discovery for dynamic node creation
 - Implement smart node replacement for refactoring
 - Build complete game systems using integrated workflows
+
+### For VFX & Materials
+1. Learn [Material Tools](Material-Tools.md) for material instances and parameters
+2. Master [Niagara Tools](Niagara-Tools.md) for particle effects
+3. Combine materials with Niagara for polished VFX
+
+### For Animation
+1. Start with [Animation Tools](Animation-Tools.md) for Animation Blueprints
+2. Create state machines for locomotion and actions
+3. Add variables to drive animation logic
+4. Configure slots for montage playback
 
 ---
 

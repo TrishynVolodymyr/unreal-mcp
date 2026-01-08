@@ -24,7 +24,12 @@ from utils.blueprints.blueprint_operations import (
     call_blueprint_function as call_blueprint_function_impl,
     get_blueprint_metadata as get_blueprint_metadata_impl,
     modify_blueprint_function_properties as modify_blueprint_function_properties_impl,
-    capture_blueprint_graph_screenshot as capture_blueprint_graph_screenshot_impl
+    capture_blueprint_graph_screenshot as capture_blueprint_graph_screenshot_impl,
+
+    # GAS Pipeline Tools
+    create_gameplay_ability as create_gameplay_ability_impl,
+    create_gameplay_effect as create_gameplay_effect_impl,
+    create_gameplay_cue as create_gameplay_cue_impl
 )
 
 # Get logger
@@ -719,6 +724,312 @@ def register_blueprint_tools(mcp: FastMCP):
             is_const,
             access_specifier,
             category
+        )
+
+    # =========================================================================
+    # GAS (Gameplay Ability System) Pipeline Tools
+    # =========================================================================
+
+    @mcp.tool()
+    def create_gameplay_ability(
+        ctx: Context,
+        name: str,
+        parent_class: str = "BaseGameplayAbility",
+        folder_path: str = "/Game/Abilities",
+        ability_type: str = "instant",
+        ability_tags: List[str] = None,
+        cancel_abilities_with_tag: List[str] = None,
+        block_abilities_with_tag: List[str] = None,
+        activation_owned_tags: List[str] = None,
+        activation_required_tags: List[str] = None,
+        activation_blocked_tags: List[str] = None,
+        source_required_tags: List[str] = None,
+        source_blocked_tags: List[str] = None,
+        target_required_tags: List[str] = None,
+        target_blocked_tags: List[str] = None,
+        cost_effect_class: str = None,
+        cooldown_effect_class: str = None,
+        cooldown_duration: float = None,
+        replication_policy: str = "ReplicateYes",
+        instancing_policy: str = "InstancedPerActor"
+    ) -> Dict[str, Any]:
+        """
+        Create a GameplayAbility Blueprint with full GAS configuration.
+
+        This high-level scaffolding tool creates an ability Blueprint with proper parent class
+        and configures all common GAS properties in a single call.
+
+        Args:
+            name: Name of the ability (e.g., "GA_Dash", "GA_FireBolt")
+            parent_class: Parent ability class. Options:
+                         - "BaseGameplayAbility" (project's base - default)
+                         - "BaseDamageGameplayAbility" (damage abilities)
+                         - "BaseAOEDamageAbility" (area damage)
+                         - "BaseSummonAbility" (summon mechanics)
+                         - "BaseWeaponAbility" (weapon-based)
+                         - Any custom ability class path
+            folder_path: Content folder (default: "/Game/Abilities")
+            ability_type: Behavior type: "instant", "duration", "passive", "toggle"
+            ability_tags: Tags identifying this ability (e.g., ["Ability.Movement.Dash"])
+            cancel_abilities_with_tag: Tags of abilities this cancels
+            block_abilities_with_tag: Tags of abilities this blocks
+            activation_owned_tags: Tags applied while active
+            activation_required_tags: Tags required on owner to activate
+            activation_blocked_tags: Tags on owner that prevent activation
+            source_required_tags: Tags required on source (caster) to activate
+            source_blocked_tags: Tags on source that prevent activation
+            target_required_tags: Tags required on target to activate
+            target_blocked_tags: Tags on target that prevent activation
+            cost_effect_class: Path to GameplayEffect for cost
+            cooldown_effect_class: Path to GameplayEffect for cooldown
+            cooldown_duration: Cooldown seconds (if using default cooldown)
+            replication_policy: "ReplicateNo" or "ReplicateYes" (default)
+            instancing_policy: IMPORTANT for stateful abilities:
+                              - "NonInstanced": Shared CDO, no per-actor state
+                              - "InstancedPerActor": One per actor (default, recommended)
+                              - "InstancedPerExecution": New instance per activation
+
+        Returns:
+            Dictionary with created ability info and property results
+
+        Examples:
+            # Basic instant ability
+            create_gameplay_ability(
+                name="GA_Dash",
+                ability_tags=["Ability.Movement.Dash"],
+                cooldown_duration=2.0
+            )
+
+            # Damage ability with target requirements
+            create_gameplay_ability(
+                name="GA_FireBolt",
+                parent_class="BaseDamageGameplayAbility",
+                ability_tags=["Ability.Damage.Fire"],
+                cost_effect_class="/Game/Effects/GE_ManaCost_Small",
+                cooldown_effect_class="/Game/Effects/GE_Cooldown_3s",
+                activation_blocked_tags=["State.Dead", "State.Stunned"],
+                target_blocked_tags=["State.Immune.Fire"]
+            )
+
+            # AOE ability that cancels other attacks
+            create_gameplay_ability(
+                name="GA_Earthquake",
+                parent_class="BaseAOEDamageAbility",
+                ability_tags=["Ability.Damage.AOE.Earth"],
+                cancel_abilities_with_tag=["Ability.Attack"],
+                activation_owned_tags=["State.Casting"],
+                source_required_tags=["State.Grounded"]
+            )
+        """
+        return create_gameplay_ability_impl(
+            ctx, name, parent_class, folder_path, ability_type,
+            ability_tags, cancel_abilities_with_tag, block_abilities_with_tag,
+            activation_owned_tags, activation_required_tags, activation_blocked_tags,
+            source_required_tags, source_blocked_tags, target_required_tags, target_blocked_tags,
+            cost_effect_class, cooldown_effect_class, cooldown_duration,
+            replication_policy, instancing_policy
+        )
+
+    @mcp.tool()
+    def create_gameplay_effect(
+        ctx: Context,
+        name: str,
+        folder_path: str = "/Game/Effects",
+        effect_type: str = "instant",
+        duration_seconds: float = None,
+        period_seconds: float = None,
+        modifiers: List[Dict[str, Any]] = None,
+        executions: List[str] = None,
+        components: List[Dict[str, Any]] = None,
+        gameplay_cues: List[Dict[str, Any]] = None,
+        asset_tags: List[str] = None,
+        granted_tags: List[str] = None,
+        application_tag_requirements: List[str] = None,
+        removal_tag_requirements: List[str] = None,
+        ongoing_tag_requirements: List[str] = None,
+        removal_tag_immunity: List[str] = None,
+        stacking_type: str = "None",
+        stack_limit: int = 1,
+        stack_duration_refresh: bool = False,
+        stack_period_reset: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Create a GameplayEffect Blueprint with duration, modifiers, and stacking.
+
+        GameplayEffects are the backbone of GAS - they modify attributes, apply tags,
+        and trigger gameplay cues. This tool scaffolds common effect patterns.
+
+        Args:
+            name: Name of the effect (e.g., "GE_DashCooldown", "GE_FireDamage")
+            folder_path: Content folder (default: "/Game/Effects")
+            effect_type: Duration type:
+                        - "instant": Applied immediately (default)
+                        - "duration": Has set duration
+                        - "infinite": Lasts until removed
+                        - "periodic": Applies periodically
+            duration_seconds: Duration for "duration" or "periodic" types
+            period_seconds: Period for "periodic" type
+            modifiers: Attribute modifiers list:
+                      [{"attribute": "VitalAttributesSet.Health", "operation": "Add", "magnitude": -50}]
+            executions: Execution calculation class names (e.g., ["BaseDamageExecution"])
+            components: GameplayEffect components to add. Supported types:
+                       - AbilitiesGameplayEffectComponent: Grants abilities while active
+                         {"type": "Abilities", "abilities": ["GA_PassiveRegen"]}
+                       - AdditionalEffectsGameplayEffectComponent: Applies additional effects
+                         {"type": "AdditionalEffects", "effects": ["GE_BonusDamage"], "on_application": true}
+                       - RemoveOtherGameplayEffectComponent: Removes effects by tag
+                         {"type": "RemoveOther", "remove_query": {"OwningTagQuery": {"TagFilter": ["Debuff"]}}}
+                       - TargetTagsGameplayEffectComponent: Dynamic target tag modification
+                         {"type": "TargetTags", "add": ["State.Buffed"], "remove": ["State.Debuffed"]}
+                       - ChanceToApplyGameplayEffectComponent: Probability-based application
+                         {"type": "ChanceToApply", "chance": 0.5}
+            gameplay_cues: GameplayCue triggers for VFX/SFX feedback:
+                          [{"cue_tag": "GameplayCue.Impact.Fire", "min_level": 1, "max_level": 5}]
+            asset_tags: Tags identifying this effect
+            granted_tags: Tags applied to target while active
+            application_tag_requirements: Tags required on target to apply
+            removal_tag_requirements: Tags that cause removal when gained
+            ongoing_tag_requirements: Tags required on target while active (effect removed if lost)
+            removal_tag_immunity: Tags that make target immune to this effect's removal
+            stacking_type: "None", "AggregateBySource", "AggregateByTarget"
+            stack_limit: Maximum stacks
+            stack_duration_refresh: Refresh duration on new stack
+            stack_period_reset: Reset period on new stack
+
+        Returns:
+            Dictionary with created effect info
+
+        Examples:
+            # Instant damage effect
+            create_gameplay_effect(
+                name="GE_FireDamage",
+                effect_type="instant",
+                modifiers=[
+                    {"attribute": "VitalAttributesSet.Health", "operation": "Add", "magnitude": -50}
+                ],
+                asset_tags=["Effect.Damage.Fire"],
+                gameplay_cues=[{"cue_tag": "GameplayCue.Impact.Fire"}]
+            )
+
+            # Duration buff with stacking
+            create_gameplay_effect(
+                name="GE_SpeedBoost",
+                effect_type="duration",
+                duration_seconds=10.0,
+                modifiers=[
+                    {"attribute": "BaseAttributesSet.MovementSpeed", "operation": "Multiply", "magnitude": 1.25}
+                ],
+                granted_tags=["Buff.Speed"],
+                stacking_type="AggregateBySource",
+                stack_limit=3
+            )
+
+            # Periodic healing over time
+            create_gameplay_effect(
+                name="GE_Regeneration",
+                effect_type="periodic",
+                duration_seconds=10.0,
+                period_seconds=1.0,
+                modifiers=[
+                    {"attribute": "VitalAttributesSet.Health", "operation": "Add", "magnitude": 5}
+                ]
+            )
+
+            # Effect that grants abilities while active
+            create_gameplay_effect(
+                name="GE_BerserkerRage",
+                effect_type="duration",
+                duration_seconds=15.0,
+                components=[
+                    {"type": "Abilities", "abilities": ["GA_RageAttack", "GA_RageCharge"]}
+                ],
+                granted_tags=["State.Berserk"]
+            )
+
+            # Buff that requires target to stay in combat
+            create_gameplay_effect(
+                name="GE_CombatFocus",
+                effect_type="infinite",
+                modifiers=[
+                    {"attribute": "BaseAttributesSet.CritChance", "operation": "Add", "magnitude": 0.15}
+                ],
+                ongoing_tag_requirements=["State.InCombat"]
+            )
+        """
+        return create_gameplay_effect_impl(
+            ctx, name, folder_path, effect_type,
+            duration_seconds, period_seconds, modifiers, executions,
+            components, gameplay_cues,
+            asset_tags, granted_tags, application_tag_requirements, removal_tag_requirements,
+            ongoing_tag_requirements, removal_tag_immunity,
+            stacking_type, stack_limit, stack_duration_refresh, stack_period_reset
+        )
+
+    @mcp.tool()
+    def create_gameplay_cue(
+        ctx: Context,
+        name: str,
+        cue_tag: str,
+        folder_path: str = "/Game/Abilities/Cues",
+        cue_type: str = "Notify",
+        implement_on_execute: bool = True,
+        implement_on_active: bool = False,
+        implement_on_remove: bool = False,
+        implement_while_active: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Create a GameplayCue Blueprint for VFX/SFX feedback.
+
+        GameplayCues provide visual and audio feedback for GAS events. They're triggered
+        by GameplayEffects or directly from abilities via cue tags.
+
+        Args:
+            name: Cue name (e.g., "GCN_Impact_Fire", "GCN_Buff_Haste")
+            cue_tag: GameplayCue tag (MUST start with "GameplayCue.")
+                    e.g., "GameplayCue.Impact.Fire", "GameplayCue.Buff.Haste"
+            folder_path: Content folder (default: "/Game/Abilities/Cues")
+            cue_type: Cue implementation type:
+                     - "Notify": Static, non-instanced (default, most common)
+                     - "Actor": Instanced actor for duration effects
+                     - "Static": Pure static, no state
+            implement_on_execute: Scaffold OnExecute event (instant cues)
+            implement_on_active: Scaffold OnActive event (cue becomes active)
+            implement_on_remove: Scaffold OnRemove event (cue removed)
+            implement_while_active: Scaffold WhileActive event (tick while active)
+
+        Returns:
+            Dictionary with created cue info and requested events
+
+        Examples:
+            # Impact cue for instant damage
+            create_gameplay_cue(
+                name="GCN_Impact_Fire",
+                cue_tag="GameplayCue.Impact.Fire",
+                implement_on_execute=True
+            )
+
+            # Buff cue with duration (shows while buff active)
+            create_gameplay_cue(
+                name="GCN_Buff_Haste",
+                cue_tag="GameplayCue.Buff.Haste",
+                cue_type="Actor",
+                implement_on_active=True,
+                implement_on_remove=True
+            )
+
+            # Status effect with ongoing visual
+            create_gameplay_cue(
+                name="GCN_Status_Burning",
+                cue_tag="GameplayCue.Status.Burning",
+                cue_type="Actor",
+                implement_on_active=True,
+                implement_while_active=True,
+                implement_on_remove=True
+            )
+        """
+        return create_gameplay_cue_impl(
+            ctx, name, cue_tag, folder_path, cue_type,
+            implement_on_execute, implement_on_active, implement_on_remove, implement_while_active
         )
 
     logger.info("Blueprint tools registered successfully")

@@ -248,4 +248,16 @@ public:
      * @return true if material was applied successfully
      */
     virtual bool ApplyMaterialToActor(const FString& ActorName, const FString& MaterialPath, int32 SlotIndex, const FString& ComponentName, FString& OutError) = 0;
+
+    /**
+     * Duplicate a material instance to create a variation
+     * @param SourcePath - Path to the source material instance
+     * @param NewName - Name for the new duplicated instance
+     * @param FolderPath - Optional folder path (uses source folder if empty)
+     * @param OutAssetPath - Output path of the created instance
+     * @param OutParentMaterial - Output path of the parent material
+     * @param OutError - Error message if duplication fails
+     * @return true if material instance was duplicated successfully
+     */
+    virtual bool DuplicateMaterialInstance(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutAssetPath, FString& OutParentMaterial, FString& OutError) = 0;
 };

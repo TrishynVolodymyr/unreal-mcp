@@ -39,6 +39,10 @@ public:
     UClass* ResolveUMGClass(const FString& ClassName);
     UClass* ResolveEngineClass(const FString& ClassName);
 
+    // Parent class resolution for Blueprint creation (supports UObject-derived classes)
+    // Returns nullptr with descriptive error message if class cannot be resolved
+    UClass* ResolveParentClassForBlueprint(const FString& ClassName, FString& OutErrorMessage);
+
 private:
     FAssetDiscoveryService() = default;
     ~FAssetDiscoveryService() = default;

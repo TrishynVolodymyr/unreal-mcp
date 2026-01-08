@@ -58,8 +58,11 @@ bool FCreateNiagaraEmitterCommand::ParseParameters(const FString& JsonString, FN
         return false;
     }
 
-    // Optional parameters with defaults
-    JsonObject->TryGetStringField(TEXT("path"), OutParams.Path);
+    // Optional parameters with defaults - accept both 'path' and 'folder_path' for MCP compatibility
+    if (!JsonObject->TryGetStringField(TEXT("path"), OutParams.Path))
+    {
+        JsonObject->TryGetStringField(TEXT("folder_path"), OutParams.Path);
+    }
     JsonObject->TryGetStringField(TEXT("template"), OutParams.Template);
 
     return OutParams.IsValid(OutError);

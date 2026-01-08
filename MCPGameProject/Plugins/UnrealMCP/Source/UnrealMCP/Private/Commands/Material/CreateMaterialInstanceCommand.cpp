@@ -64,8 +64,11 @@ bool FCreateMaterialInstanceCommand::ParseParameters(const FString& JsonString, 
         return false;
     }
 
-    // Optional parameters
-    JsonObject->TryGetStringField(TEXT("path"), OutParams.Path);
+    // Optional parameters - accept both 'path' and 'folder_path' for compatibility with MCP
+    if (!JsonObject->TryGetStringField(TEXT("path"), OutParams.Path))
+    {
+        JsonObject->TryGetStringField(TEXT("folder_path"), OutParams.Path);
+    }
     JsonObject->TryGetBoolField(TEXT("is_dynamic"), OutParams.bIsDynamic);
 
     return OutParams.IsValid(OutError);

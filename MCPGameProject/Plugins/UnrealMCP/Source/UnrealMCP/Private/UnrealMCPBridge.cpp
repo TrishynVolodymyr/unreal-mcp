@@ -98,10 +98,9 @@ void UUnrealMCPBridge::Initialize(FSubsystemCollectionBase& Collection)
     Port = MCP_SERVER_PORT;
     FIPv4Address::Parse(MCP_SERVER_HOST, ServerAddress);
 
-    // Register new command system
-    FEditorCommandRegistration::RegisterAllCommands();
-    FDataTableCommandRegistration::RegisterAllCommands();
-    
+    // NOTE: Commands are registered by FUnrealMCPMainDispatcher via module initialization
+    // Do NOT register commands here to avoid duplicate registration warnings
+
     // Start the server automatically
     StartServer();
 }
@@ -110,11 +109,10 @@ void UUnrealMCPBridge::Initialize(FSubsystemCollectionBase& Collection)
 void UUnrealMCPBridge::Deinitialize()
 {
     UE_LOG(LogTemp, Display, TEXT("UnrealMCPBridge: Shutting down"));
-    
-    // Unregister editor commands
-    FEditorCommandRegistration::UnregisterAllCommands();
-    FDataTableCommandRegistration::UnregisterAllCommands();
-    
+
+    // NOTE: Command unregistration is handled by FUnrealMCPMainDispatcher::Shutdown()
+    // Do NOT unregister commands here to maintain consistency with registration
+
     StopServer();
 }
 
