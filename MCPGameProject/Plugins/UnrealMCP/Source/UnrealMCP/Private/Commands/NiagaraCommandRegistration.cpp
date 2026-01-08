@@ -19,6 +19,15 @@
 #include "Commands/Niagara/AddNiagaraParameterCommand.h"
 #include "Commands/Niagara/SetNiagaraParameterCommand.h"
 
+// Python MCP-compatible typed parameter commands
+#include "Commands/Niagara/SetNiagaraFloatParamCommand.h"
+#include "Commands/Niagara/SetNiagaraVectorParamCommand.h"
+#include "Commands/Niagara/SetNiagaraColorParamCommand.h"
+#include "Commands/Niagara/GetNiagaraParametersCommand.h"
+#include "Commands/Niagara/GetNiagaraSystemMetadataCommand.h"
+#include "Commands/Niagara/CompileNiagaraSystemCommand.h"
+#include "Commands/Niagara/DuplicateNiagaraSystemCommand.h"
+
 // Feature 4: Data Interfaces
 #include "Commands/Niagara/AddDataInterfaceCommand.h"
 #include "Commands/Niagara/SetDataInterfacePropertyCommand.h"
@@ -54,6 +63,15 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     // Register Feature 3: Parameter commands
     RegisterAndTrackCommand(MakeShared<FAddNiagaraParameterCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetNiagaraParameterCommand>(NiagaraService));
+
+    // Register Python MCP-compatible typed parameter commands
+    RegisterAndTrackCommand(MakeShared<FSetNiagaraFloatParamCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetNiagaraVectorParamCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetNiagaraColorParamCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FGetNiagaraParametersCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FGetNiagaraSystemMetadataCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FCompileNiagaraSystemCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FDuplicateNiagaraSystemCommand>(NiagaraService));
 
     // Register Feature 4: Data Interface commands
     RegisterAndTrackCommand(MakeShared<FAddDataInterfaceCommand>(NiagaraService));

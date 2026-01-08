@@ -40,6 +40,7 @@ public:
     virtual bool AddEmitterToSystem(const FString& SystemPath, const FString& EmitterPath, const FString& EmitterName, FGuid& OutEmitterHandleId, FString& OutError) override;
     virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata) override;
     virtual bool CompileAsset(const FString& AssetPath, FString& OutError) override;
+    virtual bool DuplicateSystem(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutNewPath, FString& OutError) override;
 
     // ========================================================================
     // INiagaraService interface implementation - Module System

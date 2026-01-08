@@ -3,6 +3,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "Editor.h"
+#include "ObjectTools.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UObject/SavePackage.h"
 
@@ -2111,4 +2112,90 @@ void FNiagaraService::MarkSystemDirty(UNiagaraSystem* System) const
         System->Modify();
         System->MarkPackageDirty();
     }
+}
+
+bool FNiagaraService::DuplicateSystem(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutNewPath, FString& OutError)
+{
+    // Find the source system
+    UNiagaraSystem* SourceSystem = FindSystem(SourcePath);
+    if (!SourceSystem)
+    {
+        OutError = FString::Printf(TEXT("Source system not found: %s"), *SourcePath);
+        return false;
+    }
+
+    // Determine destination folder
+    FString DestFolder = FolderPath;
+    if (DestFolder.IsEmpty())
+    {
+        // Use source asset's folder
+        DestFolder = FPackageName::GetLongPackagePath(SourceSystem->GetOutermost()->GetName());
+    }
+
+    // Ensure path starts with /Game
+    if (!DestFolder.StartsWith(TEXT("/Game")))
+    {
+        DestFolder = TEXT("/Game") / DestFolder;
+    }
+
+    // Create the destination package path
+    FString DestPackagePath = DestFolder / NewName;
+
+    // Check if destination already exists
+    if (FindPackage(nullptr, *DestPackagePath))
+    {
+        OutError = FString::Printf(TEXT("Asset already exists at path: %s"), *DestPackagePath);
+        return false;
+    }
+
+    // Use Asset Tools to duplicate
+    IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+
+    TArray<UObject*> ObjectsToDuplicate;
+    ObjectsToDuplicate.Add(SourceSystem);
+
+    TArray<FAssetRenameData> RenameData;
+    FAssetRenameData& Data = RenameData.AddDefaulted_GetRef();
+    Data.Asset = SourceSystem;
+    Data.NewPackagePath = DestFolder;
+    Data.NewName = NewName;
+
+    // Duplicate the asset
+    TArray<UObject*> DuplicatedObjects;
+    ObjectTools::DuplicateObjects(ObjectsToDuplicate, TEXT(""), DestFolder, false, &DuplicatedObjects);
+
+    if (DuplicatedObjects.Num() == 0)
+    {
+        OutError = TEXT("Failed to duplicate system");
+        return false;
+    }
+
+    UNiagaraSystem* NewSystem = Cast<UNiagaraSystem>(DuplicatedObjects[0]);
+    if (!NewSystem)
+    {
+        OutError = TEXT("Duplicated object is not a Niagara System");
+        return false;
+    }
+
+    // Rename to desired name if not already correct
+    if (NewSystem->GetName() != NewName)
+    {
+        NewSystem->Rename(*NewName, NewSystem->GetOuter());
+    }
+
+    // Save the new asset
+    if (!SaveAsset(NewSystem, OutError))
+    {
+        return false;
+    }
+
+    OutNewPath = NewSystem->GetOutermost()->GetName();
+
+    // Notify asset registry
+    FAssetRegistryModule::AssetCreated(NewSystem);
+
+    UE_LOG(LogNiagaraService, Log, TEXT("Duplicated Niagara System from '%s' to '%s'"),
+        *SourcePath, *OutNewPath);
+
+    return true;
 }

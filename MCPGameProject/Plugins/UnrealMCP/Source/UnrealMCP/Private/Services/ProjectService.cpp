@@ -1022,6 +1022,26 @@ bool FProjectService::DuplicateAsset(const FString& SourcePath, const FString& D
     return true;
 }
 
+bool FProjectService::DeleteAsset(const FString& AssetPath, FString& OutError)
+{
+    // Validate asset exists
+    if (!UEditorAssetLibrary::DoesAssetExist(AssetPath))
+    {
+        OutError = FString::Printf(TEXT("Asset does not exist: %s"), *AssetPath);
+        return false;
+    }
+
+    // Use UEditorAssetLibrary::DeleteAsset to remove the asset
+    if (!UEditorAssetLibrary::DeleteAsset(AssetPath))
+    {
+        OutError = FString::Printf(TEXT("Failed to delete asset: %s"), *AssetPath);
+        return false;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully deleted asset: %s"), *AssetPath);
+    return true;
+}
+
 bool FProjectService::CreateFontFace(const FString& FontName, const FString& Path, const FString& SourceTexturePath, bool bUseSDF, int32 DistanceFieldSpread, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError)
 {
     // Ensure the path exists
