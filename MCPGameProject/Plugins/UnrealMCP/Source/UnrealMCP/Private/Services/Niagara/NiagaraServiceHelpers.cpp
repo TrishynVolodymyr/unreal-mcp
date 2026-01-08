@@ -24,28 +24,31 @@
 #include "NiagaraTypes.h"
 #include "EdGraphSchema_Niagara.h"
 
-// Helper function to get parameter map input pin (replicates FNiagaraStackGraphUtilities::GetParameterMapInputPin logic)
-static UEdGraphPin* GetParameterMapInputPinLocal(UNiagaraNode& Node)
+namespace
 {
-    TArray<UEdGraphPin*> InputPins;
-    Node.GetInputPins(InputPins);
-
-    for (UEdGraphPin* Pin : InputPins)
+    // Helper function to get parameter map input pin (replicates FNiagaraStackGraphUtilities::GetParameterMapInputPin logic)
+    UEdGraphPin* GetParameterMapInputPinHelpers(UNiagaraNode& Node)
     {
-        if (Pin)
+        TArray<UEdGraphPin*> InputPins;
+        Node.GetInputPins(InputPins);
+
+        for (UEdGraphPin* Pin : InputPins)
         {
-            const UEdGraphSchema_Niagara* NiagaraSchema = Cast<UEdGraphSchema_Niagara>(Pin->GetSchema());
-            if (NiagaraSchema)
+            if (Pin)
             {
-                FNiagaraTypeDefinition PinDefinition = NiagaraSchema->PinToTypeDefinition(Pin);
-                if (PinDefinition == FNiagaraTypeDefinition::GetParameterMapDef())
+                const UEdGraphSchema_Niagara* NiagaraSchema = Cast<UEdGraphSchema_Niagara>(Pin->GetSchema());
+                if (NiagaraSchema)
                 {
-                    return Pin;
+                    FNiagaraTypeDefinition PinDefinition = NiagaraSchema->PinToTypeDefinition(Pin);
+                    if (PinDefinition == FNiagaraTypeDefinition::GetParameterMapDef())
+                    {
+                        return Pin;
+                    }
                 }
             }
         }
+        return nullptr;
     }
-    return nullptr;
 }
 
 // ============================================================================
@@ -400,7 +403,7 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
                 UNiagaraNode* CurrentNode = OutputNode;
                 while (CurrentNode != nullptr)
                 {
-                    UEdGraphPin* InputPin = GetParameterMapInputPinLocal(*CurrentNode);
+                    UEdGraphPin* InputPin = GetParameterMapInputPinHelpers(*CurrentNode);
                     if (InputPin != nullptr && InputPin->LinkedTo.Num() == 1)
                     {
                         UNiagaraNode* PreviousNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
@@ -506,7 +509,7 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
                         UNiagaraNode* CurrentNode = OutputNode;
                         while (CurrentNode != nullptr)
                         {
-                            UEdGraphPin* InputPin = GetParameterMapInputPinLocal(*CurrentNode);
+                            UEdGraphPin* InputPin = GetParameterMapInputPinHelpers(*CurrentNode);
                             if (InputPin != nullptr && InputPin->LinkedTo.Num() == 1)
                             {
                                 UNiagaraNode* PreviousNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
