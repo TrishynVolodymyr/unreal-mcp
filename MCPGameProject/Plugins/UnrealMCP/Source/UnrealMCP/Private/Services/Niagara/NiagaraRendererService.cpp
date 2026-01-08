@@ -6,6 +6,8 @@
 #include "NiagaraSystem.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraRendererProperties.h"
+#include "NiagaraCommon.h"
+#include "NiagaraSpriteRendererProperties.h"
 
 // ============================================================================
 // Renderers (Feature 5)
@@ -280,6 +282,44 @@ bool FNiagaraService::SetRendererProperty(const FString& SystemPath, const FStri
         {
             // Plain uint8, treat as integer
             ByteProp->SetPropertyValue_InContainer(FoundRenderer, static_cast<uint8>(FCString::Atoi(*ValueStr)));
+        }
+    }
+    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
+    {
+        // Handle struct properties - specifically FNiagaraVariableAttributeBinding for bindings
+        if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("NiagaraVariableAttributeBinding"))
+        {
+            // Get the binding struct
+            FNiagaraVariableAttributeBinding* Binding = StructProp->ContainerPtrToValuePtr<FNiagaraVariableAttributeBinding>(FoundRenderer);
+            if (Binding)
+            {
+                // Get emitter for context
+                UNiagaraEmitter* Emitter = EmitterHandle.GetInstance().Emitter;
+                FVersionedNiagaraEmitterBase EmitterBase(Emitter, EmitterData->Version.VersionGuid);
+
+                // Get source mode from renderer
+                ENiagaraRendererSourceDataMode SourceMode = FoundRenderer->GetCurrentSourceMode();
+
+                // Set the binding value (e.g., "Particles.Color" or just "Color")
+                FName BindingName(*ValueStr);
+                Binding->SetValue(BindingName, EmitterBase, SourceMode);
+
+                // Cache values to ensure binding is properly resolved
+                Binding->CacheValues(EmitterBase, SourceMode);
+
+                UE_LOG(LogNiagaraService, Log, TEXT("Set attribute binding '%s' to '%s'"), *PropertyName, *ValueStr);
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Failed to get binding struct for '%s'"), *PropertyName);
+                return false;
+            }
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Unsupported struct type '%s' for property '%s'"),
+                StructProp->Struct ? *StructProp->Struct->GetName() : TEXT("null"), *PropertyName);
+            return false;
         }
     }
     else

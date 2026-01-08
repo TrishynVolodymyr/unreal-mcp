@@ -145,6 +145,71 @@ struct UNREALMCP_API FNiagaraModuleAddParams
 };
 
 /**
+ * Parameters for moving a module within an emitter stack
+ */
+struct UNREALMCP_API FNiagaraModuleMoveParams
+{
+    /** Path to the system containing the emitter */
+    FString SystemPath;
+
+    /** Name of the emitter containing the module */
+    FString EmitterName;
+
+    /** Name of the module to move */
+    FString ModuleName;
+
+    /** Stage the module is currently in: "Spawn", "Update", or "Event" */
+    FString Stage;
+
+    /** New index position for the module (0-based) */
+    int32 NewIndex = 0;
+
+    /** Default constructor */
+    FNiagaraModuleMoveParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (ModuleName.IsEmpty())
+        {
+            OutError = TEXT("Module name cannot be empty");
+            return false;
+        }
+        if (Stage.IsEmpty())
+        {
+            OutError = TEXT("Stage cannot be empty");
+            return false;
+        }
+        // Validate stage value
+        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event"))
+        {
+            OutError = FString::Printf(TEXT("Invalid stage '%s'. Must be 'Spawn', 'Update', or 'Event'"), *Stage);
+            return false;
+        }
+        if (NewIndex < 0)
+        {
+            OutError = TEXT("New index must be >= 0");
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
  * Parameters for setting a module input
  */
 struct UNREALMCP_API FNiagaraModuleInputParams
@@ -491,6 +556,14 @@ public:
      * @return true if input was set successfully
      */
     virtual bool SetModuleInput(const FNiagaraModuleInputParams& Params, FString& OutError) = 0;
+
+    /**
+     * Move a module to a new position within its stage
+     * @param Params - Module move parameters
+     * @param OutError - Error message if moving fails
+     * @return true if module was moved successfully
+     */
+    virtual bool MoveModule(const FNiagaraModuleMoveParams& Params, FString& OutError) = 0;
 
     // ========================================================================
     // Parameters (Feature 3)

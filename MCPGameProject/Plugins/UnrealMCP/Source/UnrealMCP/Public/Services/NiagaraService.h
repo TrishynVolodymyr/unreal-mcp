@@ -52,6 +52,7 @@ public:
     virtual bool AddModule(const FNiagaraModuleAddParams& Params, FString& OutModuleId, FString& OutError) override;
     virtual bool SearchModules(const FString& SearchQuery, const FString& StageFilter, int32 MaxResults, TArray<TSharedPtr<FJsonObject>>& OutModules) override;
     virtual bool SetModuleInput(const FNiagaraModuleInputParams& Params, FString& OutError) override;
+    virtual bool MoveModule(const FNiagaraModuleMoveParams& Params, FString& OutError) override;
 
     // ========================================================================
     // INiagaraService interface implementation - Parameters

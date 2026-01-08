@@ -111,16 +111,15 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
         }
         if (Properties->HasField(TEXT("default_value")) || Properties->HasField(TEXT("DefaultValue")))
         {
-            // Use PreEditChange/PostEditChangeProperty to properly notify the property system
-            FProperty* DefaultValueProp = ScalarParam->GetClass()->FindPropertyByName(TEXT("DefaultValue"));
-            ScalarParam->PreEditChange(DefaultValueProp);
-
-            ScalarParam->DefaultValue = Properties->HasField(TEXT("default_value"))
+            float NewValue = Properties->HasField(TEXT("default_value"))
                 ? Properties->GetNumberField(TEXT("default_value"))
                 : Properties->GetNumberField(TEXT("DefaultValue"));
 
-            FPropertyChangedEvent PropertyChangedEvent(DefaultValueProp);
-            ScalarParam->PostEditChangeProperty(PropertyChangedEvent);
+            // Set value directly - PostEditChangeProperty is unsafe because expressions
+            // added via EditorData don't have their Material member set, and
+            // ScalarParameter::PostEditChangeProperty broadcasts a delegate that expects Material to be valid.
+            // RecompileMaterial() is called later anyway to handle recompilation.
+            ScalarParam->DefaultValue = NewValue;
         }
     }
     // Handle VectorParameter - support both camelCase and lowercase
@@ -139,11 +138,7 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
             FString FieldName = Properties->HasField(TEXT("default_value")) ? TEXT("default_value") : TEXT("DefaultValue");
             if (Properties->TryGetArrayField(FieldName, ColorArray) && ColorArray->Num() >= 3)
             {
-                // Use PreEditChange/PostEditChangeProperty to properly notify the property system
-                // This ensures the Material Editor details panel updates
-                FProperty* DefaultValueProp = VectorParam->GetClass()->FindPropertyByName(TEXT("DefaultValue"));
-                VectorParam->PreEditChange(DefaultValueProp);
-
+                // Set values directly - PostEditChangeProperty is unsafe (see ScalarParameter comment above)
                 VectorParam->DefaultValue.R = (*ColorArray)[0]->AsNumber();
                 VectorParam->DefaultValue.G = (*ColorArray)[1]->AsNumber();
                 VectorParam->DefaultValue.B = (*ColorArray)[2]->AsNumber();
@@ -151,9 +146,6 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                 {
                     VectorParam->DefaultValue.A = (*ColorArray)[3]->AsNumber();
                 }
-
-                FPropertyChangedEvent PropertyChangedEvent(DefaultValueProp);
-                VectorParam->PostEditChangeProperty(PropertyChangedEvent);
             }
         }
     }

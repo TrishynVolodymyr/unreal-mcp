@@ -249,6 +249,48 @@ def register_niagara_tools(mcp: FastMCP):
         return send_unreal_command("set_module_input", params)
 
     @mcp.tool()
+    def move_module(
+        ctx: Context,
+        system_path: str,
+        emitter_name: str,
+        module_name: str,
+        stage: str,
+        new_index: int
+    ) -> Dict[str, Any]:
+        """
+        Move a module to a new position within its stage.
+
+        This is critical for proper module execution order. For example,
+        force modules (like CurlNoiseForce) must be positioned BEFORE
+        SolveForcesAndVelocity for forces to be applied correctly.
+
+        Args:
+            system_path: Path to the Niagara System
+            emitter_name: Emitter name
+            module_name: Module name to move
+            stage: Stage containing the module ("Spawn"|"Update")
+            new_index: New position index (0-based)
+
+        Example:
+            move_module(
+                system_path="/Game/VFX/NS_Fire",
+                emitter_name="FireCore",
+                module_name="CurlNoiseForce",
+                stage="Update",
+                new_index=3  # Move before SolveForcesAndVelocity
+            )
+        """
+        params = {
+            "system_path": system_path,
+            "emitter_name": emitter_name,
+            "module_name": module_name,
+            "stage": stage,
+            "new_index": new_index
+        }
+        logger.info(f"Moving module '{module_name}' to index {new_index} in stage '{stage}'")
+        return send_unreal_command("move_module", params)
+
+    @mcp.tool()
     def add_niagara_parameter(
         ctx: Context,
         system_path: str,

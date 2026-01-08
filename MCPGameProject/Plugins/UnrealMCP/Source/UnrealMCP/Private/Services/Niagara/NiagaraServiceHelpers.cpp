@@ -18,7 +18,34 @@
 #include "NiagaraComponentRendererProperties.h"
 #include "NiagaraGraph.h"
 #include "NiagaraNodeFunctionCall.h"
+#include "NiagaraNodeOutput.h"
 #include "NiagaraScriptSource.h"
+#include "NiagaraTypes.h"
+#include "EdGraphSchema_Niagara.h"
+
+// Helper function to get parameter map input pin (replicates FNiagaraStackGraphUtilities::GetParameterMapInputPin logic)
+static UEdGraphPin* GetParameterMapInputPinLocal(UNiagaraNode& Node)
+{
+    TArray<UEdGraphPin*> InputPins;
+    Node.GetInputPins(InputPins);
+
+    for (UEdGraphPin* Pin : InputPins)
+    {
+        if (Pin)
+        {
+            const UEdGraphSchema_Niagara* NiagaraSchema = Cast<UEdGraphSchema_Niagara>(Pin->GetSchema());
+            if (NiagaraSchema)
+            {
+                FNiagaraTypeDefinition PinDefinition = NiagaraSchema->PinToTypeDefinition(Pin);
+                if (PinDefinition == FNiagaraTypeDefinition::GetParameterMapDef())
+                {
+                    return Pin;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
 
 // ============================================================================
 // Utility Methods
@@ -251,34 +278,78 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
             TSharedPtr<FJsonObject> EmitterObj = MakeShared<FJsonObject>();
             EmitterObj->SetStringField(TEXT("emitter_name"), Handle.GetName().ToString());
 
-            // Helper lambda to extract module names only
-            auto ExtractModuleNames = [](UNiagaraScript* Script) -> TArray<TSharedPtr<FJsonValue>>
+            // Helper lambda to extract module names in execution order by tracing parameter map chain
+            auto ExtractModuleNames = [](UNiagaraScript* Script, ENiagaraScriptUsage ExpectedUsage) -> TArray<TSharedPtr<FJsonValue>>
             {
                 TArray<TSharedPtr<FJsonValue>> NamesArray;
                 if (!Script)
                 {
+                    UE_LOG(LogTemp, Warning, TEXT("ExtractModuleNames: Script is null"));
                     return NamesArray;
                 }
 
                 UNiagaraScriptSource* ScriptSource = Cast<UNiagaraScriptSource>(Script->GetLatestSource());
                 if (!ScriptSource || !ScriptSource->NodeGraph)
                 {
+                    UE_LOG(LogTemp, Warning, TEXT("ExtractModuleNames: No script source or graph"));
                     return NamesArray;
                 }
 
-                for (UEdGraphNode* Node : ScriptSource->NodeGraph->Nodes)
+                UNiagaraGraph* Graph = ScriptSource->NodeGraph;
+                // Use the expected usage, not Script->GetUsage() which may return something different
+                ENiagaraScriptUsage ScriptUsage = ExpectedUsage;
+                UE_LOG(LogTemp, Log, TEXT("ExtractModuleNames: Looking for output node with usage %d, Script->GetUsage() = %d"),
+                    (int32)ExpectedUsage, (int32)Script->GetUsage());
+
+                // Find the output node for this script's usage
+                UNiagaraNodeOutput* OutputNode = nullptr;
+                for (UEdGraphNode* Node : Graph->Nodes)
                 {
-                    UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Node);
-                    if (FunctionNode)
+                    UNiagaraNodeOutput* TestNode = Cast<UNiagaraNodeOutput>(Node);
+                    if (TestNode && TestNode->GetUsage() == ScriptUsage)
                     {
-                        NamesArray.Add(MakeShared<FJsonValueString>(FunctionNode->GetFunctionName()));
+                        OutputNode = TestNode;
+                        break;
                     }
+                }
+
+                if (!OutputNode)
+                {
+                    return NamesArray;
+                }
+
+                // Trace backwards from output node through parameter map chain to get ordered modules
+                TArray<FString> OrderedNames;
+                UNiagaraNode* CurrentNode = OutputNode;
+                while (CurrentNode != nullptr)
+                {
+                    UEdGraphPin* InputPin = GetParameterMapInputPinLocal(*CurrentNode);
+                    if (InputPin != nullptr && InputPin->LinkedTo.Num() == 1)
+                    {
+                        UNiagaraNode* PreviousNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
+                        UNiagaraNodeFunctionCall* ModuleNode = Cast<UNiagaraNodeFunctionCall>(PreviousNode);
+                        if (ModuleNode != nullptr)
+                        {
+                            OrderedNames.Insert(ModuleNode->GetFunctionName(), 0);  // Insert at front (walking backwards)
+                        }
+                        CurrentNode = PreviousNode;
+                    }
+                    else
+                    {
+                        CurrentNode = nullptr;
+                    }
+                }
+
+                // Convert to JSON array
+                for (const FString& Name : OrderedNames)
+                {
+                    NamesArray.Add(MakeShared<FJsonValueString>(Name));
                 }
                 return NamesArray;
             };
 
-            EmitterObj->SetArrayField(TEXT("spawn_modules"), ExtractModuleNames(EmitterData->SpawnScriptProps.Script));
-            EmitterObj->SetArrayField(TEXT("update_modules"), ExtractModuleNames(EmitterData->UpdateScriptProps.Script));
+            EmitterObj->SetArrayField(TEXT("spawn_modules"), ExtractModuleNames(EmitterData->SpawnScriptProps.Script, ENiagaraScriptUsage::ParticleSpawnScript));
+            EmitterObj->SetArrayField(TEXT("update_modules"), ExtractModuleNames(EmitterData->UpdateScriptProps.Script, ENiagaraScriptUsage::ParticleUpdateScript));
             EmitterSummaryArray.Add(MakeShared<FJsonValueObject>(EmitterObj));
         }
 
@@ -317,8 +388,8 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
                 FVersionedNiagaraEmitterData* EmitterData = TargetHandle->GetEmitterData();
                 if (EmitterData)
                 {
-                    // Helper lambda to extract full module details
-                    auto ExtractModulesFromScript = [](UNiagaraScript* Script, const FString& StageName) -> TArray<TSharedPtr<FJsonValue>>
+                    // Helper lambda to extract full module details in execution order
+                    auto ExtractModulesFromScript = [](UNiagaraScript* Script, const FString& StageName, ENiagaraScriptUsage ExpectedUsage) -> TArray<TSharedPtr<FJsonValue>>
                     {
                         TArray<TSharedPtr<FJsonValue>> ModulesArray;
                         if (!Script)
@@ -332,23 +403,63 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
                             return ModulesArray;
                         }
 
-                        for (UEdGraphNode* Node : ScriptSource->NodeGraph->Nodes)
+                        UNiagaraGraph* Graph = ScriptSource->NodeGraph;
+                        // Use expected usage, not Script->GetUsage()
+                        ENiagaraScriptUsage ScriptUsage = ExpectedUsage;
+
+                        // Find the output node for this script's usage
+                        UNiagaraNodeOutput* OutputNode = nullptr;
+                        for (UEdGraphNode* Node : Graph->Nodes)
                         {
-                            UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Node);
-                            if (FunctionNode)
+                            UNiagaraNodeOutput* TestNode = Cast<UNiagaraNodeOutput>(Node);
+                            if (TestNode && TestNode->GetUsage() == ScriptUsage)
                             {
-                                TSharedPtr<FJsonObject> ModuleObj = MakeShared<FJsonObject>();
-                                ModuleObj->SetStringField(TEXT("name"), FunctionNode->GetFunctionName());
-                                ModuleObj->SetStringField(TEXT("node_id"), FunctionNode->NodeGuid.ToString());
-                                ModuleObj->SetStringField(TEXT("stage"), StageName);
-
-                                if (UNiagaraScript* FunctionScript = FunctionNode->FunctionScript)
-                                {
-                                    ModuleObj->SetStringField(TEXT("script_path"), FunctionScript->GetPathName());
-                                }
-
-                                ModulesArray.Add(MakeShared<FJsonValueObject>(ModuleObj));
+                                OutputNode = TestNode;
+                                break;
                             }
+                        }
+
+                        if (!OutputNode)
+                        {
+                            return ModulesArray;
+                        }
+
+                        // Trace backwards from output node through parameter map chain to get ordered modules
+                        TArray<UNiagaraNodeFunctionCall*> OrderedModules;
+                        UNiagaraNode* CurrentNode = OutputNode;
+                        while (CurrentNode != nullptr)
+                        {
+                            UEdGraphPin* InputPin = GetParameterMapInputPinLocal(*CurrentNode);
+                            if (InputPin != nullptr && InputPin->LinkedTo.Num() == 1)
+                            {
+                                UNiagaraNode* PreviousNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
+                                UNiagaraNodeFunctionCall* ModuleNode = Cast<UNiagaraNodeFunctionCall>(PreviousNode);
+                                if (ModuleNode != nullptr)
+                                {
+                                    OrderedModules.Insert(ModuleNode, 0);  // Insert at front (walking backwards)
+                                }
+                                CurrentNode = PreviousNode;
+                            }
+                            else
+                            {
+                                CurrentNode = nullptr;
+                            }
+                        }
+
+                        // Convert to JSON array with full details
+                        for (UNiagaraNodeFunctionCall* FunctionNode : OrderedModules)
+                        {
+                            TSharedPtr<FJsonObject> ModuleObj = MakeShared<FJsonObject>();
+                            ModuleObj->SetStringField(TEXT("name"), FunctionNode->GetFunctionName());
+                            ModuleObj->SetStringField(TEXT("node_id"), FunctionNode->NodeGuid.ToString());
+                            ModuleObj->SetStringField(TEXT("stage"), StageName);
+
+                            if (UNiagaraScript* FunctionScript = FunctionNode->FunctionScript)
+                            {
+                                ModuleObj->SetStringField(TEXT("script_path"), FunctionScript->GetPathName());
+                            }
+
+                            ModulesArray.Add(MakeShared<FJsonValueObject>(ModuleObj));
                         }
                         return ModulesArray;
                     };
@@ -359,11 +470,11 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
 
                     if (Stage.Equals(TEXT("Spawn"), ESearchCase::IgnoreCase))
                     {
-                        ModulesObj->SetArrayField(TEXT("modules"), ExtractModulesFromScript(EmitterData->SpawnScriptProps.Script, TEXT("Spawn")));
+                        ModulesObj->SetArrayField(TEXT("modules"), ExtractModulesFromScript(EmitterData->SpawnScriptProps.Script, TEXT("Spawn"), ENiagaraScriptUsage::ParticleSpawnScript));
                     }
                     else if (Stage.Equals(TEXT("Update"), ESearchCase::IgnoreCase))
                     {
-                        ModulesObj->SetArrayField(TEXT("modules"), ExtractModulesFromScript(EmitterData->UpdateScriptProps.Script, TEXT("Update")));
+                        ModulesObj->SetArrayField(TEXT("modules"), ExtractModulesFromScript(EmitterData->UpdateScriptProps.Script, TEXT("Update"), ENiagaraScriptUsage::ParticleUpdateScript));
                     }
                     else if (Stage.Equals(TEXT("Render"), ESearchCase::IgnoreCase))
                     {

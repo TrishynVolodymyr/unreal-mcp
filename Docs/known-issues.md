@@ -92,33 +92,6 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
-### NiagaraMCP set_module_input + add_module_to_emitter Combination Causes Compilation Errors
-- **Affected**: `set_module_input` combined with `add_module_to_emitter` in niagaraMCP
-- **Problem**: Using BOTH tools on the same system causes compilation errors. Each tool works fine independently:
-  - `set_module_input` alone → compiles OK
-  - `add_module_to_emitter` alone → compiles OK
-  - BOTH together (any order) → compilation fails
-- **Symptoms**: After combining both operations, `compile_niagara_asset` returns errors like:
-  - `Default found for AddVelocity.Rotation Coordinate Space, but not found in ParameterMap traversal`
-  - `Default found for Local.AddVelocity.TransformedVector, but not found in ParameterMap traversal`
-  - `Default found for SystemLocation.Offset Coordinate Space, but not found in ParameterMap traversal`
-- **Root Cause Investigation**:
-  1. **Rapid iteration parameters**: Tried setting values via `Script->RapidIterationParameters.SetParameterData()` using `FNiagaraUtilities::ConvertVariableToRapidIterationConstantName()` - still fails when combined with add_module
-  2. **Override pins**: Tried using `FNiagaraStackGraphUtilities::GetOrCreateStackFunctionInputOverridePin()` - also causes corruption
-  3. **AffectedScripts**: Niagara internally uses `FNiagaraStackGraphUtilities::FindAffectedScripts()` to set parameters on ALL affected scripts (not just one). This function is NOT exported (no NIAGARAEDITOR_API).
-  4. **Hypothesis**: My implementation sets rapid iteration params on ONE script, but Niagara expects them on ALL affected scripts. When `add_module_to_emitter` modifies the graph, the parameter map gets rebuilt, but only finds the parameter on one script, causing desync.
-- **Key source files investigated**:
-  - `NiagaraStackFunctionInput.cpp` - `SetLocalValue()` at line 2178
-  - `NiagaraStackGraphUtilities.cpp` - `CreateRapidIterationParameter()` at line 2792
-  - `NiagaraCommon.h` - `FNiagaraUtilities::ConvertVariableToRapidIterationConstantName()` at line 1559
-- **Impact**: Cannot fully configure Niagara emitters programmatically when adding new modules
-- **Workaround**:
-  1. Use `add_module_to_emitter` to add all modules first
-  2. Compile the system
-  3. Configure module inputs manually in Unreal Editor
-  4. OR skip `set_module_input` entirely and rely on module default values
-- **Future Fix**: Need to either export `FindAffectedScripts` or implement equivalent logic to set parameters on all affected scripts
-
 ---
 
 ### NiagaraMCP add_renderer Creates Duplicate When Template Has Inherited Renderer
@@ -150,17 +123,101 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
-### NiagaraMCP Module Search Returns Empty Results
+### NiagaraMCP Module Search Returns Empty Results (PARTIALLY RESOLVED)
 - **Affected**: `search_niagara_modules` in niagaraMCP
-- **Problem**: Searching for common Niagara modules returns 0 results even when modules exist
-- **Examples Tested**:
+- **Problem**: Searching for some Niagara modules returns 0 results
+- **Update (2026-01-06)**: Search DOES work for some queries:
+  - `search_niagara_modules("Drag")` → 4 results ✅
+  - `search_niagara_modules("Scale")` → 28 results ✅
+- **Still failing**:
+  - `search_niagara_modules("Scale Sprite")` → 0 results (but "Scale" alone works)
   - `search_niagara_modules("Curl Noise")` → 0 results
-  - `search_niagara_modules("Scale Sprite Size")` → 0 results
-  - `search_niagara_modules("Scale Color")` → 0 results
-  - `search_niagara_modules("Shape Location")` → 0 results
-- **Impact**: Cannot discover available Niagara modules programmatically; must know exact module paths
-- **Workaround**: Use known module paths directly (e.g., `/Niagara/Modules/...`)
-- **Root Cause**: Likely querying wrong asset registry class or path filter is too restrictive
+- **Workaround**: Use single-word searches, browse results to find exact module name
+
+---
+
+### NiagaraMCP LinearColor Type Cannot Be Set via set_module_input
+- **Affected**: `set_module_input` in niagaraMCP when `input_type` is `LinearColor`
+- **Date Discovered**: 2026-01-06
+- **Problem**: Setting `LinearColor` type parameters returns success but value doesn't change
+- **Symptoms**: Tool returns `{"success": true}` but parameter value remains unchanged
+- **Tested Scenarios**:
+
+  **Attempt 1 - Color module (Update stage)**:
+  ```json
+  {
+    "system_path": "/Game/VFX/NS_RealisticFire",
+    "emitter_name": "FireEmbers",
+    "module_name": "Color",
+    "stage": "Update",
+    "input_name": "Color",
+    "value": "(R=1.0, G=0.7, B=0.2, A=1.0)"
+  }
+  ```
+  - **Response**: `{"success": true, "message": "Module input set successfully"}`
+  - **Verification**: Value remained `(R=0.0000, G=0.0000, B=0.0000, A=0.0000)`
+
+  **Attempt 2 - InitializeParticle module (Spawn stage)**:
+  ```json
+  {
+    "system_path": "/Game/VFX/NS_RealisticFire",
+    "emitter_name": "FireEmbers",
+    "module_name": "InitializeParticle",
+    "stage": "Spawn",
+    "input_name": "Color",
+    "value": "(R=1.0, G=0.7, B=0.2, A=1.0)"
+  }
+  ```
+  - **Response**: `{"success": true, "message": "Module input set successfully"}`
+  - **Verification**: Value remained `(R=0.0000, G=0.0000, B=0.0000, A=0.0000)`
+
+- **Types That DO Work** (same session, same emitter):
+  | Input | Type | Value | Result |
+  |-------|------|-------|--------|
+  | Lifetime Min | NiagaraFloat | 2.0 | ✅ Updated |
+  | Lifetime Max | NiagaraFloat | 4.0 | ✅ Updated |
+  | Velocity | Vector3f | (0,0,200) | ✅ Updated |
+  | Cone Angle | NiagaraFloat | 70 | ✅ Updated |
+  | Gravity | Vector3f | (0,0,-20) | ✅ Updated |
+  | Noise Frequency | NiagaraFloat | 0.7 | ✅ Updated |
+  | Scale Color | Vector3f | (4,3,1) | ✅ Updated |
+  | Scale Alpha | NiagaraFloat | 1.0 | ✅ Updated |
+  | Drag | NiagaraFloat | 0.8 | ✅ Updated |
+
+- **Root Cause Hypothesis**:
+  1. LinearColor parsing not implemented in C++ `set_module_input` handler
+  2. Format mismatch - may need different format than `(R=x, G=y, B=z, A=w)`
+  3. Niagara Color values may be bound to curves/dynamic inputs that override direct values
+- **Workaround**: Set LinearColor values manually in Unreal Editor
+- **Future Fix**: Investigate NiagaraService C++ code to add LinearColor type handling
+
+---
+
+### NiagaraMCP compile_niagara_asset Returns Warnings as Errors
+- **Affected**: `compile_niagara_asset` in niagaraMCP
+- **Date Discovered**: 2026-01-06
+- **Problem**: Compile returns `status: "error"` for non-fatal warnings
+- **Example Request**:
+  ```json
+  {"asset_path": "/Game/VFX/NS_RealisticFire"}
+  ```
+- **Response**:
+  ```json
+  {
+    "status": "error",
+    "error": "[FireEmbers] Spawn Script: Default found for InitializeParticle.Material Random, but not found in ParameterMap traversal - Node: Map Get - ..."
+  }
+  ```
+- **Actual Behavior**: System compiles and works fine - these are warnings about default values
+- **Impact**: AI incorrectly interprets successful compiles as failures
+- **Suggested Fix**: Distinguish warnings from errors:
+  ```json
+  {
+    "status": "success",
+    "warnings": ["..."],
+    "errors": []
+  }
+  ```
 
 ---
 
@@ -190,6 +247,22 @@ This file tracks MCP tool limitations discovered during development. When encoun
     Material->MaterialGraph->LinkGraphNodesFromMaterial();  // Expressions → Graph
     ```
   - Key insight: `LinkGraphNodesFromMaterial()` = Expressions → Graph (CORRECT). `LinkMaterialExpressionsFromGraph()` = Graph → Expressions (UNRELIABLE for persistence).
+
+- **NiagaraMCP set_module_input + add_module_to_emitter Combination Causes Compilation Errors** - Fixed in NiagaraModuleService.cpp
+  - Issue: Using both tools together caused "ParameterMap traversal" compilation errors
+  - Root Cause: `set_module_input` was setting rapid iteration parameters on only ONE script, but Niagara expects them on ALL affected scripts (system spawn/update + emitter scripts)
+  - Fix: Implemented equivalent of `FNiagaraStackGraphUtilities::FindAffectedScripts()` (not exported) to collect all affected scripts, then set rapid iteration parameter on ALL of them
+  - Now `set_module_input` and `add_module_to_emitter` can be used together without corruption
+
+- **MaterialMCP set_material_expression_property Crashes When Setting DefaultValue on ScalarParameter** - Fixed in MaterialExpressionCreation.cpp
+  - Issue: `set_material_expression_property` with `property_name="DefaultValue"` on a ScalarParameter crashed Unreal Editor
+  - Error: `EXCEPTION_ACCESS_VIOLATION reading address 0x0000000000000000`
+  - Root Cause: The code was calling `PostEditChangeProperty()` on the expression, which triggers `UMaterialExpressionScalarParameter::PostEditChangeProperty()`. This broadcasts `FEditorSupportDelegates::NumericParameterDefaultChanged` delegate, which expects `Expression->Material` to be valid. However, expressions added via `EditorData->ExpressionCollection.AddExpression()` don't have their `Material` member set (only the UObject Outer is set).
+  - Fix: Removed the `PreEditChange`/`PostEditChangeProperty` pattern for ScalarParameter and VectorParameter DefaultValue changes. Since `RecompileMaterial()` is called later anyway, these notifications were redundant. Now values are set directly:
+    ```cpp
+    ScalarParam->DefaultValue = NewValue;  // Direct assignment, no PostEditChangeProperty
+    ```
+  - Also applies to VectorParameter DefaultValue for consistency
 
 ## Notes
 

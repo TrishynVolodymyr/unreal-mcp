@@ -14,6 +14,7 @@
 #include "Commands/Niagara/SearchNiagaraModulesCommand.h"
 #include "Commands/Niagara/AddModuleToEmitterCommand.h"
 #include "Commands/Niagara/SetModuleInputCommand.h"
+#include "Commands/Niagara/MoveModuleCommand.h"
 
 // Feature 3: Parameters
 #include "Commands/Niagara/AddNiagaraParameterCommand.h"
@@ -50,6 +51,7 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FSearchNiagaraModulesCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FAddModuleToEmitterCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetModuleInputCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FMoveModuleCommand>(NiagaraService));
 
     // Register Feature 3: Parameter commands
     RegisterAndTrackCommand(MakeShared<FAddNiagaraParameterCommand>(NiagaraService));

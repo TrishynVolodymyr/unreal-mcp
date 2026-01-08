@@ -348,6 +348,23 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
                 {
                     Value = TEXT("[Default]");
                 }
+
+                // Resolve enum display names for better readability
+                // Enum pins have PinSubCategoryObject set to the UEnum*
+                if (UEnum* EnumType = Cast<UEnum>(Pin->PinType.PinSubCategoryObject.Get()))
+                {
+                    // Try to find the enum value by name and get its display name
+                    int64 EnumValue = EnumType->GetValueByNameString(Value);
+                    if (EnumValue != INDEX_NONE)
+                    {
+                        FText DisplayNameText = EnumType->GetDisplayNameTextByValue(EnumValue);
+                        if (!DisplayNameText.IsEmpty())
+                        {
+                            Value = DisplayNameText.ToString();
+                        }
+                    }
+                }
+
                 InputObj->SetStringField(TEXT("value"), Value);
                 InputsArray.Add(MakeShared<FJsonValueObject>(InputObj));
             }
