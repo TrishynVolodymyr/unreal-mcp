@@ -72,7 +72,11 @@ public class UnrealMCP : ModuleRules
 				"SubobjectDataInterface",  // For UE 5.7 USubobjectDataSubsystem API
 				"ImageWrapper",            // For PNG/JPEG compression
 				"RenderCore",              // For render targets
-				"RHI"                      // For reading pixels from GPU
+				"RHI",                     // For reading pixels from GPU
+				"NavigationSystem",        // For ANavMeshBoundsVolume
+				"AnimGraph",               // For Animation Blueprint nodes
+				"AnimationBlueprintLibrary", // For Animation Blueprint utilities
+				"GameplayTags"             // For FGameplayTag in animation variables
 			}
 		);
 		

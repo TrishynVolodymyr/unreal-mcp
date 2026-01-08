@@ -88,7 +88,7 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register Asset Management commands
     Registry.RegisterCommand(MakeShared<FRenameAssetCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FMoveAssetCommand>(ProjectService));
-    Registry.RegisterCommand(MakeShared<FSearchAssetsCommand>());
+    Registry.RegisterCommand(MakeShared<FSearchAssetsCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }
