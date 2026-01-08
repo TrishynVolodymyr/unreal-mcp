@@ -34,6 +34,7 @@ public:
     virtual bool GetVectorParameter(const FString& MaterialPath, const FString& ParameterName, FLinearColor& OutValue, FString& OutError) override;
     virtual bool GetTextureParameter(const FString& MaterialPath, const FString& ParameterName, FString& OutTexturePath, FString& OutError) override;
     virtual bool ApplyMaterialToActor(const FString& ActorName, const FString& MaterialPath, int32 SlotIndex, const FString& ComponentName, FString& OutError) override;
+    virtual bool DuplicateMaterialInstance(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutAssetPath, FString& OutParentMaterial, FString& OutError) override;
 
 private:
     /** Singleton instance */

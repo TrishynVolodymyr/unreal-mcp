@@ -526,6 +526,17 @@ public:
      */
     virtual bool CompileAsset(const FString& AssetPath, FString& OutError) = 0;
 
+    /**
+     * Duplicate a Niagara System
+     * @param SourcePath - Path to the source system
+     * @param NewName - Name for the duplicated system
+     * @param FolderPath - Optional folder path for the new system
+     * @param OutNewPath - Output path of the duplicated system
+     * @param OutError - Error message if duplication fails
+     * @return true if duplication succeeded
+     */
+    virtual bool DuplicateSystem(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutNewPath, FString& OutError) = 0;
+
     // ========================================================================
     // Module System (Feature 2)
     // ========================================================================

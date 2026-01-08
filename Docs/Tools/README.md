@@ -11,13 +11,16 @@ Technical documentation for all MCP tool categories. This section provides comma
 | Category | File | Description |
 |----------|------|-------------|
 | **[Actor Tools](actor_tools.md)** | `actor_tools.md` | Actor spawning, deletion, and manipulation in the scene |
+| **[Animation Tools](animation_tools.md)** | `animation_tools.md` | Animation Blueprint creation, state machines, variables, transitions |
 | **[Blueprint Tools](blueprint_tools.md)** | `blueprint_tools.md` | Blueprint class creation, components, variables, compilation |
 | **[Blueprint Action Tools](blueprint_action_tools.md)** | `blueprint_action_tools.md` | Dynamic Blueprint action discovery via UE's action database |
-| **[Editor Tools](editor_tools.md)** | `editor_tools.md` | Editor control, viewport management, scene queries |
-| **[Node Tools](node_tools.md)** | `node_tools.md` | Blueprint visual scripting, node creation, connections |
-| **[UMG Tools](umg_tools.md)** | `umg_tools.md` | Widget Blueprint creation, UI components, layouts |
 | **[DataTable Tools](datatable_tools.md)** | `datatable_tools.md` | DataTable CRUD operations, struct management |
+| **[Editor Tools](editor_tools.md)** | `editor_tools.md` | Editor control, viewport management, scene queries |
+| **[Material Tools](material_tools.md)** | `material_tools.md` | Material Instance creation, parameter management, textures |
+| **[Niagara Tools](niagara_tools.md)** | `niagara_tools.md` | Niagara VFX systems, emitters, parameters, renderers |
+| **[Node Tools](node_tools.md)** | `node_tools.md` | Blueprint visual scripting, node creation, connections |
 | **[Project Tools](project_tools.md)** | `project_tools.md` | Project organization, Enhanced Input System, structs |
+| **[UMG Tools](umg_tools.md)** | `umg_tools.md` | Widget Blueprint creation, UI components, layouts |
 
 ---
 
@@ -370,7 +373,10 @@ Dispatcher->RegisterCommand(TEXT("my_new_command"),
 
 ### API References
 - **[Actor Tools API](actor_tools.md)** - Actor management commands
+- **[Animation Tools API](animation_tools.md)** - Animation Blueprint commands
 - **[Blueprint Tools API](blueprint_tools.md)** - Blueprint creation commands
+- **[Material Tools API](material_tools.md)** - Material Instance commands
+- **[Niagara Tools API](niagara_tools.md)** - VFX particle system commands
 - **[Node Tools API](node_tools.md)** - Visual scripting commands
 - **[UMG Tools API](umg_tools.md)** - UI widget commands
 
@@ -401,12 +407,15 @@ Test through AI assistant:
 
 | Category | Commands | Most Used |
 |----------|----------|-----------|
+| Animation | 9 | `create_animation_blueprint`, `add_anim_state`, `add_anim_transition` |
 | Blueprint | 15+ | `create_blueprint`, `add_component`, `compile_blueprint` |
-| Node | 12+ | `add_event_node`, `connect_nodes`, `create_node_by_action_name` |
-| UMG | 10+ | `create_widget_blueprint`, `add_widget_component`, `set_widget_property` |
-| Editor | 8+ | `spawn_actor`, `set_actor_transform`, `get_level_metadata` |
-| DataTable | 7+ | `create_datatable`, `add_rows`, `get_datatable_rows` |
-| Project | 9+ | `create_enhanced_input_action`, `create_folder`, `create_struct` |
 | Blueprint Action | 5+ | `search_blueprint_actions`, `get_actions_for_class` |
+| DataTable | 7+ | `create_datatable`, `add_rows`, `get_datatable_rows` |
+| Editor | 8+ | `spawn_actor`, `set_actor_transform`, `get_level_metadata` |
+| Material | 8 | `create_material_instance`, `batch_set_material_params`, `set_material_texture_param` |
+| Niagara | 12 | `create_niagara_system`, `add_emitter_to_system`, `set_niagara_color_param` |
+| Node | 12+ | `add_event_node`, `connect_nodes`, `create_node_by_action_name` |
+| Project | 9+ | `create_enhanced_input_action`, `create_folder`, `create_struct` |
+| UMG | 10+ | `create_widget_blueprint`, `add_widget_component`, `set_widget_property` |
 
-**Total**: 66+ commands across 7 categories
+**Total**: 95+ commands across 10 categories

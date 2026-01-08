@@ -393,24 +393,16 @@ def register_project_tools(mcp: FastMCP):
         Update an existing Unreal user-defined enum.
 
         Args:
-            enum_name: Name of the enum to update (e.g., "E_ItemType")
-            values: List of enum values (strings or objects with name/description)
+            enum_name: Name of the enum to update
+            values: List of enum values
             path: Path where the enum exists
-            description: Optional new description for the enum
-
-        Example:
-            update_enum(
-                enum_name="E_QuestStatus",
-                values=["Available", "Active", "Completed", "Failed"],
-                path="/Game/Quests/Data"
-            )
+            description: Optional new description
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
 
         try:
             unreal = get_unreal_connection()
             if not unreal:
-                logger.error("Failed to connect to Unreal Engine")
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
 
             params = {
@@ -420,20 +412,11 @@ def register_project_tools(mcp: FastMCP):
                 "description": description
             }
 
-            logger.info(f"Updating enum '{enum_name}' with {len(values)} values at '{path}'")
             response = unreal.send_command("update_enum", params)
-
-            if not response:
-                logger.error("No response from Unreal Engine")
-                return {"success": False, "message": "No response from Unreal Engine"}
-
-            logger.info(f"Enum update response: {response}")
-            return response
+            return response if response else {"success": False, "message": "No response from Unreal Engine"}
 
         except Exception as e:
-            error_msg = f"Error updating enum: {e}"
-            logger.error(error_msg)
-            return {"success": False, "message": error_msg}
+            return {"success": False, "message": f"Error updating enum: {e}"}
 
     @mcp.tool()
     def get_project_metadata(
@@ -618,42 +601,58 @@ def register_project_tools(mcp: FastMCP):
             return {"success": False, "message": error_msg}
 
     @mcp.tool()
-    def search_assets(
+    def create_font_face(
         ctx: Context,
-        search_query: str,
-        asset_type: str = "",
-        path: str = "/Game",
-        max_results: int = 50
+        font_name: str,
+        source_texture: str,
+        path: str = "/Game/Fonts",
+        use_sdf: bool = True,
+        distance_field_spread: int = 4,
+        font_metrics: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
-        Search for assets by name with optional type filtering.
+        Create a new FontFace asset from an SDF texture.
 
-        Uses Unreal Engine's Asset Registry for efficient querying across
-        the project content. Supports filtering by asset class type.
+        FontFace assets are required to use custom fonts in UMG widgets. This tool creates
+        a FontFace that references an SDF (Signed Distance Field) texture for high-quality
+        text rendering at any scale.
 
         Args:
-            search_query: Name or partial name to search for (case-insensitive)
-            asset_type: Optional asset class filter. Common types:
-                - "Texture2D" or "Texture" - Texture assets
-                - "Material" - Material assets
-                - "MaterialInstance" - Material instances
-                - "StaticMesh" - Static mesh assets
-                - "SkeletalMesh" - Skeletal mesh assets
-                - "SoundWave" or "Sound" - Audio assets
-                - "Blueprint" - Blueprint classes
-                - "WidgetBlueprint" or "Widget" - UMG widget blueprints
-                - "DataTable" - Data table assets
-                - "AnimSequence" or "Animation" - Animation sequences
-                - "NiagaraSystem" or "Niagara" - Niagara particle systems
-            path: Root path to search in (default: "/Game"). Use "/Engine" for engine content.
-            max_results: Maximum number of results to return (default: 50, max: 500)
+            font_name: Name of the FontFace asset to create (e.g., "FF_DarkFantasy_Regular")
+            source_texture: Path to the source SDF texture (e.g., "/Game/Fonts/DarkFantasy_Regular_sdf")
+            path: Path where to create the FontFace asset (default: "/Game/Fonts")
+            use_sdf: Whether this font uses SDF rendering (default: True)
+            distance_field_spread: SDF spread value in pixels (default: 4)
+            font_metrics: Optional font metrics dict with keys:
+                - ascender: Font ascender value
+                - descender: Font descender value
+                - line_height: Line height value
 
         Returns:
-            Dict with: search_query, asset_type, path, count, total_scanned,
-            assets[] (name, path, package_path, class_name)
+            Dictionary containing:
+            - success: Whether the FontFace was created
+            - font_path: Full path to the created FontFace asset
+            - message: Status message
 
-        Example:
-            search_assets(search_query="Noise", asset_type="Texture2D", path="/Engine")
+        Examples:
+            # Create a basic SDF FontFace
+            create_font_face(
+                font_name="FF_DarkFantasy_Regular",
+                source_texture="/Game/Fonts/DarkFantasy_Regular_sdf"
+            )
+
+            # Create FontFace with custom metrics
+            create_font_face(
+                font_name="FF_DarkFantasy_Bold",
+                source_texture="/Game/Fonts/DarkFantasy_Bold_sdf",
+                path="/Game/UI/Fonts",
+                distance_field_spread=6,
+                font_metrics={
+                    "ascender": 0.8,
+                    "descender": -0.2,
+                    "line_height": 1.2
+                }
+            )
         """
         from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
 
@@ -664,20 +663,814 @@ def register_project_tools(mcp: FastMCP):
                 return {"success": False, "message": "Failed to connect to Unreal Engine"}
 
             params = {
-                "search_query": search_query,
-                "asset_type": asset_type,
+                "font_name": font_name,
+                "source_texture": source_texture,
                 "path": path,
-                "max_results": max_results
+                "use_sdf": use_sdf,
+                "distance_field_spread": distance_field_spread
             }
 
-            logger.info(f"Searching assets: query='{search_query}', type='{asset_type}', path='{path}'")
+            if font_metrics:
+                params["font_metrics"] = font_metrics
+
+            logger.info(f"Creating FontFace '{font_name}' from texture '{source_texture}'")
+            response = unreal.send_command("create_font_face", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Create FontFace response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error creating FontFace: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def set_font_face_properties(
+        ctx: Context,
+        font_path: str,
+        properties: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Set properties on an existing FontFace asset.
+
+        Args:
+            font_path: Path to the FontFace asset (e.g., "/Game/Fonts/FF_DarkFantasy_Regular")
+            properties: Dictionary of properties to set. Supported properties:
+                - Hinting: Font hinting mode ("Default", "Auto", "AutoLight", "Monochrome", "None")
+                - LoadingPolicy: Font loading policy ("LazyLoad", "Stream", "Inline")
+                - Ascender: Font ascender value (float)
+                - Descender: Font descender value (float)
+                - SubFaceIndex: Sub-face index for multi-face fonts (int)
+
+        Returns:
+            Dictionary containing:
+            - success: Whether properties were set
+            - font_path: Path to the modified FontFace
+            - success_properties: List of properties that were set successfully
+            - failed_properties: List of properties that failed to set
+            - message: Status message
+
+        Examples:
+            # Set hinting mode
+            set_font_face_properties(
+                font_path="/Game/Fonts/FF_DarkFantasy_Regular",
+                properties={"Hinting": "None"}
+            )
+
+            # Set multiple properties
+            set_font_face_properties(
+                font_path="/Game/Fonts/FF_DarkFantasy_Regular",
+                properties={
+                    "Hinting": "AutoLight",
+                    "LoadingPolicy": "Inline",
+                    "Ascender": 0.85
+                }
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "font_path": font_path,
+                "properties": properties
+            }
+
+            logger.info(f"Setting properties on FontFace '{font_path}'")
+            response = unreal.send_command("set_font_face_properties", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Set FontFace properties response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error setting FontFace properties: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def get_font_face_metadata(
+        ctx: Context,
+        font_path: str
+    ) -> Dict[str, Any]:
+        """
+        Get metadata about an existing FontFace asset.
+
+        Args:
+            font_path: Path to the FontFace asset (e.g., "/Game/Fonts/FF_DarkFantasy_Regular")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the FontFace was found
+            - font_path: Path to the FontFace asset
+            - font_name: Name of the FontFace
+            - source_filename: Original source file (if available)
+            - hinting: Current hinting mode
+            - loading_policy: Current loading policy
+            - ascender: Font ascender value
+            - descender: Font descender value
+            - sub_face_index: Sub-face index
+            - message: Status message
+
+        Examples:
+            # Get FontFace metadata
+            get_font_face_metadata(font_path="/Game/Fonts/FF_DarkFantasy_Regular")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "font_path": font_path
+            }
+
+            logger.info(f"Getting metadata for FontFace '{font_path}'")
+            response = unreal.send_command("get_font_face_metadata", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Get FontFace metadata response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error getting FontFace metadata: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def create_offline_font(
+        ctx: Context,
+        font_name: str,
+        texture_path: str,
+        metrics_file_path: str,
+        path: str = "/Game/Fonts"
+    ) -> Dict[str, Any]:
+        """
+        Create an offline (bitmap/SDF atlas) font from a texture and metrics JSON file.
+
+        This tool creates a UFont asset with offline caching that uses a pre-rendered
+        texture atlas (like SDF fonts) instead of TTF font data. The metrics JSON file
+        (on disk, NOT an Unreal asset) provides character positions and font metrics.
+
+        Args:
+            font_name: Name of the font asset to create (e.g., "Font_DarkFantasy_Regular")
+            texture_path: Path to the SDF texture atlas (e.g., "/Game/Fonts/DarkFantasy_Regular_sdf")
+            metrics_file_path: Absolute file path to the metrics JSON file on disk (NOT an Unreal asset path).
+                The JSON file should have the following structure:
+                - atlasWidth: Width of the texture atlas in pixels
+                - atlasHeight: Height of the texture atlas in pixels
+                - lineHeight: Line height in pixels
+                - baseline: Baseline position from top in pixels
+                - characters: Object mapping character codes to glyph data:
+                    - u, v: Normalized UV coordinates (0-1)
+                    - width, height: Glyph dimensions in pixels
+                    - xOffset, yOffset: Positioning offsets
+                    - xAdvance: Horizontal advance for cursor
+            path: Path where to create the font asset (default: "/Game/Fonts")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the font was created
+            - font_name: Name of the created font
+            - font_path: Full path to the created font asset
+            - message: Status message
+
+        Examples:
+            # Create font from SDF texture and metrics file
+            create_offline_font(
+                font_name="Font_DarkFantasy_Regular",
+                texture_path="/Game/Fonts/DarkFantasy_Regular_sdf",
+                metrics_file_path="E:/code/unreal-mcp/Docs/fonts/DarkFantasy_Regular_metrics.json"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "font_name": font_name,
+                "texture_path": texture_path,
+                "metrics_file_path": metrics_file_path,
+                "path": path
+            }
+
+            logger.info(f"Creating offline font '{font_name}' from texture '{texture_path}' with metrics from '{metrics_file_path}'")
+            response = unreal.send_command("create_offline_font", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Create offline font response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error creating offline font: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def get_font_metadata(
+        ctx: Context,
+        font_path: str
+    ) -> Dict[str, Any]:
+        """
+        Get metadata about an existing UFont asset.
+
+        Args:
+            font_path: Path to the font asset (e.g., "/Game/Fonts/Font_DarkFantasy_Regular")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the font was found
+            - font_path: Path to the font asset
+            - font_name: Name of the font
+            - cache_type: "Offline" or "Runtime"
+            - em_scale: Em scale factor
+            - ascent: Font ascent
+            - descent: Font descent
+            - leading: Line leading
+            - kerning: Default kerning
+            - scaling_factor: Scaling factor
+            - legacy_font_size: Legacy font size
+            - character_count: Number of characters
+            - texture_count: Number of textures
+            - is_remapped: Whether character remapping is used
+
+        Examples:
+            # Get font metadata
+            get_font_metadata(font_path="/Game/Fonts/Font_DarkFantasy_Regular")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "font_path": font_path
+            }
+
+            logger.info(f"Getting metadata for font '{font_path}'")
+            response = unreal.send_command("get_font_metadata", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Get font metadata response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error getting font metadata: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def create_font(
+        ctx: Context,
+        font_name: str,
+        source_type: str,
+        ttf_file_path: str = None,
+        sdf_texture: str = None,
+        atlas_texture: str = None,
+        metrics_file: str = None,
+        path: str = "/Game/Fonts",
+        use_sdf: bool = True,
+        distance_field_spread: int = 32,
+        font_metrics: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Unified font creation command supporting multiple source types.
+
+        This is the recommended tool for creating font assets in Unreal Engine.
+        It consolidates TTF import, SDF texture, and offline bitmap font workflows.
+
+        Args:
+            font_name: Name of the font asset to create (e.g., "Font_CinzelTorn")
+            source_type: Type of font source. One of:
+                - "ttf": Import an external TTF file as a FontFace asset
+                - "sdf_texture": Create a FontFace from an SDF texture
+                - "offline": Create a UFont from a texture atlas and metrics JSON
+            ttf_file_path: (Required for "ttf") Absolute path to the TTF file on disk
+                Example: "E:/code/unreal-mcp/Python/font_generation/Cinzel-Torn.ttf"
+            sdf_texture: (Optional for "sdf_texture") Path to the SDF texture in UE
+                Example: "/Game/Fonts/DarkFantasy_sdf"
+            atlas_texture: (Required for "offline") Path to the texture atlas in UE
+                Example: "/Game/Fonts/DarkFantasy_atlas"
+            metrics_file: (Required for "offline") Absolute path to metrics JSON on disk
+                Example: "E:/fonts/DarkFantasy_metrics.json"
+            path: Path where to create the font asset (default: "/Game/Fonts")
+            use_sdf: (For "sdf_texture") Whether to use SDF rendering (default: True)
+            distance_field_spread: (For "sdf_texture") SDF spread value (default: 32)
+            font_metrics: Optional font metrics dict with keys:
+                - ascender: Font ascender value
+                - descender: Font descender value
+                - line_height: Line height value
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the font was created
+            - font_name: Name of the created font
+            - source_type: The source type used
+            - asset_path: Full path to the created font asset
+            - message: Status message
+
+        Examples:
+            # Import a TTF file (most common use case)
+            create_font(
+                font_name="Font_CinzelTorn",
+                source_type="ttf",
+                ttf_file_path="E:/code/unreal-mcp/Python/font_generation/Cinzel-Torn.ttf"
+            )
+
+            # Create from SDF texture
+            create_font(
+                font_name="FF_DarkFantasy",
+                source_type="sdf_texture",
+                sdf_texture="/Game/Fonts/DarkFantasy_sdf",
+                distance_field_spread=6
+            )
+
+            # Create offline/bitmap font from atlas
+            create_font(
+                font_name="Font_Bitmap",
+                source_type="offline",
+                atlas_texture="/Game/Fonts/Bitmap_atlas",
+                metrics_file="E:/fonts/bitmap_metrics.json"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            # Validate source_type
+            valid_source_types = ["ttf", "sdf_texture", "offline"]
+            if source_type not in valid_source_types:
+                return {
+                    "success": False,
+                    "message": f"Invalid source_type '{source_type}'. Must be one of: {valid_source_types}"
+                }
+
+            # Build params based on source_type
+            params = {
+                "font_name": font_name,
+                "source_type": source_type,
+                "path": path
+            }
+
+            if source_type == "ttf":
+                if not ttf_file_path:
+                    return {"success": False, "message": "ttf_file_path is required for source_type='ttf'"}
+                params["ttf_file_path"] = ttf_file_path
+                if font_metrics:
+                    params["font_metrics"] = font_metrics
+
+            elif source_type == "sdf_texture":
+                if sdf_texture:
+                    params["sdf_texture"] = sdf_texture
+                params["use_sdf"] = use_sdf
+                params["distance_field_spread"] = distance_field_spread
+                if font_metrics:
+                    params["font_metrics"] = font_metrics
+
+            elif source_type == "offline":
+                if not atlas_texture:
+                    return {"success": False, "message": "atlas_texture is required for source_type='offline'"}
+                if not metrics_file:
+                    return {"success": False, "message": "metrics_file is required for source_type='offline'"}
+                params["atlas_texture"] = atlas_texture
+                params["metrics_file"] = metrics_file
+
+            logger.info(f"Creating font '{font_name}' with source_type='{source_type}'")
+            response = unreal.send_command("create_font", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Create font response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error creating font: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    # ========================================
+    # DataAsset Tools
+    # ========================================
+
+    @mcp.tool()
+    def create_data_asset(
+        ctx: Context,
+        name: str,
+        asset_class: str,
+        folder_path: str = "/Game",
+        properties: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new DataAsset of a specified class.
+
+        This tool creates UDataAsset subclass instances, which are useful for
+        storing game configuration data like ability sets, item definitions,
+        character archetypes, etc.
+
+        Args:
+            name: Name of the DataAsset to create (e.g., "DA_AbilitySet_Warrior")
+            asset_class: Class name of the DataAsset. Can be:
+                - Simple name: "AbilitySet", "SkillTreeDataAsset"
+                - Full path: "/Script/MyGame.AbilitySet"
+            folder_path: Path where to create the asset (default: "/Game")
+            properties: Optional dict of initial property values to set
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the DataAsset was created
+            - name: Name of the created asset
+            - asset_class: The class used
+            - asset_path: Full path to the created asset
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "name": name,
+                "asset_class": asset_class,
+                "folder_path": folder_path
+            }
+
+            if properties:
+                params["properties"] = properties
+
+            logger.info(f"Creating DataAsset '{name}' of class '{asset_class}' at '{folder_path}'")
+            response = unreal.send_command("create_data_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Create DataAsset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error creating DataAsset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def set_data_asset_property(
+        ctx: Context,
+        asset_path: str,
+        property_name: str,
+        property_value: Any
+    ) -> Dict[str, Any]:
+        """
+        Set a property on an existing DataAsset.
+
+        Args:
+            asset_path: Full path to the DataAsset (e.g., "/Game/Data/DA_AbilitySet_Warrior")
+            property_name: Name of the property to set
+            property_value: Value to set (type must match property type)
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the property was set
+            - asset_path: Path to the modified asset
+            - property_name: The property that was modified
+            - message: Status message
+
+        Examples:
+            # Set a string property
+            set_data_asset_property(
+                asset_path="/Game/Data/DA_EnemyConfig",
+                property_name="DisplayName",
+                property_value="Shadow Crawler"
+            )
+
+            # Set a numeric property
+            set_data_asset_property(
+                asset_path="/Game/Data/DA_EnemyConfig",
+                property_name="MaxHealth",
+                property_value=1000.0
+            )
+
+            # Set a boolean property
+            set_data_asset_property(
+                asset_path="/Game/Data/DA_EnemyConfig",
+                property_name="bIsElite",
+                property_value=True
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path,
+                "property_name": property_name,
+                "property_value": property_value
+            }
+
+            logger.info(f"Setting property '{property_name}' on '{asset_path}'")
+            response = unreal.send_command("set_data_asset_property", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Set DataAsset property response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error setting DataAsset property: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def get_data_asset_metadata(
+        ctx: Context,
+        asset_path: str
+    ) -> Dict[str, Any]:
+        """
+        Get metadata and properties from a DataAsset.
+
+        Args:
+            asset_path: Full path to the DataAsset (e.g., "/Game/Data/DA_AbilitySet_Warrior")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the asset was found
+            - asset_path: Path to the asset
+            - metadata: Object containing:
+                - class_name: The DataAsset's class name
+                - properties: Dictionary of property names and values
+                - referenced_assets: List of assets this DataAsset references
+
+        Examples:
+            # Get metadata for an ability set
+            get_data_asset_metadata(asset_path="/Game/Data/DA_AbilitySet_Warrior")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path
+            }
+
+            logger.info(f"Getting metadata for DataAsset '{asset_path}'")
+            response = unreal.send_command("get_data_asset_metadata", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Get DataAsset metadata response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error getting DataAsset metadata: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    # ========================================
+    # Asset Management Tools
+    # ========================================
+
+    @mcp.tool()
+    def rename_asset(
+        ctx: Context,
+        asset_path: str,
+        new_name: str
+    ) -> Dict[str, Any]:
+        """
+        Rename an asset (Blueprint, Widget, DataTable, Material, etc.).
+
+        Args:
+            asset_path: Full path to the asset (e.g., "/Game/Blueprints/BP_OldName")
+            new_name: New name for the asset (e.g., "BP_NewName")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the rename succeeded
+            - old_path: Original asset path
+            - new_name: The new asset name
+            - new_asset_path: Full path to the renamed asset
+            - message: Status message
+
+        Examples:
+            # Rename a Blueprint
+            rename_asset(
+                asset_path="/Game/Blueprints/BP_Enemy",
+                new_name="BP_BasicEnemy"
+            )
+
+            # Rename a DataTable
+            rename_asset(
+                asset_path="/Game/Data/DT_Items",
+                new_name="DT_InventoryItems"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path,
+                "new_name": new_name
+            }
+
+            logger.info(f"Renaming asset '{asset_path}' to '{new_name}'")
+            response = unreal.send_command("rename_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Rename asset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error renaming asset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def move_asset(
+        ctx: Context,
+        asset_path: str,
+        destination_folder: str
+    ) -> Dict[str, Any]:
+        """
+        Move an asset to a different folder.
+
+        Args:
+            asset_path: Full path to the asset (e.g., "/Game/Blueprints/BP_Enemy")
+            destination_folder: Destination folder path (e.g., "/Game/Enemies/Blueprints")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the move succeeded
+            - old_path: Original asset path
+            - destination_folder: The destination folder
+            - new_asset_path: Full path to the moved asset
+            - message: Status message
+
+        Examples:
+            # Move a Blueprint to a different folder
+            move_asset(
+                asset_path="/Game/Blueprints/BP_Enemy",
+                destination_folder="/Game/Enemies/Blueprints"
+            )
+
+            # Organize DataAssets into a subfolder
+            move_asset(
+                asset_path="/Game/Data/DA_AbilitySet",
+                destination_folder="/Game/Data/Abilities"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path,
+                "destination_folder": destination_folder
+            }
+
+            logger.info(f"Moving asset '{asset_path}' to '{destination_folder}'")
+            response = unreal.send_command("move_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Move asset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error moving asset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def search_assets(
+        ctx: Context,
+        pattern: str = None,
+        asset_class: str = None,
+        folder: str = None
+    ) -> Dict[str, Any]:
+        """
+        Search for assets by pattern, class, or folder.
+
+        At least one of pattern, asset_class, or folder must be provided.
+
+        Args:
+            pattern: Wildcard pattern to match asset names (e.g., "BP_Enemy*", "*DataAsset*")
+            asset_class: Filter by asset class (e.g., "Blueprint", "DataTable", "AbilitySet")
+            folder: Search within a specific folder (e.g., "/Game/Enemies")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the search succeeded
+            - count: Number of assets found
+            - assets: Array of asset information, each containing:
+                - name: Asset name
+                - path: Full asset path
+                - class: Asset class
+            - pattern: The pattern used (if provided)
+            - asset_class: The class filter used (if provided)
+            - folder: The folder searched (if provided)
+
+        Examples:
+            # Find all Blueprints starting with BP_Enemy
+            search_assets(pattern="BP_Enemy*", asset_class="Blueprint")
+
+            # Find all DataAssets in a folder
+            search_assets(folder="/Game/Data", asset_class="DataAsset")
+
+            # Find all assets matching a pattern
+            search_assets(pattern="*AbilitySet*")
+
+            # Find all assets of a specific custom class
+            search_assets(asset_class="BossAttackPatternDataAsset")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            if not pattern and not asset_class and not folder:
+                return {"success": False, "message": "At least one of pattern, asset_class, or folder must be provided"}
+
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {}
+            if pattern:
+                params["pattern"] = pattern
+            if asset_class:
+                params["asset_class"] = asset_class
+            if folder:
+                params["folder"] = folder
+
+            logger.info(f"Searching assets with pattern='{pattern}', class='{asset_class}', folder='{folder}'")
             response = unreal.send_command("search_assets", params)
 
             if not response:
                 logger.error("No response from Unreal Engine")
                 return {"success": False, "message": "No response from Unreal Engine"}
 
-            logger.info(f"Search assets response: found {response.get('count', 0)} matches")
+            logger.info(f"Search assets response: found {response.get('count', 0)} assets")
             return response
 
         except Exception as e:

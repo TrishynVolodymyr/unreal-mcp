@@ -10,6 +10,15 @@
 #include "Commands/Material/GetMaterialParameterCommand.h"
 #include "Commands/Material/ApplyMaterialToActorCommand.h"
 
+// Python MCP-compatible parameter commands
+#include "Commands/Material/SetMaterialScalarParamCommand.h"
+#include "Commands/Material/SetMaterialVectorParamCommand.h"
+#include "Commands/Material/SetMaterialTextureParamCommand.h"
+#include "Commands/Material/DuplicateMaterialInstanceCommand.h"
+#include "Commands/Material/BatchSetMaterialParamsCommand.h"
+#include "Commands/Material/GetMaterialInstanceMetadataCommand.h"
+#include "Commands/Material/GetMaterialParametersCommand.h"
+
 // Material expression command headers
 #include "Commands/Material/AddMaterialExpressionCommand.h"
 #include "Commands/Material/ConnectMaterialExpressionsCommand.h"
@@ -35,6 +44,15 @@ void FMaterialCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FSetMaterialParameterCommand>(MaterialService));
     RegisterAndTrackCommand(MakeShared<FGetMaterialParameterCommand>(MaterialService));
     RegisterAndTrackCommand(MakeShared<FApplyMaterialToActorCommand>(MaterialService));
+
+    // Register Python MCP-compatible parameter commands
+    RegisterAndTrackCommand(MakeShared<FSetMaterialScalarParamCommand>(MaterialService));
+    RegisterAndTrackCommand(MakeShared<FSetMaterialVectorParamCommand>(MaterialService));
+    RegisterAndTrackCommand(MakeShared<FSetMaterialTextureParamCommand>(MaterialService));
+    RegisterAndTrackCommand(MakeShared<FDuplicateMaterialInstanceCommand>(MaterialService));
+    RegisterAndTrackCommand(MakeShared<FBatchSetMaterialParamsCommand>(MaterialService));
+    RegisterAndTrackCommand(MakeShared<FGetMaterialInstanceMetadataCommand>(MaterialService));
+    RegisterAndTrackCommand(MakeShared<FGetMaterialParametersCommand>(MaterialService));
 
     // Register material expression commands
     RegisterAndTrackCommand(MakeShared<FAddMaterialExpressionCommand>());

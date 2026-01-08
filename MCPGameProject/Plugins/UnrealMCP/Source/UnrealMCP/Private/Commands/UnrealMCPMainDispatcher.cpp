@@ -10,6 +10,7 @@
 #include "Commands/UMGCommandRegistration.h"
 #include "Commands/MaterialCommandRegistration.h"
 #include "Commands/NiagaraCommandRegistration.h"
+#include "Commands/AnimationCommandRegistration.h"
 #include "Services/BlueprintActionService.h"
 // Legacy adapter removed
 #include "Services/BlueprintService.h"
@@ -117,6 +118,9 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
 
     // Register Niagara VFX commands
     FNiagaraCommandRegistration::RegisterAllCommands();
+    
+    // Register Animation commands
+    FAnimationCommandRegistration::RegisterAllAnimationCommands();
 
     UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::RegisterAllCommands: All command types registered"));
 }
@@ -160,6 +164,7 @@ void FUnrealMCPMainDispatcher::Shutdown()
     FUMGCommandRegistration::UnregisterAllUMGCommands();
     FMaterialCommandRegistration::UnregisterAllCommands();
     FNiagaraCommandRegistration::UnregisterAllCommands();
+    FAnimationCommandRegistration::UnregisterAllAnimationCommands();
 
     // Clear the entire registry
     FUnrealMCPCommandRegistry::Get().ClearRegistry();

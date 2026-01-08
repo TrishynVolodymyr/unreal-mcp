@@ -35,23 +35,70 @@ def spawn_actor(
     type: str,
     location: List[float] = None,
     rotation: List[float] = None,
-    scale: List[float] = None
+    scale: List[float] = None,
+    # StaticMeshActor
+    mesh_path: str = None,
+    # TextRenderActor
+    text_content: str = None,
+    text_size: float = None,
+    text_color: List[float] = None,
+    text_halign: str = None,
+    text_valign: str = None,
+    # Volumes
+    box_extent: List[float] = None,
+    sphere_radius: float = None,
+    # PlayerStart
+    player_start_tag: str = None,
+    # DecalActor
+    decal_size: List[float] = None,
+    decal_material: str = None
 ) -> Dict[str, Any]:
-    """Implementation for spawning an actor in the editor."""
+    """Implementation for spawning an actor in the editor with extended parameters."""
     params = {
         "name": name,
         "type": type
     }
-    
+
+    # Transform parameters
     if location is not None:
         params["location"] = location
-        
     if rotation is not None:
         params["rotation"] = rotation
-        
     if scale is not None:
         params["scale"] = scale
-    
+
+    # StaticMeshActor parameters
+    if mesh_path is not None:
+        params["mesh_path"] = mesh_path
+
+    # TextRenderActor parameters
+    if text_content is not None:
+        params["text_content"] = text_content
+    if text_size is not None:
+        params["text_size"] = text_size
+    if text_color is not None:
+        params["text_color"] = text_color
+    if text_halign is not None:
+        params["text_halign"] = text_halign
+    if text_valign is not None:
+        params["text_valign"] = text_valign
+
+    # Volume parameters
+    if box_extent is not None:
+        params["box_extent"] = box_extent
+    if sphere_radius is not None:
+        params["sphere_radius"] = sphere_radius
+
+    # PlayerStart parameters
+    if player_start_tag is not None:
+        params["player_start_tag"] = player_start_tag
+
+    # DecalActor parameters
+    if decal_size is not None:
+        params["decal_size"] = decal_size
+    if decal_material is not None:
+        params["decal_material"] = decal_material
+
     return send_unreal_command("spawn_actor", params)
 
 def delete_selected_actors(ctx: Context) -> Dict[str, Any]:
@@ -76,29 +123,6 @@ def set_actor_property(
         "property_value": property_value
     }
     return send_unreal_command("set_actor_property", params)
-
-
-def set_actor_properties(
-    ctx: Context,
-    name: str,
-    properties: List[Dict[str, Any]]
-) -> Dict[str, Any]:
-    """Implementation for setting multiple properties on an actor in a single call.
-
-    Args:
-        ctx: The MCP context
-        name: Name of the actor
-        properties: List of property dicts, each with 'name' and 'value' keys
-
-    Returns:
-        Dict containing success status and details about which properties were set
-    """
-    params = {
-        "name": name,
-        "properties": properties
-    }
-    return send_unreal_command("set_actor_property", params)
-
 
 def get_actor_property(
     ctx: Context,
@@ -346,3 +370,59 @@ def get_level_metadata(
 
     logger.info(f"Getting level metadata with fields: {fields}, filter: {actor_filter}")
     return send_unreal_command("get_level_metadata", params)
+
+
+def batch_delete_actors(ctx: Context, names: List[str]) -> Dict[str, Any]:
+    """Delete multiple actors by name in a single operation.
+
+    Args:
+        ctx: The MCP context
+        names: List of actor names to delete
+
+    Returns:
+        Dict containing results for each actor:
+        {
+            "results": [
+                {"name": "Actor1", "success": true, "deleted": true},
+                {"name": "Actor2", "success": false, "error": "Actor not found"}
+            ],
+            "total": 2,
+            "succeeded": 1,
+            "failed": 1,
+            "success": true
+        }
+    """
+    params = {"names": names}
+    logger.info(f"Batch deleting {len(names)} actors: {names}")
+    return send_unreal_command("batch_delete_actors", params)
+
+
+def batch_spawn_actors(ctx: Context, actors: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Spawn multiple actors in a single operation.
+
+    Args:
+        ctx: The MCP context
+        actors: List of actor configurations, each containing:
+            - name: Actor name (required)
+            - type: Actor type (required)
+            - location: [X, Y, Z] spawn location (optional)
+            - rotation: [Pitch, Yaw, Roll] spawn rotation (optional)
+            - scale: [X, Y, Z] scale (optional)
+            - (type-specific params like mesh_path, text_content, box_extent, etc.)
+
+    Returns:
+        Dict containing results for each actor:
+        {
+            "results": [
+                {"name": "Actor1", "success": true, "actor": {...}},
+                {"name": "Actor2", "success": false, "error": "..."}
+            ],
+            "total": 2,
+            "succeeded": 1,
+            "failed": 1,
+            "success": true
+        }
+    """
+    params = {"actors": actors}
+    logger.info(f"Batch spawning {len(actors)} actors")
+    return send_unreal_command("batch_spawn_actors", params)

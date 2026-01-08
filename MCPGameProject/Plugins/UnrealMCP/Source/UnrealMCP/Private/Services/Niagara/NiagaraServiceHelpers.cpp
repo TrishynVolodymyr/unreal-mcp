@@ -3,6 +3,7 @@
 
 #include "Services/NiagaraService.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Editor.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UObject/SavePackage.h"
@@ -53,12 +54,88 @@ static UEdGraphPin* GetParameterMapInputPinLocal(UNiagaraNode& Node)
 
 UNiagaraSystem* FNiagaraService::FindSystem(const FString& SystemPath)
 {
-    return LoadObject<UNiagaraSystem>(nullptr, *SystemPath);
+    // First try direct load (works for full paths like "/Game/Effects/NS_Fire")
+    if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *SystemPath))
+    {
+        return System;
+    }
+
+    // If direct load failed, try asset registry search for short names
+    // This allows users to pass just "NS_Fire" instead of full path
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    // Build filter for NiagaraSystem assets
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UNiagaraSystem::StaticClass()->GetClassPathName());
+    Filter.bRecursivePaths = true;
+    Filter.bRecursiveClasses = true;
+
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+
+    // Search for matching asset name
+    FString SearchName = SystemPath;
+    // Remove any path components if present (e.g., "Testing/NS_Fire" -> "NS_Fire")
+    int32 LastSlash;
+    if (SearchName.FindLastChar('/', LastSlash))
+    {
+        SearchName = SearchName.RightChop(LastSlash + 1);
+    }
+
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (AssetData.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogNiagaraService, Log, TEXT("Found Niagara System '%s' at '%s'"), *SearchName, *AssetData.GetObjectPathString());
+            return Cast<UNiagaraSystem>(AssetData.GetAsset());
+        }
+    }
+
+    UE_LOG(LogNiagaraService, Warning, TEXT("Could not find Niagara System '%s'"), *SystemPath);
+    return nullptr;
 }
 
 UNiagaraEmitter* FNiagaraService::FindEmitter(const FString& EmitterPath)
 {
-    return LoadObject<UNiagaraEmitter>(nullptr, *EmitterPath);
+    // First try direct load (works for full paths)
+    if (UNiagaraEmitter* Emitter = LoadObject<UNiagaraEmitter>(nullptr, *EmitterPath))
+    {
+        return Emitter;
+    }
+
+    // If direct load failed, try asset registry search for short names
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    // Build filter for NiagaraEmitter assets
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UNiagaraEmitter::StaticClass()->GetClassPathName());
+    Filter.bRecursivePaths = true;
+    Filter.bRecursiveClasses = true;
+
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+
+    // Search for matching asset name
+    FString SearchName = EmitterPath;
+    int32 LastSlash;
+    if (SearchName.FindLastChar('/', LastSlash))
+    {
+        SearchName = SearchName.RightChop(LastSlash + 1);
+    }
+
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (AssetData.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogNiagaraService, Log, TEXT("Found Niagara Emitter '%s' at '%s'"), *SearchName, *AssetData.GetObjectPathString());
+            return Cast<UNiagaraEmitter>(AssetData.GetAsset());
+        }
+    }
+
+    UE_LOG(LogNiagaraService, Warning, TEXT("Could not find Niagara Emitter '%s'"), *EmitterPath);
+    return nullptr;
 }
 
 void FNiagaraService::RefreshEditors(UObject* Asset)

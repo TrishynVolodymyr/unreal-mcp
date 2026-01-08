@@ -179,15 +179,44 @@ bool FNiagaraService::SetParameter(const FString& SystemPath, const FString& Par
         return false;
     }
 
-    // Get the value as string
+    // Get the value - accept string, numeric, boolean, and array JSON types
     FString ValueStr;
-    if (Value.IsValid() && Value->Type == EJson::String)
+    if (!Value.IsValid())
+    {
+        OutError = TEXT("Value is not valid");
+        return false;
+    }
+
+    if (Value->Type == EJson::String)
     {
         ValueStr = Value->AsString();
     }
+    else if (Value->Type == EJson::Number)
+    {
+        // Convert numeric value to string for unified processing
+        ValueStr = FString::SanitizeFloat(Value->AsNumber());
+    }
+    else if (Value->Type == EJson::Boolean)
+    {
+        ValueStr = Value->AsBool() ? TEXT("true") : TEXT("false");
+    }
+    else if (Value->Type == EJson::Array)
+    {
+        // Handle arrays for vector/color values: [x, y, z] or [r, g, b, a]
+        const TArray<TSharedPtr<FJsonValue>>& ArrayValues = Value->AsArray();
+        TArray<FString> Components;
+        for (const TSharedPtr<FJsonValue>& ArrayVal : ArrayValues)
+        {
+            if (ArrayVal->Type == EJson::Number)
+            {
+                Components.Add(FString::SanitizeFloat(ArrayVal->AsNumber()));
+            }
+        }
+        ValueStr = FString::Join(Components, TEXT(","));
+    }
     else
     {
-        OutError = TEXT("Value must be provided as a string");
+        OutError = TEXT("Value must be a string, number, boolean, or array");
         return false;
     }
 

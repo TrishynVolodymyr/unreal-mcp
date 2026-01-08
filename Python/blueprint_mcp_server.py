@@ -107,6 +107,26 @@ async def add_blueprint_variable(
 
 
 @app.tool()
+async def delete_blueprint_variable(
+    blueprint_name: str,
+    variable_name: str
+) -> Dict[str, Any]:
+    """
+    Delete a variable from a Blueprint.
+
+    Args:
+        blueprint_name: Name of the target Blueprint
+        variable_name: Name of the variable to delete
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "variable_name": variable_name
+    }
+    return await send_tcp_command("delete_blueprint_variable", params)
+
+
+
+@app.tool()
 async def add_component_to_blueprint(
     blueprint_name: str,
     component_type: str,

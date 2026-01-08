@@ -9,7 +9,10 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/GameModeBase.h"
+#include "Components/ActorComponent.h"
+#include "Components/SceneComponent.h"
 #include "Engine/DataTable.h"
+#include "Engine/DataAsset.h"
 #include "StructUtils/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 
@@ -734,6 +737,7 @@ UClass* FAssetDiscoveryService::ResolveUMGClass(const FString& ClassName)
 
 UClass* FAssetDiscoveryService::ResolveEngineClass(const FString& ClassName)
 {
+    // Actor-derived classes
     if (ClassName.Equals(TEXT("Actor"), ESearchCase::IgnoreCase))
     {
         return AActor::StaticClass();
@@ -750,15 +754,39 @@ UClass* FAssetDiscoveryService::ResolveEngineClass(const FString& ClassName)
     {
         return APlayerController::StaticClass();
     }
-    else if (ClassName.Equals(TEXT("GameMode"), ESearchCase::IgnoreCase))
+    else if (ClassName.Equals(TEXT("GameMode"), ESearchCase::IgnoreCase) ||
+             ClassName.Equals(TEXT("GameModeBase"), ESearchCase::IgnoreCase))
     {
         return AGameModeBase::StaticClass();
     }
-    else if (ClassName.Equals(TEXT("Object"), ESearchCase::IgnoreCase))
+    // UObject-derived classes (non-Actor)
+    else if (ClassName.Equals(TEXT("Object"), ESearchCase::IgnoreCase) ||
+             ClassName.Equals(TEXT("UObject"), ESearchCase::IgnoreCase))
     {
         return UObject::StaticClass();
     }
-    
+    else if (ClassName.Equals(TEXT("DataAsset"), ESearchCase::IgnoreCase) ||
+             ClassName.Equals(TEXT("UDataAsset"), ESearchCase::IgnoreCase))
+    {
+        return UDataAsset::StaticClass();
+    }
+    else if (ClassName.Equals(TEXT("PrimaryDataAsset"), ESearchCase::IgnoreCase) ||
+             ClassName.Equals(TEXT("UPrimaryDataAsset"), ESearchCase::IgnoreCase))
+    {
+        return UPrimaryDataAsset::StaticClass();
+    }
+    // Component classes
+    else if (ClassName.Equals(TEXT("ActorComponent"), ESearchCase::IgnoreCase) ||
+             ClassName.Equals(TEXT("UActorComponent"), ESearchCase::IgnoreCase))
+    {
+        return UActorComponent::StaticClass();
+    }
+    else if (ClassName.Equals(TEXT("SceneComponent"), ESearchCase::IgnoreCase) ||
+             ClassName.Equals(TEXT("USceneComponent"), ESearchCase::IgnoreCase))
+    {
+        return USceneComponent::StaticClass();
+    }
+
     return nullptr;
 }
 
@@ -795,4 +823,170 @@ FString FAssetDiscoveryService::BuildCorePath(const FString& Path)
 FString FAssetDiscoveryService::BuildUMGPath(const FString& Path)
 {
     return FString::Printf(TEXT("/Script/UMG.%s"), *Path);
+}
+
+UClass* FAssetDiscoveryService::ResolveParentClassForBlueprint(const FString& ClassName, FString& OutErrorMessage)
+{
+    if (ClassName.IsEmpty())
+    {
+        OutErrorMessage = TEXT("Parent class name is empty");
+        return nullptr;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Resolving '%s'"), *ClassName);
+
+    // =========================================================================
+    // Strategy 1: Full path resolution (handles both /Script/ and /Game/)
+    // =========================================================================
+    if (ClassName.StartsWith(TEXT("/")))
+    {
+        if (ClassName.StartsWith(TEXT("/Script/")))
+        {
+            UClass* NativeClass = LoadClass<UObject>(nullptr, *ClassName);
+            if (NativeClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found via /Script/ path: %s"), *NativeClass->GetName());
+                return NativeClass;
+            }
+        }
+        else if (ClassName.StartsWith(TEXT("/Game/")))
+        {
+            // Try loading as Blueprint asset
+            UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *ClassName);
+            if (Blueprint && Blueprint->GeneratedClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found Blueprint at %s -> %s"), *ClassName, *Blueprint->GeneratedClass->GetName());
+                return Blueprint->GeneratedClass;
+            }
+
+            // Try with _C suffix for generated class
+            FString AssetName = FPaths::GetBaseFilename(ClassName);
+            FString GeneratedClassPath = FString::Printf(TEXT("%s.%s_C"), *ClassName, *AssetName);
+            UClass* GeneratedClass = LoadClass<UObject>(nullptr, *GeneratedClassPath);
+            if (GeneratedClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found via generated class path: %s"), *GeneratedClass->GetName());
+                return GeneratedClass;
+            }
+        }
+    }
+
+    // =========================================================================
+    // Strategy 2: FindFirstObject (works for loaded native classes)
+    // =========================================================================
+    UClass* FoundClass = FindFirstObject<UClass>(*ClassName, EFindFirstObjectOptions::None);
+    if (FoundClass)
+    {
+        UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found via FindFirstObject: %s"), *FoundClass->GetName());
+        return FoundClass;
+    }
+
+    // =========================================================================
+    // Strategy 3: Try with common prefixes (U and A)
+    // =========================================================================
+    FString NameWithU = ClassName.StartsWith(TEXT("U")) ? ClassName : TEXT("U") + ClassName;
+    FString NameWithA = ClassName.StartsWith(TEXT("A")) ? ClassName : TEXT("A") + ClassName;
+    FString NameWithoutPrefix = ClassName;
+    if (ClassName.Len() > 1 && (ClassName[0] == 'U' || ClassName[0] == 'A') && FChar::IsUpper(ClassName[1]))
+    {
+        NameWithoutPrefix = ClassName.RightChop(1);
+    }
+
+    TArray<FString> PrefixVariants = {NameWithU, NameWithA, NameWithoutPrefix};
+
+    for (const FString& Variant : PrefixVariants)
+    {
+        FoundClass = FindFirstObject<UClass>(*Variant, EFindFirstObjectOptions::None);
+        if (FoundClass)
+        {
+            UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found via prefix variant '%s': %s"), *Variant, *FoundClass->GetName());
+            return FoundClass;
+        }
+    }
+
+    // =========================================================================
+    // Strategy 4: Engine class shortcuts (extends ResolveEngineClass)
+    // =========================================================================
+    UClass* EngineClass = ResolveEngineClass(ClassName);
+    if (EngineClass)
+    {
+        UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found via engine class shortcut: %s"), *EngineClass->GetName());
+        return EngineClass;
+    }
+
+    // =========================================================================
+    // Strategy 5: Module path loading (CRITICAL: includes game module)
+    // =========================================================================
+    // Dynamically get the game module path from project name
+    FString GameModulePath = FString::Printf(TEXT("/Script/%s"), FApp::GetProjectName());
+
+    TArray<FString> ModulePaths = {
+        TEXT("/Script/Engine"),
+        TEXT("/Script/CoreUObject"),
+        TEXT("/Script/GameplayAbilities"),
+        TEXT("/Script/AIModule"),
+        TEXT("/Script/UMG"),
+        TEXT("/Script/Mover"),
+        GameModulePath,  // Game module - dynamically resolved from project name
+    };
+
+    for (const FString& ModulePath : ModulePaths)
+    {
+        for (const FString& Variant : PrefixVariants)
+        {
+            FString ClassPath = FString::Printf(TEXT("%s.%s"), *ModulePath, *Variant);
+            FoundClass = LoadClass<UObject>(nullptr, *ClassPath);
+            if (FoundClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found via module path: %s"), *ClassPath);
+                return FoundClass;
+            }
+        }
+        // Also try the original class name
+        FString ClassPath = FString::Printf(TEXT("%s.%s"), *ModulePath, *ClassName);
+        FoundClass = LoadClass<UObject>(nullptr, *ClassPath);
+        if (FoundClass)
+        {
+            UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found via module path: %s"), *ClassPath);
+            return FoundClass;
+        }
+    }
+
+    // =========================================================================
+    // Strategy 6: Asset Registry search for Blueprint classes
+    // =========================================================================
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    TArray<FAssetData> BlueprintAssets;
+
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+    Filter.bRecursiveClasses = true;
+    Filter.bRecursivePaths = true;
+    Filter.PackagePaths.Add(TEXT("/Game"));
+
+    AssetRegistryModule.Get().GetAssets(Filter, BlueprintAssets);
+
+    FString SearchName = FPaths::GetBaseFilename(ClassName);
+
+    // First pass: exact match
+    for (const FAssetData& AssetData : BlueprintAssets)
+    {
+        if (AssetData.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UBlueprint* Blueprint = Cast<UBlueprint>(AssetData.GetAsset());
+            if (Blueprint && Blueprint->GeneratedClass)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ResolveParentClassForBlueprint: Found Blueprint via asset registry: %s -> %s"),
+                    *SearchName, *Blueprint->GeneratedClass->GetName());
+                return Blueprint->GeneratedClass;
+            }
+        }
+    }
+
+    // =========================================================================
+    // Resolution failed - return nullptr with descriptive error
+    // =========================================================================
+    OutErrorMessage = FString::Printf(TEXT("Could not resolve parent class: '%s'. Searched: FindFirstObject, prefix variants (U/A), engine shortcuts, module paths (/Script/Engine, %s, etc.), and asset registry."), *ClassName, *GameModulePath);
+    UE_LOG(LogTemp, Warning, TEXT("ResolveParentClassForBlueprint: %s"), *OutErrorMessage);
+    return nullptr;
 }

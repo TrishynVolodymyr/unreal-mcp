@@ -13,12 +13,18 @@
 #include "Commands/Project/GetProjectMetadataCommand.h"
 #include "Commands/Project/GetStructPinNamesCommand.h"
 #include "Commands/Project/DuplicateAssetCommand.h"
+#include "Commands/Project/DeleteAssetCommand.h"
 #include "Commands/Project/CreateFontFaceCommand.h"
 #include "Commands/Project/SetFontFacePropertiesCommand.h"
 #include "Commands/Project/GetFontFaceMetadataCommand.h"
 #include "Commands/Project/CreateOfflineFontCommand.h"
 #include "Commands/Project/GetFontMetadataCommand.h"
 #include "Commands/Project/CreateFontCommand.h"
+#include "Commands/Project/CreateDataAssetCommand.h"
+#include "Commands/Project/SetDataAssetPropertyCommand.h"
+#include "Commands/Project/GetDataAssetMetadataCommand.h"
+#include "Commands/Project/RenameAssetCommand.h"
+#include "Commands/Project/MoveAssetCommand.h"
 #include "Commands/Project/SearchAssetsCommand.h"
 #include "Commands/Project/CaptureViewportScreenshotCommand.h"
 #include "Services/IProjectService.h"
@@ -40,9 +46,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register struct command
     Registry.RegisterCommand(MakeShared<FCreateStructCommand>(ProjectService));
 
-    // Register enum commands
-    Registry.RegisterCommand(MakeShared<FCreateEnumCommand>(ProjectService));
+    // Register enum command
     Registry.RegisterCommand(MakeShared<FUpdateEnumCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FCreateEnumCommand>(ProjectService));
 
     // Register get project directory command
     Registry.RegisterCommand(MakeShared<FGetProjectDirCommand>(ProjectService));
@@ -61,11 +67,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register struct pin names command for discovering struct field/pin names
     Registry.RegisterCommand(MakeShared<FGetStructPinNamesCommand>(ProjectService));
 
-    // Register asset duplication command
+    // Register asset management commands
     Registry.RegisterCommand(MakeShared<FDuplicateAssetCommand>(ProjectService));
-
-    // Register asset search command (uses FAssetDiscoveryService singleton, no ProjectService needed)
-    Registry.RegisterCommand(MakeShared<FSearchAssetsCommand>());
+    Registry.RegisterCommand(MakeShared<FDeleteAssetCommand>(ProjectService));
 
     // Register viewport screenshot command
     Registry.RegisterCommand(MakeShared<FCaptureViewportScreenshotCommand>());
@@ -81,6 +85,16 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register legacy offline font commands (SDF atlas-based) - kept for backwards compatibility
     Registry.RegisterCommand(MakeShared<FCreateOfflineFontCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FGetFontMetadataCommand>(ProjectService));
+
+    // Register DataAsset commands
+    Registry.RegisterCommand(MakeShared<FCreateDataAssetCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FSetDataAssetPropertyCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FGetDataAssetMetadataCommand>(ProjectService));
+
+    // Register Asset Management commands
+    Registry.RegisterCommand(MakeShared<FRenameAssetCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FMoveAssetCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FSearchAssetsCommand>());
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }

@@ -10,17 +10,24 @@ from mcp.server.fastmcp import FastMCP, Context
 from utils.editor.editor_operations import (
     spawn_actor as spawn_actor_impl,
     delete_actor as delete_actor_impl,
+    delete_asset as delete_asset_impl,
     set_actor_transform as set_actor_transform_impl,
     get_actor_properties as get_actor_properties_impl,
     set_actor_property as set_actor_property_impl,
     set_light_property as set_light_property_impl,
     focus_viewport as focus_viewport_impl,
     spawn_blueprint_actor as spawn_blueprint_actor_impl,
-    get_level_metadata as get_level_metadata_impl
+    get_level_metadata as get_level_metadata_impl,
+    batch_delete_actors as batch_delete_actors_impl,
+    batch_spawn_actors as batch_spawn_actors_impl
 )
+from utils.mcp_help import get_help_registry, get_mcp_help as get_mcp_help_impl
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
+
+# Get the help registry for this server
+_help_registry = get_help_registry()
 
 def register_editor_tools(mcp: FastMCP):
     """Register editor tools with the MCP server."""
@@ -31,27 +38,50 @@ def register_editor_tools(mcp: FastMCP):
         name: str,
         type: str,
         location: List[float] = None,
-        rotation: List[float] = None
+        rotation: List[float] = None,
+        scale: List[float] = None,
+        # StaticMeshActor
+        mesh_path: str = None,
+        # TextRenderActor
+        text_content: str = None,
+        text_size: float = None,
+        text_color: List[float] = None,
+        text_halign: str = None,
+        text_valign: str = None,
+        # Volumes
+        box_extent: List[float] = None,
+        sphere_radius: float = None,
+        # PlayerStart
+        player_start_tag: str = None,
+        # DecalActor
+        decal_size: List[float] = None,
+        decal_material: str = None
     ) -> Dict[str, Any]:
         """
-        Spawn an actor in the current level.
+        Spawn an actor in the level. Supports built-in types, Blueprints, and volumes.
 
         Args:
-            name: Unique name for the spawned actor
-            type: Actor type - built-in ("StaticMeshActor"|"PointLight"|"SpotLight"|"DirectionalLight"|"CameraActor")
-                  or Blueprint path ("/Game/Blueprints/BP_Enemy" or "BP_Enemy")
+            name: Unique actor name
+            type: Type - friendly name (StaticMeshActor, PointLight, TriggerBox, etc.),
+                  Blueprint path ("Blueprint:/Game/BP_Name"), or Class path
+            location/rotation/scale: Transform values
+            mesh_path: (StaticMeshActor) Mesh asset path
+            text_content/text_size/text_color: (TextRenderActor) Text properties
+            box_extent/sphere_radius: (Volumes) Dimensions
 
         Example:
-            spawn_actor(name="MyLight", type="PointLight")
-            spawn_actor(name="Enemy1", type="/Game/Characters/BP_Enemy", location=[100, 200, 50])
+            spawn_actor(name="Platform", type="StaticMeshActor",
+                       mesh_path="/Engine/BasicShapes/Cube", scale=[10, 10, 0.5])
+            spawn_actor(name="MyPortal", type="Blueprint:/Game/BP_Portal")
         """
-        # Route to appropriate command based on type format
-        if "/" in type or type.startswith("BP_"):
-            # Blueprint path - use spawn_blueprint_actor command
-            return spawn_blueprint_actor_impl(ctx, type, name, location, rotation)
-        else:
-            # Built-in type - use spawn_actor command
-            return spawn_actor_impl(ctx, name, type, location, rotation)
+        return spawn_actor_impl(
+            ctx, name, type, location, rotation, scale,
+            mesh_path,
+            text_content, text_size, text_color, text_halign, text_valign,
+            box_extent, sphere_radius,
+            player_start_tag,
+            decal_size, decal_material
+        )
     
     @mcp.tool()
     def delete_actor(ctx: Context, name: str) -> Dict[str, Any]:
@@ -275,5 +305,216 @@ def register_editor_tools(mcp: FastMCP):
             get_level_metadata(fields=["actors"], actor_filter="Player*")
         """
         return get_level_metadata_impl(ctx, fields, actor_filter)
+
+    @mcp.tool()
+    def get_mcp_help(
+        ctx: Context,
+        tool_name: str = None,
+        include_full_docstring: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Get help and documentation for available MCP tools.
+
+        This tool provides self-documentation for the MCP server, allowing you to
+        discover available tools and their usage.
+
+        Args:
+            tool_name: Name of a specific tool to get detailed help for.
+                      If not provided, returns a list of all available tools.
+            include_full_docstring: If True, includes the complete raw docstring
+                                   in addition to parsed sections.
+
+        Returns:
+            If tool_name is None:
+                Dict with "tools" (list of tool names), "categories" (tools by category),
+                and "usage" hint.
+
+            If tool_name is specified:
+                Dict with:
+                - name: Tool name
+                - description: What the tool does
+                - parameters: Dict of parameter info (type, required, default, description)
+                - returns: Description of return value
+                - examples: List of usage examples
+                - sections: Any custom documentation sections (e.g., SUPPORTED FRIENDLY NAMES)
+                - notes: Additional notes
+
+        Examples:
+            # List all available tools
+            get_mcp_help()
+
+            # Get detailed help for spawn_actor
+            get_mcp_help(tool_name="spawn_actor")
+
+            # Get help with full docstring included
+            get_mcp_help(tool_name="spawn_actor", include_full_docstring=True)
+        """
+        return get_mcp_help_impl(tool_name, include_full_docstring)
+
+    @mcp.tool()
+    def delete_actors(ctx: Context, names: List[str]) -> Dict[str, Any]:
+        """
+        Delete multiple actors by name in a single operation.
+
+        This is more efficient than calling delete_actor() multiple times,
+        especially for large batch operations like clearing test actors or
+        resetting level sections.
+
+        Args:
+            names: List of actor names to delete
+
+        Returns:
+            Dict containing:
+            - results: Array of per-actor results with name, success, deleted, and error fields
+            - total: Total number of actors processed
+            - succeeded: Number of successfully deleted actors
+            - failed: Number of failed deletions
+            - success: Overall operation success (true if command executed)
+
+        Examples:
+            # Delete multiple test actors
+            delete_actors(names=["TestCube1", "TestCube2", "TestCube3"])
+
+            # Delete actors matching a pattern (get names first)
+            metadata = get_level_metadata(actor_filter="*Test*")
+            names = [actor["name"] for actor in metadata.get("actors", [])]
+            delete_actors(names=names)
+
+            # Clean up a spawned arena
+            arena_actors = ["Platform1", "Platform2", "TriggerZone1", "SpawnPoint1"]
+            result = delete_actors(names=arena_actors)
+            print(f"Deleted {result['succeeded']} of {result['total']} actors")
+        """
+        return batch_delete_actors_impl(ctx, names)
+
+    @mcp.tool()
+    def spawn_actors(ctx: Context, actors: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Spawn multiple actors in a single operation.
+
+        This is more efficient than calling spawn_actor() multiple times,
+        especially for level construction, arena setup, or procedural generation.
+
+        Each actor configuration supports the same parameters as spawn_actor():
+        - Required: name, type
+        - Transform: location, rotation, scale
+        - Type-specific: mesh_path, text_content, box_extent, etc.
+
+        Args:
+            actors: List of actor configurations. Each dict should contain:
+                - name: Unique actor name (required)
+                - type: Actor type - friendly name, Blueprint:, or Class: path (required)
+                - location: [X, Y, Z] world location (optional, default [0,0,0])
+                - rotation: [Pitch, Yaw, Roll] in degrees (optional, default [0,0,0])
+                - scale: [X, Y, Z] scale (optional, default [1,1,1])
+                - mesh_path: (StaticMeshActor) Path to mesh
+                - text_content: (TextRenderActor) Text to display
+                - text_size: (TextRenderActor) World text size
+                - text_color: (TextRenderActor) [R,G,B] or [R,G,B,A] (0-1 range)
+                - box_extent: (TriggerBox, etc.) [X,Y,Z] half-extents
+                - sphere_radius: (TriggerSphere) Radius
+                - player_start_tag: (PlayerStart) Tag for spawn selection
+                - decal_size: (DecalActor) [X,Y,Z] dimensions
+                - decal_material: (DecalActor) Material path
+
+        Returns:
+            Dict containing:
+            - results: Array of per-actor results with name, success, actor details, or error
+            - total: Total number of actors processed
+            - succeeded: Number of successfully spawned actors
+            - failed: Number of failed spawns
+            - success: Overall operation success
+
+        Examples:
+            # Spawn a simple arena with platforms and checkpoints
+            spawn_actors(actors=[
+                {
+                    "name": "Platform1",
+                    "type": "StaticMeshActor",
+                    "mesh_path": "/Engine/BasicShapes/Cube",
+                    "location": [0, 0, 0],
+                    "scale": [10, 10, 0.5]
+                },
+                {
+                    "name": "Platform2",
+                    "type": "StaticMeshActor",
+                    "mesh_path": "/Engine/BasicShapes/Cube",
+                    "location": [1000, 0, 200],
+                    "scale": [5, 5, 0.5]
+                },
+                {
+                    "name": "Checkpoint1",
+                    "type": "TriggerBox",
+                    "location": [500, 0, 50],
+                    "box_extent": [100, 100, 200]
+                },
+                {
+                    "name": "StartLabel",
+                    "type": "TextRenderActor",
+                    "location": [0, 0, 100],
+                    "text_content": "START",
+                    "text_size": 50,
+                    "text_color": [0, 1, 0]
+                }
+            ])
+
+            # Spawn multiple lights in a row
+            lights = [
+                {"name": f"Light{i}", "type": "PointLight", "location": [i * 200, 0, 300]}
+                for i in range(5)
+            ]
+            spawn_actors(actors=lights)
+
+            # Spawn Blueprint actors in batch
+            spawn_actors(actors=[
+                {"name": "Portal1", "type": "Blueprint:/Game/Actors/BP_Portal", "location": [0, 0, 0]},
+                {"name": "Portal2", "type": "Blueprint:/Game/Actors/BP_Portal", "location": [1000, 0, 0]}
+            ])
+        """
+        return batch_spawn_actors_impl(ctx, actors)
+
+    @mcp.tool()
+    def delete_asset(ctx: Context, asset_path: str) -> Dict[str, Any]:
+        """
+        Delete an asset from the Content Browser.
+
+        This deletes the asset from the project entirely, not just from the level.
+        Use this to clean up test Blueprints, DataTables, Materials, and other assets.
+
+        Args:
+            asset_path: Full path to the asset to delete (e.g., "/Game/Blueprints/BP_TestActor")
+
+        Returns:
+            Dict containing:
+            - success: Whether the deletion was successful
+            - message: Status message or error description
+
+        Examples:
+            # Delete a Blueprint asset
+            delete_asset(asset_path="/Game/Blueprints/BP_TestActor")
+
+            # Delete a DataTable
+            delete_asset(asset_path="/Game/Data/DT_TestItems")
+
+            # Delete a Material
+            delete_asset(asset_path="/Game/Materials/M_TestMaterial")
+
+            # Delete a Widget Blueprint
+            delete_asset(asset_path="/Game/UI/WBP_TestWidget")
+        """
+        return delete_asset_impl(ctx, asset_path)
+
+    # Register all tools with the help system
+    _help_registry.register(spawn_actor, category="actors")
+    _help_registry.register(delete_actor, category="actors")
+    _help_registry.register(delete_asset, category="assets")
+    _help_registry.register(set_actor_transform, category="actors")
+    _help_registry.register(get_actor_properties, category="actors")
+    _help_registry.register(set_actor_property, category="actors")
+    _help_registry.register(set_light_property, category="lighting")
+    _help_registry.register(get_level_metadata, category="level")
+    _help_registry.register(get_mcp_help, category="help")
+    _help_registry.register(delete_actors, category="actors")
+    _help_registry.register(spawn_actors, category="actors")
 
     logger.info("Editor tools registered successfully")

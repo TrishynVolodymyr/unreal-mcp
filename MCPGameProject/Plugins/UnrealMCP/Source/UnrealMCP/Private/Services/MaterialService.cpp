@@ -657,3 +657,69 @@ FString FMaterialService::GetMaterialTypeString(UMaterialInterface* Material) co
 
     return TEXT("MaterialInterface");
 }
+
+bool FMaterialService::DuplicateMaterialInstance(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutAssetPath, FString& OutParentMaterial, FString& OutError)
+{
+    // Find source material instance
+    UMaterialInterface* SourceMaterial = FindMaterial(SourcePath);
+    if (!SourceMaterial)
+    {
+        OutError = FString::Printf(TEXT("Source material not found: %s"), *SourcePath);
+        return false;
+    }
+
+    UMaterialInstanceConstant* SourceMIC = Cast<UMaterialInstanceConstant>(SourceMaterial);
+    if (!SourceMIC)
+    {
+        OutError = FString::Printf(TEXT("Source is not a material instance constant: %s"), *SourcePath);
+        return false;
+    }
+
+    // Determine destination folder - use source folder if not specified
+    FString DestFolder = FolderPath;
+    if (DestFolder.IsEmpty())
+    {
+        DestFolder = FPackageName::GetLongPackagePath(SourceMIC->GetOutermost()->GetName());
+    }
+
+    // Build full package path
+    FString PackagePath = DestFolder / NewName;
+    FString PackageName = FPackageName::ObjectPathToPackageName(PackagePath);
+
+    UE_LOG(LogTemp, Log, TEXT("Duplicating material instance to: %s"), *PackagePath);
+
+    // Create the package
+    UPackage* Package = CreatePackage(*PackageName);
+    if (!Package)
+    {
+        OutError = FString::Printf(TEXT("Failed to create package: %s"), *PackageName);
+        return false;
+    }
+
+    // Duplicate the material instance
+    UMaterialInstanceConstant* NewMIC = DuplicateObject<UMaterialInstanceConstant>(SourceMIC, Package, *NewName);
+    if (!NewMIC)
+    {
+        OutError = TEXT("Failed to duplicate material instance");
+        return false;
+    }
+
+    // Set proper flags
+    NewMIC->SetFlags(RF_Public | RF_Standalone);
+    NewMIC->ClearFlags(RF_Transient);
+
+    // Mark package dirty and register
+    Package->MarkPackageDirty();
+    FAssetRegistryModule::AssetCreated(NewMIC);
+
+    // Set output values
+    OutAssetPath = PackagePath;
+    if (NewMIC->Parent)
+    {
+        OutParentMaterial = NewMIC->Parent->GetPathName();
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Successfully duplicated material instance: %s"), *OutAssetPath);
+
+    return true;
+}

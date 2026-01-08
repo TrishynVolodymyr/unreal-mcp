@@ -79,7 +79,8 @@ class UnrealConnection:
         """Receive a complete response from Unreal, handling chunked data."""
         chunks = []
         sock.settimeout(30)  # 30 second timeout for complex operations
-        debug_log_path = "E:/code/unreal-mcp/Python/tcp_debug.log"
+        import os
+        debug_log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tcp_debug.log")
         
         try:
             import datetime
@@ -293,3 +294,55 @@ def send_unreal_command(command_name: str, params: Dict[str, Any]) -> Dict[str, 
         error_msg = f"Error executing Unreal command '{command_name}': {e}"
         logger.error(error_msg)
         return {"status": "error", "error": error_msg}
+
+# Cache for project info to avoid repeated TCP calls
+_project_info_cache: Dict[str, Any] = {}
+
+def get_project_module_name() -> str:
+    """
+    Get the current Unreal project's module name dynamically.
+
+    This queries Unreal Engine for the project name, which is typically
+    used as the C++ module name (e.g., for /Script/{ModuleName} paths).
+
+    Returns:
+        The project module name, or "MyGame" as fallback if unable to query.
+    """
+    global _project_info_cache
+
+    # Return cached value if available
+    if "module_name" in _project_info_cache:
+        return _project_info_cache["module_name"]
+
+    try:
+        response = send_unreal_command("get_project_dir", {})
+        if response and response.get("success") and response.get("project_name"):
+            module_name = response["project_name"]
+            _project_info_cache["module_name"] = module_name
+            _project_info_cache["module_path"] = response.get("module_path", f"/Script/{module_name}")
+            logger.info(f"Retrieved project module name: {module_name}")
+            return module_name
+    except Exception as e:
+        logger.warning(f"Failed to get project module name from Unreal: {e}")
+
+    # Fallback
+    logger.warning("Using fallback module name 'MyGame'")
+    return "MyGame"
+
+
+def get_project_module_path() -> str:
+    """
+    Get the full script module path for the current project.
+
+    Returns:
+        The module path (e.g., "/Script/MyProjectName"), or fallback if unable to query.
+    """
+    global _project_info_cache
+
+    # Return cached value if available
+    if "module_path" in _project_info_cache:
+        return _project_info_cache["module_path"]
+
+    # This will populate the cache
+    module_name = get_project_module_name()
+    return _project_info_cache.get("module_path", f"/Script/{module_name}")
