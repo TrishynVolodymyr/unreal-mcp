@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP, Context
 from utils.editor.editor_operations import (
     spawn_actor as spawn_actor_impl,
     delete_actor as delete_actor_impl,
+    delete_asset as delete_asset_impl,
     set_actor_transform as set_actor_transform_impl,
     get_actor_properties as get_actor_properties_impl,
     set_actor_property as set_actor_property_impl,
@@ -625,6 +626,37 @@ def register_editor_tools(mcp: FastMCP):
         """
         return batch_spawn_actors_impl(ctx, actors)
 
+    @mcp.tool()
+    def delete_asset(ctx: Context, asset_path: str) -> Dict[str, Any]:
+        """
+        Delete an asset from the Content Browser.
+
+        This deletes the asset from the project entirely, not just from the level.
+        Use this to clean up test Blueprints, DataTables, Materials, and other assets.
+
+        Args:
+            asset_path: Full path to the asset to delete (e.g., "/Game/Blueprints/BP_TestActor")
+
+        Returns:
+            Dict containing:
+            - success: Whether the deletion was successful
+            - message: Status message or error description
+
+        Examples:
+            # Delete a Blueprint asset
+            delete_asset(asset_path="/Game/Blueprints/BP_TestActor")
+
+            # Delete a DataTable
+            delete_asset(asset_path="/Game/Data/DT_TestItems")
+
+            # Delete a Material
+            delete_asset(asset_path="/Game/Materials/M_TestMaterial")
+
+            # Delete a Widget Blueprint
+            delete_asset(asset_path="/Game/UI/WBP_TestWidget")
+        """
+        return delete_asset_impl(ctx, asset_path)
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -637,5 +669,6 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(get_mcp_help, category="help")
     _help_registry.register(delete_actors, category="actors")
     _help_registry.register(spawn_actors, category="actors")
+    _help_registry.register(delete_asset, category="assets")
 
     logger.info("Editor tools registered successfully")

@@ -13,6 +13,7 @@
 #include "Commands/Project/GetProjectMetadataCommand.h"
 #include "Commands/Project/GetStructPinNamesCommand.h"
 #include "Commands/Project/DuplicateAssetCommand.h"
+#include "Commands/Project/DeleteAssetCommand.h"
 #include "Commands/Project/CreateFontFaceCommand.h"
 #include "Commands/Project/SetFontFacePropertiesCommand.h"
 #include "Commands/Project/GetFontFaceMetadataCommand.h"
@@ -65,8 +66,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register struct pin names command for discovering struct field/pin names
     Registry.RegisterCommand(MakeShared<FGetStructPinNamesCommand>(ProjectService));
 
-    // Register asset duplication command
+    // Register asset management commands
     Registry.RegisterCommand(MakeShared<FDuplicateAssetCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FDeleteAssetCommand>(ProjectService));
 
     // Register unified font command (recommended - consolidates all font creation methods)
     Registry.RegisterCommand(MakeShared<FCreateFontCommand>(ProjectService));
