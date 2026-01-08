@@ -660,6 +660,7 @@ def register_editor_tools(mcp: FastMCP):
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
+    _help_registry.register(delete_asset, category="assets")
     _help_registry.register(set_actor_transform, category="actors")
     _help_registry.register(get_actor_properties, category="actors")
     _help_registry.register(set_actor_property, category="actors")
@@ -669,6 +670,5 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(get_mcp_help, category="help")
     _help_registry.register(delete_actors, category="actors")
     _help_registry.register(spawn_actors, category="actors")
-    _help_registry.register(delete_asset, category="assets")
 
     logger.info("Editor tools registered successfully")

@@ -213,9 +213,60 @@ async def compile_niagara_system(
 # ============================================================================
 
 @app.tool()
+async def create_niagara_emitter(
+    name: str,
+    folder_path: str = "",
+    template: str = "",
+    emitter_type: str = "Sprite"
+) -> Dict[str, Any]:
+    """
+    Create a new standalone Niagara Emitter asset.
+
+    Emitters define individual particle behaviors and can be added to
+    Niagara Systems. Creating standalone emitters allows reuse across
+    multiple systems.
+
+    Args:
+        name: Name of the emitter (e.g., "NE_Sparks", "NE_Smoke")
+        folder_path: Optional folder path for the asset (e.g., "/Game/Effects/Emitters")
+        template: Optional template emitter path to copy from
+        emitter_type: Type of emitter to create:
+            - "Sprite": 2D billboard particles (default, most common)
+            - "Mesh": 3D mesh-based particles
+            - "Ribbon": Connected trail/ribbon particles
+            - "Light": Light-emitting particles
+
+    Returns:
+        Dictionary containing:
+        - success: Whether creation was successful
+        - name: Name of the created emitter
+        - path: Full asset path
+        - emitter_type: Type of emitter created
+        - message: Success/error message
+
+    Example:
+        create_niagara_emitter(
+            name="NE_FireSparks",
+            folder_path="/Game/Effects/Emitters",
+            emitter_type="Sprite"
+        )
+    """
+    params = {"name": name, "emitter_type": emitter_type}
+    if folder_path:
+        params["folder_path"] = folder_path
+    if template:
+        params["template"] = template
+
+    return await send_tcp_command("create_niagara_emitter", params)
+
+
+@app.tool()
 async def add_emitter_to_system(
     system: str,
-    emitter: str
+    emitter: str,
+    create_if_missing: bool = False,
+    emitter_folder: str = "",
+    emitter_type: str = "Sprite"
 ) -> Dict[str, Any]:
     """
     Add an emitter to a Niagara System.
@@ -226,25 +277,86 @@ async def add_emitter_to_system(
     Args:
         system: Path or name of the target Niagara System
         emitter: Path or name of the emitter to add
+        create_if_missing: If True and emitter doesn't exist, create it first
+        emitter_folder: Folder path for creating emitter if create_if_missing=True
+                       (defaults to same folder as system)
+        emitter_type: Type of emitter to create if create_if_missing=True:
+            - "Sprite": 2D billboard particles (default)
+            - "Mesh": 3D mesh-based particles
+            - "Ribbon": Connected trail/ribbon particles
+            - "Light": Light-emitting particles
 
     Returns:
         Dictionary containing:
         - success: Whether the emitter was added successfully
         - system: Name of the system
         - emitter: Name of the added emitter
+        - created: Whether a new emitter was created (only if create_if_missing=True)
         - message: Success/error message
 
     Example:
+        # Add existing emitter
         add_emitter_to_system(
             system="NS_FireExplosion",
             emitter="/Game/Effects/Emitters/Sparks"
         )
+
+        # Create and add emitter if it doesn't exist
+        add_emitter_to_system(
+            system="/Game/Testing/MCPTest_FireEffect",
+            emitter="NE_TestSparks",
+            create_if_missing=True,
+            emitter_folder="/Game/Testing",
+            emitter_type="Sprite"
+        )
     """
     params = {
-        "system": system,
-        "emitter": emitter
+        "system_path": system,
+        "emitter_path": emitter
     }
-    return await send_tcp_command("add_emitter_to_system", params)
+
+    # First attempt to add the emitter
+    result = await send_tcp_command("add_emitter_to_system", params)
+
+    # If failed and create_if_missing is True, try creating the emitter first
+    if not result.get("success", False) and create_if_missing:
+        error_msg = result.get("error", "").lower()
+        # Check if failure was due to emitter not found
+        if "not found" in error_msg or "could not find" in error_msg or "does not exist" in error_msg:
+            # Extract emitter name from path
+            emitter_name = emitter.split("/")[-1] if "/" in emitter else emitter
+
+            # Determine folder path
+            if not emitter_folder:
+                # Use same folder as system if not specified
+                if "/" in system:
+                    emitter_folder = "/".join(system.split("/")[:-1])
+                else:
+                    emitter_folder = "/Game/Niagara/Emitters"
+
+            # Create the emitter
+            create_result = await send_tcp_command("create_niagara_emitter", {
+                "name": emitter_name,
+                "folder_path": emitter_folder,
+                "emitter_type": emitter_type
+            })
+
+            if create_result.get("success", False):
+                # Now try adding the newly created emitter
+                created_path = create_result.get("path", f"{emitter_folder}/{emitter_name}")
+                params["emitter_path"] = created_path
+                result = await send_tcp_command("add_emitter_to_system", params)
+                result["created"] = True
+                result["created_emitter_path"] = created_path
+            else:
+                # Return the creation failure
+                result = {
+                    "success": False,
+                    "error": f"Failed to create emitter: {create_result.get('error', 'Unknown error')}",
+                    "original_add_error": error_msg
+                }
+
+    return result
 
 
 @app.tool()
@@ -485,6 +597,101 @@ async def get_niagara_parameters(
     """
     params = {"system": system}
     return await send_tcp_command("get_niagara_parameters", params)
+
+
+@app.tool()
+async def add_niagara_parameter(
+    system: str,
+    parameter_name: str,
+    parameter_type: str,
+    default_value: str = "",
+    scope: str = "user"
+) -> Dict[str, Any]:
+    """
+    Add a user-exposed parameter to a Niagara System.
+
+    Creates a new parameter that can be controlled externally via Blueprint,
+    C++, or the set_niagara_*_param tools. Parameters must be added before
+    they can be set with the parameter setter tools.
+
+    Args:
+        system: Path or name of the Niagara System
+        parameter_name: Name for the new parameter (e.g., "SpawnRate", "ParticleColor")
+        parameter_type: Type of parameter to create:
+            - "Float": Scalar float value
+            - "Int": Integer value
+            - "Bool": Boolean true/false
+            - "Vector": 3D vector (X, Y, Z)
+            - "LinearColor": RGBA color value
+        default_value: Optional default value as JSON string. Examples:
+            - Float: "100.0"
+            - Int: "5"
+            - Bool: "true"
+            - Vector: "[0.0, 0.0, 100.0]" or "{"x": 0, "y": 0, "z": 100}"
+            - LinearColor: "[1.0, 0.5, 0.0, 1.0]" or "{"r": 1, "g": 0.5, "b": 0, "a": 1}"
+        scope: Parameter scope (default: "user"):
+            - "user": User-exposed parameter (prefixed with "User.")
+            - "system": System-level parameter (prefixed with "System.")
+            - "emitter": Emitter-level parameter (prefixed with "Emitter.")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the parameter was added successfully
+        - system: Name of the system
+        - parameter_name: Full parameter name with scope prefix
+        - parameter_type: Type of parameter created
+        - scope: The scope that was used
+        - message: Success/error message
+
+    Examples:
+        # Add a float parameter for spawn rate control
+        add_niagara_parameter(
+            system="NS_FireExplosion",
+            parameter_name="SpawnRate",
+            parameter_type="Float",
+            default_value="500.0"
+        )
+
+        # Add a color parameter with default orange
+        add_niagara_parameter(
+            system="NS_FireExplosion",
+            parameter_name="ParticleColor",
+            parameter_type="LinearColor",
+            default_value="[1.0, 0.5, 0.0, 1.0]"
+        )
+
+        # Add a vector parameter for velocity
+        add_niagara_parameter(
+            system="NS_FireExplosion",
+            parameter_name="InitialVelocity",
+            parameter_type="Vector",
+            default_value="[0.0, 0.0, 200.0]"
+        )
+
+        # Add a boolean toggle
+        add_niagara_parameter(
+            system="NS_FireExplosion",
+            parameter_name="EnableTrails",
+            parameter_type="Bool",
+            default_value="true"
+        )
+    """
+    params = {
+        "system_path": system,
+        "parameter_name": parameter_name,
+        "parameter_type": parameter_type,
+        "scope": scope
+    }
+    if default_value:
+        # Ensure default_value is a string even if FastMCP parsed JSON-like input
+        # E.g., "[1.0, 0.5, 0.0, 1.0]" might get parsed as a Python list
+        if isinstance(default_value, (list, dict)):
+            import json
+            params["default_value"] = json.dumps(default_value)
+        else:
+            params["default_value"] = str(default_value)
+
+    return await send_tcp_command("add_niagara_parameter", params)
 
 
 # ============================================================================

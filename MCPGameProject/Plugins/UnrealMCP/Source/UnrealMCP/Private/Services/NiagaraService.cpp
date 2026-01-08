@@ -1134,15 +1134,46 @@ bool FNiagaraService::SetParameter(const FString& SystemPath, const FString& Par
         return false;
     }
 
-    // Get the value as string
+    // Get the value - accept both string and numeric JSON types
     FString ValueStr;
-    if (Value.IsValid() && Value->Type == EJson::String)
+    if (Value.IsValid())
     {
-        ValueStr = Value->AsString();
+        if (Value->Type == EJson::String)
+        {
+            ValueStr = Value->AsString();
+        }
+        else if (Value->Type == EJson::Number)
+        {
+            // Convert numeric value to string for unified processing
+            ValueStr = FString::SanitizeFloat(Value->AsNumber());
+        }
+        else if (Value->Type == EJson::Boolean)
+        {
+            ValueStr = Value->AsBool() ? TEXT("true") : TEXT("false");
+        }
+        else if (Value->Type == EJson::Array)
+        {
+            // Handle arrays for vector/color values: [x, y, z] or [r, g, b, a]
+            const TArray<TSharedPtr<FJsonValue>>& ArrayValues = Value->AsArray();
+            TArray<FString> Components;
+            for (const TSharedPtr<FJsonValue>& ArrayVal : ArrayValues)
+            {
+                if (ArrayVal->Type == EJson::Number)
+                {
+                    Components.Add(FString::SanitizeFloat(ArrayVal->AsNumber()));
+                }
+            }
+            ValueStr = FString::Join(Components, TEXT(","));
+        }
+        else
+        {
+            OutError = TEXT("Value must be a string, number, boolean, or array");
+            return false;
+        }
     }
     else
     {
-        OutError = TEXT("Value must be provided as a string");
+        OutError = TEXT("Value is not valid");
         return false;
     }
 
@@ -1735,12 +1766,88 @@ ANiagaraActor* FNiagaraService::SpawnActor(const FNiagaraActorSpawnParams& Param
 
 UNiagaraSystem* FNiagaraService::FindSystem(const FString& SystemPath)
 {
-    return LoadObject<UNiagaraSystem>(nullptr, *SystemPath);
+    // First try direct load (works for full paths like "/Game/Effects/NS_Fire")
+    if (UNiagaraSystem* System = LoadObject<UNiagaraSystem>(nullptr, *SystemPath))
+    {
+        return System;
+    }
+
+    // If direct load failed, try asset registry search for short names
+    // This allows users to pass just "NS_Fire" instead of full path
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    // Build filter for NiagaraSystem assets
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UNiagaraSystem::StaticClass()->GetClassPathName());
+    Filter.bRecursivePaths = true;
+    Filter.bRecursiveClasses = true;
+
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+
+    // Search for matching asset name
+    FString SearchName = SystemPath;
+    // Remove any path components if present (e.g., "Testing/NS_Fire" -> "NS_Fire")
+    int32 LastSlash;
+    if (SearchName.FindLastChar('/', LastSlash))
+    {
+        SearchName = SearchName.RightChop(LastSlash + 1);
+    }
+
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (AssetData.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogNiagaraService, Log, TEXT("Found Niagara System '%s' at '%s'"), *SearchName, *AssetData.GetObjectPathString());
+            return Cast<UNiagaraSystem>(AssetData.GetAsset());
+        }
+    }
+
+    UE_LOG(LogNiagaraService, Warning, TEXT("Could not find Niagara System '%s'"), *SystemPath);
+    return nullptr;
 }
 
 UNiagaraEmitter* FNiagaraService::FindEmitter(const FString& EmitterPath)
 {
-    return LoadObject<UNiagaraEmitter>(nullptr, *EmitterPath);
+    // First try direct load (works for full paths)
+    if (UNiagaraEmitter* Emitter = LoadObject<UNiagaraEmitter>(nullptr, *EmitterPath))
+    {
+        return Emitter;
+    }
+
+    // If direct load failed, try asset registry search for short names
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    // Build filter for NiagaraEmitter assets
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UNiagaraEmitter::StaticClass()->GetClassPathName());
+    Filter.bRecursivePaths = true;
+    Filter.bRecursiveClasses = true;
+
+    TArray<FAssetData> AssetDataList;
+    AssetRegistry.GetAssets(Filter, AssetDataList);
+
+    // Search for matching asset name
+    FString SearchName = EmitterPath;
+    int32 LastSlash;
+    if (SearchName.FindLastChar('/', LastSlash))
+    {
+        SearchName = SearchName.RightChop(LastSlash + 1);
+    }
+
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (AssetData.AssetName.ToString().Equals(SearchName, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogNiagaraService, Log, TEXT("Found Niagara Emitter '%s' at '%s'"), *SearchName, *AssetData.GetObjectPathString());
+            return Cast<UNiagaraEmitter>(AssetData.GetAsset());
+        }
+    }
+
+    UE_LOG(LogNiagaraService, Warning, TEXT("Could not find Niagara Emitter '%s'"), *EmitterPath);
+    return nullptr;
 }
 
 void FNiagaraService::RefreshEditors(UObject* Asset)
@@ -1938,7 +2045,60 @@ void FNiagaraService::AddSystemMetadata(UNiagaraSystem* System, const TArray<FSt
         {
             TSharedPtr<FJsonObject> ParamObj = MakeShared<FJsonObject>();
             ParamObj->SetStringField(TEXT("name"), Param.GetName().ToString());
-            ParamObj->SetStringField(TEXT("type"), Param.GetType().GetName());
+            FString TypeName = Param.GetType().GetName();
+            ParamObj->SetStringField(TEXT("type"), TypeName);
+
+            // Extract current value based on type
+            const uint8* ParameterData = Store.GetParameterData(Param);
+            if (ParameterData)
+            {
+                if (TypeName.Equals(TEXT("NiagaraFloat"), ESearchCase::IgnoreCase) ||
+                    TypeName.Equals(TEXT("float"), ESearchCase::IgnoreCase))
+                {
+                    float Value = *reinterpret_cast<const float*>(ParameterData);
+                    ParamObj->SetNumberField(TEXT("value"), Value);
+                }
+                else if (TypeName.Equals(TEXT("NiagaraInt32"), ESearchCase::IgnoreCase) ||
+                         TypeName.Equals(TEXT("int32"), ESearchCase::IgnoreCase))
+                {
+                    int32 Value = *reinterpret_cast<const int32*>(ParameterData);
+                    ParamObj->SetNumberField(TEXT("value"), Value);
+                }
+                else if (TypeName.Equals(TEXT("NiagaraBool"), ESearchCase::IgnoreCase) ||
+                         TypeName.Equals(TEXT("bool"), ESearchCase::IgnoreCase))
+                {
+                    bool Value = *reinterpret_cast<const FNiagaraBool*>(ParameterData) != FNiagaraBool(false);
+                    ParamObj->SetBoolField(TEXT("value"), Value);
+                }
+                else if (TypeName.Equals(TEXT("NiagaraPosition"), ESearchCase::IgnoreCase) ||
+                         TypeName.Equals(TEXT("Vector"), ESearchCase::IgnoreCase) ||
+                         TypeName.Contains(TEXT("Vector")))
+                {
+                    FVector Value = *reinterpret_cast<const FVector*>(ParameterData);
+                    TArray<TSharedPtr<FJsonValue>> VecArray;
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Value.X));
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Value.Y));
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Value.Z));
+                    ParamObj->SetArrayField(TEXT("value"), VecArray);
+                }
+                else if (TypeName.Equals(TEXT("LinearColor"), ESearchCase::IgnoreCase) ||
+                         TypeName.Contains(TEXT("Color")))
+                {
+                    FLinearColor Value = *reinterpret_cast<const FLinearColor*>(ParameterData);
+                    TArray<TSharedPtr<FJsonValue>> ColorArray;
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Value.R));
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Value.G));
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Value.B));
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Value.A));
+                    ParamObj->SetArrayField(TEXT("value"), ColorArray);
+                }
+                else
+                {
+                    // For other types, indicate value exists but can't be serialized
+                    ParamObj->SetStringField(TEXT("value"), TEXT("<complex type>"));
+                }
+            }
+
             ParamsArray.Add(MakeShared<FJsonValueObject>(ParamObj));
         }
         OutMetadata->SetArrayField(TEXT("parameters"), ParamsArray);

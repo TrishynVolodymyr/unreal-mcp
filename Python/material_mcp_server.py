@@ -71,9 +71,9 @@ async def create_material_instance(
     name: str,
     parent_material: str,
     folder_path: str = "",
-    scalar_params: str = "",
-    vector_params: str = "",
-    texture_params: str = ""
+    scalar_params: dict = None,
+    vector_params: dict = None,
+    texture_params: dict = None
 ) -> Dict[str, Any]:
     """
     Create a new Material Instance Constant from a parent material.
@@ -85,9 +85,9 @@ async def create_material_instance(
         name: Name of the Material Instance (e.g., "MI_Crystal_Red")
         parent_material: Path or name of the parent material (e.g., "/Game/Materials/M_Crystal" or "M_Crystal")
         folder_path: Optional folder path for the new asset (e.g., "/Game/Materials/Instances")
-        scalar_params: Optional JSON string of scalar parameters {"ParamName": 0.5, ...}
-        vector_params: Optional JSON string of vector parameters {"ParamName": [R, G, B, A], ...}
-        texture_params: Optional JSON string of texture parameters {"ParamName": "/Game/Textures/T_Name", ...}
+        scalar_params: Optional dictionary of scalar parameters {"ParamName": 0.5, ...}
+        vector_params: Optional dictionary of vector parameters {"ParamName": [R, G, B, A], ...}
+        texture_params: Optional dictionary of texture parameters {"ParamName": "/Game/Textures/T_Name", ...}
 
     Returns:
         Dictionary containing:
@@ -102,8 +102,8 @@ async def create_material_instance(
             name="MI_Crystal_Red",
             parent_material="/Game/Materials/M_Crystal",
             folder_path="/Game/Materials/Instances",
-            scalar_params='{"Metallic": 0.8, "Roughness": 0.2}',
-            vector_params='{"BaseColor": [1.0, 0.0, 0.0, 1.0]}'
+            scalar_params={"Metallic": 0.8, "Roughness": 0.2},
+            vector_params={"BaseColor": [1.0, 0.0, 0.0, 1.0]}
         )
     """
     params = {
@@ -112,12 +112,13 @@ async def create_material_instance(
     }
     if folder_path:
         params["folder_path"] = folder_path
+    # Convert dict to JSON string for C++ side (which expects JSON strings)
     if scalar_params:
-        params["scalar_params"] = scalar_params
+        params["scalar_params"] = json.dumps(scalar_params) if isinstance(scalar_params, dict) else scalar_params
     if vector_params:
-        params["vector_params"] = vector_params
+        params["vector_params"] = json.dumps(vector_params) if isinstance(vector_params, dict) else vector_params
     if texture_params:
-        params["texture_params"] = texture_params
+        params["texture_params"] = json.dumps(texture_params) if isinstance(texture_params, dict) else texture_params
 
     return await send_tcp_command("create_material_instance", params)
 
@@ -309,9 +310,9 @@ async def set_material_texture_param(
 @app.tool()
 async def batch_set_material_params(
     material_instance: str,
-    scalar_params: str = "",
-    vector_params: str = "",
-    texture_params: str = ""
+    scalar_params: dict = None,
+    vector_params: dict = None,
+    texture_params: dict = None
 ) -> Dict[str, Any]:
     """
     Set multiple parameters on a Material Instance in a single operation.
@@ -321,9 +322,9 @@ async def batch_set_material_params(
 
     Args:
         material_instance: Path or name of the Material Instance
-        scalar_params: JSON string of scalar parameters {"ParamName": 0.5, ...}
-        vector_params: JSON string of vector parameters {"ParamName": [R, G, B, A], ...}
-        texture_params: JSON string of texture parameters {"ParamName": "/Game/Textures/T_Name", ...}
+        scalar_params: Dictionary of scalar parameters {"ParamName": 0.5, ...}
+        vector_params: Dictionary of vector parameters {"ParamName": [R, G, B, A], ...}
+        texture_params: Dictionary of texture parameters {"ParamName": "/Game/Textures/T_Name", ...}
 
     Returns:
         Dictionary containing:
@@ -335,20 +336,21 @@ async def batch_set_material_params(
     Example:
         batch_set_material_params(
             material_instance="MI_Crystal_Red",
-            scalar_params='{"Metallic": 0.9, "Roughness": 0.1, "EmissiveIntensity": 2.0}',
-            vector_params='{"BaseColor": [0.8, 0.0, 0.0, 1.0], "EmissiveColor": [1.0, 0.3, 0.0, 1.0]}',
-            texture_params='{"NormalMap": "/Game/Textures/T_Crystal_N"}'
+            scalar_params={"Metallic": 0.9, "Roughness": 0.1, "EmissiveIntensity": 2.0},
+            vector_params={"BaseColor": [0.8, 0.0, 0.0, 1.0], "EmissiveColor": [1.0, 0.3, 0.0, 1.0]},
+            texture_params={"NormalMap": "/Game/Textures/T_Crystal_N"}
         )
     """
     params = {
         "material_instance": material_instance
     }
+    # Convert dict to JSON string for C++ side (which expects JSON strings)
     if scalar_params:
-        params["scalar_params"] = scalar_params
+        params["scalar_params"] = json.dumps(scalar_params) if isinstance(scalar_params, dict) else scalar_params
     if vector_params:
-        params["vector_params"] = vector_params
+        params["vector_params"] = json.dumps(vector_params) if isinstance(vector_params, dict) else vector_params
     if texture_params:
-        params["texture_params"] = texture_params
+        params["texture_params"] = json.dumps(texture_params) if isinstance(texture_params, dict) else texture_params
 
     return await send_tcp_command("batch_set_material_params", params)
 
