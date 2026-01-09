@@ -193,6 +193,113 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
+
+### NiagaraMCP Cannot Set Curve/Gradient Values Over Particle Lifetime (MOSTLY RESOLVED)
+- **Affected**: `set_module_input` in niagaraMCP
+- **Date Discovered**: 2026-01-08
+- **Status**: `set_module_curve_input` and `set_module_color_curve_input` commands implemented and working
+- **Problem**: Cannot set values that change over particle lifetime - the most fundamental feature of particle effects
+- **Impact**: Cannot create realistic VFX because particles cannot:
+  - Fade out (alpha curve)
+  - Change color (yellow → orange → red as ember cools)
+  - Shrink over life (size curve)
+  - Any property that varies with NormalizedAge
+- **Technical Details**: Niagara module inputs often expect "Dynamic Inputs" such as:
+  - `Curve over Normalized Age` - requires FRichCurve data
+  - `Scale Color by Curve` - binds to curve asset or inline curve
+  - `Float from Curve` - samples curve based on particle age
+- **Current Limitation**: `set_module_input` can only set static scalar/vector values, not curve bindings or dynamic inputs
+- **Implementation Progress**:
+  1. ✅ Added `set_module_curve_input` command with keyframe data - WORKING
+  2. ✅ Added `set_module_color_curve_input` command with RGBA keyframes - FIXED (2026-01-09)
+     - Now uses Dynamic Inputs (e.g., "Scale Linear Color by Curve") for LinearColor inputs
+     - Direct ColorCurve DI assignment still works for explicit curve inputs
+- **Priority**: LOW - Core functionality now works
+
+---
+
+### NiagaraMCP Cannot Set Random Range Values
+- **Affected**: `set_module_input` in niagaraMCP
+- **Date Discovered**: 2026-01-08
+- **Problem**: Cannot set randomized inputs - particles all have identical values
+- **Impact**:
+  - All particles same size (should vary)
+  - All particles same lifetime (should vary)
+  - All particles same velocity (should vary)
+  - Results in artificial, uniform-looking effects
+- **Technical Details**: Niagara expects dynamic inputs like:
+  - `Uniform Random Float(Min, Max)`
+  - `Uniform Random Vector(Min, Max)`
+  - `Random Float from Distribution`
+- **Current Limitation**: Can only set single static value, not random range
+- **Required Implementation**:
+  1. Add `set_module_random_input` command
+  2. Accept min/max values: `{"min": 1, "max": 5}`
+  3. Create appropriate Niagara dynamic input binding
+- **Priority**: HIGH - Essential for natural-looking variation
+
+---
+
+### NiagaraMCP Module Input Type Discovery Missing
+- **Affected**: `set_module_input` workflow
+- **Date Discovered**: 2026-01-08
+- **Problem**: Cannot determine what TYPE an input expects before setting it
+- **Impact**:
+  - Don't know if input expects float, vector, curve, or dynamic input
+  - Trial and error required to find correct format
+  - Errors like "Could not parse value '3' for input type 'Vector2f'"
+- **Current Behavior**: Only see input name, not type information
+- **Required Implementation**:
+  1. Add `get_module_input_types` command
+  2. Return: `{"input_name": "SpawnRate", "type": "NiagaraFloat", "accepts_curve": true, "accepts_random": true}`
+- **Priority**: MEDIUM - Would improve workflow significantly
+
+---
+
+### NiagaraMCP add_emitter_to_system create_if_missing Returns Unknown Error
+- **Affected**: `add_emitter_to_system` with `create_if_missing=True`
+- **Date Discovered**: 2026-01-08
+- **Problem**: When adding a non-existent emitter to a newly created system with `create_if_missing=True`, the emitter creation step fails with "Unknown error"
+- **Example Request**:
+  ```json
+  {
+    "system": "/Game/Testing/NS_CurveTest",
+    "emitter": "NE_CurveTestEmitter",
+    "create_if_missing": true,
+    "emitter_folder": "/Game/Testing",
+    "emitter_type": "Sprite"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": false,
+    "error": "Failed to create emitter: Unknown error",
+    "original_add_error": "emitter not found: ne_curvetestemitter"
+  }
+  ```
+- **Root Cause**: Python-side `create_if_missing` logic calls `create_niagara_emitter` which returns "Unknown error" - the C++ error message is not being properly propagated
+- **Workaround**: Create emitter separately first with `create_niagara_emitter`, then use `add_emitter_to_system`
+- **Required Fix**: Improve error handling in both:
+  1. C++ `create_niagara_emitter` - return specific error messages
+  2. Python `add_emitter_to_system` - better error propagation from create step
+- **Priority**: MEDIUM - Workaround exists
+
+---
+
+### MaterialMCP RadialGradientExponential Expression Not Supported
+- **Affected**: `add_material_expression` in materialMCP
+- **Date Discovered**: 2026-01-08
+- **Problem**: Expression type "RadialGradientExponential" not recognized
+- **Error**: `{"status": "error", "error": "Unknown expression type: RadialGradientExponential"}`
+- **Impact**: Cannot create sharp center-to-edge falloff for particle materials
+- **Current Workaround**: Use Distance + OneMinus + Power chain (less convenient)
+- **Required Implementation**: Add `UMaterialExpressionRadialGradientExponential` to expression type map
+- **Include Path**: `Materials/MaterialExpressionRadialGradientExponential.h`
+- **Priority**: LOW - Workaround exists
+
+---
+
 ### NiagaraMCP compile_niagara_asset Returns Warnings as Errors
 - **Affected**: `compile_niagara_asset` in niagaraMCP
 - **Date Discovered**: 2026-01-06
@@ -222,6 +329,27 @@ This file tracks MCP tool limitations discovered during development. When encoun
 ---
 
 ## Resolved Issues
+
+- **NiagaraMCP set_module_color_curve_input Cannot Set Curves on LinearColor Inputs** - Fixed 2026-01-09
+  - Issue: ColorCurve data interfaces cannot be directly assigned to LinearColor inputs (type incompatibility). This caused crashes when viewing the module in Niagara Editor.
+  - Root Cause: LinearColor inputs expect LinearColor values, not ColorCurve DIs. The ColorCurve DI's `SampleColorCurve(float)` function outputs LinearColor, but requires a Dynamic Input wrapper to bind properly.
+  - Fix: Implemented two-approach system in `NiagaraCurveInputService::SetModuleColorCurveInput()`:
+    1. **For LinearColor inputs**: Uses `FNiagaraStackGraphUtilities::SetDynamicInputForFunctionInput()` to attach a Dynamic Input script (e.g., "Scale Linear Color by Curve") that wraps the curve sampling
+    2. **For explicit curve inputs**: Direct ColorCurve DI assignment (original logic)
+  - Added helper functions: `FindDynamicInputScriptForType()` to find suitable Dynamic Input scripts, and `FindAndConfigureColorCurveOnDynamicInput()` to configure the curve on nested inputs
+  - Now properly creates color gradients on Color module inputs, displaying as "Scale Linear Color by Curve" in the editor
+
+- **NiagaraMCP set_emitter_enabled Command Not Implemented** - Fixed 2026-01-08
+  - Issue: Python wrapper existed but C++ command handler was missing
+  - Error: `{"status": "error", "error": "Unknown command: set_emitter_enabled"}`
+  - Fix: Implemented `FSetEmitterEnabledCommand` and `FNiagaraService::SetEmitterEnabled()` using `FNiagaraEmitterHandle::SetIsEnabled()`
+  - Now supports enabling/disabling emitters within Niagara systems
+
+- **NiagaraMCP remove_emitter_from_system Command Missing** - Fixed 2026-01-08
+  - Issue: No command existed to remove emitters from a Niagara system
+  - Error: `{"status": "error", "error": "Unknown command: remove_emitter_from_system"}`
+  - Fix: Implemented `FRemoveEmitterFromSystemCommand` and `FNiagaraService::RemoveEmitterFromSystem()` using `UNiagaraSystem::RemoveEmitterHandle()`
+  - Now supports removing emitters from systems programmatically
 
 - **NiagaraMCP set_renderer_property Enum Properties Not Supported** - Fixed in NiagaraService.cpp
   - Issue: Enum properties like `Alignment`, `FacingMode`, `SortMode` on sprite renderers couldn't be set

@@ -744,6 +744,393 @@ async def add_renderer_to_emitter(
 
 
 # ============================================================================
+# Module Operations
+# ============================================================================
+
+@app.tool()
+async def search_niagara_modules(
+    search_query: str = "",
+    stage_filter: str = "",
+    max_results: int = 50
+) -> Dict[str, Any]:
+    """
+    Search available Niagara modules in the asset registry.
+
+    Args:
+        search_query: Text to search in module names (e.g., "Spawn", "Velocity", "Color")
+        stage_filter: Filter by stage - "Spawn", "Update", "Event", or "" for all
+        max_results: Maximum results to return (default: 50)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether search was successful
+        - modules: Array of module info with path, name, description
+        - count: Number of modules found
+
+    Example:
+        search_niagara_modules(search_query="Velocity", stage_filter="Spawn")
+    """
+    params = {
+        "search_query": search_query,
+        "stage_filter": stage_filter,
+        "max_results": max_results
+    }
+    return await send_tcp_command("search_niagara_modules", params)
+
+
+@app.tool()
+async def add_module_to_emitter(
+    system_path: str,
+    emitter_name: str,
+    module_path: str,
+    stage: str,
+    index: int = -1
+) -> Dict[str, Any]:
+    """
+    Add a module to a specific stage of an emitter.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_path: Path to the module script asset
+        stage: Stage to add module to - "Spawn", "Update", or "Event"
+        index: Position in stack (-1 = end, 0 = beginning)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether module was added
+        - module_name: Name of added module
+        - stage: Stage it was added to
+        - message: Success/error message
+
+    Example:
+        add_module_to_emitter(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_path="/Niagara/Modules/Spawn/SpawnRate.SpawnRate",
+            stage="Spawn"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_path": module_path,
+        "stage": stage,
+        "index": index
+    }
+    return await send_tcp_command("add_module_to_emitter", params)
+
+
+@app.tool()
+async def set_module_input(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    input_name: str,
+    value: str,
+    value_type: str = "auto"
+) -> Dict[str, Any]:
+    """
+    Set an input value on a module.
+
+    Args:
+        system_path: Path to the Niagara System
+        emitter_name: Emitter name within the system
+        module_name: Name of the module to configure
+        stage: Stage containing the module - "Spawn", "Update", or "Event"
+        input_name: Input parameter name (e.g., "SpawnRate", "Velocity")
+        value: Value to set as string (e.g., "100", "0,0,500", "1,0.5,0,1")
+        value_type: Type hint - "float", "vector", "color", "int", "bool", or "auto"
+
+    Returns:
+        Dictionary containing:
+        - success: Whether input was set
+        - module_name: Module that was modified
+        - input_name: Input that was set
+        - message: Success/error message
+
+    Example:
+        set_module_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="SpawnRate",
+            stage="Spawn",
+            input_name="SpawnRate",
+            value="50",
+            value_type="float"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage,
+        "input_name": input_name,
+        "value": str(value),
+        "value_type": value_type
+    }
+    return await send_tcp_command("set_module_input", params)
+
+
+@app.tool()
+async def move_module(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    new_index: int
+) -> Dict[str, Any]:
+    """
+    Move a module to a new position within its stage.
+
+    Important for execution order - e.g., force modules must be before
+    SolveForcesAndVelocity for forces to apply correctly.
+
+    Args:
+        system_path: Path to the Niagara System
+        emitter_name: Emitter name
+        module_name: Module name to move
+        stage: Stage containing the module - "Spawn" or "Update"
+        new_index: New position index (0-based)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether move was successful
+        - message: Success/error message
+
+    Example:
+        move_module(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="CurlNoiseForce",
+            stage="Update",
+            new_index=3
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage,
+        "new_index": new_index
+    }
+    return await send_tcp_command("move_module", params)
+
+
+@app.tool()
+async def set_module_curve_input(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    input_name: str,
+    keyframes: List[Dict[str, float]]
+) -> Dict[str, Any]:
+    """
+    Set a float curve input on a module.
+
+    Creates a curve data interface for module inputs that accept curves,
+    such as Scale Over Life, Drag, or custom curve-based parameters.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_name: Name of the module to configure
+        stage: Stage containing the module - "Spawn" or "Update"
+        input_name: Input parameter name (e.g., "ScaleFactor", "DragCoefficient")
+        keyframes: List of keyframe dictionaries, each containing:
+            - time: Normalized time (0.0 to 1.0)
+            - value: Float value at this time
+
+    Returns:
+        Dictionary containing:
+        - success: Whether curve was set
+        - module_name: Module that was modified
+        - input_name: Input that was set
+        - keyframe_count: Number of keyframes added
+        - message: Success/error message
+
+    Example:
+        # Scale particles from 100% at birth to 0% at death
+        set_module_curve_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="ScaleSpriteSize",
+            stage="Update",
+            input_name="ScaleFactor",
+            keyframes=[
+                {"time": 0.0, "value": 1.0},
+                {"time": 0.5, "value": 0.7},
+                {"time": 1.0, "value": 0.0}
+            ]
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage,
+        "input_name": input_name,
+        "keyframes": keyframes
+    }
+    return await send_tcp_command("set_module_curve_input", params)
+
+
+@app.tool()
+async def set_module_color_curve_input(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    input_name: str,
+    keyframes: List[Dict[str, float]]
+) -> Dict[str, Any]:
+    """
+    Set a color curve (gradient) input on a module.
+
+    Creates a color curve data interface for module inputs that accept
+    color gradients, such as Color Over Life or custom color parameters.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_name: Name of the module to configure
+        stage: Stage containing the module - "Spawn" or "Update"
+        input_name: Input parameter name (e.g., "ColorScale", "ParticleColor")
+        keyframes: List of keyframe dictionaries, each containing:
+            - time: Normalized time (0.0 to 1.0)
+            - r: Red component (0.0-1.0, can exceed 1.0 for HDR)
+            - g: Green component
+            - b: Blue component
+            - a: Alpha component (default: 1.0)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether curve was set
+        - module_name: Module that was modified
+        - input_name: Input that was set
+        - keyframe_count: Number of keyframes added
+        - message: Success/error message
+
+    Example:
+        # Fire ember color gradient: bright yellow -> orange -> dark red -> fade out
+        set_module_color_curve_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Embers",
+            module_name="ScaleColor",
+            stage="Update",
+            input_name="ColorScale",
+            keyframes=[
+                {"time": 0.0, "r": 1.0, "g": 0.9, "b": 0.3, "a": 1.0},
+                {"time": 0.3, "r": 1.0, "g": 0.5, "b": 0.1, "a": 1.0},
+                {"time": 0.7, "r": 0.8, "g": 0.2, "b": 0.05, "a": 0.8},
+                {"time": 1.0, "r": 0.3, "g": 0.05, "b": 0.0, "a": 0.0}
+            ]
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage,
+        "input_name": input_name,
+        "keyframes": keyframes
+    }
+    return await send_tcp_command("set_module_color_curve_input", params)
+
+
+@app.tool()
+async def set_renderer_property(
+    system_path: str,
+    emitter_name: str,
+    renderer_name: str,
+    property_name: str,
+    property_value: str
+) -> Dict[str, Any]:
+    """
+    Set a property on a renderer.
+
+    Args:
+        system_path: Path to the Niagara System
+        emitter_name: Emitter name
+        renderer_name: Renderer name (e.g., "Renderer" or "Renderer_0")
+        property_name: Property to set:
+            - Sprite: "Material", "Alignment", "FacingMode", "SubImageSize"
+            - Mesh: "ParticleMesh", "Material"
+            - Ribbon: "Material", "RibbonWidth"
+        property_value: Value (asset path for materials/meshes, or setting value)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether property was set
+        - message: Success/error message
+
+    Example:
+        set_renderer_property(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            renderer_name="Renderer",
+            property_name="Material",
+            property_value="/Game/Materials/M_Ember"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "renderer_name": renderer_name,
+        "property_name": property_name,
+        "property_value": str(property_value)
+    }
+    return await send_tcp_command("set_renderer_property", params)
+
+
+@app.tool()
+async def spawn_niagara_actor(
+    system_path: str,
+    actor_name: str,
+    location: List[float] = None,
+    rotation: List[float] = None,
+    auto_activate: bool = True
+) -> Dict[str, Any]:
+    """
+    Spawn a Niagara System actor in the level.
+
+    Args:
+        system_path: Path to the Niagara System asset
+        actor_name: Name for the spawned actor
+        location: [X, Y, Z] world location (default: [0, 0, 0])
+        rotation: [Pitch, Yaw, Roll] in degrees (default: [0, 0, 0])
+        auto_activate: Whether to auto-activate on spawn (default: True)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether spawn was successful
+        - actor_name: Name of spawned actor
+        - location: World location
+        - message: Success/error message
+
+    Example:
+        spawn_niagara_actor(
+            system_path="/Game/Effects/NS_Fire",
+            actor_name="FireEffect_01",
+            location=[0, 0, 100],
+            auto_activate=True
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "actor_name": actor_name,
+        "auto_activate": auto_activate
+    }
+    if location is not None:
+        params["location"] = location
+    if rotation is not None:
+        params["rotation"] = rotation
+    return await send_tcp_command("spawn_niagara_actor", params)
+
+
+# ============================================================================
 # Run Server
 # ============================================================================
 

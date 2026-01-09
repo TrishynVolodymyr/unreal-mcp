@@ -302,3 +302,99 @@ bool FNiagaraService::DuplicateSystem(const FString& SourcePath, const FString& 
 
     return true;
 }
+
+bool FNiagaraService::SetEmitterEnabled(const FString& SystemPath, const FString& EmitterName, bool bEnabled, FString& OutError)
+{
+    // Find the system
+    UNiagaraSystem* System = FindSystem(SystemPath);
+    if (!System)
+    {
+        OutError = FString::Printf(TEXT("System not found: %s"), *SystemPath);
+        return false;
+    }
+
+    // Find the emitter handle by name
+    int32 EmitterIndex = FindEmitterHandleIndex(System, EmitterName);
+    if (EmitterIndex == INDEX_NONE)
+    {
+        OutError = FString::Printf(TEXT("Emitter '%s' not found in system '%s'"), *EmitterName, *SystemPath);
+        return false;
+    }
+
+    // Get the handle and modify enabled state
+    FNiagaraEmitterHandle& Handle = System->GetEmitterHandle(EmitterIndex);
+
+    // Check if already in desired state
+    bool bCurrentState = Handle.GetIsEnabled();
+    if (bCurrentState == bEnabled)
+    {
+        UE_LOG(LogNiagaraService, Log, TEXT("Emitter '%s' is already %s"),
+            *EmitterName, bEnabled ? TEXT("enabled") : TEXT("disabled"));
+        return true;
+    }
+
+    // Modify the system
+    System->Modify();
+
+    // Set the enabled state
+    Handle.SetIsEnabled(bEnabled, *System, true);
+
+    // Mark dirty and recompile
+    MarkSystemDirty(System);
+
+    // Request compilation and wait
+    System->RequestCompile(false);
+    System->WaitForCompilationComplete();
+
+    RefreshEditors(System);
+
+    UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' in system '%s' to %s"),
+        *EmitterName, *SystemPath, bEnabled ? TEXT("enabled") : TEXT("disabled"));
+
+    return true;
+}
+
+bool FNiagaraService::RemoveEmitterFromSystem(const FString& SystemPath, const FString& EmitterName, FString& OutError)
+{
+    // Find the system
+    UNiagaraSystem* System = FindSystem(SystemPath);
+    if (!System)
+    {
+        OutError = FString::Printf(TEXT("System not found: %s"), *SystemPath);
+        return false;
+    }
+
+    // Find the emitter handle by name
+    int32 EmitterIndex = FindEmitterHandleIndex(System, EmitterName);
+    if (EmitterIndex == INDEX_NONE)
+    {
+        OutError = FString::Printf(TEXT("Emitter '%s' not found in system '%s'"), *EmitterName, *SystemPath);
+        return false;
+    }
+
+    // Get the emitter handle to remove
+    const FNiagaraEmitterHandle& Handle = System->GetEmitterHandle(EmitterIndex);
+
+    // Modify the system
+    System->Modify();
+
+    // Remove the emitter handle
+    System->RemoveEmitterHandle(Handle);
+
+    // Mark dirty and recompile
+    MarkSystemDirty(System);
+
+    // Broadcast post-edit change to trigger parameter map rebuilding
+    System->OnSystemPostEditChange().Broadcast(System);
+
+    // Request compilation and wait
+    System->RequestCompile(false);
+    System->WaitForCompilationComplete();
+
+    RefreshEditors(System);
+
+    UE_LOG(LogNiagaraService, Log, TEXT("Removed emitter '%s' from system '%s'"),
+        *EmitterName, *SystemPath);
+
+    return true;
+}

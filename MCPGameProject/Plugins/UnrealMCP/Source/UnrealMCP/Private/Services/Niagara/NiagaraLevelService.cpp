@@ -4,6 +4,7 @@
 #include "Services/NiagaraService.h"
 
 #include "Editor.h"
+#include "EngineUtils.h"  // For TActorIterator
 #include "NiagaraSystem.h"
 #include "NiagaraActor.h"
 #include "NiagaraComponent.h"
@@ -36,9 +37,20 @@ ANiagaraActor* FNiagaraService::SpawnActor(const FNiagaraActorSpawnParams& Param
         return nullptr;
     }
 
+    // Check if actor with same name already exists
+    FName RequestedName(*Params.ActorName);
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        if (It->GetFName() == RequestedName || It->GetActorLabel() == Params.ActorName)
+        {
+            OutError = FString::Printf(TEXT("Actor with name '%s' already exists. Delete it first or use a different name."), *Params.ActorName);
+            return nullptr;
+        }
+    }
+
     // Spawn the actor
     FActorSpawnParameters SpawnParams;
-    SpawnParams.Name = FName(*Params.ActorName);
+    SpawnParams.Name = RequestedName;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
     ANiagaraActor* NiagaraActor = World->SpawnActor<ANiagaraActor>(

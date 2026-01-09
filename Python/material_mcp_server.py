@@ -60,6 +60,53 @@ async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[st
 
 
 # ============================================================================
+# Material Creation
+# ============================================================================
+
+@app.tool()
+async def create_material(
+    name: str,
+    path: str = "/Game/Materials",
+    blend_mode: str = "Translucent",
+    shading_model: str = "Unlit"
+) -> Dict[str, Any]:
+    """
+    Create a new base Material asset.
+
+    This creates a new material that can be used as a parent for material instances
+    or assigned directly to meshes/particles.
+
+    Args:
+        name: Name of the material (e.g., "M_EmberParticle")
+        path: Folder path for the material (default: "/Game/Materials")
+        blend_mode: Blend mode - "Opaque", "Masked", "Translucent", "Additive" (default: "Translucent")
+        shading_model: Shading model - "DefaultLit", "Unlit", "SubsurfaceProfile" (default: "Unlit")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether creation was successful
+        - material_path: Full path to the created material
+        - message: Success/error message
+
+    Example:
+        create_material(
+            name="M_EmberParticle",
+            path="/Game/Effects/Materials",
+            blend_mode="Additive",
+            shading_model="Unlit"
+        )
+    """
+    params = {
+        "name": name,
+        "path": path,
+        "blend_mode": blend_mode,
+        "shading_model": shading_model
+    }
+
+    return await send_tcp_command("create_material", params)
+
+
+# ============================================================================
 # Material Instance Creation
 # ============================================================================
 
@@ -419,6 +466,129 @@ async def get_material_parameters(
         "material": material
     }
     return await send_tcp_command("get_material_parameters", params)
+
+
+# ============================================================================
+# Material Expression Tools
+# ============================================================================
+
+@app.tool()
+async def add_material_expression(
+    material_path: str,
+    expression_type: str,
+    position: List[int] = None,
+    properties: dict = None
+) -> Dict[str, Any]:
+    """
+    Add a material expression node to a material graph.
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+        expression_type: Type of expression (e.g., "Constant", "Multiply", "ParticleColor",
+                        "RadialGradientExponential", "VertexColor", "TextureCoordinate")
+        position: [X, Y] position in the graph (optional)
+        properties: Dictionary of expression properties (optional)
+
+    Returns:
+        Dictionary with expression_id, name, and other info
+
+    Example:
+        add_material_expression(
+            material_path="/Game/Materials/M_Ember",
+            expression_type="Constant",
+            properties={"R": 1.0}
+        )
+    """
+    params = {
+        "material_path": material_path,
+        "expression_type": expression_type
+    }
+    if position:
+        params["position"] = position
+    if properties:
+        params["properties"] = properties
+
+    return await send_tcp_command("add_material_expression", params)
+
+
+@app.tool()
+async def connect_material_expressions(
+    material_path: str,
+    source_expression_id: str,
+    target_expression_id: str,
+    target_input_name: str,
+    source_output_index: int = 0
+) -> Dict[str, Any]:
+    """
+    Connect two material expressions.
+
+    Args:
+        material_path: Path to the material
+        source_expression_id: GUID of the source expression
+        target_expression_id: GUID of the target expression
+        target_input_name: Name of the input on the target (e.g., "A", "B", "Base")
+        source_output_index: Output index on source (default 0)
+
+    Returns:
+        Success/error message
+    """
+    params = {
+        "material_path": material_path,
+        "source_expression_id": source_expression_id,
+        "target_expression_id": target_expression_id,
+        "target_input_name": target_input_name,
+        "source_output_index": source_output_index
+    }
+
+    return await send_tcp_command("connect_material_expressions", params)
+
+
+@app.tool()
+async def connect_expression_to_material_output(
+    material_path: str,
+    expression_id: str,
+    material_property: str,
+    output_index: int = 0
+) -> Dict[str, Any]:
+    """
+    Connect a material expression to a material output (EmissiveColor, Opacity, etc.).
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+        expression_id: GUID of the source expression
+        material_property: Target material property - one of:
+            - "BaseColor": Surface color
+            - "Metallic": Metallic value
+            - "Specular": Specular value
+            - "Roughness": Roughness value
+            - "Normal": Normal map
+            - "EmissiveColor": Emissive/glow color
+            - "Opacity": Opacity for translucent materials
+            - "OpacityMask": Opacity mask for masked materials
+            - "WorldPositionOffset": Vertex offset
+            - "AmbientOcclusion": AO value
+            - "Refraction": Refraction for translucent materials
+            - "SubsurfaceColor": Subsurface scattering color
+        output_index: Output index on source expression (default 0)
+
+    Returns:
+        Success/error message with connected property
+
+    Example:
+        connect_expression_to_material_output(
+            material_path="/Game/Materials/M_Ember",
+            expression_id="43E2F0AD4A059DB305340EAB5A873C46",
+            material_property="EmissiveColor"
+        )
+    """
+    params = {
+        "material_path": material_path,
+        "expression_id": expression_id,
+        "material_property": material_property,
+        "output_index": output_index
+    }
+
+    return await send_tcp_command("connect_expression_to_material_output", params)
 
 
 # ============================================================================

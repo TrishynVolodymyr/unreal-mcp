@@ -365,6 +365,175 @@ struct UNREALMCP_API FNiagaraDataInterfaceParams
 };
 
 /**
+ * A single keyframe for a curve input
+ */
+struct UNREALMCP_API FNiagaraCurveKeyframe
+{
+    /** Time position (normalized 0-1 for lifetime curves) */
+    float Time = 0.0f;
+
+    /** Value at this time */
+    float Value = 0.0f;
+
+    /** Default constructor */
+    FNiagaraCurveKeyframe() = default;
+
+    FNiagaraCurveKeyframe(float InTime, float InValue)
+        : Time(InTime), Value(InValue) {}
+};
+
+/**
+ * Parameters for setting a curve input on a module
+ */
+struct UNREALMCP_API FNiagaraModuleCurveInputParams
+{
+    /** Path to the system */
+    FString SystemPath;
+
+    /** Name of the emitter */
+    FString EmitterName;
+
+    /** Name of the module */
+    FString ModuleName;
+
+    /** Stage the module is in */
+    FString Stage;
+
+    /** Name of the input to set */
+    FString InputName;
+
+    /** Curve keyframes */
+    TArray<FNiagaraCurveKeyframe> Keyframes;
+
+    /** Default constructor */
+    FNiagaraModuleCurveInputParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (ModuleName.IsEmpty())
+        {
+            OutError = TEXT("Module name cannot be empty");
+            return false;
+        }
+        if (InputName.IsEmpty())
+        {
+            OutError = TEXT("Input name cannot be empty");
+            return false;
+        }
+        if (Keyframes.Num() < 2)
+        {
+            OutError = TEXT("Curve must have at least 2 keyframes");
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
+ * A single color keyframe for a color curve input
+ */
+struct UNREALMCP_API FNiagaraColorCurveKeyframe
+{
+    /** Time position (normalized 0-1 for lifetime curves) */
+    float Time = 0.0f;
+
+    /** Red value */
+    float R = 1.0f;
+
+    /** Green value */
+    float G = 1.0f;
+
+    /** Blue value */
+    float B = 1.0f;
+
+    /** Alpha value */
+    float A = 1.0f;
+
+    /** Default constructor */
+    FNiagaraColorCurveKeyframe() = default;
+
+    FNiagaraColorCurveKeyframe(float InTime, float InR, float InG, float InB, float InA)
+        : Time(InTime), R(InR), G(InG), B(InB), A(InA) {}
+};
+
+/**
+ * Parameters for setting a color curve input on a module
+ */
+struct UNREALMCP_API FNiagaraModuleColorCurveInputParams
+{
+    /** Path to the system */
+    FString SystemPath;
+
+    /** Name of the emitter */
+    FString EmitterName;
+
+    /** Name of the module */
+    FString ModuleName;
+
+    /** Stage the module is in */
+    FString Stage;
+
+    /** Name of the input to set */
+    FString InputName;
+
+    /** Color curve keyframes */
+    TArray<FNiagaraColorCurveKeyframe> Keyframes;
+
+    /** Default constructor */
+    FNiagaraModuleColorCurveInputParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (ModuleName.IsEmpty())
+        {
+            OutError = TEXT("Module name cannot be empty");
+            return false;
+        }
+        if (InputName.IsEmpty())
+        {
+            OutError = TEXT("Input name cannot be empty");
+            return false;
+        }
+        if (Keyframes.Num() < 2)
+        {
+            OutError = TEXT("Color curve must have at least 2 keyframes");
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
  * Parameters for adding a renderer
  */
 struct UNREALMCP_API FNiagaraRendererParams
@@ -497,6 +666,25 @@ public:
     virtual bool AddEmitterToSystem(const FString& SystemPath, const FString& EmitterPath, const FString& EmitterName, FGuid& OutEmitterHandleId, FString& OutError) = 0;
 
     /**
+     * Enable or disable an emitter within a system
+     * @param SystemPath - Path to the system containing the emitter
+     * @param EmitterName - Name of the emitter to enable/disable
+     * @param bEnabled - Whether to enable (true) or disable (false) the emitter
+     * @param OutError - Error message if operation fails
+     * @return true if emitter enabled state was changed successfully
+     */
+    virtual bool SetEmitterEnabled(const FString& SystemPath, const FString& EmitterName, bool bEnabled, FString& OutError) = 0;
+
+    /**
+     * Remove an emitter from a system
+     * @param SystemPath - Path to the system containing the emitter
+     * @param EmitterName - Name of the emitter to remove
+     * @param OutError - Error message if operation fails
+     * @return true if emitter was removed successfully
+     */
+    virtual bool RemoveEmitterFromSystem(const FString& SystemPath, const FString& EmitterName, FString& OutError) = 0;
+
+    /**
      * Get metadata about a Niagara System or Emitter
      * @param AssetPath - Path to the asset
      * @param Fields - Optional fields to include (nullptr = all)
@@ -575,6 +763,22 @@ public:
      * @return true if module was moved successfully
      */
     virtual bool MoveModule(const FNiagaraModuleMoveParams& Params, FString& OutError) = 0;
+
+    /**
+     * Set a curve input on a module (for float curves like scale over life)
+     * @param Params - Curve input parameters with keyframes
+     * @param OutError - Error message if setting fails
+     * @return true if curve input was set successfully
+     */
+    virtual bool SetModuleCurveInput(const FNiagaraModuleCurveInputParams& Params, FString& OutError) = 0;
+
+    /**
+     * Set a color curve input on a module (for color gradients over life)
+     * @param Params - Color curve input parameters with keyframes
+     * @param OutError - Error message if setting fails
+     * @return true if color curve input was set successfully
+     */
+    virtual bool SetModuleColorCurveInput(const FNiagaraModuleColorCurveInputParams& Params, FString& OutError) = 0;
 
     // ========================================================================
     // Parameters (Feature 3)
