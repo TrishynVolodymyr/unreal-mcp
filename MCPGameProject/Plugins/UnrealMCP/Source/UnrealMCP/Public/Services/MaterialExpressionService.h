@@ -277,8 +277,10 @@ private:
      * Apply type-specific properties to an expression
      * @param Expression - Expression to modify
      * @param Properties - Properties to apply
+     * @param OutError - Error message if validation fails (output)
+     * @return true if properties applied successfully, false if validation failed
      */
-    void ApplyExpressionProperties(UMaterialExpression* Expression, const TSharedPtr<FJsonObject>& Properties);
+    bool ApplyExpressionProperties(UMaterialExpression* Expression, const TSharedPtr<FJsonObject>& Properties, FString& OutError);
 
     /**
      * Build JSON metadata for an expression

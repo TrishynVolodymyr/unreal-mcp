@@ -157,7 +157,10 @@ bool FMaterialExpressionService::SetExpressionProperty(
     Properties->SetField(PropertyName, Value);
 
     // Apply the property
-    ApplyExpressionProperties(Expression, Properties);
+    if (!ApplyExpressionProperties(Expression, Properties, OutError))
+    {
+        return false;
+    }
 
     // Check if material editor is open and close it (we'll reopen after save)
     bool bEditorWasOpen = false;
