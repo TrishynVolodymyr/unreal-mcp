@@ -46,11 +46,11 @@ UMaterialExpression* FMaterialExpressionService::CreateExpressionByType(UMateria
     return NewExpression;
 }
 
-void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* Expression, const TSharedPtr<FJsonObject>& Properties)
+bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* Expression, const TSharedPtr<FJsonObject>& Properties, FString& OutError)
 {
     if (!Expression || !Properties.IsValid())
     {
-        return;
+        return true; // No properties to apply is not an error
     }
 
     // Handle Constant expression
@@ -251,26 +251,58 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
     // Handle MaterialFunctionCall - load function by path and set it
     else if (UMaterialExpressionMaterialFunctionCall* FunctionCallExpr = Cast<UMaterialExpressionMaterialFunctionCall>(Expression))
     {
-        if (Properties->HasField(TEXT("function")) || Properties->HasField(TEXT("Function")))
+        // Accept multiple property names for the function path
+        if (Properties->HasField(TEXT("function")) || Properties->HasField(TEXT("Function")) || Properties->HasField(TEXT("FunctionPath")))
         {
-            FString FunctionPath = Properties->HasField(TEXT("function"))
-                ? Properties->GetStringField(TEXT("function"))
-                : Properties->GetStringField(TEXT("Function"));
+            FString FunctionPath;
+            if (Properties->HasField(TEXT("function")))
+                FunctionPath = Properties->GetStringField(TEXT("function"));
+            else if (Properties->HasField(TEXT("Function")))
+                FunctionPath = Properties->GetStringField(TEXT("Function"));
+            else
+                FunctionPath = Properties->GetStringField(TEXT("FunctionPath"));
 
             // Load the material function asset
             UMaterialFunctionInterface* MaterialFunction = LoadObject<UMaterialFunctionInterface>(nullptr, *FunctionPath);
             if (MaterialFunction)
             {
+                // CRITICAL: SetMaterialFunction calls UpdateFromFunctionResource() which requires
+                // the Expression->Material pointer to be set, otherwise it silently returns
+                // without populating FunctionInputs/FunctionOutputs (and thus GetOutputs() returns empty)
+                if (!FunctionCallExpr->Material)
+                {
+                    // Get Material from outer - this is set when creating the expression with NewObject<>(Material, Class)
+                    UMaterial* OuterMaterial = Cast<UMaterial>(FunctionCallExpr->GetOuter());
+                    if (OuterMaterial)
+                    {
+                        FunctionCallExpr->Material = OuterMaterial;
+                        UE_LOG(LogTemp, Log, TEXT("Set MaterialFunctionCall->Material from outer: %s"), *OuterMaterial->GetName());
+                    }
+                }
+
                 // Use SetMaterialFunction which properly updates inputs/outputs
                 FunctionCallExpr->SetMaterialFunction(MaterialFunction);
-                UE_LOG(LogTemp, Log, TEXT("Set MaterialFunction to: %s"), *FunctionPath);
+                UE_LOG(LogTemp, Log, TEXT("Set MaterialFunction to: %s (Outputs: %d)"), *FunctionPath, FunctionCallExpr->GetOutputs().Num());
             }
             else
             {
-                UE_LOG(LogTemp, Warning, TEXT("Failed to load MaterialFunction: %s"), *FunctionPath);
+                OutError = FString::Printf(TEXT("Failed to load MaterialFunction at path: %s"), *FunctionPath);
+                return false;
             }
         }
+        else
+        {
+            // MaterialFunctionCall requires a function path - return helpful error with valid property names
+            TArray<FString> ProvidedKeys;
+            Properties->Values.GetKeys(ProvidedKeys);
+            OutError = FString::Printf(TEXT("MaterialFunctionCall requires 'Function' or 'FunctionPath' property to specify the material function path. "
+                "Got properties: [%s]. Example: {\"Function\": \"/Engine/Functions/Engine_MaterialFunctions01/Gradient/RadialGradientExponential.RadialGradientExponential\"}"),
+                *FString::Join(ProvidedKeys, TEXT(", ")));
+            return false;
+        }
     }
+
+    return true;
 }
 
 UMaterialExpression* FMaterialExpressionService::AddExpression(
@@ -342,7 +374,13 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
             // Apply type-specific properties after creation
             if (Params.Properties.IsValid())
             {
-                ApplyExpressionProperties(NewExpression, Params.Properties);
+                if (!ApplyExpressionProperties(NewExpression, Params.Properties, OutError))
+                {
+                    // Property validation failed - clean up and return
+                    Material->GetEditorOnlyData()->ExpressionCollection.RemoveExpression(NewExpression);
+                    NewExpression->MarkAsGarbage();
+                    return nullptr;
+                }
             }
 
             // Mark dirty after property changes
@@ -376,7 +414,12 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
         // Apply type-specific properties
         if (Params.Properties.IsValid())
         {
-            ApplyExpressionProperties(NewExpression, Params.Properties);
+            if (!ApplyExpressionProperties(NewExpression, Params.Properties, OutError))
+            {
+                // Property validation failed - clean up and return
+                NewExpression->MarkAsGarbage();
+                return nullptr;
+            }
         }
 
         // Add to material's expression collection

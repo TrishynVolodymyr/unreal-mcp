@@ -592,6 +592,66 @@ async def connect_expression_to_material_output(
 
 
 # ============================================================================
+# Material Palette Search
+# ============================================================================
+
+@app.tool()
+async def search_material_palette(
+    search_query: str = "",
+    category_filter: str = "",
+    type_filter: str = "All",
+    max_results: int = 50
+) -> Dict[str, Any]:
+    """
+    Search the Material Palette for expressions and functions.
+
+    Uses UE's built-in MaterialExpressionClasses and Asset Registry to find
+    available material nodes that can be added to materials.
+
+    Args:
+        search_query: Text to search in names (case-insensitive). Leave empty to list all.
+        category_filter: Filter by category name (e.g., "Math", "Texture", "Utility")
+        type_filter: Filter by type - "Expression", "Function", or "All" (default)
+        max_results: Maximum results to return (default: 50)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether search was successful
+        - results: Array of items with:
+            - type: "Expression" or "Function"
+            - name: Display name
+            - category: Category name(s)
+            - class_name: For expressions, the UClass name (use for add_material_expression)
+            - path: For functions, the asset path (use for MaterialFunctionCall)
+            - description: Tooltip/description if available
+        - total_count: Total results before limit
+        - returned_count: Number of results returned
+        - categories: List of available categories
+
+    Examples:
+        # Search for radial gradient related nodes
+        search_material_palette(search_query="radial")
+
+        # List all texture-related expressions
+        search_material_palette(category_filter="Texture", type_filter="Expression")
+
+        # Find all available material functions
+        search_material_palette(type_filter="Function", max_results=100)
+
+        # List all categories (empty search, low limit)
+        search_material_palette(max_results=1)
+    """
+    params = {
+        "search_query": search_query,
+        "category_filter": category_filter,
+        "type_filter": type_filter,
+        "max_results": max_results
+    }
+
+    return await send_tcp_command("search_material_palette", params)
+
+
+# ============================================================================
 # Run Server
 # ============================================================================
 
