@@ -44,6 +44,9 @@
 #include "Materials/MaterialExpressionNormalize.h"
 #include "Materials/MaterialExpressionSaturate.h"
 #include "Materials/MaterialExpressionSquareRoot.h"
+// Material Function support
+#include "Materials/MaterialExpressionMaterialFunctionCall.h"
+#include "Materials/MaterialFunctionInterface.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 #include "Toolkits/ToolkitManager.h"  // For FToolkitManager - correct API for finding Material Editor
@@ -122,6 +125,10 @@ UClass* FMaterialExpressionService::GetExpressionClassFromTypeName(const FString
         ExpressionTypeMap.Add(TEXT("ParticleColor"), UMaterialExpressionParticleColor::StaticClass());
         ExpressionTypeMap.Add(TEXT("VertexColor"), UMaterialExpressionVertexColor::StaticClass());
         ExpressionTypeMap.Add(TEXT("SphereMask"), UMaterialExpressionSphereMask::StaticClass());
+
+        // Material Function Call - allows using any Material Function by path
+        ExpressionTypeMap.Add(TEXT("MaterialFunctionCall"), UMaterialExpressionMaterialFunctionCall::StaticClass());
+        ExpressionTypeMap.Add(TEXT("FunctionCall"), UMaterialExpressionMaterialFunctionCall::StaticClass());
     }
 
     return ExpressionTypeMap.FindRef(TypeName);

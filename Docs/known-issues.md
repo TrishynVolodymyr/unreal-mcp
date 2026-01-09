@@ -82,224 +82,6 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
-### Material ScalarParameter DefaultValue Not Applied
-- **Affected**: `add_material_expression` with `expression_type="ScalarParameter"` and `properties={"DefaultValue": X}`
-- **Problem**: The `DefaultValue` property for ScalarParameter expressions is not being applied when specified in the properties dict.
-- **Example**: Creating ScalarParameter with `{"ParameterName": "Intensity", "DefaultValue": 5}` results in DefaultValue showing 0.0 in the editor.
-- **Workaround**: After creating the expression, use `set_material_expression_property` to set the DefaultValue separately.
-- **Root Cause**: Property name case sensitivity - the C++ code checks for `default_value` (lowercase) but Python sends `DefaultValue` (camelCase).
-- **Status**: FIXED in MaterialExpressionService.cpp - now accepts both camelCase and lowercase property names.
-
----
-
----
-
-### NiagaraMCP add_renderer Creates Duplicate When Template Has Inherited Renderer
-- **Affected**: `add_renderer` in niagaraMCP when emitter uses a template
-- **Problem**: When creating emitters from templates (which most do), the template already includes an inherited renderer (shown with lock icon in UI). Calling `add_renderer` then adds a SECOND renderer, causing duplicate rendering.
-- **Symptoms**:
-  - Each emitter shows 2 renderers: one inherited (locked), one added (unlocked)
-  - Visual artifacts - solid masses instead of proper particles
-  - One renderer may use correct material, other uses default/none
-  - Double particle counts, performance impact
-- **Example**: Creating fire emitter from template, then calling `add_renderer("Sprite")` results in:
-  - `Sprite Renderer` (locked, inherited from template) - uses template's default material
-  - `SpriteRenderer` (unlocked, MCP-added) - uses material we specified
-- **Root Cause**: MCP workflow doesn't check for existing inherited renderers before adding new ones
-- **Mitigation (Partial)**: `add_emitter_to_system` now returns `existing_renderers` array with info about inherited renderers, plus a `note` field advising to use `set_renderer_property` instead of `add_renderer`. Example response:
-  ```json
-  {
-    "success": true,
-    "emitter_handle_id": "...",
-    "emitter_name": "FireCore",
-    "existing_renderers": [{"name": "Renderer", "type": "Sprite", "enabled": true}],
-    "note": "Emitter has 1 existing renderer(s). Use set_renderer_property to configure them instead of adding new ones."
-  }
-  ```
-- **AI Workflow**: After `add_emitter_to_system`, check `existing_renderers`. If non-empty, use `set_renderer_property` on the inherited renderer (usually named "Renderer") instead of calling `add_renderer`.
-- **Workaround for existing systems with duplicates**:
-  1. Set material on the inherited "Renderer" using `set_renderer_property`
-  2. Manually delete the duplicate renderer in Unreal Editor (MCP cannot delete inherited renderers)
-
----
-
-### NiagaraMCP Module Search Returns Empty Results (PARTIALLY RESOLVED)
-- **Affected**: `search_niagara_modules` in niagaraMCP
-- **Problem**: Searching for some Niagara modules returns 0 results
-- **Update (2026-01-06)**: Search DOES work for some queries:
-  - `search_niagara_modules("Drag")` → 4 results ✅
-  - `search_niagara_modules("Scale")` → 28 results ✅
-- **Still failing**:
-  - `search_niagara_modules("Scale Sprite")` → 0 results (but "Scale" alone works)
-  - `search_niagara_modules("Curl Noise")` → 0 results
-- **Workaround**: Use single-word searches, browse results to find exact module name
-
----
-
-### NiagaraMCP LinearColor Type Cannot Be Set via set_module_input
-- **Affected**: `set_module_input` in niagaraMCP when `input_type` is `LinearColor`
-- **Date Discovered**: 2026-01-06
-- **Problem**: Setting `LinearColor` type parameters returns success but value doesn't change
-- **Symptoms**: Tool returns `{"success": true}` but parameter value remains unchanged
-- **Tested Scenarios**:
-
-  **Attempt 1 - Color module (Update stage)**:
-  ```json
-  {
-    "system_path": "/Game/VFX/NS_RealisticFire",
-    "emitter_name": "FireEmbers",
-    "module_name": "Color",
-    "stage": "Update",
-    "input_name": "Color",
-    "value": "(R=1.0, G=0.7, B=0.2, A=1.0)"
-  }
-  ```
-  - **Response**: `{"success": true, "message": "Module input set successfully"}`
-  - **Verification**: Value remained `(R=0.0000, G=0.0000, B=0.0000, A=0.0000)`
-
-  **Attempt 2 - InitializeParticle module (Spawn stage)**:
-  ```json
-  {
-    "system_path": "/Game/VFX/NS_RealisticFire",
-    "emitter_name": "FireEmbers",
-    "module_name": "InitializeParticle",
-    "stage": "Spawn",
-    "input_name": "Color",
-    "value": "(R=1.0, G=0.7, B=0.2, A=1.0)"
-  }
-  ```
-  - **Response**: `{"success": true, "message": "Module input set successfully"}`
-  - **Verification**: Value remained `(R=0.0000, G=0.0000, B=0.0000, A=0.0000)`
-
-- **Types That DO Work** (same session, same emitter):
-  | Input | Type | Value | Result |
-  |-------|------|-------|--------|
-  | Lifetime Min | NiagaraFloat | 2.0 | ✅ Updated |
-  | Lifetime Max | NiagaraFloat | 4.0 | ✅ Updated |
-  | Velocity | Vector3f | (0,0,200) | ✅ Updated |
-  | Cone Angle | NiagaraFloat | 70 | ✅ Updated |
-  | Gravity | Vector3f | (0,0,-20) | ✅ Updated |
-  | Noise Frequency | NiagaraFloat | 0.7 | ✅ Updated |
-  | Scale Color | Vector3f | (4,3,1) | ✅ Updated |
-  | Scale Alpha | NiagaraFloat | 1.0 | ✅ Updated |
-  | Drag | NiagaraFloat | 0.8 | ✅ Updated |
-
-- **Root Cause Hypothesis**:
-  1. LinearColor parsing not implemented in C++ `set_module_input` handler
-  2. Format mismatch - may need different format than `(R=x, G=y, B=z, A=w)`
-  3. Niagara Color values may be bound to curves/dynamic inputs that override direct values
-- **Workaround**: Set LinearColor values manually in Unreal Editor
-- **Future Fix**: Investigate NiagaraService C++ code to add LinearColor type handling
-
----
-
-
-### NiagaraMCP Cannot Set Curve/Gradient Values Over Particle Lifetime (MOSTLY RESOLVED)
-- **Affected**: `set_module_input` in niagaraMCP
-- **Date Discovered**: 2026-01-08
-- **Status**: `set_module_curve_input` and `set_module_color_curve_input` commands implemented and working
-- **Problem**: Cannot set values that change over particle lifetime - the most fundamental feature of particle effects
-- **Impact**: Cannot create realistic VFX because particles cannot:
-  - Fade out (alpha curve)
-  - Change color (yellow → orange → red as ember cools)
-  - Shrink over life (size curve)
-  - Any property that varies with NormalizedAge
-- **Technical Details**: Niagara module inputs often expect "Dynamic Inputs" such as:
-  - `Curve over Normalized Age` - requires FRichCurve data
-  - `Scale Color by Curve` - binds to curve asset or inline curve
-  - `Float from Curve` - samples curve based on particle age
-- **Current Limitation**: `set_module_input` can only set static scalar/vector values, not curve bindings or dynamic inputs
-- **Implementation Progress**:
-  1. ✅ Added `set_module_curve_input` command with keyframe data - WORKING
-  2. ✅ Added `set_module_color_curve_input` command with RGBA keyframes - FIXED (2026-01-09)
-     - Now uses Dynamic Inputs (e.g., "Scale Linear Color by Curve") for LinearColor inputs
-     - Direct ColorCurve DI assignment still works for explicit curve inputs
-- **Priority**: LOW - Core functionality now works
-
----
-
-### NiagaraMCP Cannot Set Random Range Values
-- **Affected**: `set_module_input` in niagaraMCP
-- **Date Discovered**: 2026-01-08
-- **Problem**: Cannot set randomized inputs - particles all have identical values
-- **Impact**:
-  - All particles same size (should vary)
-  - All particles same lifetime (should vary)
-  - All particles same velocity (should vary)
-  - Results in artificial, uniform-looking effects
-- **Technical Details**: Niagara expects dynamic inputs like:
-  - `Uniform Random Float(Min, Max)`
-  - `Uniform Random Vector(Min, Max)`
-  - `Random Float from Distribution`
-- **Current Limitation**: Can only set single static value, not random range
-- **Required Implementation**:
-  1. Add `set_module_random_input` command
-  2. Accept min/max values: `{"min": 1, "max": 5}`
-  3. Create appropriate Niagara dynamic input binding
-- **Priority**: HIGH - Essential for natural-looking variation
-
----
-
-### NiagaraMCP Module Input Type Discovery Missing
-- **Affected**: `set_module_input` workflow
-- **Date Discovered**: 2026-01-08
-- **Problem**: Cannot determine what TYPE an input expects before setting it
-- **Impact**:
-  - Don't know if input expects float, vector, curve, or dynamic input
-  - Trial and error required to find correct format
-  - Errors like "Could not parse value '3' for input type 'Vector2f'"
-- **Current Behavior**: Only see input name, not type information
-- **Required Implementation**:
-  1. Add `get_module_input_types` command
-  2. Return: `{"input_name": "SpawnRate", "type": "NiagaraFloat", "accepts_curve": true, "accepts_random": true}`
-- **Priority**: MEDIUM - Would improve workflow significantly
-
----
-
-### NiagaraMCP add_emitter_to_system create_if_missing Returns Unknown Error
-- **Affected**: `add_emitter_to_system` with `create_if_missing=True`
-- **Date Discovered**: 2026-01-08
-- **Problem**: When adding a non-existent emitter to a newly created system with `create_if_missing=True`, the emitter creation step fails with "Unknown error"
-- **Example Request**:
-  ```json
-  {
-    "system": "/Game/Testing/NS_CurveTest",
-    "emitter": "NE_CurveTestEmitter",
-    "create_if_missing": true,
-    "emitter_folder": "/Game/Testing",
-    "emitter_type": "Sprite"
-  }
-  ```
-- **Response**:
-  ```json
-  {
-    "success": false,
-    "error": "Failed to create emitter: Unknown error",
-    "original_add_error": "emitter not found: ne_curvetestemitter"
-  }
-  ```
-- **Root Cause**: Python-side `create_if_missing` logic calls `create_niagara_emitter` which returns "Unknown error" - the C++ error message is not being properly propagated
-- **Workaround**: Create emitter separately first with `create_niagara_emitter`, then use `add_emitter_to_system`
-- **Required Fix**: Improve error handling in both:
-  1. C++ `create_niagara_emitter` - return specific error messages
-  2. Python `add_emitter_to_system` - better error propagation from create step
-- **Priority**: MEDIUM - Workaround exists
-
----
-
-### MaterialMCP RadialGradientExponential Expression Not Supported
-- **Affected**: `add_material_expression` in materialMCP
-- **Date Discovered**: 2026-01-08
-- **Problem**: Expression type "RadialGradientExponential" not recognized
-- **Error**: `{"status": "error", "error": "Unknown expression type: RadialGradientExponential"}`
-- **Impact**: Cannot create sharp center-to-edge falloff for particle materials
-- **Current Workaround**: Use Distance + OneMinus + Power chain (less convenient)
-- **Required Implementation**: Add `UMaterialExpressionRadialGradientExponential` to expression type map
-- **Include Path**: `Materials/MaterialExpressionRadialGradientExponential.h`
-- **Priority**: LOW - Workaround exists
-
----
-
 ### NiagaraMCP compile_niagara_asset Returns Warnings as Errors
 - **Affected**: `compile_niagara_asset` in niagaraMCP
 - **Date Discovered**: 2026-01-06
@@ -329,6 +111,56 @@ This file tracks MCP tool limitations discovered during development. When encoun
 ---
 
 ## Resolved Issues
+
+- **MaterialMCP RadialGradientExponential Expression Not Supported** - Fixed 2026-01-09
+  - Issue: Expression type "RadialGradientExponential" was not recognized
+  - Root Cause: RadialGradientExponential is NOT a native expression - it's a Material Function at `/Engine/Functions/Engine_MaterialFunctions01/Gradient/RadialGradientExponential`
+  - Fix: Added `MaterialFunctionCall` expression type support. Now any Material Function can be used:
+    ```python
+    add_material_expression(
+        material_path="/Game/Materials/M_Ember",
+        expression_type="MaterialFunctionCall",
+        properties={"function": "/Engine/Functions/Engine_MaterialFunctions01/Gradient/RadialGradientExponential"}
+    )
+    ```
+  - Also added `FunctionCall` alias for convenience
+
+- **MaterialMCP ScalarParameter DefaultValue Not Applied** - Fixed 2026-01-09
+  - Issue: `DefaultValue` property for ScalarParameter expressions not applied when specified in properties dict
+  - Root Cause: Property name case sensitivity - C++ checked for `default_value` (lowercase) but Python sent `DefaultValue` (camelCase)
+  - Fix: Now accepts both camelCase and lowercase property names in MaterialExpressionCreation.cpp
+
+- **NiagaraMCP Cannot Set Curve/Gradient Values Over Particle Lifetime** - Fixed 2026-01-09
+  - Issue: Cannot set values that change over particle lifetime (fade out, color changes, size curves)
+  - Fix: Added `set_module_curve_input` and `set_module_color_curve_input` commands with keyframe support
+  - For LinearColor inputs, uses Dynamic Inputs (e.g., "Scale Linear Color by Curve") to wrap curve sampling
+
+- **NiagaraMCP Cannot Set Random Range Values** - Fixed 2026-01-09
+  - Issue: Cannot set randomized inputs - particles all had identical values
+  - Fix: Added `set_module_random_input` MCP tool that attaches UniformRangedFloat/Vector/Color dynamic input scripts
+  - Supports Float, Int, Vector2D, Vector3, Vector4, and LinearColor types
+
+- **NiagaraMCP Module Search Returns Empty for Multi-Word Queries** - Fixed 2026-01-09
+  - Issue: `search_niagara_modules("Scale Sprite")` returned 0 results, but single words worked
+  - Root Cause: Search used exact substring match for entire query including spaces
+  - Fix: Split query into words and match ALL words independently (AND logic)
+  - Now `"Scale Sprite"` → 3 results, `"Curl Noise"` → 5 results
+
+- **NiagaraMCP LinearColor Type Cannot Be Set via set_module_input** - Fixed 2026-01-09
+  - Issue: Setting LinearColor parameters returned success but value didn't change
+  - Root Cause: Was likely a format issue - the original tests used `(R=1.0, G=0.7, B=0.2, A=1.0)` format
+  - Fix: Use comma-separated format `1.0,0.5,0.0,1.0` with `value_type="color"`
+  - Verified working on Color module in Update stage
+
+- **NiagaraMCP Module Input Type Discovery Missing** - Fixed 2026-01-09
+  - Issue: No way to know what type a module input expects before setting it
+  - Fix: Added `get_module_inputs` tool that returns input names, types, and current values
+  - Example: `get_module_inputs(system, emitter, "Color", "Update")` returns `[{name: "Color", type: "LinearColor"}, ...]`
+
+- **NiagaraMCP add_emitter_to_system create_if_missing Returns Unknown Error** - Fixed 2026-01-09
+  - Issue: `create_if_missing=True` always returned "Unknown error" even when emitter creation succeeded
+  - Root Cause: MCP framework wraps responses as `{"status": "success", "result": {...}}` but Python code checked for `success` at top level
+  - Fix: Updated Python to unwrap MCP response format and check `result.success` or `status == "success"`
 
 - **NiagaraMCP set_module_color_curve_input Cannot Set Curves on LinearColor Inputs** - Fixed 2026-01-09
   - Issue: ColorCurve data interfaces cannot be directly assigned to LinearColor inputs (type incompatibility). This caused crashes when viewing the module in Niagara Editor.

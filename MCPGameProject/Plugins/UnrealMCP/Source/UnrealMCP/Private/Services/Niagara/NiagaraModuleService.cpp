@@ -326,10 +326,29 @@ bool FNiagaraService::SearchModules(const FString& SearchQuery, const FString& S
 
         FString AssetName = Asset.AssetName.ToString();
 
-        // Apply search filter
-        if (!SearchQuery.IsEmpty() && !AssetName.Contains(SearchQuery, ESearchCase::IgnoreCase))
+        // Apply search filter - split query into words and match ALL
+        if (!SearchQuery.IsEmpty())
         {
-            continue;
+            TArray<FString> SearchWords;
+            SearchQuery.ParseIntoArray(SearchWords, TEXT(" "), true);
+
+            if (SearchWords.Num() > 0)
+            {
+                bool bAllWordsFound = true;
+                for (const FString& Word : SearchWords)
+                {
+                    if (!AssetName.Contains(Word, ESearchCase::IgnoreCase))
+                    {
+                        bAllWordsFound = false;
+                        break;
+                    }
+                }
+
+                if (!bAllWordsFound)
+                {
+                    continue;
+                }
+            }
         }
 
         TSharedPtr<FJsonObject> ModuleInfo = MakeShared<FJsonObject>();

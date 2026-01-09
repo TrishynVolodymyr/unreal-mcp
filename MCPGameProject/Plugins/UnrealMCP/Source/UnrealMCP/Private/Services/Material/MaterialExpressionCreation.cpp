@@ -18,6 +18,9 @@
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
 #include "Materials/MaterialExpressionPanner.h"
+// Material Function support
+#include "Materials/MaterialExpressionMaterialFunctionCall.h"
+#include "Materials/MaterialFunctionInterface.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 
@@ -243,6 +246,29 @@ void FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
             MaskExpr->A = Properties->HasField(TEXT("A"))
                 ? Properties->GetBoolField(TEXT("A"))
                 : Properties->GetBoolField(TEXT("a"));
+        }
+    }
+    // Handle MaterialFunctionCall - load function by path and set it
+    else if (UMaterialExpressionMaterialFunctionCall* FunctionCallExpr = Cast<UMaterialExpressionMaterialFunctionCall>(Expression))
+    {
+        if (Properties->HasField(TEXT("function")) || Properties->HasField(TEXT("Function")))
+        {
+            FString FunctionPath = Properties->HasField(TEXT("function"))
+                ? Properties->GetStringField(TEXT("function"))
+                : Properties->GetStringField(TEXT("Function"));
+
+            // Load the material function asset
+            UMaterialFunctionInterface* MaterialFunction = LoadObject<UMaterialFunctionInterface>(nullptr, *FunctionPath);
+            if (MaterialFunction)
+            {
+                // Use SetMaterialFunction which properly updates inputs/outputs
+                FunctionCallExpr->SetMaterialFunction(MaterialFunction);
+                UE_LOG(LogTemp, Log, TEXT("Set MaterialFunction to: %s"), *FunctionPath);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Failed to load MaterialFunction: %s"), *FunctionPath);
+            }
         }
     }
 }

@@ -58,6 +58,7 @@ public:
     virtual bool MoveModule(const FNiagaraModuleMoveParams& Params, FString& OutError) override;
     virtual bool SetModuleCurveInput(const FNiagaraModuleCurveInputParams& Params, FString& OutError) override;
     virtual bool SetModuleColorCurveInput(const FNiagaraModuleColorCurveInputParams& Params, FString& OutError) override;
+    virtual bool SetModuleRandomInput(const FNiagaraModuleRandomInputParams& Params, FString& OutError) override;
 
     // ========================================================================
     // INiagaraService interface implementation - Parameters

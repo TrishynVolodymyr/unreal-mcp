@@ -534,6 +534,76 @@ struct UNREALMCP_API FNiagaraModuleColorCurveInputParams
 };
 
 /**
+ * Parameters for setting a random range input on a module (Uniform Random Float/Vector)
+ */
+struct UNREALMCP_API FNiagaraModuleRandomInputParams
+{
+    /** Path to the system */
+    FString SystemPath;
+
+    /** Name of the emitter */
+    FString EmitterName;
+
+    /** Name of the module */
+    FString ModuleName;
+
+    /** Stage the module is in */
+    FString Stage;
+
+    /** Name of the input to set */
+    FString InputName;
+
+    /** Minimum value (as string - supports float "1.0" or vector "0,0,100") */
+    FString MinValue;
+
+    /** Maximum value (as string - supports float "5.0" or vector "100,100,500") */
+    FString MaxValue;
+
+    /** Default constructor */
+    FNiagaraModuleRandomInputParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (ModuleName.IsEmpty())
+        {
+            OutError = TEXT("Module name cannot be empty");
+            return false;
+        }
+        if (InputName.IsEmpty())
+        {
+            OutError = TEXT("Input name cannot be empty");
+            return false;
+        }
+        if (MinValue.IsEmpty())
+        {
+            OutError = TEXT("Min value cannot be empty");
+            return false;
+        }
+        if (MaxValue.IsEmpty())
+        {
+            OutError = TEXT("Max value cannot be empty");
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
  * Parameters for adding a renderer
  */
 struct UNREALMCP_API FNiagaraRendererParams
@@ -779,6 +849,14 @@ public:
      * @return true if color curve input was set successfully
      */
     virtual bool SetModuleColorCurveInput(const FNiagaraModuleColorCurveInputParams& Params, FString& OutError) = 0;
+
+    /**
+     * Set a random range input on a module (uniform random between min and max)
+     * @param Params - Random input parameters with min/max values
+     * @param OutError - Error message if setting fails
+     * @return true if random input was set successfully
+     */
+    virtual bool SetModuleRandomInput(const FNiagaraModuleRandomInputParams& Params, FString& OutError) = 0;
 
     // ========================================================================
     // Parameters (Feature 3)

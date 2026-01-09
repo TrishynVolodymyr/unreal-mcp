@@ -19,6 +19,8 @@
 #include "Commands/Niagara/MoveModuleCommand.h"
 #include "Commands/Niagara/SetModuleCurveInputCommand.h"
 #include "Commands/Niagara/SetModuleColorCurveInputCommand.h"
+#include "Commands/Niagara/SetModuleRandomInputCommand.h"
+#include "Commands/Niagara/GetModuleInputsCommand.h"
 
 // Feature 3: Parameters
 #include "Commands/Niagara/AddNiagaraParameterCommand.h"
@@ -69,6 +71,8 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FMoveModuleCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetModuleCurveInputCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetModuleColorCurveInputCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetModuleRandomInputCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FGetModuleInputsCommand>(NiagaraService));
 
     // Register Feature 3: Parameter commands
     RegisterAndTrackCommand(MakeShared<FAddNiagaraParameterCommand>(NiagaraService));
