@@ -341,18 +341,25 @@ async def add_emitter_to_system(
                 "emitter_type": emitter_type
             })
 
-            if create_result.get("success", False):
+            # Handle both wrapped (MCP) and unwrapped (raw) response formats
+            # MCP wraps responses as {"status": "success", "result": {...}}
+            inner_result = create_result.get("result", create_result)
+            create_success = inner_result.get("success", False) or create_result.get("status") == "success"
+
+            if create_success:
                 # Now try adding the newly created emitter
-                created_path = create_result.get("path", f"{emitter_folder}/{emitter_name}")
+                # C++ returns "emitter_path", fallback to constructed path
+                created_path = inner_result.get("emitter_path") or inner_result.get("path") or f"{emitter_folder}/{emitter_name}"
                 params["emitter_path"] = created_path
                 result = await send_tcp_command("add_emitter_to_system", params)
                 result["created"] = True
                 result["created_emitter_path"] = created_path
             else:
                 # Return the creation failure
+                error_msg_create = inner_result.get("error") or create_result.get("error", "Unknown error")
                 result = {
                     "success": False,
-                    "error": f"Failed to create emitter: {create_result.get('error', 'Unknown error')}",
+                    "error": f"Failed to create emitter: {error_msg_create}",
                     "original_add_error": error_msg
                 }
 
@@ -1038,6 +1045,157 @@ async def set_module_color_curve_input(
         "keyframes": keyframes
     }
     return await send_tcp_command("set_module_color_curve_input", params)
+
+
+@app.tool()
+async def set_module_random_input(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    input_name: str,
+    min_value: str,
+    max_value: str
+) -> Dict[str, Any]:
+    """
+    Set a random range input on a module (uniform random between min and max).
+
+    This creates a UniformRangedFloat/Vector dynamic input that generates
+    random values per particle, enabling natural variation in size, lifetime,
+    velocity, and other properties.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_name: Name of the module to configure
+        stage: Stage containing the module - "Spawn" or "Update"
+        input_name: Input parameter name (e.g., "SpriteSize", "Lifetime")
+        min_value: Minimum value as string:
+            - Float: "1.0"
+            - Vector: "0,0,100" or "(X=0,Y=0,Z=100)"
+            - Color: "1,0.5,0,1" (RGBA)
+        max_value: Maximum value as string (same format as min_value)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether random input was set
+        - module_name: Module that was modified
+        - input_name: Input that was set
+        - min_value: The minimum value
+        - max_value: The maximum value
+        - message: Success/error message
+
+    Supported input types:
+        - Float: Scalar random (e.g., particle size 5-20)
+        - Int: Integer random
+        - Vector2D: 2D vector random
+        - Vector (Vector3): 3D vector random (e.g., velocity)
+        - Vector4: 4D vector random
+        - LinearColor: Color random
+
+    Examples:
+        # Random particle lifetime between 1-3 seconds
+        set_module_random_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="InitializeParticle",
+            stage="Spawn",
+            input_name="Lifetime",
+            min_value="1.0",
+            max_value="3.0"
+        )
+
+        # Random sprite size between 5-20
+        set_module_random_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="InitializeParticle",
+            stage="Spawn",
+            input_name="SpriteSize",
+            min_value="5.0",
+            max_value="20.0"
+        )
+
+        # Random initial velocity (upward with spread)
+        set_module_random_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="InitializeParticle",
+            stage="Spawn",
+            input_name="Velocity",
+            min_value="-50,-50,100",
+            max_value="50,50,300"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage,
+        "input_name": input_name,
+        "min_value": str(min_value),
+        "max_value": str(max_value)
+    }
+    return await send_tcp_command("set_module_random_input", params)
+
+
+@app.tool()
+async def get_module_inputs(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str
+) -> Dict[str, Any]:
+    """
+    Get all inputs (parameters) for a module with their types and current values.
+
+    Use this to discover what inputs a module accepts and their types before
+    calling set_module_input. This helps avoid trial-and-error when setting values.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_name: Name of the module to query (e.g., "InitializeParticle", "Color")
+        stage: Stage containing the module - "Spawn" or "Update"
+
+    Returns:
+        Dictionary containing:
+        - success: Whether query was successful
+        - module_name: Name of the module
+        - emitter_name: Name of the emitter
+        - stage: Stage the module is in
+        - inputs: Array of input info objects with:
+            - name: Simple input name (e.g., "Lifetime", "Color")
+            - full_name: Full qualified name (e.g., "Module.Lifetime")
+            - type: Niagara type name (e.g., "NiagaraFloat", "Vector3f", "LinearColor")
+            - value: Current value as string
+
+    Example:
+        get_module_inputs(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="InitializeParticle",
+            stage="Spawn"
+        )
+        # Returns:
+        # {
+        #   "success": true,
+        #   "module_name": "Initialize Particle",
+        #   "inputs": [
+        #     {"name": "Lifetime", "type": "NiagaraFloat", "value": "2.0"},
+        #     {"name": "Color", "type": "LinearColor", "value": "(R=1,G=1,B=1,A=1)"},
+        #     {"name": "SpriteSize", "type": "Vector2f", "value": "(X=10,Y=10)"},
+        #     ...
+        #   ]
+        # }
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage
+    }
+    return await send_tcp_command("get_module_inputs", params)
 
 
 @app.tool()
