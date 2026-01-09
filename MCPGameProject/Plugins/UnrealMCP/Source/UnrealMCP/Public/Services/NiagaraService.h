@@ -41,6 +41,8 @@ public:
     virtual UNiagaraSystem* CreateSystem(const FNiagaraSystemCreationParams& Params, FString& OutSystemPath, FString& OutError) override;
     virtual UNiagaraEmitter* CreateEmitter(const FNiagaraEmitterCreationParams& Params, FString& OutEmitterPath, FString& OutError) override;
     virtual bool AddEmitterToSystem(const FString& SystemPath, const FString& EmitterPath, const FString& EmitterName, FGuid& OutEmitterHandleId, FString& OutError) override;
+    virtual bool SetEmitterEnabled(const FString& SystemPath, const FString& EmitterName, bool bEnabled, FString& OutError) override;
+    virtual bool RemoveEmitterFromSystem(const FString& SystemPath, const FString& EmitterName, FString& OutError) override;
     virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName = TEXT(""), const FString& Stage = TEXT("")) override;
     virtual bool GetModuleInputs(const FString& SystemPath, const FString& EmitterName, const FString& ModuleName, const FString& Stage, TSharedPtr<FJsonObject>& OutInputs) override;
     virtual bool CompileAsset(const FString& AssetPath, FString& OutError) override;
@@ -54,6 +56,8 @@ public:
     virtual bool SearchModules(const FString& SearchQuery, const FString& StageFilter, int32 MaxResults, TArray<TSharedPtr<FJsonObject>>& OutModules) override;
     virtual bool SetModuleInput(const FNiagaraModuleInputParams& Params, FString& OutError) override;
     virtual bool MoveModule(const FNiagaraModuleMoveParams& Params, FString& OutError) override;
+    virtual bool SetModuleCurveInput(const FNiagaraModuleCurveInputParams& Params, FString& OutError) override;
+    virtual bool SetModuleColorCurveInput(const FNiagaraModuleColorCurveInputParams& Params, FString& OutError) override;
 
     // ========================================================================
     // INiagaraService interface implementation - Parameters

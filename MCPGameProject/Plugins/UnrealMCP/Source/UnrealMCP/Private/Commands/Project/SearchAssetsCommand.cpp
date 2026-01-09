@@ -22,14 +22,16 @@ bool FSearchAssetsCommand::ValidateParams(const FString& Parameters) const
 		return false;
 	}
 
-	// search_query is required
-	FString SearchQuery;
-	if (!JsonObject->TryGetStringField(TEXT("search_query"), SearchQuery) || SearchQuery.IsEmpty())
-	{
-		return false;
-	}
+	// At least one search parameter is required: search_query, pattern, asset_type, asset_class, path, or folder
+	FString SearchQuery, Pattern, AssetType, AssetClass, Path, Folder;
+	bool bHasSearchQuery = JsonObject->TryGetStringField(TEXT("search_query"), SearchQuery) && !SearchQuery.IsEmpty();
+	bool bHasPattern = JsonObject->TryGetStringField(TEXT("pattern"), Pattern) && !Pattern.IsEmpty();
+	bool bHasAssetType = JsonObject->TryGetStringField(TEXT("asset_type"), AssetType) && !AssetType.IsEmpty();
+	bool bHasAssetClass = JsonObject->TryGetStringField(TEXT("asset_class"), AssetClass) && !AssetClass.IsEmpty();
+	bool bHasPath = JsonObject->TryGetStringField(TEXT("path"), Path) && !Path.IsEmpty();
+	bool bHasFolder = JsonObject->TryGetStringField(TEXT("folder"), Folder) && !Folder.IsEmpty();
 
-	return true;
+	return bHasSearchQuery || bHasPattern || bHasAssetType || bHasAssetClass || bHasPath || bHasFolder;
 }
 
 FString FSearchAssetsCommand::Execute(const FString& Parameters)
@@ -51,21 +53,31 @@ FString FSearchAssetsCommand::Execute(const FString& Parameters)
 	if (!ValidateParams(Parameters))
 	{
 		TSharedPtr<FJsonObject> ErrorResponse = FUnrealMCPCommonUtils::CreateErrorResponse(
-			TEXT("Parameter validation failed. Required: search_query (string). Optional: asset_type (string), path (string), max_results (int)"));
+			TEXT("At least one parameter required. Accepts: search_query/pattern (string), asset_type/asset_class (string), path/folder (string), max_results (int). Valid asset_type values: Texture, Material, MaterialInstance, StaticMesh, SkeletalMesh, Sound, Blueprint, WidgetBlueprint, DataTable, Animation, NiagaraSystem"));
 		FString OutputString;
 		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
 		FJsonSerializer::Serialize(ErrorResponse.ToSharedRef(), Writer);
 		return OutputString;
 	}
 
-	// Extract parameters
-	FString SearchQuery = JsonObject->GetStringField(TEXT("search_query"));
+	// Extract parameters - accept both naming conventions
+	FString SearchQuery;
+	if (!JsonObject->TryGetStringField(TEXT("search_query"), SearchQuery))
+	{
+		JsonObject->TryGetStringField(TEXT("pattern"), SearchQuery);
+	}
 
 	FString AssetType;
-	JsonObject->TryGetStringField(TEXT("asset_type"), AssetType);
+	if (!JsonObject->TryGetStringField(TEXT("asset_type"), AssetType))
+	{
+		JsonObject->TryGetStringField(TEXT("asset_class"), AssetType);
+	}
 
 	FString SearchPath = TEXT("/Game");
-	JsonObject->TryGetStringField(TEXT("path"), SearchPath);
+	if (!JsonObject->TryGetStringField(TEXT("path"), SearchPath))
+	{
+		JsonObject->TryGetStringField(TEXT("folder"), SearchPath);
+	}
 
 	int32 MaxResults = 50;
 	JsonObject->TryGetNumberField(TEXT("max_results"), MaxResults);

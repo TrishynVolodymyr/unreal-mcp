@@ -7,6 +7,8 @@
 #include "Commands/Niagara/CreateNiagaraSystemCommand.h"
 #include "Commands/Niagara/CreateNiagaraEmitterCommand.h"
 #include "Commands/Niagara/AddEmitterToSystemCommand.h"
+#include "Commands/Niagara/SetEmitterEnabledCommand.h"
+#include "Commands/Niagara/RemoveEmitterFromSystemCommand.h"
 #include "Commands/Niagara/GetNiagaraMetadataCommand.h"
 #include "Commands/Niagara/CompileNiagaraAssetCommand.h"
 
@@ -15,6 +17,8 @@
 #include "Commands/Niagara/AddModuleToEmitterCommand.h"
 #include "Commands/Niagara/SetModuleInputCommand.h"
 #include "Commands/Niagara/MoveModuleCommand.h"
+#include "Commands/Niagara/SetModuleCurveInputCommand.h"
+#include "Commands/Niagara/SetModuleColorCurveInputCommand.h"
 
 // Feature 3: Parameters
 #include "Commands/Niagara/AddNiagaraParameterCommand.h"
@@ -53,6 +57,8 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FCreateNiagaraSystemCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FCreateNiagaraEmitterCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FAddEmitterToSystemCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetEmitterEnabledCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FRemoveEmitterFromSystemCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FGetNiagaraMetadataCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FCompileNiagaraAssetCommand>(NiagaraService));
 
@@ -61,6 +67,8 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FAddModuleToEmitterCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetModuleInputCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FMoveModuleCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetModuleCurveInputCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetModuleColorCurveInputCommand>(NiagaraService));
 
     // Register Feature 3: Parameter commands
     RegisterAndTrackCommand(MakeShared<FAddNiagaraParameterCommand>(NiagaraService));
