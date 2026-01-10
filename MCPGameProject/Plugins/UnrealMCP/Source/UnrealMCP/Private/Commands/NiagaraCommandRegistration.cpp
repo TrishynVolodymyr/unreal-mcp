@@ -9,6 +9,8 @@
 #include "Commands/Niagara/AddEmitterToSystemCommand.h"
 #include "Commands/Niagara/SetEmitterEnabledCommand.h"
 #include "Commands/Niagara/RemoveEmitterFromSystemCommand.h"
+#include "Commands/Niagara/SetEmitterPropertyCommand.h"
+#include "Commands/Niagara/GetEmitterPropertiesCommand.h"
 #include "Commands/Niagara/GetNiagaraMetadataCommand.h"
 #include "Commands/Niagara/CompileNiagaraAssetCommand.h"
 
@@ -21,6 +23,8 @@
 #include "Commands/Niagara/SetModuleColorCurveInputCommand.h"
 #include "Commands/Niagara/SetModuleRandomInputCommand.h"
 #include "Commands/Niagara/GetModuleInputsCommand.h"
+#include "Commands/Niagara/GetEmitterModulesCommand.h"
+#include "Commands/Niagara/RemoveModuleFromEmitterCommand.h"
 
 // Feature 3: Parameters
 #include "Commands/Niagara/AddNiagaraParameterCommand.h"
@@ -42,6 +46,7 @@
 // Feature 5: Renderers
 #include "Commands/Niagara/AddRendererCommand.h"
 #include "Commands/Niagara/SetRendererPropertyCommand.h"
+#include "Commands/Niagara/GetRendererPropertiesCommand.h"
 
 // Feature 6: Level Integration
 #include "Commands/Niagara/SpawnNiagaraActorCommand.h"
@@ -61,6 +66,8 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FAddEmitterToSystemCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetEmitterEnabledCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FRemoveEmitterFromSystemCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetEmitterPropertyCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FGetEmitterPropertiesCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FGetNiagaraMetadataCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FCompileNiagaraAssetCommand>(NiagaraService));
 
@@ -73,6 +80,8 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FSetModuleColorCurveInputCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetModuleRandomInputCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FGetModuleInputsCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FGetEmitterModulesCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FRemoveModuleFromEmitterCommand>(NiagaraService));
 
     // Register Feature 3: Parameter commands
     RegisterAndTrackCommand(MakeShared<FAddNiagaraParameterCommand>(NiagaraService));
@@ -94,6 +103,7 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     // Register Feature 5: Renderer commands
     RegisterAndTrackCommand(MakeShared<FAddRendererCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetRendererPropertyCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FGetRendererPropertiesCommand>(NiagaraService));
 
     // Register Feature 6: Level Integration commands
     RegisterAndTrackCommand(MakeShared<FSpawnNiagaraActorCommand>(NiagaraService));

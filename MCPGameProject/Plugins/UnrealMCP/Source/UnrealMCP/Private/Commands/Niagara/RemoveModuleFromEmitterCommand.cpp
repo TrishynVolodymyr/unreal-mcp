@@ -1,16 +1,16 @@
-#include "Commands/Niagara/SetModuleInputCommand.h"
+#include "Commands/Niagara/RemoveModuleFromEmitterCommand.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
-FSetModuleInputCommand::FSetModuleInputCommand(INiagaraService& InNiagaraService)
+FRemoveModuleFromEmitterCommand::FRemoveModuleFromEmitterCommand(INiagaraService& InNiagaraService)
     : NiagaraService(InNiagaraService)
 {
 }
 
-FString FSetModuleInputCommand::Execute(const FString& Parameters)
+FString FRemoveModuleFromEmitterCommand::Execute(const FString& Parameters)
 {
-    FNiagaraModuleInputParams Params;
+    FNiagaraModuleRemoveParams Params;
     FString Error;
 
     if (!ParseParameters(Parameters, Params, Error))
@@ -18,28 +18,27 @@ FString FSetModuleInputCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(Error);
     }
 
-    if (!NiagaraService.SetModuleInput(Params, Error))
+    if (!NiagaraService.RemoveModule(Params, Error))
     {
         return CreateErrorResponse(Error);
     }
 
-    // For now, return simple success - could enhance to return previous value
-    return CreateSuccessResponse(TEXT(""), TEXT(""));
+    return CreateSuccessResponse(Params.ModuleName);
 }
 
-FString FSetModuleInputCommand::GetCommandName() const
+FString FRemoveModuleFromEmitterCommand::GetCommandName() const
 {
-    return TEXT("set_module_input");
+    return TEXT("remove_module_from_emitter");
 }
 
-bool FSetModuleInputCommand::ValidateParams(const FString& Parameters) const
+bool FRemoveModuleFromEmitterCommand::ValidateParams(const FString& Parameters) const
 {
-    FNiagaraModuleInputParams Params;
+    FNiagaraModuleRemoveParams Params;
     FString Error;
     return ParseParameters(Parameters, Params, Error);
 }
 
-bool FSetModuleInputCommand::ParseParameters(const FString& JsonString, FNiagaraModuleInputParams& OutParams, FString& OutError) const
+bool FRemoveModuleFromEmitterCommand::ParseParameters(const FString& JsonString, FNiagaraModuleRemoveParams& OutParams, FString& OutError) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -74,42 +73,15 @@ bool FSetModuleInputCommand::ParseParameters(const FString& JsonString, FNiagara
         return false;
     }
 
-    // input_name is optional if enabled is provided
-    JsonObject->TryGetStringField(TEXT("input_name"), OutParams.InputName);
-
-    // Get value as string - will be parsed by service based on type (optional if only setting enabled)
-    FString ValueStr;
-    if (JsonObject->TryGetStringField(TEXT("value"), ValueStr))
-    {
-        OutParams.Value = MakeShared<FJsonValueString>(ValueStr);
-    }
-
-    // Optional value type hint
-    JsonObject->TryGetStringField(TEXT("value_type"), OutParams.ValueType);
-
-    // Optional enabled state
-    bool bEnabled;
-    if (JsonObject->TryGetBoolField(TEXT("enabled"), bEnabled))
-    {
-        OutParams.Enabled = bEnabled;
-    }
-
     return OutParams.IsValid(OutError);
 }
 
-FString FSetModuleInputCommand::CreateSuccessResponse(const FString& PreviousValue, const FString& NewValue) const
+FString FRemoveModuleFromEmitterCommand::CreateSuccessResponse(const FString& ModuleName) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
-    if (!PreviousValue.IsEmpty())
-    {
-        ResponseObj->SetStringField(TEXT("previous_value"), PreviousValue);
-    }
-    if (!NewValue.IsEmpty())
-    {
-        ResponseObj->SetStringField(TEXT("new_value"), NewValue);
-    }
-    ResponseObj->SetStringField(TEXT("message"), TEXT("Module input set successfully"));
+    ResponseObj->SetStringField(TEXT("module_name"), ModuleName);
+    ResponseObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Module '%s' removed successfully"), *ModuleName));
 
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
@@ -118,7 +90,7 @@ FString FSetModuleInputCommand::CreateSuccessResponse(const FString& PreviousVal
     return OutputString;
 }
 
-FString FSetModuleInputCommand::CreateErrorResponse(const FString& ErrorMessage) const
+FString FRemoveModuleFromEmitterCommand::CreateErrorResponse(const FString& ErrorMessage) const
 {
     TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
     ErrorObj->SetBoolField(TEXT("success"), false);

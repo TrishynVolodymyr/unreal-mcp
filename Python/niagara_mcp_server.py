@@ -438,6 +438,131 @@ async def set_emitter_enabled(
     return await send_tcp_command("set_emitter_enabled", params)
 
 
+@app.tool()
+async def set_emitter_property(
+    system: str,
+    emitter: str,
+    property_name: str,
+    property_value: str
+) -> Dict[str, Any]:
+    """
+    Set a property on an emitter within a Niagara System.
+
+    This allows configuring emitter-level settings like simulation target (CPU/GPU),
+    local space mode, determinism, and other properties that affect the entire emitter.
+
+    Args:
+        system: Path or name of the target Niagara System
+        emitter: Name of the emitter to configure
+        property_name: Property to set. Supported properties:
+            - "LocalSpace": Whether particles simulate in local space (true/false)
+            - "Determinism": Whether simulation is deterministic (true/false)
+            - "RandomSeed": Seed for deterministic random (integer)
+            - "SimTarget": Simulation target - "CPU" or "GPU"
+            - "RequiresPersistentIDs": Enable persistent particle IDs (true/false)
+            - "MaxGPUParticlesSpawnPerFrame": Max GPU particles per frame (integer)
+        property_value: Value to set as string:
+            - Boolean: "true" or "false"
+            - Integer: "12345"
+            - SimTarget: "CPU" or "GPU"
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the property was set successfully
+        - property_name: Name of the property that was set
+        - property_value: The value that was set
+        - message: Success/error message
+
+    Examples:
+        # Switch emitter to GPU simulation
+        set_emitter_property(
+            system="NS_FireExplosion",
+            emitter="Sparks",
+            property_name="SimTarget",
+            property_value="GPU"
+        )
+
+        # Enable local space simulation
+        set_emitter_property(
+            system="NS_FireExplosion",
+            emitter="Sparks",
+            property_name="LocalSpace",
+            property_value="true"
+        )
+
+        # Set deterministic seed
+        set_emitter_property(
+            system="NS_FireExplosion",
+            emitter="Sparks",
+            property_name="RandomSeed",
+            property_value="42"
+        )
+    """
+    params = {
+        "system_path": system,
+        "emitter_name": emitter,
+        "property_name": property_name,
+        "property_value": str(property_value)
+    }
+    return await send_tcp_command("set_emitter_property", params)
+
+
+@app.tool()
+async def get_emitter_properties(
+    system: str,
+    emitter: str
+) -> Dict[str, Any]:
+    """
+    Get properties from an emitter within a Niagara System.
+
+    Retrieves emitter-level configuration including simulation target,
+    local space mode, determinism settings, and bounds mode.
+
+    Args:
+        system: Path or name of the target Niagara System
+        emitter: Name of the emitter to query
+
+    Returns:
+        Dictionary containing:
+        - success: Whether retrieval was successful
+        - emitter_name: Name of the emitter
+        - system_path: Path to the system
+        - properties: Object with emitter properties:
+            - LocalSpace: Whether particles simulate in local space (bool)
+            - Determinism: Whether simulation is deterministic (bool)
+            - RandomSeed: Seed for deterministic random (int)
+            - SimTarget: Simulation target - "CPU" or "GPU"
+            - RequiresPersistentIDs: Whether persistent IDs enabled (bool)
+            - MaxGPUParticlesSpawnPerFrame: Max GPU spawn per frame (int)
+            - CalculateBoundsMode: Bounds mode - "Dynamic" or "Fixed"
+
+    Example:
+        get_emitter_properties(
+            system="NS_FireExplosion",
+            emitter="Sparks"
+        )
+        # Returns:
+        # {
+        #   "success": true,
+        #   "emitter_name": "Sparks",
+        #   "properties": {
+        #     "LocalSpace": false,
+        #     "Determinism": false,
+        #     "RandomSeed": 0,
+        #     "SimTarget": "GPU",
+        #     "RequiresPersistentIDs": false,
+        #     "MaxGPUParticlesSpawnPerFrame": 0,
+        #     "CalculateBoundsMode": "Dynamic"
+        #   }
+        # }
+    """
+    params = {
+        "system_path": system,
+        "emitter_name": emitter
+    }
+    return await send_tcp_command("get_emitter_properties", params)
+
+
 # ============================================================================
 # Parameter Operations
 # ============================================================================
@@ -829,35 +954,82 @@ async def add_module_to_emitter(
 
 
 @app.tool()
+async def remove_module_from_emitter(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str
+) -> Dict[str, Any]:
+    """
+    Remove a module from an emitter stage.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_name: Name of the module to remove (e.g., "SpawnRate", "Gravity Force")
+        stage: Stage containing the module - "Spawn", "Update", or "Event"
+
+    Returns:
+        Dictionary containing:
+        - success: Whether module was removed
+        - module_name: Name of removed module
+        - message: Success/error message
+
+    Example:
+        remove_module_from_emitter(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="Gravity Force",
+            stage="Update"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage
+    }
+    return await send_tcp_command("remove_module_from_emitter", params)
+
+
+@app.tool()
 async def set_module_input(
     system_path: str,
     emitter_name: str,
     module_name: str,
     stage: str,
-    input_name: str,
-    value: str,
-    value_type: str = "auto"
+    input_name: str = "",
+    value: str = "",
+    value_type: str = "auto",
+    enabled: bool = None
 ) -> Dict[str, Any]:
     """
-    Set an input value on a module.
+    Set an input value on a module, and/or enable/disable the module.
+
+    This tool can be used to:
+    1. Set a module input value (provide input_name and value)
+    2. Enable/disable a module (provide enabled=True/False)
+    3. Both at once (provide all parameters)
 
     Args:
         system_path: Path to the Niagara System
         emitter_name: Emitter name within the system
         module_name: Name of the module to configure
         stage: Stage containing the module - "Spawn", "Update", or "Event"
-        input_name: Input parameter name (e.g., "SpawnRate", "Velocity")
-        value: Value to set as string (e.g., "100", "0,0,500", "1,0.5,0,1")
+        input_name: Input parameter name (e.g., "SpawnRate", "Velocity"). Optional if only setting enabled.
+        value: Value to set as string (e.g., "100", "0,0,500", "1,0.5,0,1"). Optional if only setting enabled.
         value_type: Type hint - "float", "vector", "color", "int", "bool", or "auto"
+        enabled: Optional. Set to True to enable the module, False to disable it.
 
     Returns:
         Dictionary containing:
-        - success: Whether input was set
+        - success: Whether operation was successful
         - module_name: Module that was modified
-        - input_name: Input that was set
+        - input_name: Input that was set (if applicable)
         - message: Success/error message
 
-    Example:
+    Examples:
+        # Set a module input value
         set_module_input(
             system_path="/Game/Effects/NS_Fire",
             emitter_name="NE_Sparks",
@@ -867,16 +1039,41 @@ async def set_module_input(
             value="50",
             value_type="float"
         )
+
+        # Disable a module
+        set_module_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="Gravity Force",
+            stage="Update",
+            enabled=False
+        )
+
+        # Enable a module and set an input
+        set_module_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="Scale Color",
+            stage="Update",
+            input_name="ScaleFactor",
+            value="0.5",
+            enabled=True
+        )
     """
     params = {
         "system_path": system_path,
         "emitter_name": emitter_name,
         "module_name": module_name,
         "stage": stage,
-        "input_name": input_name,
-        "value": str(value),
-        "value_type": value_type
     }
+    if input_name:
+        params["input_name"] = input_name
+    if value:
+        params["value"] = str(value)
+    if value_type != "auto":
+        params["value_type"] = value_type
+    if enabled is not None:
+        params["enabled"] = enabled
     return await send_tcp_command("set_module_input", params)
 
 
@@ -1199,6 +1396,74 @@ async def get_module_inputs(
 
 
 @app.tool()
+async def get_emitter_modules(
+    system_path: str,
+    emitter_name: str
+) -> Dict[str, Any]:
+    """
+    Get all modules in an emitter organized by stage.
+
+    This is essential for discovering what modules exist in an emitter before
+    using get_module_inputs or set_module_input. Returns modules grouped by
+    stage (ParticleSpawn, ParticleUpdate, Event) with their names, indices,
+    and enabled states.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether query was successful
+        - emitter_name: Name of the emitter
+        - system_path: Path to the system
+        - stages: Object with stage arrays:
+            - ParticleSpawn: Array of modules in spawn stage
+            - ParticleUpdate: Array of modules in update stage
+            - Event: Array of modules in event handlers (if any)
+        - Each module has:
+            - name: Module name (e.g., "Initialize Particle")
+            - index: Position in the stack (0-based)
+            - enabled: Whether the module is enabled
+            - script_path: Path to the module script asset (if available)
+        - total_module_count: Total number of modules
+        - spawn_count: Number of spawn modules
+        - update_count: Number of update modules
+        - event_count: Number of event modules (if any)
+
+    Example:
+        get_emitter_modules(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks"
+        )
+        # Returns:
+        # {
+        #   "success": true,
+        #   "emitter_name": "NE_Sparks",
+        #   "stages": {
+        #     "ParticleSpawn": [
+        #       {"name": "Initialize Particle", "index": 0, "enabled": true},
+        #       {"name": "Add Velocity in Cone", "index": 1, "enabled": true}
+        #     ],
+        #     "ParticleUpdate": [
+        #       {"name": "Gravity Force", "index": 0, "enabled": true},
+        #       {"name": "Drag", "index": 1, "enabled": true},
+        #       {"name": "Scale Color", "index": 2, "enabled": true}
+        #     ]
+        #   },
+        #   "total_module_count": 5,
+        #   "spawn_count": 2,
+        #   "update_count": 3
+        # }
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name
+    }
+    return await send_tcp_command("get_emitter_modules", params)
+
+
+@app.tool()
 async def set_renderer_property(
     system_path: str,
     emitter_name: str,
@@ -1241,6 +1506,58 @@ async def set_renderer_property(
         "property_value": str(property_value)
     }
     return await send_tcp_command("set_renderer_property", params)
+
+
+@app.tool()
+async def get_renderer_properties(
+    system_path: str,
+    emitter_name: str,
+    renderer_name: str = "Renderer"
+) -> Dict[str, Any]:
+    """
+    Get all properties and bindings from a renderer.
+
+    This is useful for debugging renderer configuration, verifying that
+    properties were set correctly, and understanding available settings.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        renderer_name: Name of the renderer (default: "Renderer")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether retrieval was successful
+        - renderer_type: Type of renderer (e.g., "NiagaraSpriteRendererProperties")
+        - properties: Object with all renderer properties:
+            - Material: Asset path to the material
+            - Alignment: Sprite alignment mode (e.g., "VelocityAligned")
+            - FacingMode: Sprite facing mode (e.g., "FaceCamera")
+            - SortMode: Particle sort mode (e.g., "ViewDepth")
+            - SubImageSize: [X, Y] sub-image dimensions
+            - bSubImageBlend: Whether sub-image blending is enabled
+            - PivotInUVSpace: [X, Y] pivot point in UV space
+            - MacroUVRadius: Macro UV radius
+            - (many more depending on renderer type)
+        - bindings: Object with attribute bindings:
+            - PositionBinding: Bound attribute (e.g., "Particles.Position")
+            - ColorBinding: Bound attribute (e.g., "Particles.Color")
+            - SizeBinding: Bound attribute (e.g., "Particles.SpriteSize")
+            - (etc.)
+
+    Example:
+        get_renderer_properties(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            renderer_name="Renderer"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "renderer_name": renderer_name
+    }
+    return await send_tcp_command("get_renderer_properties", params)
 
 
 @app.tool()

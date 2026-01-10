@@ -94,20 +94,39 @@ FString FSearchMaterialPaletteCommand::Execute(const FString& Parameters)
                 }
             }
 
-            // Apply search filter
+            // Apply search filter - split query into tokens and match ALL
             if (!SearchQuery.IsEmpty())
             {
-                bool bMatchesSearch = DisplayName.Contains(SearchQuery, ESearchCase::IgnoreCase);
-                if (!bMatchesSearch)
+                // Split search query by spaces into tokens
+                TArray<FString> SearchTokens;
+                SearchQuery.ParseIntoArray(SearchTokens, TEXT(" "), true);
+
+                // Check if ALL tokens match somewhere in name, class name, or description
+                bool bMatchesAllTokens = true;
+                for (const FString& Token : SearchTokens)
                 {
-                    bMatchesSearch = Class->GetName().Contains(SearchQuery, ESearchCase::IgnoreCase);
+                    if (Token.IsEmpty())
+                        continue;
+
+                    bool bTokenFound = DisplayName.Contains(Token, ESearchCase::IgnoreCase);
+                    if (!bTokenFound)
+                    {
+                        bTokenFound = Class->GetName().Contains(Token, ESearchCase::IgnoreCase);
+                    }
+                    if (!bTokenFound && DefaultObj)
+                    {
+                        FString Description = DefaultObj->GetCreationDescription().ToString();
+                        bTokenFound = Description.Contains(Token, ESearchCase::IgnoreCase);
+                    }
+
+                    if (!bTokenFound)
+                    {
+                        bMatchesAllTokens = false;
+                        break;
+                    }
                 }
-                if (!bMatchesSearch && DefaultObj)
-                {
-                    FString Description = DefaultObj->GetCreationDescription().ToString();
-                    bMatchesSearch = Description.Contains(SearchQuery, ESearchCase::IgnoreCase);
-                }
-                if (!bMatchesSearch)
+
+                if (!bMatchesAllTokens)
                     continue;
             }
 
@@ -203,19 +222,46 @@ FString FSearchMaterialPaletteCommand::Execute(const FString& Parameters)
             FString LibraryCategories;
             AssetData.GetTagValue("LibraryCategories", LibraryCategories);
 
-            // Apply search filter
+            // Apply search filter - split query into tokens and match ALL
             if (!SearchQuery.IsEmpty())
             {
-                bool bMatchesSearch = FunctionName.Contains(SearchQuery, ESearchCase::IgnoreCase);
-                if (!bMatchesSearch)
+                // Split search query by spaces into tokens
+                TArray<FString> SearchTokens;
+                SearchQuery.ParseIntoArray(SearchTokens, TEXT(" "), true);
+
+                // Also get description for search
+                FString Description;
+                AssetData.GetTagValue("Description", Description);
+
+                // Check if ALL tokens match somewhere in name, path, categories, or description
+                bool bMatchesAllTokens = true;
+                for (const FString& Token : SearchTokens)
                 {
-                    bMatchesSearch = FunctionPath.Contains(SearchQuery, ESearchCase::IgnoreCase);
+                    if (Token.IsEmpty())
+                        continue;
+
+                    bool bTokenFound = FunctionName.Contains(Token, ESearchCase::IgnoreCase);
+                    if (!bTokenFound)
+                    {
+                        bTokenFound = FunctionPath.Contains(Token, ESearchCase::IgnoreCase);
+                    }
+                    if (!bTokenFound && !LibraryCategories.IsEmpty())
+                    {
+                        bTokenFound = LibraryCategories.Contains(Token, ESearchCase::IgnoreCase);
+                    }
+                    if (!bTokenFound && !Description.IsEmpty())
+                    {
+                        bTokenFound = Description.Contains(Token, ESearchCase::IgnoreCase);
+                    }
+
+                    if (!bTokenFound)
+                    {
+                        bMatchesAllTokens = false;
+                        break;
+                    }
                 }
-                if (!bMatchesSearch && !LibraryCategories.IsEmpty())
-                {
-                    bMatchesSearch = LibraryCategories.Contains(SearchQuery, ESearchCase::IgnoreCase);
-                }
-                if (!bMatchesSearch)
+
+                if (!bMatchesAllTokens)
                     continue;
             }
 

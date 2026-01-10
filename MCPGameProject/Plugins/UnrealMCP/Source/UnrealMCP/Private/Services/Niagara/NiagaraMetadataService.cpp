@@ -1,5 +1,5 @@
 // NiagaraMetadataService.cpp - Metadata queries
-// GetMetadata, GetModuleInputs
+// GetMetadata, GetModuleInputs, GetEmitterModules
 
 #include "Services/NiagaraService.h"
 
@@ -8,11 +8,13 @@
 #include "NiagaraScript.h"
 #include "NiagaraGraph.h"
 #include "NiagaraNodeFunctionCall.h"
+#include "NiagaraNodeOutput.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraTypes.h"
 #include "NiagaraCommon.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
+#include "EdGraphSchema_Niagara.h"
 
 bool FNiagaraService::GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName, const FString& Stage)
 {
@@ -282,24 +284,142 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
             }
         }
 
-        // If not found in rapid iteration params, check if it has a default value
+        // If not found in rapid iteration params, check module pins directly
+        FString ValueMode = TEXT("Local");
         if (!bFoundValue)
         {
-            // Check exposed pins for static switch values
+            // Search for matching input pin on the module node
             for (UEdGraphPin* Pin : ModuleNode->Pins)
             {
-                if (Pin->Direction == EGPD_Input && Pin->PinName.ToString().Contains(SimpleName, ESearchCase::IgnoreCase))
+                if (Pin->Direction != EGPD_Input)
                 {
-                    if (!Pin->DefaultValue.IsEmpty())
+                    continue;
+                }
+
+                // Match pin by name (handle both "Module.X" and "X" formats)
+                FString PinNameStr = Pin->PinName.ToString();
+                if (!PinNameStr.Contains(SimpleName, ESearchCase::IgnoreCase) &&
+                    !SimpleName.Contains(PinNameStr, ESearchCase::IgnoreCase))
+                {
+                    continue;
+                }
+
+                if (Pin->LinkedTo.Num() > 0 && Pin->LinkedTo[0] && Pin->LinkedTo[0]->GetOwningNode())
+                {
+                    // Pin is linked - determine the value mode from the linked node
+                    UEdGraphNode* LinkedNode = Pin->LinkedTo[0]->GetOwningNode();
+                    FString LinkedClassName = LinkedNode->GetClass()->GetName();
+
+                    if (UNiagaraNodeFunctionCall* DynamicNode = Cast<UNiagaraNodeFunctionCall>(LinkedNode))
                     {
+                        // Dynamic input (curve, random range, etc.)
+                        ValueMode = TEXT("Dynamic");
+                        ValueStr = FString::Printf(TEXT("[Dynamic: %s]"), *DynamicNode->GetFunctionName());
+                        bFoundValue = true;
+                    }
+                    else if (LinkedClassName.Contains(TEXT("ParameterMapGet")))
+                    {
+                        // Linked to another parameter
+                        ValueMode = TEXT("Linked");
+                        FNiagaraVariable LinkedVar = UEdGraphSchema_Niagara::PinToNiagaraVariable(Pin->LinkedTo[0]);
+                        ValueStr = FString::Printf(TEXT("[Linked: %s]"), *LinkedVar.GetName().ToString());
+                        bFoundValue = true;
+                    }
+                    else if (LinkedClassName.Contains(TEXT("CustomHlsl")))
+                    {
+                        // Custom expression
+                        ValueMode = TEXT("Expression");
+                        ValueStr = TEXT("[Expression]");
+                        bFoundValue = true;
+                    }
+                    else if (LinkedClassName.Contains(TEXT("NiagaraNodeInput")))
+                    {
+                        // Data interface or object asset
+                        ValueMode = TEXT("DataInterface");
+                        ValueStr = FString::Printf(TEXT("[%s]"), *LinkedClassName);
+                        bFoundValue = true;
+                    }
+                    else
+                    {
+                        ValueMode = TEXT("Linked");
+                        ValueStr = FString::Printf(TEXT("[Linked: %s]"), *LinkedClassName);
+                        bFoundValue = true;
+                    }
+                }
+                else if (!Pin->DefaultValue.IsEmpty())
+                {
+                    // Local value - try to read properly using PinToNiagaraVariable
+                    const UEdGraphSchema_Niagara* NiagaraSchema = GetDefault<UEdGraphSchema_Niagara>();
+                    FNiagaraVariable ValueVariable = NiagaraSchema->PinToNiagaraVariable(Pin, false);
+
+                    if (ValueVariable.IsDataAllocated())
+                    {
+                        // Use the actual variable type, not InputType (they may differ)
+                        FNiagaraTypeDefinition ActualType = ValueVariable.GetType();
+
+                        // Read the value from the variable using its actual type
+                        if (ActualType == FNiagaraTypeDefinition::GetFloatDef())
+                        {
+                            float FloatValue = ValueVariable.GetValue<float>();
+                            ValueStr = FString::Printf(TEXT("%.4f"), FloatValue);
+                            bFoundValue = true;
+                        }
+                        else if (ActualType == FNiagaraTypeDefinition::GetIntDef())
+                        {
+                            int32 IntValue = ValueVariable.GetValue<int32>();
+                            ValueStr = FString::Printf(TEXT("%d"), IntValue);
+                            bFoundValue = true;
+                        }
+                        else if (ActualType == FNiagaraTypeDefinition::GetBoolDef())
+                        {
+                            FNiagaraBool BoolValue = ValueVariable.GetValue<FNiagaraBool>();
+                            ValueStr = BoolValue.IsValid() && BoolValue.GetValue() ? TEXT("true") : TEXT("false");
+                            bFoundValue = true;
+                        }
+                        else if (ActualType == FNiagaraTypeDefinition::GetVec2Def())
+                        {
+                            FVector2f Vec = ValueVariable.GetValue<FVector2f>();
+                            ValueStr = FString::Printf(TEXT("(%.4f, %.4f)"), Vec.X, Vec.Y);
+                            bFoundValue = true;
+                        }
+                        else if (ActualType == FNiagaraTypeDefinition::GetVec3Def())
+                        {
+                            FVector3f Vec = ValueVariable.GetValue<FVector3f>();
+                            ValueStr = FString::Printf(TEXT("(%.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z);
+                            bFoundValue = true;
+                        }
+                        else if (ActualType == FNiagaraTypeDefinition::GetColorDef())
+                        {
+                            FLinearColor Color = ValueVariable.GetValue<FLinearColor>();
+                            ValueStr = FString::Printf(TEXT("(R=%.4f, G=%.4f, B=%.4f, A=%.4f)"), Color.R, Color.G, Color.B, Color.A);
+                            bFoundValue = true;
+                        }
+                    }
+
+                    if (!bFoundValue)
+                    {
+                        // Fall back to pin default value string, resolve enum names
                         ValueStr = Pin->DefaultValue;
+
+                        // Try to resolve enum display names
+                        if (UEnum* EnumType = Cast<UEnum>(Pin->PinType.PinSubCategoryObject.Get()))
+                        {
+                            int64 EnumValue = EnumType->GetValueByNameString(ValueStr);
+                            if (EnumValue != INDEX_NONE)
+                            {
+                                FText DisplayNameText = EnumType->GetDisplayNameTextByValue(EnumValue);
+                                if (!DisplayNameText.IsEmpty())
+                                {
+                                    ValueStr = DisplayNameText.ToString();
+                                }
+                            }
+                        }
                         bFoundValue = true;
                     }
-                    else if (Pin->LinkedTo.Num() > 0)
-                    {
-                        ValueStr = TEXT("[Linked]");
-                        bFoundValue = true;
-                    }
+                }
+
+                if (bFoundValue)
+                {
                     break;
                 }
             }
@@ -311,6 +431,7 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
         }
 
         InputObj->SetStringField(TEXT("value"), ValueStr);
+        InputObj->SetStringField(TEXT("value_mode"), ValueMode);
         InputsArray.Add(MakeShared<FJsonValueObject>(InputObj));
     }
 
@@ -340,9 +461,29 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
                 InputObj->SetStringField(TEXT("type"), Pin->PinType.PinCategory.ToString());
 
                 FString Value = Pin->DefaultValue;
+                FString PinValueMode = TEXT("Local");
+
                 if (Value.IsEmpty() && Pin->LinkedTo.Num() > 0)
                 {
-                    Value = TEXT("[Linked]");
+                    PinValueMode = TEXT("Linked");
+                    // Try to determine what it's linked to
+                    if (Pin->LinkedTo[0] && Pin->LinkedTo[0]->GetOwningNode())
+                    {
+                        UEdGraphNode* LinkedNode = Pin->LinkedTo[0]->GetOwningNode();
+                        if (UNiagaraNodeFunctionCall* DynamicNode = Cast<UNiagaraNodeFunctionCall>(LinkedNode))
+                        {
+                            PinValueMode = TEXT("Dynamic");
+                            Value = FString::Printf(TEXT("[Dynamic: %s]"), *DynamicNode->GetFunctionName());
+                        }
+                        else
+                        {
+                            Value = TEXT("[Linked]");
+                        }
+                    }
+                    else
+                    {
+                        Value = TEXT("[Linked]");
+                    }
                 }
                 else if (Value.IsEmpty())
                 {
@@ -366,6 +507,7 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
                 }
 
                 InputObj->SetStringField(TEXT("value"), Value);
+                InputObj->SetStringField(TEXT("value_mode"), PinValueMode);
                 InputsArray.Add(MakeShared<FJsonValueObject>(InputObj));
             }
         }
@@ -373,6 +515,198 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
 
     OutInputs->SetArrayField(TEXT("inputs"), InputsArray);
     OutInputs->SetNumberField(TEXT("input_count"), InputsArray.Num());
+
+    return true;
+}
+
+// Helper function to get parameter map input pin (same as in NiagaraServiceHelpers.cpp)
+namespace
+{
+    UEdGraphPin* GetParameterMapInputPin(UNiagaraNode& Node)
+    {
+        TArray<UEdGraphPin*> InputPins;
+        Node.GetInputPins(InputPins);
+
+        for (UEdGraphPin* Pin : InputPins)
+        {
+            if (Pin)
+            {
+                const UEdGraphSchema_Niagara* NiagaraSchema = Cast<UEdGraphSchema_Niagara>(Pin->GetSchema());
+                if (NiagaraSchema)
+                {
+                    FNiagaraTypeDefinition PinDefinition = NiagaraSchema->PinToTypeDefinition(Pin);
+                    if (PinDefinition == FNiagaraTypeDefinition::GetParameterMapDef())
+                    {
+                        return Pin;
+                    }
+                }
+            }
+        }
+        return nullptr;
+    }
+}
+
+bool FNiagaraService::GetEmitterModules(const FString& SystemPath, const FString& EmitterName, TSharedPtr<FJsonObject>& OutModules)
+{
+    OutModules = MakeShared<FJsonObject>();
+
+    // Find the system
+    UNiagaraSystem* System = FindSystem(SystemPath);
+    if (!System)
+    {
+        OutModules->SetBoolField(TEXT("success"), false);
+        OutModules->SetStringField(TEXT("error"), FString::Printf(TEXT("System not found: %s"), *SystemPath));
+        return false;
+    }
+
+    // Find the emitter handle by name
+    int32 EmitterIndex = FindEmitterHandleIndex(System, EmitterName);
+    if (EmitterIndex == INDEX_NONE)
+    {
+        OutModules->SetBoolField(TEXT("success"), false);
+        OutModules->SetStringField(TEXT("error"), FString::Printf(TEXT("Emitter '%s' not found in system"), *EmitterName));
+        return false;
+    }
+
+    const FNiagaraEmitterHandle& EmitterHandle = System->GetEmitterHandle(EmitterIndex);
+    FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+    if (!EmitterData)
+    {
+        OutModules->SetBoolField(TEXT("success"), false);
+        OutModules->SetStringField(TEXT("error"), FString::Printf(TEXT("Could not get emitter data for '%s'"), *EmitterName));
+        return false;
+    }
+
+    // Helper lambda to extract modules from a script by tracing from output node
+    // This properly identifies which modules belong to which stage
+    auto ExtractModulesFromScript = [](UNiagaraScript* Script, ENiagaraScriptUsage ExpectedUsage) -> TArray<TSharedPtr<FJsonValue>>
+    {
+        TArray<TSharedPtr<FJsonValue>> ModulesArray;
+
+        if (!Script)
+        {
+            return ModulesArray;
+        }
+
+        UNiagaraScriptSource* ScriptSource = Cast<UNiagaraScriptSource>(Script->GetLatestSource());
+        if (!ScriptSource || !ScriptSource->NodeGraph)
+        {
+            return ModulesArray;
+        }
+
+        UNiagaraGraph* Graph = ScriptSource->NodeGraph;
+
+        // Find the output node for this script's usage
+        UNiagaraNodeOutput* OutputNode = nullptr;
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            UNiagaraNodeOutput* TestNode = Cast<UNiagaraNodeOutput>(Node);
+            if (TestNode && TestNode->GetUsage() == ExpectedUsage)
+            {
+                OutputNode = TestNode;
+                break;
+            }
+        }
+
+        if (!OutputNode)
+        {
+            return ModulesArray;
+        }
+
+        // Trace backwards from output node through parameter map chain to get ordered modules
+        TArray<TPair<FString, UNiagaraNodeFunctionCall*>> OrderedModules;
+        UNiagaraNode* CurrentNode = OutputNode;
+        while (CurrentNode != nullptr)
+        {
+            UEdGraphPin* InputPin = GetParameterMapInputPin(*CurrentNode);
+            if (InputPin != nullptr && InputPin->LinkedTo.Num() == 1)
+            {
+                UNiagaraNode* PreviousNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
+                UNiagaraNodeFunctionCall* ModuleNode = Cast<UNiagaraNodeFunctionCall>(PreviousNode);
+                if (ModuleNode != nullptr)
+                {
+                    OrderedModules.Insert(TPair<FString, UNiagaraNodeFunctionCall*>(ModuleNode->GetFunctionName(), ModuleNode), 0);
+                }
+                CurrentNode = PreviousNode;
+            }
+            else
+            {
+                CurrentNode = nullptr;
+            }
+        }
+
+        // Convert to JSON array with full module details
+        int32 ModuleIndex = 0;
+        for (const auto& ModulePair : OrderedModules)
+        {
+            TSharedPtr<FJsonObject> ModuleObj = MakeShared<FJsonObject>();
+            ModuleObj->SetStringField(TEXT("name"), ModulePair.Key);
+            ModuleObj->SetNumberField(TEXT("index"), ModuleIndex);
+            ModuleObj->SetBoolField(TEXT("enabled"), ModulePair.Value->IsNodeEnabled());
+
+            // Get the module script path if available
+            if (ModulePair.Value->FunctionScript)
+            {
+                ModuleObj->SetStringField(TEXT("script_path"), ModulePair.Value->FunctionScript->GetPathName());
+            }
+
+            ModulesArray.Add(MakeShared<FJsonValueObject>(ModuleObj));
+            ModuleIndex++;
+        }
+
+        return ModulesArray;
+    };
+
+    // Build the stages object
+    TSharedPtr<FJsonObject> StagesObj = MakeShared<FJsonObject>();
+
+    // Get Particle Spawn modules
+    TArray<TSharedPtr<FJsonValue>> SpawnModules = ExtractModulesFromScript(
+        EmitterData->SpawnScriptProps.Script,
+        ENiagaraScriptUsage::ParticleSpawnScript
+    );
+    StagesObj->SetArrayField(TEXT("ParticleSpawn"), SpawnModules);
+
+    // Get Particle Update modules
+    TArray<TSharedPtr<FJsonValue>> UpdateModules = ExtractModulesFromScript(
+        EmitterData->UpdateScriptProps.Script,
+        ENiagaraScriptUsage::ParticleUpdateScript
+    );
+    StagesObj->SetArrayField(TEXT("ParticleUpdate"), UpdateModules);
+
+    // Get Event handlers if any
+    TArray<TSharedPtr<FJsonValue>> EventModulesArray;
+    for (const FNiagaraEventScriptProperties& EventProps : EmitterData->GetEventHandlers())
+    {
+        TArray<TSharedPtr<FJsonValue>> EventModules = ExtractModulesFromScript(
+            EventProps.Script,
+            ENiagaraScriptUsage::ParticleEventScript
+        );
+        for (const TSharedPtr<FJsonValue>& Module : EventModules)
+        {
+            EventModulesArray.Add(Module);
+        }
+    }
+    if (EventModulesArray.Num() > 0)
+    {
+        StagesObj->SetArrayField(TEXT("Event"), EventModulesArray);
+    }
+
+    // Build the response
+    OutModules->SetBoolField(TEXT("success"), true);
+    OutModules->SetStringField(TEXT("emitter_name"), EmitterName);
+    OutModules->SetStringField(TEXT("system_path"), SystemPath);
+    OutModules->SetObjectField(TEXT("stages"), StagesObj);
+
+    // Add summary counts
+    int32 TotalModules = SpawnModules.Num() + UpdateModules.Num() + EventModulesArray.Num();
+    OutModules->SetNumberField(TEXT("total_module_count"), TotalModules);
+    OutModules->SetNumberField(TEXT("spawn_count"), SpawnModules.Num());
+    OutModules->SetNumberField(TEXT("update_count"), UpdateModules.Num());
+    if (EventModulesArray.Num() > 0)
+    {
+        OutModules->SetNumberField(TEXT("event_count"), EventModulesArray.Num());
+    }
 
     return true;
 }

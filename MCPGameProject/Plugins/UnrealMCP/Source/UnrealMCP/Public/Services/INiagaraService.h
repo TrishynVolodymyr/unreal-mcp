@@ -145,6 +145,63 @@ struct UNREALMCP_API FNiagaraModuleAddParams
 };
 
 /**
+ * Parameters for removing a module from an emitter
+ */
+struct UNREALMCP_API FNiagaraModuleRemoveParams
+{
+    /** Path to the system containing the emitter */
+    FString SystemPath;
+
+    /** Name of the emitter containing the module */
+    FString EmitterName;
+
+    /** Name of the module to remove */
+    FString ModuleName;
+
+    /** Stage the module is in: "Spawn", "Update", or "Event" */
+    FString Stage;
+
+    /** Default constructor */
+    FNiagaraModuleRemoveParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (ModuleName.IsEmpty())
+        {
+            OutError = TEXT("Module name cannot be empty");
+            return false;
+        }
+        if (Stage.IsEmpty())
+        {
+            OutError = TEXT("Stage cannot be empty");
+            return false;
+        }
+        // Validate stage value
+        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event"))
+        {
+            OutError = FString::Printf(TEXT("Invalid stage '%s'. Must be 'Spawn', 'Update', or 'Event'"), *Stage);
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
  * Parameters for moving a module within an emitter stack
  */
 struct UNREALMCP_API FNiagaraModuleMoveParams
@@ -235,6 +292,9 @@ struct UNREALMCP_API FNiagaraModuleInputParams
     /** Type hint for the value (auto-detected if empty) */
     FString ValueType;
 
+    /** Optional: Set the module's enabled state (if set, takes precedence - can be combined with input setting) */
+    TOptional<bool> Enabled;
+
     /** Default constructor */
     FNiagaraModuleInputParams() = default;
 
@@ -260,9 +320,10 @@ struct UNREALMCP_API FNiagaraModuleInputParams
             OutError = TEXT("Module name cannot be empty");
             return false;
         }
-        if (InputName.IsEmpty())
+        // InputName is only required if we're not just setting enabled state
+        if (InputName.IsEmpty() && !Enabled.IsSet())
         {
-            OutError = TEXT("Input name cannot be empty");
+            OutError = TEXT("Either input_name or enabled must be provided");
             return false;
         }
         return true;
@@ -694,6 +755,52 @@ struct UNREALMCP_API FNiagaraActorSpawnParams
 };
 
 /**
+ * Parameters for setting an emitter property
+ */
+struct UNREALMCP_API FNiagaraEmitterPropertyParams
+{
+    /** Path to the system containing the emitter */
+    FString SystemPath;
+
+    /** Name of the emitter to modify */
+    FString EmitterName;
+
+    /** Name of the property to set */
+    FString PropertyName;
+
+    /** Value to set (as string, will be parsed based on property type) */
+    FString PropertyValue;
+
+    /** Default constructor */
+    FNiagaraEmitterPropertyParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (PropertyName.IsEmpty())
+        {
+            OutError = TEXT("Property name cannot be empty");
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
  * Interface for Niagara VFX service operations
  * Provides abstraction for Niagara System/Emitter creation, modification, and management
  */
@@ -755,6 +862,24 @@ public:
     virtual bool RemoveEmitterFromSystem(const FString& SystemPath, const FString& EmitterName, FString& OutError) = 0;
 
     /**
+     * Set a property on an emitter
+     * @param Params - Emitter property parameters
+     * @param OutError - Error message if operation fails
+     * @return true if property was set successfully
+     */
+    virtual bool SetEmitterProperty(const FNiagaraEmitterPropertyParams& Params, FString& OutError) = 0;
+
+    /**
+     * Get properties from an emitter
+     * @param SystemPath - Path to the system containing the emitter
+     * @param EmitterName - Name of the emitter
+     * @param OutProperties - Output JSON object with emitter properties
+     * @param OutError - Error message if operation fails
+     * @return true if properties were retrieved successfully
+     */
+    virtual bool GetEmitterProperties(const FString& SystemPath, const FString& EmitterName, TSharedPtr<FJsonObject>& OutProperties, FString& OutError) = 0;
+
+    /**
      * Get metadata about a Niagara System or Emitter
      * @param AssetPath - Path to the asset
      * @param Fields - Optional fields to include (nullptr = all)
@@ -775,6 +900,15 @@ public:
      * @return true if inputs were retrieved successfully
      */
     virtual bool GetModuleInputs(const FString& SystemPath, const FString& EmitterName, const FString& ModuleName, const FString& Stage, TSharedPtr<FJsonObject>& OutInputs) = 0;
+
+    /**
+     * Get all modules in an emitter organized by stage
+     * @param SystemPath - Path to the Niagara System
+     * @param EmitterName - Name of the emitter
+     * @param OutModules - Output JSON object with modules organized by stage
+     * @return true if modules were retrieved successfully
+     */
+    virtual bool GetEmitterModules(const FString& SystemPath, const FString& EmitterName, TSharedPtr<FJsonObject>& OutModules) = 0;
 
     /**
      * Compile a Niagara System or Emitter
@@ -807,6 +941,14 @@ public:
      * @return true if module was added successfully
      */
     virtual bool AddModule(const FNiagaraModuleAddParams& Params, FString& OutModuleId, FString& OutError) = 0;
+
+    /**
+     * Remove a module from an emitter stage
+     * @param Params - Module remove parameters
+     * @param OutError - Error message if removal fails
+     * @return true if module was removed successfully
+     */
+    virtual bool RemoveModule(const FNiagaraModuleRemoveParams& Params, FString& OutError) = 0;
 
     /**
      * Search for available Niagara modules
@@ -929,6 +1071,17 @@ public:
      * @return true if property was set successfully
      */
     virtual bool SetRendererProperty(const FString& SystemPath, const FString& EmitterName, const FString& RendererName, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutError) = 0;
+
+    /**
+     * Get all properties and bindings from a renderer
+     * @param SystemPath - Path to the system
+     * @param EmitterName - Name of the emitter
+     * @param RendererName - Name of the renderer (defaults to "Renderer")
+     * @param OutProperties - Output JSON object with renderer properties and bindings
+     * @param OutError - Error message if retrieval fails
+     * @return true if properties were retrieved successfully
+     */
+    virtual bool GetRendererProperties(const FString& SystemPath, const FString& EmitterName, const FString& RendererName, TSharedPtr<FJsonObject>& OutProperties, FString& OutError) = 0;
 
     // ========================================================================
     // Level Integration (Feature 6)

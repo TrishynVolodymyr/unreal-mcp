@@ -354,6 +354,180 @@ bool FNiagaraService::SetEmitterEnabled(const FString& SystemPath, const FString
     return true;
 }
 
+bool FNiagaraService::SetEmitterProperty(const FNiagaraEmitterPropertyParams& Params, FString& OutError)
+{
+    // Validate params
+    if (!Params.IsValid(OutError))
+    {
+        return false;
+    }
+
+    // Find the system
+    UNiagaraSystem* System = FindSystem(Params.SystemPath);
+    if (!System)
+    {
+        OutError = FString::Printf(TEXT("System not found: %s"), *Params.SystemPath);
+        return false;
+    }
+
+    // Find the emitter handle by name
+    int32 EmitterIndex = FindEmitterHandleIndex(System, Params.EmitterName);
+    if (EmitterIndex == INDEX_NONE)
+    {
+        OutError = FString::Printf(TEXT("Emitter '%s' not found in system '%s'"), *Params.EmitterName, *Params.SystemPath);
+        return false;
+    }
+
+    FNiagaraEmitterHandle& EmitterHandle = System->GetEmitterHandle(EmitterIndex);
+    FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+    if (!EmitterData)
+    {
+        OutError = FString::Printf(TEXT("Could not get emitter data for '%s'"), *Params.EmitterName);
+        return false;
+    }
+
+    // Modify the system
+    System->Modify();
+
+    // Parse property name and set value
+    FString PropertyName = Params.PropertyName.ToLower();
+    FString Value = Params.PropertyValue;
+
+    if (PropertyName == TEXT("localspace") || PropertyName == TEXT("blocalspace"))
+    {
+        bool bLocalSpace = Value.Equals(TEXT("true"), ESearchCase::IgnoreCase) || Value.Equals(TEXT("1"));
+        EmitterData->bLocalSpace = bLocalSpace;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' bLocalSpace to %s"), *Params.EmitterName, bLocalSpace ? TEXT("true") : TEXT("false"));
+    }
+    else if (PropertyName == TEXT("determinism") || PropertyName == TEXT("bdeterminism"))
+    {
+        bool bDeterminism = Value.Equals(TEXT("true"), ESearchCase::IgnoreCase) || Value.Equals(TEXT("1"));
+        EmitterData->bDeterminism = bDeterminism;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' bDeterminism to %s"), *Params.EmitterName, bDeterminism ? TEXT("true") : TEXT("false"));
+    }
+    else if (PropertyName == TEXT("randomseed"))
+    {
+        int32 RandomSeed = FCString::Atoi(*Value);
+        EmitterData->RandomSeed = RandomSeed;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' RandomSeed to %d"), *Params.EmitterName, RandomSeed);
+    }
+    else if (PropertyName == TEXT("simtarget") || PropertyName == TEXT("simulationtarget"))
+    {
+        if (Value.Equals(TEXT("CPU"), ESearchCase::IgnoreCase) || Value.Equals(TEXT("CPUSim"), ESearchCase::IgnoreCase))
+        {
+            EmitterData->SimTarget = ENiagaraSimTarget::CPUSim;
+            UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' SimTarget to CPUSim"), *Params.EmitterName);
+        }
+        else if (Value.Equals(TEXT("GPU"), ESearchCase::IgnoreCase) || Value.Equals(TEXT("GPUComputeSim"), ESearchCase::IgnoreCase))
+        {
+            EmitterData->SimTarget = ENiagaraSimTarget::GPUComputeSim;
+            UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' SimTarget to GPUComputeSim"), *Params.EmitterName);
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Invalid SimTarget value '%s'. Valid values: 'CPU', 'GPU'"), *Value);
+            return false;
+        }
+    }
+    else if (PropertyName == TEXT("requirespersistentids") || PropertyName == TEXT("brequirespersistentids"))
+    {
+        bool bRequires = Value.Equals(TEXT("true"), ESearchCase::IgnoreCase) || Value.Equals(TEXT("1"));
+        EmitterData->bRequiresPersistentIDs = bRequires;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' bRequiresPersistentIDs to %s"), *Params.EmitterName, bRequires ? TEXT("true") : TEXT("false"));
+    }
+    else if (PropertyName == TEXT("maxgpuparticlesspawnperframe"))
+    {
+        int32 MaxSpawn = FCString::Atoi(*Value);
+        EmitterData->MaxGPUParticlesSpawnPerFrame = MaxSpawn;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' MaxGPUParticlesSpawnPerFrame to %d"), *Params.EmitterName, MaxSpawn);
+    }
+    else
+    {
+        OutError = FString::Printf(TEXT("Unknown emitter property '%s'. Valid properties: LocalSpace, Determinism, RandomSeed, SimTarget, RequiresPersistentIDs, MaxGPUParticlesSpawnPerFrame"), *Params.PropertyName);
+        return false;
+    }
+
+    // Mark dirty and recompile
+    MarkSystemDirty(System);
+
+    // Request compilation and wait
+    System->RequestCompile(false);
+    System->WaitForCompilationComplete();
+
+    RefreshEditors(System);
+
+    return true;
+}
+
+bool FNiagaraService::GetEmitterProperties(const FString& SystemPath, const FString& EmitterName, TSharedPtr<FJsonObject>& OutProperties, FString& OutError)
+{
+    // Find the system
+    UNiagaraSystem* System = FindSystem(SystemPath);
+    if (!System)
+    {
+        OutError = FString::Printf(TEXT("System not found: %s"), *SystemPath);
+        return false;
+    }
+
+    // Find the emitter handle by name
+    int32 EmitterIndex = FindEmitterHandleIndex(System, EmitterName);
+    if (EmitterIndex == INDEX_NONE)
+    {
+        OutError = FString::Printf(TEXT("Emitter '%s' not found in system '%s'"), *EmitterName, *SystemPath);
+        return false;
+    }
+
+    const FNiagaraEmitterHandle& EmitterHandle = System->GetEmitterHandle(EmitterIndex);
+    FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+    if (!EmitterData)
+    {
+        OutError = FString::Printf(TEXT("Could not get emitter data for '%s'"), *EmitterName);
+        return false;
+    }
+
+    // Build the properties JSON
+    OutProperties = MakeShared<FJsonObject>();
+    OutProperties->SetBoolField(TEXT("success"), true);
+    OutProperties->SetStringField(TEXT("emitter_name"), EmitterName);
+    OutProperties->SetStringField(TEXT("system_path"), SystemPath);
+
+    // Properties object
+    TSharedPtr<FJsonObject> PropsObj = MakeShared<FJsonObject>();
+
+    // Local Space
+    PropsObj->SetBoolField(TEXT("LocalSpace"), EmitterData->bLocalSpace);
+
+    // Determinism
+    PropsObj->SetBoolField(TEXT("Determinism"), EmitterData->bDeterminism);
+
+    // Random Seed
+    PropsObj->SetNumberField(TEXT("RandomSeed"), EmitterData->RandomSeed);
+
+    // Sim Target
+    FString SimTargetStr = (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim) ? TEXT("GPU") : TEXT("CPU");
+    PropsObj->SetStringField(TEXT("SimTarget"), SimTargetStr);
+
+    // Requires Persistent IDs
+    PropsObj->SetBoolField(TEXT("RequiresPersistentIDs"), EmitterData->bRequiresPersistentIDs);
+
+    // Max GPU Particles Spawn Per Frame
+    PropsObj->SetNumberField(TEXT("MaxGPUParticlesSpawnPerFrame"), EmitterData->MaxGPUParticlesSpawnPerFrame);
+
+    // Calculate Bounds Mode
+    FString BoundsMode;
+    switch (EmitterData->CalculateBoundsMode)
+    {
+        case ENiagaraEmitterCalculateBoundMode::Dynamic: BoundsMode = TEXT("Dynamic"); break;
+        case ENiagaraEmitterCalculateBoundMode::Fixed: BoundsMode = TEXT("Fixed"); break;
+        default: BoundsMode = TEXT("Unknown"); break;
+    }
+    PropsObj->SetStringField(TEXT("CalculateBoundsMode"), BoundsMode);
+
+    OutProperties->SetObjectField(TEXT("properties"), PropsObj);
+
+    return true;
+}
+
 bool FNiagaraService::RemoveEmitterFromSystem(const FString& SystemPath, const FString& EmitterName, FString& OutError)
 {
     // Find the system
