@@ -15,17 +15,12 @@
 #include "NiagaraCommon.h"
 #include "NiagaraEditorModule.h"
 #include "EdGraphSchema_Niagara.h"
-#include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
 
-// Helper function to get parameter map input pin (replicates FNiagaraStackGraphUtilities::GetParameterMapInputPin logic)
-// This is needed because the original function is not exported from the NiagaraEditor module
-static UEdGraphPin* GetParameterMapInputPinLocal(UNiagaraNode& Node)
+// Helper function to find ParameterMap pin from a collection of pins
+static UEdGraphPin* GetParameterMapPinFromArray(const TArray<UEdGraphPin*>& Pins)
 {
-    TArray<UEdGraphPin*> InputPins;
-    Node.GetInputPins(InputPins);
-
-    for (UEdGraphPin* Pin : InputPins)
+    for (UEdGraphPin* Pin : Pins)
     {
         if (Pin)
         {
@@ -41,6 +36,23 @@ static UEdGraphPin* GetParameterMapInputPinLocal(UNiagaraNode& Node)
         }
     }
     return nullptr;
+}
+
+// Helper function to get parameter map input pin (replicates FNiagaraStackGraphUtilities::GetParameterMapInputPin logic)
+// This is needed because the original function is not exported from the NiagaraEditor module
+static UEdGraphPin* GetParameterMapInputPinLocal(UNiagaraNode& Node)
+{
+    TArray<UEdGraphPin*> InputPins;
+    Node.GetInputPins(InputPins);
+    return GetParameterMapPinFromArray(InputPins);
+}
+
+// Helper function to get parameter map output pin (replicates FNiagaraStackGraphUtilities::GetParameterMapOutputPin logic)
+static UEdGraphPin* GetParameterMapOutputPinLocal(UNiagaraNode& Node)
+{
+    TArray<UEdGraphPin*> OutputPins;
+    Node.GetOutputPins(OutputPins);
+    return GetParameterMapPinFromArray(OutputPins);
 }
 
 // ============================================================================
@@ -307,6 +319,177 @@ bool FNiagaraService::AddModule(const FNiagaraModuleAddParams& Params, FString& 
     return true;
 }
 
+bool FNiagaraService::RemoveModule(const FNiagaraModuleRemoveParams& Params, FString& OutError)
+{
+    // Validate params
+    if (!Params.IsValid(OutError))
+    {
+        return false;
+    }
+
+    // Find the system
+    UNiagaraSystem* System = FindSystem(Params.SystemPath);
+    if (!System)
+    {
+        OutError = FString::Printf(TEXT("System not found: %s"), *Params.SystemPath);
+        return false;
+    }
+
+    // Find the emitter handle by name
+    int32 EmitterIndex = FindEmitterHandleIndex(System, Params.EmitterName);
+    if (EmitterIndex == INDEX_NONE)
+    {
+        OutError = FString::Printf(TEXT("Emitter '%s' not found in system '%s'"), *Params.EmitterName, *Params.SystemPath);
+        return false;
+    }
+
+    const FNiagaraEmitterHandle& EmitterHandle = System->GetEmitterHandle(EmitterIndex);
+    FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+    if (!EmitterData)
+    {
+        OutError = FString::Printf(TEXT("Could not get emitter data for '%s'"), *Params.EmitterName);
+        return false;
+    }
+
+    // Convert stage to script usage
+    uint8 UsageValue;
+    if (!GetScriptUsageFromStage(Params.Stage, UsageValue, OutError))
+    {
+        return false;
+    }
+    ENiagaraScriptUsage ScriptUsage = static_cast<ENiagaraScriptUsage>(UsageValue);
+
+    // Get the script for this stage
+    UNiagaraScript* Script = nullptr;
+    switch (ScriptUsage)
+    {
+    case ENiagaraScriptUsage::ParticleSpawnScript:
+        Script = EmitterData->SpawnScriptProps.Script;
+        break;
+    case ENiagaraScriptUsage::ParticleUpdateScript:
+        Script = EmitterData->UpdateScriptProps.Script;
+        break;
+    default:
+        OutError = FString::Printf(TEXT("Unsupported stage '%s' for module removal"), *Params.Stage);
+        return false;
+    }
+
+    if (!Script)
+    {
+        OutError = FString::Printf(TEXT("Script not found for stage '%s'"), *Params.Stage);
+        return false;
+    }
+
+    // Get the script source and graph
+    UNiagaraScriptSource* ScriptSource = Cast<UNiagaraScriptSource>(Script->GetLatestSource());
+    if (!ScriptSource)
+    {
+        OutError = TEXT("Could not get script source");
+        return false;
+    }
+
+    UNiagaraGraph* Graph = ScriptSource->NodeGraph;
+    if (!Graph)
+    {
+        OutError = TEXT("Could not get script graph");
+        return false;
+    }
+
+    // Find the module node by name (normalize by removing spaces for comparison)
+    UNiagaraNodeFunctionCall* ModuleNode = nullptr;
+    FString NormalizedSearchName = Params.ModuleName.Replace(TEXT(" "), TEXT(""));
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Node);
+        if (FunctionNode)
+        {
+            FString NodeName = FunctionNode->GetFunctionName();
+            FString NormalizedNodeName = NodeName.Replace(TEXT(" "), TEXT(""));
+            if (NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase) ||
+                NormalizedSearchName.Contains(NormalizedNodeName, ESearchCase::IgnoreCase))
+            {
+                ModuleNode = FunctionNode;
+                break;
+            }
+        }
+    }
+
+    if (!ModuleNode)
+    {
+        OutError = FString::Printf(TEXT("Module '%s' not found in stage '%s'"), *Params.ModuleName, *Params.Stage);
+        return false;
+    }
+
+    // Mark for modification
+    System->Modify();
+    Graph->Modify();
+    ModuleNode->Modify();
+
+    // Get the module's input and output ParameterMap pins
+    UEdGraphPin* ModuleInputPin = GetParameterMapInputPinLocal(*ModuleNode);
+    UEdGraphPin* ModuleOutputPin = GetParameterMapOutputPinLocal(*ModuleNode);
+
+    if (!ModuleInputPin || !ModuleOutputPin)
+    {
+        OutError = FString::Printf(TEXT("Module '%s' has invalid ParameterMap pins"), *Params.ModuleName);
+        return false;
+    }
+
+    // Find the previous node's output pin (what connects to our input)
+    UEdGraphPin* PreviousOutputPin = nullptr;
+    if (ModuleInputPin->LinkedTo.Num() > 0)
+    {
+        PreviousOutputPin = ModuleInputPin->LinkedTo[0];
+    }
+
+    // Collect the next nodes' input pins (what connects to our output)
+    TArray<UEdGraphPin*> NextInputPins;
+    for (UEdGraphPin* LinkedPin : ModuleOutputPin->LinkedTo)
+    {
+        NextInputPins.Add(LinkedPin);
+    }
+
+    // Break all links from the module (disconnect from chain)
+    ModuleInputPin->BreakAllPinLinks();
+    ModuleOutputPin->BreakAllPinLinks();
+
+    // Reconnect: previous output → next inputs (bypass the removed module)
+    if (PreviousOutputPin)
+    {
+        for (UEdGraphPin* NextInputPin : NextInputPins)
+        {
+            PreviousOutputPin->MakeLinkTo(NextInputPin);
+        }
+    }
+
+    // Now remove the module node from the graph (links already broken)
+    bool bRemoved = Graph->RemoveNode(ModuleNode, /*bBreakAllLinks=*/false, /*bAlwaysMarkDirty=*/true);
+
+    if (!bRemoved)
+    {
+        OutError = FString::Printf(TEXT("Failed to remove module '%s' from graph"), *Params.ModuleName);
+        return false;
+    }
+
+    // Mark system dirty
+    MarkSystemDirty(System);
+
+    // Notify graph of changes
+    Graph->NotifyGraphChanged();
+
+    // Request compilation and wait for it
+    System->RequestCompile(false);
+    System->WaitForCompilationComplete();
+
+    // Refresh editors
+    RefreshEditors(System);
+
+    UE_LOG(LogNiagaraService, Log, TEXT("Removed module '%s' from emitter '%s' stage '%s'"),
+        *Params.ModuleName, *Params.EmitterName, *Params.Stage);
+
+    return true;
+}
+
 bool FNiagaraService::SearchModules(const FString& SearchQuery, const FString& StageFilter, int32 MaxResults, TArray<TSharedPtr<FJsonObject>>& OutModules)
 {
     // This can be implemented now as it's just asset discovery
@@ -461,6 +644,25 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
     {
         OutError = FString::Printf(TEXT("Module '%s' not found in stage '%s'"), *Params.ModuleName, *Params.Stage);
         return false;
+    }
+
+    // Handle enabled state if specified
+    if (Params.Enabled.IsSet())
+    {
+        FNiagaraStackGraphUtilities::SetModuleIsEnabled(*ModuleNode, Params.Enabled.GetValue());
+        UE_LOG(LogNiagaraService, Log, TEXT("Set module '%s' enabled state to %s"),
+            *Params.ModuleName, Params.Enabled.GetValue() ? TEXT("true") : TEXT("false"));
+
+        // If only setting enabled (no input name), we're done
+        if (Params.InputName.IsEmpty())
+        {
+            MarkSystemDirty(System);
+            Graph->NotifyGraphChanged();
+            System->RequestCompile(false);
+            System->WaitForCompilationComplete();
+            RefreshEditors(System);
+            return true;
+        }
     }
 
     // Get the value as string

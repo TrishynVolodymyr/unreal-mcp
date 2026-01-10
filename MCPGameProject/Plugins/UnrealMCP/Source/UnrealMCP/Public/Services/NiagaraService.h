@@ -43,8 +43,11 @@ public:
     virtual bool AddEmitterToSystem(const FString& SystemPath, const FString& EmitterPath, const FString& EmitterName, FGuid& OutEmitterHandleId, FString& OutError) override;
     virtual bool SetEmitterEnabled(const FString& SystemPath, const FString& EmitterName, bool bEnabled, FString& OutError) override;
     virtual bool RemoveEmitterFromSystem(const FString& SystemPath, const FString& EmitterName, FString& OutError) override;
+    virtual bool SetEmitterProperty(const FNiagaraEmitterPropertyParams& Params, FString& OutError) override;
+    virtual bool GetEmitterProperties(const FString& SystemPath, const FString& EmitterName, TSharedPtr<FJsonObject>& OutProperties, FString& OutError) override;
     virtual bool GetMetadata(const FString& AssetPath, const TArray<FString>* Fields, TSharedPtr<FJsonObject>& OutMetadata, const FString& EmitterName = TEXT(""), const FString& Stage = TEXT("")) override;
     virtual bool GetModuleInputs(const FString& SystemPath, const FString& EmitterName, const FString& ModuleName, const FString& Stage, TSharedPtr<FJsonObject>& OutInputs) override;
+    virtual bool GetEmitterModules(const FString& SystemPath, const FString& EmitterName, TSharedPtr<FJsonObject>& OutModules) override;
     virtual bool CompileAsset(const FString& AssetPath, FString& OutError) override;
     virtual bool DuplicateSystem(const FString& SourcePath, const FString& NewName, const FString& FolderPath, FString& OutNewPath, FString& OutError) override;
 
@@ -53,6 +56,7 @@ public:
     // ========================================================================
 
     virtual bool AddModule(const FNiagaraModuleAddParams& Params, FString& OutModuleId, FString& OutError) override;
+    virtual bool RemoveModule(const FNiagaraModuleRemoveParams& Params, FString& OutError) override;
     virtual bool SearchModules(const FString& SearchQuery, const FString& StageFilter, int32 MaxResults, TArray<TSharedPtr<FJsonObject>>& OutModules) override;
     virtual bool SetModuleInput(const FNiagaraModuleInputParams& Params, FString& OutError) override;
     virtual bool MoveModule(const FNiagaraModuleMoveParams& Params, FString& OutError) override;
@@ -80,6 +84,7 @@ public:
 
     virtual bool AddRenderer(const FNiagaraRendererParams& Params, FString& OutRendererId, FString& OutError) override;
     virtual bool SetRendererProperty(const FString& SystemPath, const FString& EmitterName, const FString& RendererName, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutError) override;
+    virtual bool GetRendererProperties(const FString& SystemPath, const FString& EmitterName, const FString& RendererName, TSharedPtr<FJsonObject>& OutProperties, FString& OutError) override;
 
     // ========================================================================
     // INiagaraService interface implementation - Level Integration

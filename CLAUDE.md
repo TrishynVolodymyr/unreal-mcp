@@ -16,6 +16,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **MCP Connection Errors:**
 - `[WinError 10054] An existing connection was forcibly closed by the remote host` - This means Unreal Engine has **crashed**. Check the crash log for the call stack and restart the editor.
 
+**Context7 for UE API Research (CRITICAL):**
+- **ALWAYS use Context7 MCP tools before writing or modifying C++ code** that uses Unreal Engine APIs
+- Use `resolve-library-id` with `libraryName: "Unreal Engine"` to get the library ID
+- Use `query-docs` with the library ID `/websites/dev_epicgames_en-us_unreal-engine` for API lookups
+- This ensures you use correct, up-to-date API signatures instead of guessing or using outdated patterns
+- Example workflow:
+  1. `resolve-library-id` → find UE library
+  2. `query-docs` → search for specific class/function (e.g., "UNiagaraNodeFunctionCall SetEnabled")
+  3. Implement using the documented API
+
 ## Build & Launch Commands
 
 ### Building the C++ Plugin

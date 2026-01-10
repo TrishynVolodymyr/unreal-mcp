@@ -346,3 +346,223 @@ bool FNiagaraService::SetRendererProperty(const FString& SystemPath, const FStri
 
     return true;
 }
+
+bool FNiagaraService::GetRendererProperties(const FString& SystemPath, const FString& EmitterName, const FString& RendererName, TSharedPtr<FJsonObject>& OutProperties, FString& OutError)
+{
+    // Find the system
+    UNiagaraSystem* System = FindSystem(SystemPath);
+    if (!System)
+    {
+        OutError = FString::Printf(TEXT("System not found: %s"), *SystemPath);
+        return false;
+    }
+
+    // Find the emitter handle by name
+    int32 EmitterIndex = FindEmitterHandleIndex(System, EmitterName);
+    if (EmitterIndex == INDEX_NONE)
+    {
+        OutError = FString::Printf(TEXT("Emitter '%s' not found in system '%s'"), *EmitterName, *SystemPath);
+        return false;
+    }
+
+    const FNiagaraEmitterHandle& EmitterHandle = System->GetEmitterHandle(EmitterIndex);
+    FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+    if (!EmitterData)
+    {
+        OutError = FString::Printf(TEXT("Could not get emitter data for '%s'"), *EmitterName);
+        return false;
+    }
+
+    // Find the renderer by name
+    UNiagaraRendererProperties* FoundRenderer = nullptr;
+    for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+    {
+        if (Renderer && (Renderer->GetName().Contains(RendererName, ESearchCase::IgnoreCase)))
+        {
+            FoundRenderer = Renderer;
+            break;
+        }
+    }
+
+    if (!FoundRenderer)
+    {
+        // List available renderers
+        TArray<FString> RendererNames;
+        for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+        {
+            if (Renderer)
+            {
+                RendererNames.Add(Renderer->GetName());
+            }
+        }
+        OutError = FString::Printf(TEXT("Renderer '%s' not found. Available: %s"),
+            *RendererName, *FString::Join(RendererNames, TEXT(", ")));
+        return false;
+    }
+
+    // Create output JSON object
+    OutProperties = MakeShared<FJsonObject>();
+    OutProperties->SetBoolField(TEXT("success"), true);
+    OutProperties->SetStringField(TEXT("renderer_name"), FoundRenderer->GetName());
+    OutProperties->SetStringField(TEXT("renderer_type"), FoundRenderer->GetClass()->GetName());
+
+    // Create properties object
+    TSharedPtr<FJsonObject> PropertiesObj = MakeShared<FJsonObject>();
+
+    // Create bindings object
+    TSharedPtr<FJsonObject> BindingsObj = MakeShared<FJsonObject>();
+
+    // Iterate over all UPROPERTY fields using reflection
+    UClass* RendererClass = FoundRenderer->GetClass();
+    for (TFieldIterator<FProperty> PropIt(RendererClass); PropIt; ++PropIt)
+    {
+        FProperty* Property = *PropIt;
+        if (!Property)
+        {
+            continue;
+        }
+
+        // Skip properties that are not editable or not from this class hierarchy
+        if (!Property->HasAnyPropertyFlags(CPF_Edit))
+        {
+            continue;
+        }
+
+        FString PropName = Property->GetName();
+
+        // Handle different property types
+        if (FObjectProperty* ObjectProp = CastField<FObjectProperty>(Property))
+        {
+            UObject* Value = ObjectProp->GetObjectPropertyValue_InContainer(FoundRenderer);
+            if (Value)
+            {
+                PropertiesObj->SetStringField(PropName, Value->GetPathName());
+            }
+            else
+            {
+                PropertiesObj->SetStringField(PropName, TEXT("None"));
+            }
+        }
+        else if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+        {
+            bool Value = BoolProp->GetPropertyValue_InContainer(FoundRenderer);
+            PropertiesObj->SetBoolField(PropName, Value);
+        }
+        else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Property))
+        {
+            float Value = FloatProp->GetPropertyValue_InContainer(FoundRenderer);
+            PropertiesObj->SetNumberField(PropName, Value);
+        }
+        else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Property))
+        {
+            double Value = DoubleProp->GetPropertyValue_InContainer(FoundRenderer);
+            PropertiesObj->SetNumberField(PropName, Value);
+        }
+        else if (FIntProperty* IntProp = CastField<FIntProperty>(Property))
+        {
+            int32 Value = IntProp->GetPropertyValue_InContainer(FoundRenderer);
+            PropertiesObj->SetNumberField(PropName, Value);
+        }
+        else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+        {
+            UEnum* EnumClass = EnumProp->GetEnum();
+            if (EnumClass)
+            {
+                FNumericProperty* UnderlyingProp = EnumProp->GetUnderlyingProperty();
+                if (UnderlyingProp)
+                {
+                    const void* PropertyAddress = EnumProp->ContainerPtrToValuePtr<void>(FoundRenderer);
+                    int64 EnumValue = UnderlyingProp->GetSignedIntPropertyValue(PropertyAddress);
+                    FString EnumName = EnumClass->GetNameStringByValue(EnumValue);
+                    // Remove enum prefix if present (e.g., "ENiagaraSpriteAlignment::" -> "")
+                    EnumName.RemoveFromStart(EnumClass->GetName() + TEXT("::"));
+                    PropertiesObj->SetStringField(PropName, EnumName);
+                }
+            }
+        }
+        else if (FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+        {
+            UEnum* EnumClass = ByteProp->Enum;
+            if (EnumClass)
+            {
+                uint8 Value = ByteProp->GetPropertyValue_InContainer(FoundRenderer);
+                FString EnumName = EnumClass->GetNameStringByValue(Value);
+                EnumName.RemoveFromStart(EnumClass->GetName() + TEXT("::"));
+                PropertiesObj->SetStringField(PropName, EnumName);
+            }
+            else
+            {
+                uint8 Value = ByteProp->GetPropertyValue_InContainer(FoundRenderer);
+                PropertiesObj->SetNumberField(PropName, Value);
+            }
+        }
+        else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
+        {
+            // Handle FNiagaraVariableAttributeBinding (bindings)
+            if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("NiagaraVariableAttributeBinding"))
+            {
+                const FNiagaraVariableAttributeBinding* Binding = StructProp->ContainerPtrToValuePtr<FNiagaraVariableAttributeBinding>(FoundRenderer);
+                if (Binding)
+                {
+                    // Get the bound variable name
+                    FName BoundVar = Binding->GetDataSetBindableVariable().GetName();
+                    FString BindingValue = BoundVar.IsNone() ? TEXT("None") : BoundVar.ToString();
+                    BindingsObj->SetStringField(PropName, BindingValue);
+                }
+            }
+            // Handle FVector2D
+            else if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("Vector2D"))
+            {
+                const FVector2D* Vec = StructProp->ContainerPtrToValuePtr<FVector2D>(FoundRenderer);
+                if (Vec)
+                {
+                    TArray<TSharedPtr<FJsonValue>> VecArray;
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Vec->X));
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Vec->Y));
+                    PropertiesObj->SetArrayField(PropName, VecArray);
+                }
+            }
+            // Handle FVector
+            else if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("Vector"))
+            {
+                const FVector* Vec = StructProp->ContainerPtrToValuePtr<FVector>(FoundRenderer);
+                if (Vec)
+                {
+                    TArray<TSharedPtr<FJsonValue>> VecArray;
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Vec->X));
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Vec->Y));
+                    VecArray.Add(MakeShared<FJsonValueNumber>(Vec->Z));
+                    PropertiesObj->SetArrayField(PropName, VecArray);
+                }
+            }
+            // Handle FLinearColor
+            else if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("LinearColor"))
+            {
+                const FLinearColor* Color = StructProp->ContainerPtrToValuePtr<FLinearColor>(FoundRenderer);
+                if (Color)
+                {
+                    TArray<TSharedPtr<FJsonValue>> ColorArray;
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Color->R));
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Color->G));
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Color->B));
+                    ColorArray.Add(MakeShared<FJsonValueNumber>(Color->A));
+                    PropertiesObj->SetArrayField(PropName, ColorArray);
+                }
+            }
+            // Skip other struct types for now
+        }
+        else if (FUInt32Property* UInt32Prop = CastField<FUInt32Property>(Property))
+        {
+            uint32 Value = UInt32Prop->GetPropertyValue_InContainer(FoundRenderer);
+            PropertiesObj->SetNumberField(PropName, static_cast<double>(Value));
+        }
+    }
+
+    OutProperties->SetObjectField(TEXT("properties"), PropertiesObj);
+    OutProperties->SetObjectField(TEXT("bindings"), BindingsObj);
+
+    UE_LOG(LogNiagaraService, Log, TEXT("Retrieved properties for renderer '%s' of type '%s'"),
+        *FoundRenderer->GetName(), *FoundRenderer->GetClass()->GetName());
+
+    return true;
+}
