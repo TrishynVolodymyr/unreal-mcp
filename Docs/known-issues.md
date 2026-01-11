@@ -112,6 +112,23 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ## Resolved Issues
 
+- **MaterialMCP Created Assets Don't Persist to Disk** - Fixed 2026-01-11
+  - Issue: Materials created via `create_material` existed in memory but weren't saved to disk. "Save All" didn't persist them.
+  - Root Cause: `CreateMaterial()`, `CreateMaterialInstance()`, and `DuplicateMaterialInstance()` only called `MarkPackageDirty()` but never actually saved the package to disk
+  - Fix: Added explicit `UPackage::SavePackage()` calls after asset creation in MaterialService.cpp
+  - Note: NiagaraMCP already had proper `SaveAsset()` calls - this was MaterialMCP-specific
+
+- **MaterialMCP Several Expression Types Not Recognized (Noise, ParticleRandom, Length)** - Fixed 2026-01-11
+  - Issue: Expression types `Noise`, `ParticleRandom`, and `Length` returned "Unknown expression type" errors
+  - Root Cause: These expression classes were not mapped in `GetExpressionClassFromTypeName()`
+  - Fix: Added includes for `MaterialExpressionNoise.h`, `MaterialExpressionParticleRandom.h`, `MaterialExpressionLength.h` and registered them in the expression type map
+  - Noise expression now supports all configurable properties: Scale, Quality, Levels, OutputMin, OutputMax, LevelScale, Turbulence, Tiling, RepeatSize, NoiseFunction (enum 0-5)
+
+- **MaterialMCP ComponentMask Channel Configuration Not Supported** - Fixed 2026-01-11
+  - Issue: ComponentMask R/G/B/A channel selection wasn't working, causing "component mask 0000" compile errors
+  - Root Cause: Was actually working - the issue was in how properties were being passed from Python side
+  - Verification: Tested with `{"R": true, "G": false, "B": false, "A": false}` - material compiles successfully
+
 - **MaterialMCP RadialGradientExponential Expression Not Supported** - Fixed 2026-01-09
   - Issue: Expression type "RadialGradientExponential" was not recognized
   - Root Cause: RadialGradientExponential is NOT a native expression - it's a Material Function at `/Engine/Functions/Engine_MaterialFunctions01/Gradient/RadialGradientExponential`

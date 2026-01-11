@@ -39,6 +39,10 @@
 #include "Materials/MaterialExpressionParticleColor.h"
 #include "Materials/MaterialExpressionVertexColor.h"
 #include "Materials/MaterialExpressionSphereMask.h"
+#include "Materials/MaterialExpressionParticleRandom.h"
+// Noise and math expressions
+#include "Materials/MaterialExpressionNoise.h"
+#include "Materials/MaterialExpressionLength.h"
 #include "Materials/MaterialExpressionDotProduct.h"
 #include "Materials/MaterialExpressionDistance.h"
 #include "Materials/MaterialExpressionNormalize.h"
@@ -125,6 +129,13 @@ UClass* FMaterialExpressionService::GetExpressionClassFromTypeName(const FString
         ExpressionTypeMap.Add(TEXT("ParticleColor"), UMaterialExpressionParticleColor::StaticClass());
         ExpressionTypeMap.Add(TEXT("VertexColor"), UMaterialExpressionVertexColor::StaticClass());
         ExpressionTypeMap.Add(TEXT("SphereMask"), UMaterialExpressionSphereMask::StaticClass());
+        ExpressionTypeMap.Add(TEXT("ParticleRandom"), UMaterialExpressionParticleRandom::StaticClass());
+
+        // Noise expression - procedural noise generation
+        ExpressionTypeMap.Add(TEXT("Noise"), UMaterialExpressionNoise::StaticClass());
+
+        // Length expression - vector magnitude
+        ExpressionTypeMap.Add(TEXT("Length"), UMaterialExpressionLength::StaticClass());
 
         // Material Function Call - allows using any Material Function by path
         ExpressionTypeMap.Add(TEXT("MaterialFunctionCall"), UMaterialExpressionMaterialFunctionCall::StaticClass());

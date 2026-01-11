@@ -252,39 +252,23 @@ bool FNiagaraService::DuplicateSystem(const FString& SourcePath, const FString& 
         return false;
     }
 
-    // Use Asset Tools to duplicate
+    // Use Asset Tools to duplicate with proper name
     IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 
-    TArray<UObject*> ObjectsToDuplicate;
-    ObjectsToDuplicate.Add(SourceSystem);
+    // DuplicateAsset creates a properly named copy
+    UObject* DuplicatedObject = AssetTools.DuplicateAsset(NewName, DestFolder, SourceSystem);
 
-    TArray<FAssetRenameData> RenameData;
-    FAssetRenameData& Data = RenameData.AddDefaulted_GetRef();
-    Data.Asset = SourceSystem;
-    Data.NewPackagePath = DestFolder;
-    Data.NewName = NewName;
-
-    // Duplicate the asset
-    TArray<UObject*> DuplicatedObjects;
-    ObjectTools::DuplicateObjects(ObjectsToDuplicate, TEXT(""), DestFolder, false, &DuplicatedObjects);
-
-    if (DuplicatedObjects.Num() == 0)
+    if (!DuplicatedObject)
     {
         OutError = TEXT("Failed to duplicate system");
         return false;
     }
 
-    UNiagaraSystem* NewSystem = Cast<UNiagaraSystem>(DuplicatedObjects[0]);
+    UNiagaraSystem* NewSystem = Cast<UNiagaraSystem>(DuplicatedObject);
     if (!NewSystem)
     {
         OutError = TEXT("Duplicated object is not a Niagara System");
         return false;
-    }
-
-    // Rename to desired name if not already correct
-    if (NewSystem->GetName() != NewName)
-    {
-        NewSystem->Rename(*NewName, NewSystem->GetOuter());
     }
 
     // Save the new asset

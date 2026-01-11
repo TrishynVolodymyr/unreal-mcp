@@ -100,6 +100,20 @@ UMaterial* FMaterialService::CreateMaterial(const FMaterialCreationParams& Param
     Package->MarkPackageDirty();
     FAssetRegistryModule::AssetCreated(NewMaterial);
 
+    // Save the package to disk
+    FString PackageFileName = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
+    FSavePackageArgs SaveArgs;
+    SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+    bool bSaved = UPackage::SavePackage(Package, NewMaterial, *PackageFileName, SaveArgs);
+    if (!bSaved)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Failed to save material package to disk: %s"), *PackageFileName);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("Saved material package to disk: %s"), *PackageFileName);
+    }
+
     // Build output path
     OutMaterialPath = PackagePath;
 
@@ -180,6 +194,20 @@ UMaterialInterface* FMaterialService::CreateMaterialInstance(const FMaterialInst
 
         Package->MarkPackageDirty();
         FAssetRegistryModule::AssetCreated(MIC);
+
+        // Save the package to disk
+        FString PackageFileName = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
+        FSavePackageArgs SaveArgs;
+        SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+        bool bSaved = UPackage::SavePackage(Package, MIC, *PackageFileName, SaveArgs);
+        if (!bSaved)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to save material instance package to disk: %s"), *PackageFileName);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Log, TEXT("Saved material instance package to disk: %s"), *PackageFileName);
+        }
 
         OutInstancePath = PackagePath;
         UE_LOG(LogTemp, Log, TEXT("Successfully created material instance constant: %s"), *OutInstancePath);
@@ -720,6 +748,20 @@ bool FMaterialService::DuplicateMaterialInstance(const FString& SourcePath, cons
     // Mark package dirty and register
     Package->MarkPackageDirty();
     FAssetRegistryModule::AssetCreated(NewMIC);
+
+    // Save the package to disk
+    FString PackageFileName = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
+    FSavePackageArgs SaveArgs;
+    SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+    bool bSaved = UPackage::SavePackage(Package, NewMIC, *PackageFileName, SaveArgs);
+    if (!bSaved)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Failed to save duplicated material instance to disk: %s"), *PackageFileName);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("Saved duplicated material instance to disk: %s"), *PackageFileName);
+    }
 
     // Set output values
     OutAssetPath = PackagePath;
