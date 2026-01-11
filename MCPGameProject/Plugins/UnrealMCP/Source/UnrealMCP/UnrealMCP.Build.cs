@@ -24,6 +24,13 @@ public class UnrealMCP : ModuleRules
 				"Runtime/AdvancedWidgets/Public"
 			}
 		);
+
+		// Add NiagaraEditor private includes for static switch node access
+		string NiagaraEditorPrivatePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(EngineDirectory, "Plugins", "FX", "Niagara", "Source", "NiagaraEditor", "Private"));
+		if (System.IO.Directory.Exists(NiagaraEditorPrivatePath))
+		{
+			PrivateIncludePaths.Add(NiagaraEditorPrivatePath);
+		}
 		
 		PublicDependencyModuleNames.AddRange(
 			new string[]

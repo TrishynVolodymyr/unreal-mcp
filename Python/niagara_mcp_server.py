@@ -925,7 +925,7 @@ async def add_module_to_emitter(
         system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
         emitter_name: Emitter name within the system (e.g., "NE_Sparks")
         module_path: Path to the module script asset
-        stage: Stage to add module to - "Spawn", "Update", or "Event"
+        stage: Stage to add module to - "Spawn", "Update", "Event", "EmitterSpawn", or "EmitterUpdate"
         index: Position in stack (-1 = end, 0 = beginning)
 
     Returns:
@@ -967,7 +967,7 @@ async def remove_module_from_emitter(
         system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
         emitter_name: Emitter name within the system (e.g., "NE_Sparks")
         module_name: Name of the module to remove (e.g., "SpawnRate", "Gravity Force")
-        stage: Stage containing the module - "Spawn", "Update", or "Event"
+        stage: Stage containing the module - "Spawn", "Update", "Event", "EmitterSpawn", or "EmitterUpdate"
 
     Returns:
         Dictionary containing:
@@ -1015,7 +1015,7 @@ async def set_module_input(
         system_path: Path to the Niagara System
         emitter_name: Emitter name within the system
         module_name: Name of the module to configure
-        stage: Stage containing the module - "Spawn", "Update", or "Event"
+        stage: Stage containing the module - "Spawn", "Update", "Event", "EmitterSpawn", or "EmitterUpdate"
         input_name: Input parameter name (e.g., "SpawnRate", "Velocity"). Optional if only setting enabled.
         value: Value to set as string (e.g., "100", "0,0,500", "1,0.5,0,1"). Optional if only setting enabled.
         value_type: Type hint - "float", "vector", "color", "int", "bool", or "auto"
@@ -1095,7 +1095,7 @@ async def move_module(
         system_path: Path to the Niagara System
         emitter_name: Emitter name
         module_name: Module name to move
-        stage: Stage containing the module - "Spawn" or "Update"
+        stage: Stage containing the module - "Spawn", "Update", "EmitterSpawn", or "EmitterUpdate"
         new_index: New position index (0-based)
 
     Returns:
@@ -1141,7 +1141,7 @@ async def set_module_curve_input(
         system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
         emitter_name: Emitter name within the system (e.g., "NE_Sparks")
         module_name: Name of the module to configure
-        stage: Stage containing the module - "Spawn" or "Update"
+        stage: Stage containing the module - "Spawn", "Update", "EmitterSpawn", or "EmitterUpdate"
         input_name: Input parameter name (e.g., "ScaleFactor", "DragCoefficient")
         keyframes: List of keyframe dictionaries, each containing:
             - time: Normalized time (0.0 to 1.0)
@@ -1200,7 +1200,7 @@ async def set_module_color_curve_input(
         system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
         emitter_name: Emitter name within the system (e.g., "NE_Sparks")
         module_name: Name of the module to configure
-        stage: Stage containing the module - "Spawn" or "Update"
+        stage: Stage containing the module - "Spawn", "Update", "EmitterSpawn", or "EmitterUpdate"
         input_name: Input parameter name (e.g., "ColorScale", "ParticleColor")
         keyframes: List of keyframe dictionaries, each containing:
             - time: Normalized time (0.0 to 1.0)
@@ -1265,7 +1265,7 @@ async def set_module_random_input(
         system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
         emitter_name: Emitter name within the system (e.g., "NE_Sparks")
         module_name: Name of the module to configure
-        stage: Stage containing the module - "Spawn" or "Update"
+        stage: Stage containing the module - "Spawn", "Update", "EmitterSpawn", or "EmitterUpdate"
         input_name: Input parameter name (e.g., "SpriteSize", "Lifetime")
         min_value: Minimum value as string:
             - Float: "1.0"
@@ -1337,6 +1337,147 @@ async def set_module_random_input(
 
 
 @app.tool()
+async def set_module_linked_input(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    input_name: str,
+    linked_value: str
+) -> Dict[str, Any]:
+    """
+    Set a linked input on a module (binding to a particle attribute like Particles.NormalizedAge).
+
+    This binds a module input to read from a particle attribute, enabling time-based
+    animations like alpha fade over particle lifetime where the curve is sampled
+    based on the particle's normalized age.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_name: Name of the module to configure
+        stage: Stage containing the module - "Spawn", "Update", "EmitterSpawn", or "EmitterUpdate"
+        input_name: Input parameter name (e.g., "Curve Index", "Scale")
+        linked_value: Particle attribute to link to (e.g., "Particles.NormalizedAge", "Particles.Velocity")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether linked input was set
+        - module_name: Module that was modified
+        - input_name: Input that was set
+        - linked_value: The attribute linked to
+        - message: Success/error message
+
+    Common Linked Values:
+        - Particles.NormalizedAge: 0-1 value over particle lifetime (most common for curves)
+        - Particles.Age: Actual age in seconds
+        - Particles.Lifetime: Total lifetime value
+        - Particles.Position: Current position
+        - Particles.Velocity: Current velocity
+        - Particles.Color: Current color
+        - Particles.Mass: Particle mass
+
+    Example:
+        # Link ScaleColor's Curve Index to NormalizedAge for alpha fade over lifetime
+        set_module_linked_input(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="ScaleColor",
+            stage="Update",
+            input_name="Curve Index",
+            linked_value="Particles.NormalizedAge"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage,
+        "input_name": input_name,
+        "linked_value": linked_value
+    }
+    return await send_tcp_command("set_module_linked_input", params)
+
+
+@app.tool()
+async def set_module_static_switch(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    switch_name: str,
+    value: str
+) -> Dict[str, Any]:
+    """
+    Set a static switch on a Niagara module.
+
+    Static switches control compile-time branching in modules, enabling different
+    behavior modes (e.g., "Direct Set" vs "Scale Over Life" for color modules).
+    Unlike regular inputs, static switches affect which code path is compiled
+    into the shader.
+
+    Args:
+        system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
+        emitter_name: Emitter name within the system (e.g., "NE_Sparks")
+        module_name: Name of the module to configure (e.g., "Scale Color")
+        stage: Stage containing the module - "Spawn", "Update", "EmitterSpawn", or "EmitterUpdate"
+        switch_name: Name of the static switch (e.g., "Scale Color Mode", "ScaleRGB", "ScaleA")
+        value: New value - can be:
+            - Display name (e.g., "Scale Over Life", "Direct Set")
+            - Internal name (e.g., "NewEnumerator0", "NewEnumerator1")
+            - Index (e.g., "0", "1")
+            - Bool (e.g., "true", "false", "0", "1")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether static switch was set successfully
+        - switch_name: Name of the switch that was set
+        - value: The value that was set
+        - message: Success/error message
+
+    Examples:
+        # Switch ScaleColor module from Direct mode to Curve mode
+        set_module_static_switch(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="Scale Color",
+            stage="Update",
+            switch_name="Scale Color Mode",
+            value="Scale Over Life"  # Or "1" for the same option
+        )
+
+        # Enable alpha scaling
+        set_module_static_switch(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="Scale Color",
+            stage="Update",
+            switch_name="ScaleA",
+            value="true"
+        )
+
+        # Disable RGB scaling
+        set_module_static_switch(
+            system_path="/Game/Effects/NS_Fire",
+            emitter_name="NE_Sparks",
+            module_name="Scale Color",
+            stage="Update",
+            switch_name="ScaleRGB",
+            value="false"
+        )
+    """
+    params = {
+        "system_path": system_path,
+        "emitter_name": emitter_name,
+        "module_name": module_name,
+        "stage": stage,
+        "switch_name": switch_name,
+        "value": value
+    }
+    return await send_tcp_command("set_module_static_switch", params)
+
+
+@app.tool()
 async def get_module_inputs(
     system_path: str,
     emitter_name: str,
@@ -1353,7 +1494,7 @@ async def get_module_inputs(
         system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
         emitter_name: Emitter name within the system (e.g., "NE_Sparks")
         module_name: Name of the module to query (e.g., "InitializeParticle", "Color")
-        stage: Stage containing the module - "Spawn" or "Update"
+        stage: Stage containing the module - "Spawn", "Update", "EmitterSpawn", or "EmitterUpdate"
 
     Returns:
         Dictionary containing:
@@ -1405,8 +1546,8 @@ async def get_emitter_modules(
 
     This is essential for discovering what modules exist in an emitter before
     using get_module_inputs or set_module_input. Returns modules grouped by
-    stage (ParticleSpawn, ParticleUpdate, Event) with their names, indices,
-    and enabled states.
+    stage (EmitterSpawn, EmitterUpdate, ParticleSpawn, ParticleUpdate, Event)
+    with their names, indices, and enabled states.
 
     Args:
         system_path: Path to the Niagara System (e.g., "/Game/Effects/NS_Fire")
@@ -1418,8 +1559,10 @@ async def get_emitter_modules(
         - emitter_name: Name of the emitter
         - system_path: Path to the system
         - stages: Object with stage arrays:
-            - ParticleSpawn: Array of modules in spawn stage
-            - ParticleUpdate: Array of modules in update stage
+            - EmitterSpawn: Array of modules in emitter spawn stage
+            - EmitterUpdate: Array of modules in emitter update stage (spawn rate, etc.)
+            - ParticleSpawn: Array of modules in particle spawn stage
+            - ParticleUpdate: Array of modules in particle update stage
             - Event: Array of modules in event handlers (if any)
         - Each module has:
             - name: Module name (e.g., "Initialize Particle")
@@ -1427,8 +1570,10 @@ async def get_emitter_modules(
             - enabled: Whether the module is enabled
             - script_path: Path to the module script asset (if available)
         - total_module_count: Total number of modules
-        - spawn_count: Number of spawn modules
-        - update_count: Number of update modules
+        - emitter_spawn_count: Number of emitter spawn modules
+        - emitter_update_count: Number of emitter update modules
+        - spawn_count: Number of particle spawn modules
+        - update_count: Number of particle update modules
         - event_count: Number of event modules (if any)
 
     Example:
@@ -1441,6 +1586,10 @@ async def get_emitter_modules(
         #   "success": true,
         #   "emitter_name": "NE_Sparks",
         #   "stages": {
+        #     "EmitterSpawn": [...],
+        #     "EmitterUpdate": [
+        #       {"name": "Spawn Rate", "index": 0, "enabled": true}
+        #     ],
         #     "ParticleSpawn": [
         #       {"name": "Initialize Particle", "index": 0, "enabled": true},
         #       {"name": "Add Velocity in Cone", "index": 1, "enabled": true}
@@ -1451,7 +1600,9 @@ async def get_emitter_modules(
         #       {"name": "Scale Color", "index": 2, "enabled": true}
         #     ]
         #   },
-        #   "total_module_count": 5,
+        #   "total_module_count": 6,
+        #   "emitter_spawn_count": 0,
+        #   "emitter_update_count": 1,
         #   "spawn_count": 2,
         #   "update_count": 3
         # }
