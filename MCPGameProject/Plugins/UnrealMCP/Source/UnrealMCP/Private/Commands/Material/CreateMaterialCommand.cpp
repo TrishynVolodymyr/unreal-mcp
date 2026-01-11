@@ -63,6 +63,15 @@ bool FCreateMaterialCommand::ParseParameters(const FString& JsonString, FMateria
     JsonObject->TryGetStringField(TEXT("blend_mode"), OutParams.BlendMode);
     JsonObject->TryGetStringField(TEXT("shading_model"), OutParams.ShadingModel);
 
+    // Optional usage flags
+    JsonObject->TryGetBoolField(TEXT("used_with_niagara_sprites"), OutParams.bUsedWithNiagaraSprites);
+    JsonObject->TryGetBoolField(TEXT("used_with_niagara_ribbons"), OutParams.bUsedWithNiagaraRibbons);
+    JsonObject->TryGetBoolField(TEXT("used_with_niagara_mesh_particles"), OutParams.bUsedWithNiagaraMeshParticles);
+    JsonObject->TryGetBoolField(TEXT("used_with_particle_sprites"), OutParams.bUsedWithParticleSprites);
+    JsonObject->TryGetBoolField(TEXT("used_with_mesh_particles"), OutParams.bUsedWithMeshParticles);
+    JsonObject->TryGetBoolField(TEXT("used_with_skeletal_mesh"), OutParams.bUsedWithSkeletalMesh);
+    JsonObject->TryGetBoolField(TEXT("used_with_static_lighting"), OutParams.bUsedWithStaticLighting);
+
     return OutParams.IsValid(OutError);
 }
 

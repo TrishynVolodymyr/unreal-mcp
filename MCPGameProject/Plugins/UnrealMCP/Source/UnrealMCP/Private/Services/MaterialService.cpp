@@ -87,6 +87,15 @@ UMaterial* FMaterialService::CreateMaterial(const FMaterialCreationParams& Param
     EMaterialShadingModel ShadingModel = GetShadingModelFromString(Params.ShadingModel);
     NewMaterial->SetShadingModel(ShadingModel);
 
+    // Set usage flags for Niagara and particle systems
+    NewMaterial->bUsedWithNiagaraSprites = Params.bUsedWithNiagaraSprites;
+    NewMaterial->bUsedWithNiagaraRibbons = Params.bUsedWithNiagaraRibbons;
+    NewMaterial->bUsedWithNiagaraMeshParticles = Params.bUsedWithNiagaraMeshParticles;
+    NewMaterial->bUsedWithParticleSprites = Params.bUsedWithParticleSprites;
+    NewMaterial->bUsedWithMeshParticles = Params.bUsedWithMeshParticles;
+    NewMaterial->bUsedWithSkeletalMesh = Params.bUsedWithSkeletalMesh;
+    NewMaterial->bUsedWithStaticLighting = Params.bUsedWithStaticLighting;
+
     // Mark package dirty and register
     Package->MarkPackageDirty();
     FAssetRegistryModule::AssetCreated(NewMaterial);

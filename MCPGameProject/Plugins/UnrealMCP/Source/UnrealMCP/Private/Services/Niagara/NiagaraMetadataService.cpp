@@ -12,6 +12,7 @@
 #include "NiagaraNodeInput.h"
 #include "NiagaraNodeStaticSwitch.h"
 #include "NiagaraNodeParameterMapSet.h"
+#include "NiagaraNodeParameterMapGet.h"
 #include "NiagaraScriptVariable.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraTypes.h"
@@ -688,6 +689,14 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
                                 {
                                     FoundDataInterface = CurveDI;
                                 }
+                            }
+                            else if (UNiagaraNodeParameterMapGet* GetNode = Cast<UNiagaraNodeParameterMapGet>(LinkedNode))
+                            {
+                                // Linked to a parameter (e.g., Particles.NormalizedAge)
+                                ValueMode = TEXT("Linked");
+                                FNiagaraVariable LinkedVar = UEdGraphSchema_Niagara::PinToNiagaraVariable(Pin->LinkedTo[0]);
+                                ValueStr = FString::Printf(TEXT("[Linked: %s]"), *LinkedVar.GetName().ToString());
+                                bFoundValue = true;
                             }
                         }
                         if (bFoundValue)

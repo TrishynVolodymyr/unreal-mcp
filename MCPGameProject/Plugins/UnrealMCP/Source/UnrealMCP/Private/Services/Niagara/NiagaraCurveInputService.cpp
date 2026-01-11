@@ -9,6 +9,9 @@
 #include "NiagaraGraph.h"
 #include "NiagaraNodeOutput.h"
 #include "NiagaraNodeFunctionCall.h"
+#include "NiagaraNodeInput.h"
+#include "NiagaraNodeParameterMapSet.h"
+#include "NiagaraNodeParameterMapGet.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraTypes.h"
 #include "NiagaraCommon.h"
@@ -53,6 +56,49 @@ static UNiagaraNodeFunctionCall* FindModuleNodeByName(
         }
     }
     return PartialMatchNode;
+}
+
+// ============================================================================
+// Helper to properly remove override nodes
+// Simply removing the connected node (Input, ParameterMapGet, or FunctionCall)
+// is sufficient - the SetDataInterfaceValueForFunctionInput will create new nodes
+// ============================================================================
+
+static void RemoveOverrideNodesForPin(UEdGraphPin& OverridePin)
+{
+    if (OverridePin.LinkedTo.Num() == 0)
+    {
+        return;
+    }
+
+    // Get the graph for node removal
+    UEdGraphNode* ConnectedNode = OverridePin.LinkedTo[0]->GetOwningNode();
+    UEdGraph* Graph = ConnectedNode ? ConnectedNode->GetGraph() : nullptr;
+
+    if (!Graph)
+    {
+        OverridePin.BreakAllPinLinks(true);
+        return;
+    }
+
+    // Handle UNiagaraNodeInput (data interface inputs) or UNiagaraNodeParameterMapGet (linked parameters)
+    // These are simple - just remove the node
+    if (ConnectedNode->IsA<UNiagaraNodeInput>() || ConnectedNode->IsA<UNiagaraNodeParameterMapGet>())
+    {
+        Graph->RemoveNode(ConnectedNode);
+        return;
+    }
+
+    // Handle UNiagaraNodeFunctionCall (dynamic inputs like curves)
+    // For dynamic inputs, we also need to remove the node
+    if (ConnectedNode->IsA<UNiagaraNodeFunctionCall>())
+    {
+        Graph->RemoveNode(ConnectedNode);
+        return;
+    }
+
+    // Unknown node type - fall back to breaking links
+    OverridePin.BreakAllPinLinks(true);
 }
 
 // ============================================================================
@@ -219,10 +265,10 @@ static bool FindAndConfigureColorCurveOnDynamicInput(
         FGuid()
     );
 
-    // Clear existing connections
+    // Properly remove existing override nodes (not just break links!)
     if (CurveOverridePin.LinkedTo.Num() > 0)
     {
-        CurveOverridePin.BreakAllPinLinks(true);
+        RemoveOverrideNodesForPin(CurveOverridePin);
     }
 
     // Create the color curve data interface
@@ -470,8 +516,8 @@ bool FNiagaraService::SetModuleCurveInput(const FNiagaraModuleCurveInputParams& 
     // Check if the pin already has a connection (an existing curve DI)
     if (OverridePin.LinkedTo.Num() > 0)
     {
-        // Break existing connections using UEdGraphPin's built-in method
-        OverridePin.BreakAllPinLinks(true);
+        // Properly remove existing override nodes (not just break links!)
+        RemoveOverrideNodesForPin(OverridePin);
     }
 
     // Create the curve data interface
@@ -686,11 +732,10 @@ bool FNiagaraService::SetModuleColorCurveInput(const FNiagaraModuleColorCurveInp
             FGuid()
         );
 
-        // Remove any existing override by breaking pin links
-        // Note: This clears the connection but may leave orphan nodes - acceptable for MCP use
+        // Properly remove existing override nodes (not just break links!)
         if (OverridePin.LinkedTo.Num() > 0)
         {
-            OverridePin.BreakAllPinLinks(true);
+            RemoveOverrideNodesForPin(OverridePin);
         }
 
         // Set the Dynamic Input script on the override pin
@@ -743,10 +788,10 @@ bool FNiagaraService::SetModuleColorCurveInput(const FNiagaraModuleColorCurveInp
             FGuid()
         );
 
-        // Check if the pin already has a connection (an existing color curve DI)
+        // Properly remove existing override nodes (not just break links!)
         if (OverridePin.LinkedTo.Num() > 0)
         {
-            OverridePin.BreakAllPinLinks(true);
+            RemoveOverrideNodesForPin(OverridePin);
         }
 
         // Create the color curve data interface

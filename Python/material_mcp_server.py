@@ -68,7 +68,14 @@ async def create_material(
     name: str,
     path: str = "/Game/Materials",
     blend_mode: str = "Translucent",
-    shading_model: str = "Unlit"
+    shading_model: str = "Unlit",
+    used_with_niagara_sprites: bool = False,
+    used_with_niagara_ribbons: bool = False,
+    used_with_niagara_mesh_particles: bool = False,
+    used_with_particle_sprites: bool = False,
+    used_with_mesh_particles: bool = False,
+    used_with_skeletal_mesh: bool = False,
+    used_with_static_lighting: bool = False
 ) -> Dict[str, Any]:
     """
     Create a new base Material asset.
@@ -81,6 +88,13 @@ async def create_material(
         path: Folder path for the material (default: "/Game/Materials")
         blend_mode: Blend mode - "Opaque", "Masked", "Translucent", "Additive" (default: "Translucent")
         shading_model: Shading model - "DefaultLit", "Unlit", "SubsurfaceProfile" (default: "Unlit")
+        used_with_niagara_sprites: Enable for Niagara sprite particles (default: False)
+        used_with_niagara_ribbons: Enable for Niagara ribbon particles (default: False)
+        used_with_niagara_mesh_particles: Enable for Niagara mesh particles (default: False)
+        used_with_particle_sprites: Enable for legacy Cascade sprite particles (default: False)
+        used_with_mesh_particles: Enable for legacy Cascade mesh particles (default: False)
+        used_with_skeletal_mesh: Enable for skeletal meshes (default: False)
+        used_with_static_lighting: Enable for static lighting (default: False)
 
     Returns:
         Dictionary containing:
@@ -93,14 +107,22 @@ async def create_material(
             name="M_EmberParticle",
             path="/Game/Effects/Materials",
             blend_mode="Additive",
-            shading_model="Unlit"
+            shading_model="Unlit",
+            used_with_niagara_sprites=True
         )
     """
     params = {
         "name": name,
         "path": path,
         "blend_mode": blend_mode,
-        "shading_model": shading_model
+        "shading_model": shading_model,
+        "used_with_niagara_sprites": used_with_niagara_sprites,
+        "used_with_niagara_ribbons": used_with_niagara_ribbons,
+        "used_with_niagara_mesh_particles": used_with_niagara_mesh_particles,
+        "used_with_particle_sprites": used_with_particle_sprites,
+        "used_with_mesh_particles": used_with_mesh_particles,
+        "used_with_skeletal_mesh": used_with_skeletal_mesh,
+        "used_with_static_lighting": used_with_static_lighting
     }
 
     return await send_tcp_command("create_material", params)
@@ -594,6 +616,31 @@ async def connect_expression_to_material_output(
 # ============================================================================
 # Material Palette Search
 # ============================================================================
+
+@app.tool()
+async def compile_material(
+    material_path: str
+) -> Dict[str, Any]:
+    """
+    Compile a material to apply changes and trigger shader recompilation.
+
+    Use this after creating a material with usage flags (like used_with_niagara_sprites)
+    to ensure shaders are compiled with the correct permutations.
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether compilation was successful
+        - message: Success/error message
+
+    Example:
+        compile_material(material_path="/Game/Materials/M_FireEmber")
+    """
+    params = {"material_path": material_path}
+    return await send_tcp_command("compile_material", params)
+
 
 @app.tool()
 async def search_material_palette(
