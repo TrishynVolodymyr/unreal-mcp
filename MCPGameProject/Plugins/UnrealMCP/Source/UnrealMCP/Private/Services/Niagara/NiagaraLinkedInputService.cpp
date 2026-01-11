@@ -9,6 +9,9 @@
 #include "NiagaraGraph.h"
 #include "NiagaraNodeOutput.h"
 #include "NiagaraNodeFunctionCall.h"
+#include "NiagaraNodeInput.h"
+#include "NiagaraNodeParameterMapSet.h"
+#include "NiagaraNodeParameterMapGet.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraTypes.h"
 #include "NiagaraCommon.h"
@@ -48,6 +51,49 @@ static UNiagaraNodeFunctionCall* FindModuleNodeByNameForLinked(
         }
     }
     return PartialMatchNode;
+}
+
+// ============================================================================
+// Helper to properly remove override nodes
+// Simply removing the connected node (Input, ParameterMapGet, or FunctionCall)
+// is sufficient - the SetLinkedParameterValueForFunctionInput will create new nodes
+// ============================================================================
+
+static void RemoveOverrideNodesForPinLinked(UEdGraphPin& OverridePin)
+{
+    if (OverridePin.LinkedTo.Num() == 0)
+    {
+        return;
+    }
+
+    // Get the graph for node removal
+    UEdGraphNode* ConnectedNode = OverridePin.LinkedTo[0]->GetOwningNode();
+    UEdGraph* Graph = ConnectedNode ? ConnectedNode->GetGraph() : nullptr;
+
+    if (!Graph)
+    {
+        OverridePin.BreakAllPinLinks(true);
+        return;
+    }
+
+    // Handle UNiagaraNodeInput (data interface inputs) or UNiagaraNodeParameterMapGet (linked parameters)
+    // These are simple - just remove the node
+    if (ConnectedNode->IsA<UNiagaraNodeInput>() || ConnectedNode->IsA<UNiagaraNodeParameterMapGet>())
+    {
+        Graph->RemoveNode(ConnectedNode);
+        return;
+    }
+
+    // Handle UNiagaraNodeFunctionCall (dynamic inputs like curves)
+    // For dynamic inputs, we also need to remove the node
+    if (ConnectedNode->IsA<UNiagaraNodeFunctionCall>())
+    {
+        Graph->RemoveNode(ConnectedNode);
+        return;
+    }
+
+    // Unknown node type - fall back to breaking links
+    OverridePin.BreakAllPinLinks(true);
 }
 
 // ============================================================================
@@ -251,10 +297,10 @@ bool FNiagaraService::SetModuleLinkedInput(const FNiagaraModuleLinkedInputParams
         FGuid()
     );
 
-    // Clear any existing connections on the override pin
+    // Properly remove existing override nodes (not just break links!)
     if (OverridePin.LinkedTo.Num() > 0)
     {
-        OverridePin.BreakAllPinLinks(true);
+        RemoveOverrideNodesForPinLinked(OverridePin);
     }
 
     // Create the linked parameter variable with the CORRECT type for the particle attribute
