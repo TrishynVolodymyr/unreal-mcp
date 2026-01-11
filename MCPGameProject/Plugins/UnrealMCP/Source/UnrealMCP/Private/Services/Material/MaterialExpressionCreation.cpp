@@ -21,6 +21,8 @@
 // Material Function support
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
+// Noise expression
+#include "Materials/MaterialExpressionNoise.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 
@@ -246,6 +248,72 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
             MaskExpr->A = Properties->HasField(TEXT("A"))
                 ? Properties->GetBoolField(TEXT("A"))
                 : Properties->GetBoolField(TEXT("a"));
+        }
+    }
+    // Handle Noise expression
+    else if (UMaterialExpressionNoise* NoiseExpr = Cast<UMaterialExpressionNoise>(Expression))
+    {
+        if (Properties->HasField(TEXT("Scale")) || Properties->HasField(TEXT("scale")))
+        {
+            NoiseExpr->Scale = Properties->HasField(TEXT("Scale"))
+                ? Properties->GetNumberField(TEXT("Scale"))
+                : Properties->GetNumberField(TEXT("scale"));
+        }
+        if (Properties->HasField(TEXT("Quality")) || Properties->HasField(TEXT("quality")))
+        {
+            NoiseExpr->Quality = Properties->HasField(TEXT("Quality"))
+                ? (int32)Properties->GetNumberField(TEXT("Quality"))
+                : (int32)Properties->GetNumberField(TEXT("quality"));
+        }
+        if (Properties->HasField(TEXT("Levels")) || Properties->HasField(TEXT("levels")))
+        {
+            NoiseExpr->Levels = Properties->HasField(TEXT("Levels"))
+                ? (int32)Properties->GetNumberField(TEXT("Levels"))
+                : (int32)Properties->GetNumberField(TEXT("levels"));
+        }
+        if (Properties->HasField(TEXT("OutputMin")) || Properties->HasField(TEXT("output_min")))
+        {
+            NoiseExpr->OutputMin = Properties->HasField(TEXT("OutputMin"))
+                ? Properties->GetNumberField(TEXT("OutputMin"))
+                : Properties->GetNumberField(TEXT("output_min"));
+        }
+        if (Properties->HasField(TEXT("OutputMax")) || Properties->HasField(TEXT("output_max")))
+        {
+            NoiseExpr->OutputMax = Properties->HasField(TEXT("OutputMax"))
+                ? Properties->GetNumberField(TEXT("OutputMax"))
+                : Properties->GetNumberField(TEXT("output_max"));
+        }
+        if (Properties->HasField(TEXT("LevelScale")) || Properties->HasField(TEXT("level_scale")))
+        {
+            NoiseExpr->LevelScale = Properties->HasField(TEXT("LevelScale"))
+                ? Properties->GetNumberField(TEXT("LevelScale"))
+                : Properties->GetNumberField(TEXT("level_scale"));
+        }
+        if (Properties->HasField(TEXT("Turbulence")) || Properties->HasField(TEXT("turbulence")))
+        {
+            NoiseExpr->bTurbulence = Properties->HasField(TEXT("Turbulence"))
+                ? Properties->GetBoolField(TEXT("Turbulence"))
+                : Properties->GetBoolField(TEXT("turbulence"));
+        }
+        if (Properties->HasField(TEXT("Tiling")) || Properties->HasField(TEXT("tiling")))
+        {
+            NoiseExpr->bTiling = Properties->HasField(TEXT("Tiling"))
+                ? Properties->GetBoolField(TEXT("Tiling"))
+                : Properties->GetBoolField(TEXT("tiling"));
+        }
+        if (Properties->HasField(TEXT("RepeatSize")) || Properties->HasField(TEXT("repeat_size")))
+        {
+            NoiseExpr->RepeatSize = Properties->HasField(TEXT("RepeatSize"))
+                ? (uint32)Properties->GetNumberField(TEXT("RepeatSize"))
+                : (uint32)Properties->GetNumberField(TEXT("repeat_size"));
+        }
+        // NoiseFunction enum: 0=SimplexTex, 1=GradientTex, 2=GradientTex3D, 3=GradientALU, 4=ValueALU, 5=Voronoi
+        if (Properties->HasField(TEXT("NoiseFunction")) || Properties->HasField(TEXT("noise_function")))
+        {
+            int32 FuncValue = Properties->HasField(TEXT("NoiseFunction"))
+                ? (int32)Properties->GetNumberField(TEXT("NoiseFunction"))
+                : (int32)Properties->GetNumberField(TEXT("noise_function"));
+            NoiseExpr->NoiseFunction = (ENoiseFunction)FuncValue;
         }
     }
     // Handle MaterialFunctionCall - load function by path and set it
