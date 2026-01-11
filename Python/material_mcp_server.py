@@ -618,6 +618,31 @@ async def connect_expression_to_material_output(
 # ============================================================================
 
 @app.tool()
+async def compile_material(
+    material_path: str
+) -> Dict[str, Any]:
+    """
+    Compile a material to apply changes and trigger shader recompilation.
+
+    Use this after creating a material with usage flags (like used_with_niagara_sprites)
+    to ensure shaders are compiled with the correct permutations.
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+
+    Returns:
+        Dictionary containing:
+        - success: Whether compilation was successful
+        - message: Success/error message
+
+    Example:
+        compile_material(material_path="/Game/Materials/M_FireEmber")
+    """
+    params = {"material_path": material_path}
+    return await send_tcp_command("compile_material", params)
+
+
+@app.tool()
 async def search_material_palette(
     search_query: str = "",
     category_filter: str = "",
