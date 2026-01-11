@@ -24,6 +24,15 @@ struct UNREALMCP_API FMaterialCreationParams
     /** Shading model for the material */
     FString ShadingModel = TEXT("DefaultLit");
 
+    /** Usage flags - enable shader compilation for specific use cases */
+    bool bUsedWithNiagaraSprites = false;
+    bool bUsedWithNiagaraRibbons = false;
+    bool bUsedWithNiagaraMeshParticles = false;
+    bool bUsedWithParticleSprites = false;
+    bool bUsedWithMeshParticles = false;
+    bool bUsedWithSkeletalMesh = false;
+    bool bUsedWithStaticLighting = false;
+
     /** Default constructor */
     FMaterialCreationParams() = default;
 

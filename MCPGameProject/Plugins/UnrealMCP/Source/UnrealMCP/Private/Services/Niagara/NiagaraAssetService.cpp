@@ -441,9 +441,49 @@ bool FNiagaraService::SetEmitterProperty(const FNiagaraEmitterPropertyParams& Pa
         EmitterData->MaxGPUParticlesSpawnPerFrame = MaxSpawn;
         UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' MaxGPUParticlesSpawnPerFrame to %d"), *Params.EmitterName, MaxSpawn);
     }
+    else if (PropertyName == TEXT("calculateboundsmode") || PropertyName == TEXT("boundsmode"))
+    {
+        if (Value.Equals(TEXT("Dynamic"), ESearchCase::IgnoreCase))
+        {
+            EmitterData->CalculateBoundsMode = ENiagaraEmitterCalculateBoundMode::Dynamic;
+            UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' CalculateBoundsMode to Dynamic"), *Params.EmitterName);
+        }
+        else if (Value.Equals(TEXT("Fixed"), ESearchCase::IgnoreCase))
+        {
+            EmitterData->CalculateBoundsMode = ENiagaraEmitterCalculateBoundMode::Fixed;
+            UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' CalculateBoundsMode to Fixed"), *Params.EmitterName);
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Invalid CalculateBoundsMode value '%s'. Valid values: 'Dynamic', 'Fixed'"), *Value);
+            return false;
+        }
+    }
+    else if (PropertyName == TEXT("fixedbounds"))
+    {
+        // Parse FBox format: "MinX,MinY,MinZ,MaxX,MaxY,MaxZ"
+        TArray<FString> Components;
+        Value.ParseIntoArray(Components, TEXT(","), true);
+
+        if (Components.Num() == 6)
+        {
+            FBox Bounds(
+                FVector(FCString::Atof(*Components[0]), FCString::Atof(*Components[1]), FCString::Atof(*Components[2])),
+                FVector(FCString::Atof(*Components[3]), FCString::Atof(*Components[4]), FCString::Atof(*Components[5]))
+            );
+            EmitterData->FixedBounds = Bounds;
+            UE_LOG(LogNiagaraService, Log, TEXT("Set emitter '%s' FixedBounds to Min(%s,%s,%s) Max(%s,%s,%s)"),
+                *Params.EmitterName, *Components[0], *Components[1], *Components[2], *Components[3], *Components[4], *Components[5]);
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Invalid FixedBounds format '%s'. Expected: 'MinX,MinY,MinZ,MaxX,MaxY,MaxZ'"), *Value);
+            return false;
+        }
+    }
     else
     {
-        OutError = FString::Printf(TEXT("Unknown emitter property '%s'. Valid properties: LocalSpace, Determinism, RandomSeed, SimTarget, RequiresPersistentIDs, MaxGPUParticlesSpawnPerFrame"), *Params.PropertyName);
+        OutError = FString::Printf(TEXT("Unknown emitter property '%s'. Valid properties: LocalSpace, Determinism, RandomSeed, SimTarget, RequiresPersistentIDs, MaxGPUParticlesSpawnPerFrame, CalculateBoundsMode, FixedBounds"), *Params.PropertyName);
         return false;
     }
 
