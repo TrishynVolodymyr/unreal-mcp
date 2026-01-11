@@ -1614,6 +1614,76 @@ async def get_emitter_modules(
     return await send_tcp_command("get_emitter_modules", params)
 
 
+# ============================================================================
+# Diagnostics
+# ============================================================================
+
+@app.tool()
+async def get_niagara_diagnostics(
+    system: str
+) -> Dict[str, Any]:
+    """
+    Get diagnostics and validation results from a Niagara System.
+
+    Uses Unreal Engine's built-in NiagaraValidation system to run all validation
+    rules against the system and report any issues. This includes checks for:
+    - GPU simulation bounds requirements
+    - Banned/deprecated modules
+    - Material compatibility
+    - Large World Coordinates (LWC) issues
+    - Missing or invalid bindings
+    - Performance warnings
+    - And 20+ other built-in validation rules
+
+    Args:
+        system: Path or name of the Niagara System to validate
+
+    Returns:
+        Dictionary containing:
+        - success: Whether validation ran successfully
+        - system: Name of the system
+        - path: Full asset path
+        - diagnostics: Array of diagnostic results, each with:
+            - severity: "Info", "Warning", or "Error"
+            - summary: Short description of the issue
+            - description: Detailed explanation
+            - source: Name of the source object (if applicable)
+            - fixes: Array of suggested fix descriptions (if available)
+        - info_count: Number of info-level diagnostics
+        - warning_count: Number of warning-level diagnostics
+        - error_count: Number of error-level diagnostics
+        - total_count: Total number of diagnostics
+
+    Example:
+        get_niagara_diagnostics(system="NS_FireExplosion")
+        # Returns:
+        # {
+        #   "success": true,
+        #   "system": "NS_FireExplosion",
+        #   "path": "/Game/Effects/NS_FireExplosion",
+        #   "diagnostics": [
+        #     {
+        #       "severity": "Warning",
+        #       "summary": "GPU simulation without fixed bounds",
+        #       "description": "GPU emitters require fixed bounds for culling...",
+        #       "source": "NE_Sparks",
+        #       "fixes": ["Set CalculateBoundsMode to Fixed"]
+        #     }
+        #   ],
+        #   "info_count": 0,
+        #   "warning_count": 1,
+        #   "error_count": 0,
+        #   "total_count": 1
+        # }
+    """
+    params = {"system": system}
+    return await send_tcp_command("get_niagara_diagnostics", params)
+
+
+# ============================================================================
+# Renderer Operations
+# ============================================================================
+
 @app.tool()
 async def set_renderer_property(
     system_path: str,
