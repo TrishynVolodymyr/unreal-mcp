@@ -172,23 +172,38 @@ void FNiagaraService::RefreshEditors(UObject* Asset)
 
 bool FNiagaraService::GetScriptUsageFromStage(const FString& Stage, uint8& OutUsage, FString& OutError) const
 {
-    if (Stage.Equals(TEXT("Spawn"), ESearchCase::IgnoreCase))
+    // Particle stages
+    if (Stage.Equals(TEXT("Spawn"), ESearchCase::IgnoreCase) ||
+        Stage.Equals(TEXT("ParticleSpawn"), ESearchCase::IgnoreCase))
     {
         OutUsage = static_cast<uint8>(ENiagaraScriptUsage::ParticleSpawnScript);
         return true;
     }
-    else if (Stage.Equals(TEXT("Update"), ESearchCase::IgnoreCase))
+    else if (Stage.Equals(TEXT("Update"), ESearchCase::IgnoreCase) ||
+             Stage.Equals(TEXT("ParticleUpdate"), ESearchCase::IgnoreCase))
     {
         OutUsage = static_cast<uint8>(ENiagaraScriptUsage::ParticleUpdateScript);
         return true;
     }
-    else if (Stage.Equals(TEXT("Event"), ESearchCase::IgnoreCase))
+    else if (Stage.Equals(TEXT("Event"), ESearchCase::IgnoreCase) ||
+             Stage.Equals(TEXT("ParticleEvent"), ESearchCase::IgnoreCase))
     {
         OutUsage = static_cast<uint8>(ENiagaraScriptUsage::ParticleEventScript);
         return true;
     }
+    // Emitter stages
+    else if (Stage.Equals(TEXT("EmitterSpawn"), ESearchCase::IgnoreCase))
+    {
+        OutUsage = static_cast<uint8>(ENiagaraScriptUsage::EmitterSpawnScript);
+        return true;
+    }
+    else if (Stage.Equals(TEXT("EmitterUpdate"), ESearchCase::IgnoreCase))
+    {
+        OutUsage = static_cast<uint8>(ENiagaraScriptUsage::EmitterUpdateScript);
+        return true;
+    }
 
-    OutError = FString::Printf(TEXT("Invalid stage '%s'. Must be 'Spawn', 'Update', or 'Event'"), *Stage);
+    OutError = FString::Printf(TEXT("Invalid stage '%s'. Valid stages: 'Spawn', 'Update', 'Event', 'EmitterSpawn', 'EmitterUpdate'"), *Stage);
     return false;
 }
 
@@ -197,11 +212,15 @@ FString FNiagaraService::GetStageFromScriptUsage(uint8 Usage) const
     switch (static_cast<ENiagaraScriptUsage>(Usage))
     {
     case ENiagaraScriptUsage::ParticleSpawnScript:
-        return TEXT("Spawn");
+        return TEXT("ParticleSpawn");
     case ENiagaraScriptUsage::ParticleUpdateScript:
-        return TEXT("Update");
+        return TEXT("ParticleUpdate");
     case ENiagaraScriptUsage::ParticleEventScript:
         return TEXT("Event");
+    case ENiagaraScriptUsage::EmitterSpawnScript:
+        return TEXT("EmitterSpawn");
+    case ENiagaraScriptUsage::EmitterUpdateScript:
+        return TEXT("EmitterUpdate");
     default:
         return TEXT("Unknown");
     }

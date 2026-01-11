@@ -215,12 +215,12 @@ add_spawn_location_module(
 )
 ```
 
-**Common Shapes:**
-- Box: `BoxSize`, `SurfaceOnly`
-- Sphere: `SphereRadius`, `SurfaceOnly`, `HemisphereOnly`
-- Cylinder: `CylinderHeight`, `CylinderRadius`
-- Torus: `LargeRadius`, `SmallRadius`
-- Mesh: `MeshPath`, `SampleMode`
+**Common Shapes (use `get_module_inputs` to see all parameters):**
+- Box: `Box Size`, `Surface Only Band Thickness`
+- Sphere: `Sphere Radius`, `Hemisphere`
+- Cylinder: `Cylinder Height`, `Cylinder Radius`
+- Torus: `Large Radius`, `Handle Radius`
+- Mesh: `Mesh`, `Sampling Mode`
 
 ---
 
@@ -237,34 +237,254 @@ add_spawn_location_module(
 | ~~P2~~ | ~~`set_module_enabled`~~ | ✅ IMPLEMENTED (via `set_module_input` enabled param) |
 | ~~P3~~ | ~~`set_emitter_property`~~ | ✅ IMPLEMENTED |
 | ~~P3~~ | ~~`get_emitter_properties`~~ | ✅ IMPLEMENTED |
-| P4 | `add_spawn_location_module` | Missing (use `add_module_to_emitter` for now) |
+| P4 | `add_spawn_location_module` | ✅ NOT NEEDED (use `add_module_to_emitter`) |
+| ~~P5~~ | ~~Emitter stage module support~~ | ✅ IMPLEMENTED |
 
 ---
 
-## Current Workaround Limitations
+## Missing Tools - Priority 5: Emitter Stage Support
 
-Without these tools, the only options are:
-1. Create emitters from scratch with NO template (but then missing essential modules)
-2. Manually edit in Unreal Editor and use MCP only for parameters
-3. Guess and iterate blindly without verification
+### 5.1 `add_spawn_location_module` ✅ NOT NEEDED
+
+**Status:** Covered by existing `add_module_to_emitter` + `set_module_input` tools.
+
+**Tested and Working:**
+- BoxLocation: `/Niagara/Modules/Spawn/Location/BoxLocation.BoxLocation`
+- SphereLocation: `/Niagara/Modules/Spawn/Location/SphereLocation.SphereLocation`
+- CylinderLocation: `/Niagara/Modules/Spawn/Location/CylinderLocation.CylinderLocation`
+- TorusLocation: `/Niagara/Modules/Spawn/Location/TorusLocation.TorusLocation`
+- StaticMeshLocation: `/Niagara/Modules/Spawn/Location/StaticMeshLocation.StaticMeshLocation`
+
+**Example:**
+```python
+# Add sphere spawn location
+add_module_to_emitter(
+    system_path="/Game/Effects/NS_Fire",
+    emitter_name="NE_Sparks",
+    module_path="/Niagara/Modules/Spawn/Location/SphereLocation.SphereLocation",
+    stage="Spawn"
+)
+
+# Configure radius
+set_module_input(
+    system_path="/Game/Effects/NS_Fire",
+    emitter_name="NE_Sparks",
+    module_name="SphereLocation",
+    stage="Spawn",
+    input_name="Sphere Radius",
+    value="150",
+    value_type="float"
+)
+```
 
 ---
 
-## Notes for Implementation
+### 5.2 Emitter Stage Module Support ✅ IMPLEMENTED
 
-### UE Classes to Research:
-- `UNiagaraSystem` - System asset
-- `UNiagaraEmitter` - Emitter asset
-- `FNiagaraEmitterHandle` - Emitter instance in system
-- `UNiagaraScript` - Module scripts
-- `FNiagaraVariable` - Parameter variables
-- `UNiagaraStackViewModel` - Editor stack UI model (may have useful APIs)
-- `FNiagaraParameterStore` - Parameter storage
-- `UNiagaraSpriteRendererProperties` - Sprite renderer settings
-- `UNiagaraRendererProperties` - Base renderer class
+**Status:** Full support for EmitterSpawn and EmitterUpdate stages.
 
-### Key Patterns:
-- Modules are `UNiagaraScript` assets added to emitter stacks
-- Parameters are stored in `FNiagaraParameterStore`
-- Renderers are `UNiagaraRendererProperties` subclasses
-- Changes require `PostEditChange()` and recompilation
+**Supported Stages:**
+- ✅ `Spawn` / `ParticleSpawn` (ParticleSpawnScript)
+- ✅ `Update` / `ParticleUpdate` (ParticleUpdateScript)
+- ✅ `Event` (ParticleEventScript)
+- ✅ `EmitterSpawn` (EmitterSpawnScript)
+- ✅ `EmitterUpdate` (EmitterUpdateScript)
+
+**Tools Supporting Emitter Stages:**
+- `add_module_to_emitter` - Add modules to any stage
+- `remove_module_from_emitter` - Remove modules from any stage
+- `set_module_input` - Set module inputs in any stage
+- `get_module_inputs` - Query module inputs in any stage
+- `get_emitter_modules` - Returns modules from ALL stages including EmitterSpawn/EmitterUpdate
+- `move_module` - Move modules within any stage
+
+**Example - Setting Spawn Rate:**
+```python
+# Add SpawnRate module to EmitterUpdate stage
+add_module_to_emitter(
+    system_path="/Game/Effects/NS_Fire",
+    emitter_name="NE_Sparks",
+    module_path="/Niagara/Modules/Emitter/SpawnRate.SpawnRate",
+    stage="EmitterUpdate"
+)
+
+# Configure spawn rate
+set_module_input(
+    system_path="/Game/Effects/NS_Fire",
+    emitter_name="NE_Sparks",
+    module_name="SpawnRate",
+    stage="EmitterUpdate",
+    input_name="SpawnRate",
+    value="100",
+    value_type="float"
+)
+```
+
+**Common EmitterUpdate Modules:**
+- `/Niagara/Modules/Emitter/SpawnRate.SpawnRate` - Continuous spawn rate
+- `/Niagara/Modules/Emitter/SpawnBurst_Instantaneous.SpawnBurst_Instantaneous` - Burst spawn
+- `/Niagara/Modules/Emitter/EmitterLifeCycle.EmitterLifeCycle` - Emitter lifecycle control
+
+---
+
+---
+
+## Missing Tools - Priority 6: Module Static Switches & Linked Inputs
+
+**Date:** 2026-01-10
+**Context:** Attempting to create torus burst VFX with alpha fading over particle lifetime
+
+### 6.1 `set_module_static_switch` - ✅ IMPLEMENTED
+
+**Purpose:** Set enum/static switch values on modules that control behavior modes
+
+**Now available as `set_module_static_switch()` in niagaraMCP:**
+```python
+set_module_static_switch(
+    system_path="/Game/Effects/NS_Fire",
+    emitter_name="NE_Sparks",
+    module_name="Scale Color",
+    stage="Update",
+    switch_name="Scale Color Mode",
+    value="Scale Over Life"  # Or "1", or "NewEnumerator1"
+)
+```
+
+**Features:**
+- Accepts display name ("Scale Over Life"), internal name ("NewEnumerator1"), or index ("1")
+- Handles enum, bool, and integer static switches
+- Triggers recompilation automatically after setting
+
+**ORIGINAL ISSUE:**
+
+**Why Needed:**
+- Modules like `ScaleColor` have a "Scale Mode" that switches between direct values vs curve-based
+- `get_module_inputs` shows these as "Type" with values like "0", "true", "false"
+- Current `set_module_input` only handles float/vector/color/int/bool inputs, not enum selection
+- Without this, curve-based fading doesn't work even when curves are configured
+
+**Observed Problem:**
+```python
+# ScaleColor module inputs show:
+{"name": "Scale Mode", "full_name": "Scale Mode", "type": "Type", "value": "0"}
+{"name": "ScaleA", "full_name": "ScaleA", "type": "Type", "value": "true"}
+{"name": "ScaleRGB", "full_name": "ScaleRGB", "type": "Type", "value": "true"}
+
+# These are STATIC SWITCHES - they determine which code path the module uses
+# "Scale Mode" = 0 means direct scaling, not curve-based
+# Need to change to curve mode for alpha fading to work
+```
+
+**Expected Parameters:**
+```python
+set_module_static_switch(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str,
+    switch_name: str,      # "Scale Mode", "ScaleA", etc.
+    switch_value: str      # Enum name or index
+)
+```
+
+**UE API Reference:**
+- `UNiagaraNodeFunctionCall::FindStaticSwitchInputs()`
+- `FNiagaraStackGraphUtilities::SetStaticSwitchDefaultValue()`
+- Static switches are different from regular inputs - they're compile-time constants
+
+---
+
+### 6.2 `get_module_linked_inputs` - MISSING
+
+**Purpose:** Inspect which module inputs are bound to particle attributes
+
+**Why Needed:**
+- After calling `set_module_linked_input`, no way to verify it worked
+- `get_module_inputs` shows linked inputs as "[Default/Unset]" even after setting
+- Need to see the actual binding (e.g., "Curve Index" → "Particles.NormalizedAge")
+
+**Observed Problem:**
+```python
+# After set_module_linked_input(... input_name="Curve Index", linked_value="Particles.NormalizedAge")
+# get_module_inputs still shows:
+{"name": "Curve Index", "value": "[Default/Unset]", "value_mode": "Local"}
+
+# No indication that it's linked to Particles.NormalizedAge
+```
+
+**Expected Parameters:**
+```python
+get_module_linked_inputs(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str
+)
+# Returns:
+# {
+#   "linked_inputs": [
+#     {"input_name": "Curve Index", "linked_to": "Particles.NormalizedAge", "type": "float"}
+#   ],
+#   "unlinked_inputs": [...]
+# }
+```
+
+**UE API Reference:**
+- Check the override pin connections on module nodes
+- Look for ParameterMapGet nodes connected to inputs
+- `FNiagaraStackGraphUtilities::GetStackFunctionInputOverrideNode()`
+
+---
+
+### 6.3 `verify_module_configuration` - MISSING (Debug Tool)
+
+**Purpose:** Comprehensive module state inspection for debugging
+
+**Why Needed:**
+- When effects don't work as expected, no way to understand full module state
+- Need to see: enabled state, static switch values, input values, linked bindings, curve data  
+- Would help diagnose issues like "alpha fading not working"
+
+**Expected Parameters:**
+```python
+verify_module_configuration(
+    system_path: str,
+    emitter_name: str,
+    module_name: str,
+    stage: str
+)
+# Returns comprehensive state:
+# {
+#   "module_name": "ScaleColor",
+#   "enabled": true,
+#   "static_switches": {
+#     "Scale Mode": {"value": 0, "options": ["Direct", "Curve", "Both"]},
+#     "ScaleA": true,
+#     "ScaleRGB": true
+#   },
+#   "inputs": {
+#     "Scale Alpha": {"value": 1.0, "mode": "Local"},
+#     "Curve Index": {"value": null, "mode": "Linked", "linked_to": "Particles.NormalizedAge"},
+#     "Linear Color Curve": {"mode": "DataInterface", "keyframes": [...]}
+#   },
+#   "warnings": ["Scale Mode is 0 (Direct) but curve inputs are set - curve won't be used"]
+# }
+```
+
+---
+
+## Summary
+
+All originally identified missing tools have been implemented. The Niagara MCP toolset now provides complete control over:
+- System/Emitter creation and management
+- Module operations in ALL stages (Emitter and Particle)
+- Parameter configuration
+- Renderer properties
+- Spawn location shapes
+
+**Remaining Gaps (Priority 6):**
+| Tool | Purpose | Impact |
+|------|---------|--------|
+| `set_module_static_switch` | Set enum/mode values on modules | **HIGH** - Curve-based effects don't work without this |
+| `get_module_linked_inputs` | Verify linked input bindings | MEDIUM - Debug/inspection capability |
+| `verify_module_configuration` | Full module state dump | MEDIUM - Debug/inspection capability |

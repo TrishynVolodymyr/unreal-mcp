@@ -109,6 +109,12 @@ bool FNiagaraService::AddModule(const FNiagaraModuleAddParams& Params, FString& 
     case ENiagaraScriptUsage::ParticleUpdateScript:
         Script = EmitterData->UpdateScriptProps.Script;
         break;
+    case ENiagaraScriptUsage::EmitterSpawnScript:
+        Script = EmitterData->EmitterSpawnScriptProps.Script;
+        break;
+    case ENiagaraScriptUsage::EmitterUpdateScript:
+        Script = EmitterData->EmitterUpdateScriptProps.Script;
+        break;
     case ENiagaraScriptUsage::ParticleEventScript:
         // Event scripts require more complex handling with event handlers
         OutError = TEXT("Event stage module addition not yet fully supported");
@@ -369,6 +375,12 @@ bool FNiagaraService::RemoveModule(const FNiagaraModuleRemoveParams& Params, FSt
     case ENiagaraScriptUsage::ParticleUpdateScript:
         Script = EmitterData->UpdateScriptProps.Script;
         break;
+    case ENiagaraScriptUsage::EmitterSpawnScript:
+        Script = EmitterData->EmitterSpawnScriptProps.Script;
+        break;
+    case ENiagaraScriptUsage::EmitterUpdateScript:
+        Script = EmitterData->EmitterUpdateScriptProps.Script;
+        break;
     default:
         OutError = FString::Printf(TEXT("Unsupported stage '%s' for module removal"), *Params.Stage);
         return false;
@@ -395,8 +407,9 @@ bool FNiagaraService::RemoveModule(const FNiagaraModuleRemoveParams& Params, FSt
         return false;
     }
 
-    // Find the module node by name (normalize by removing spaces for comparison)
+    // Find the module node by name - prioritize exact matches
     UNiagaraNodeFunctionCall* ModuleNode = nullptr;
+    UNiagaraNodeFunctionCall* PartialMatchNode = nullptr;
     FString NormalizedSearchName = Params.ModuleName.Replace(TEXT(" "), TEXT(""));
     for (UEdGraphNode* Node : Graph->Nodes)
     {
@@ -405,13 +418,24 @@ bool FNiagaraService::RemoveModule(const FNiagaraModuleRemoveParams& Params, FSt
         {
             FString NodeName = FunctionNode->GetFunctionName();
             FString NormalizedNodeName = NodeName.Replace(TEXT(" "), TEXT(""));
-            if (NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase) ||
-                NormalizedSearchName.Contains(NormalizedNodeName, ESearchCase::IgnoreCase))
+
+            // Exact match takes priority
+            if (NormalizedNodeName.Equals(NormalizedSearchName, ESearchCase::IgnoreCase))
             {
                 ModuleNode = FunctionNode;
                 break;
             }
+            // Track partial match as fallback
+            if (!PartialMatchNode && NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase))
+            {
+                PartialMatchNode = FunctionNode;
+            }
         }
+    }
+    // Use partial match only if no exact match found
+    if (!ModuleNode && PartialMatchNode)
+    {
+        ModuleNode = PartialMatchNode;
     }
 
     if (!ModuleNode)
@@ -595,6 +619,12 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
     case ENiagaraScriptUsage::ParticleUpdateScript:
         Script = EmitterData->UpdateScriptProps.Script;
         break;
+    case ENiagaraScriptUsage::EmitterSpawnScript:
+        Script = EmitterData->EmitterSpawnScriptProps.Script;
+        break;
+    case ENiagaraScriptUsage::EmitterUpdateScript:
+        Script = EmitterData->EmitterUpdateScriptProps.Script;
+        break;
     default:
         OutError = FString::Printf(TEXT("Unsupported script usage for stage '%s'"), *Params.Stage);
         return false;
@@ -621,8 +651,9 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
         return false;
     }
 
-    // Find the module node by name (normalize by removing spaces for comparison)
+    // Find the module node by name - prioritize exact matches
     UNiagaraNodeFunctionCall* ModuleNode = nullptr;
+    UNiagaraNodeFunctionCall* PartialMatchNode = nullptr;
     FString NormalizedSearchName = Params.ModuleName.Replace(TEXT(" "), TEXT(""));
     for (UEdGraphNode* Node : Graph->Nodes)
     {
@@ -631,13 +662,24 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
         {
             FString NodeName = FunctionNode->GetFunctionName();
             FString NormalizedNodeName = NodeName.Replace(TEXT(" "), TEXT(""));
-            if (NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase) ||
-                NormalizedSearchName.Contains(NormalizedNodeName, ESearchCase::IgnoreCase))
+
+            // Exact match takes priority
+            if (NormalizedNodeName.Equals(NormalizedSearchName, ESearchCase::IgnoreCase))
             {
                 ModuleNode = FunctionNode;
                 break;
             }
+            // Track partial match as fallback
+            if (!PartialMatchNode && NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase))
+            {
+                PartialMatchNode = FunctionNode;
+            }
         }
+    }
+    // Use partial match only if no exact match found
+    if (!ModuleNode && PartialMatchNode)
+    {
+        ModuleNode = PartialMatchNode;
     }
 
     if (!ModuleNode)
@@ -1183,6 +1225,12 @@ bool FNiagaraService::MoveModule(const FNiagaraModuleMoveParams& Params, FString
     case ENiagaraScriptUsage::ParticleUpdateScript:
         Script = EmitterData->UpdateScriptProps.Script;
         break;
+    case ENiagaraScriptUsage::EmitterSpawnScript:
+        Script = EmitterData->EmitterSpawnScriptProps.Script;
+        break;
+    case ENiagaraScriptUsage::EmitterUpdateScript:
+        Script = EmitterData->EmitterUpdateScriptProps.Script;
+        break;
     default:
         OutError = FString::Printf(TEXT("Unsupported stage '%s' for module move"), *Params.Stage);
         return false;
@@ -1209,8 +1257,9 @@ bool FNiagaraService::MoveModule(const FNiagaraModuleMoveParams& Params, FString
         return false;
     }
 
-    // Find the module node by name
+    // Find the module node by name - prioritize exact matches
     UNiagaraNodeFunctionCall* ModuleNode = nullptr;
+    UNiagaraNodeFunctionCall* PartialMatchNode = nullptr;
     FString NormalizedSearchName = Params.ModuleName.Replace(TEXT(" "), TEXT(""));
     for (UEdGraphNode* Node : Graph->Nodes)
     {
@@ -1219,13 +1268,24 @@ bool FNiagaraService::MoveModule(const FNiagaraModuleMoveParams& Params, FString
         {
             FString NodeName = FunctionNode->GetFunctionName();
             FString NormalizedNodeName = NodeName.Replace(TEXT(" "), TEXT(""));
-            if (NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase) ||
-                NormalizedSearchName.Contains(NormalizedNodeName, ESearchCase::IgnoreCase))
+
+            // Exact match takes priority
+            if (NormalizedNodeName.Equals(NormalizedSearchName, ESearchCase::IgnoreCase))
             {
                 ModuleNode = FunctionNode;
                 break;
             }
+            // Track partial match as fallback
+            if (!PartialMatchNode && NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase))
+            {
+                PartialMatchNode = FunctionNode;
+            }
         }
+    }
+    // Use partial match only if no exact match found
+    if (!ModuleNode && PartialMatchNode)
+    {
+        ModuleNode = PartialMatchNode;
     }
 
     if (!ModuleNode)

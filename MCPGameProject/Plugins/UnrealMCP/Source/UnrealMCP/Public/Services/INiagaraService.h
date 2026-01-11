@@ -98,7 +98,7 @@ struct UNREALMCP_API FNiagaraModuleAddParams
     /** Path to the module script to add */
     FString ModulePath;
 
-    /** Stage to add the module to: "Spawn", "Update", or "Event" */
+    /** Stage to add the module to: "Spawn", "Update", "Event", "EmitterSpawn", or "EmitterUpdate" */
     FString Stage;
 
     /** Index position for the module (-1 for end) */
@@ -135,9 +135,10 @@ struct UNREALMCP_API FNiagaraModuleAddParams
             return false;
         }
         // Validate stage value
-        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event"))
+        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event") &&
+            Stage != TEXT("EmitterSpawn") && Stage != TEXT("EmitterUpdate"))
         {
-            OutError = FString::Printf(TEXT("Invalid stage '%s'. Must be 'Spawn', 'Update', or 'Event'"), *Stage);
+            OutError = FString::Printf(TEXT("Invalid stage '%s'. Valid stages: 'Spawn', 'Update', 'Event', 'EmitterSpawn', 'EmitterUpdate'"), *Stage);
             return false;
         }
         return true;
@@ -192,9 +193,10 @@ struct UNREALMCP_API FNiagaraModuleRemoveParams
             return false;
         }
         // Validate stage value
-        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event"))
+        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event") &&
+            Stage != TEXT("EmitterSpawn") && Stage != TEXT("EmitterUpdate"))
         {
-            OutError = FString::Printf(TEXT("Invalid stage '%s'. Must be 'Spawn', 'Update', or 'Event'"), *Stage);
+            OutError = FString::Printf(TEXT("Invalid stage '%s'. Valid stages: 'Spawn', 'Update', 'Event', 'EmitterSpawn', 'EmitterUpdate'"), *Stage);
             return false;
         }
         return true;
@@ -252,9 +254,10 @@ struct UNREALMCP_API FNiagaraModuleMoveParams
             return false;
         }
         // Validate stage value
-        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event"))
+        if (Stage != TEXT("Spawn") && Stage != TEXT("Update") && Stage != TEXT("Event") &&
+            Stage != TEXT("EmitterSpawn") && Stage != TEXT("EmitterUpdate"))
         {
-            OutError = FString::Printf(TEXT("Invalid stage '%s'. Must be 'Spawn', 'Update', or 'Event'"), *Stage);
+            OutError = FString::Printf(TEXT("Invalid stage '%s'. Valid stages: 'Spawn', 'Update', 'Event', 'EmitterSpawn', 'EmitterUpdate'"), *Stage);
             return false;
         }
         if (NewIndex < 0)
@@ -755,6 +758,73 @@ struct UNREALMCP_API FNiagaraActorSpawnParams
 };
 
 /**
+ * Parameters for setting a linked input on a module (binding to a particle attribute)
+ */
+struct UNREALMCP_API FNiagaraModuleLinkedInputParams
+{
+    /** Path to the system */
+    FString SystemPath;
+
+    /** Name of the emitter */
+    FString EmitterName;
+
+    /** Name of the module */
+    FString ModuleName;
+
+    /** Stage the module is in */
+    FString Stage;
+
+    /** Name of the input to set */
+    FString InputName;
+
+    /** Value to link to (e.g., "Particles.NormalizedAge", "Particles.Velocity") */
+    FString LinkedValue;
+
+    /** Default constructor */
+    FNiagaraModuleLinkedInputParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (ModuleName.IsEmpty())
+        {
+            OutError = TEXT("Module name cannot be empty");
+            return false;
+        }
+        if (Stage.IsEmpty())
+        {
+            OutError = TEXT("Stage cannot be empty");
+            return false;
+        }
+        if (InputName.IsEmpty())
+        {
+            OutError = TEXT("Input name cannot be empty");
+            return false;
+        }
+        if (LinkedValue.IsEmpty())
+        {
+            OutError = TEXT("Linked value cannot be empty");
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
  * Parameters for setting an emitter property
  */
 struct UNREALMCP_API FNiagaraEmitterPropertyParams
@@ -794,6 +864,73 @@ struct UNREALMCP_API FNiagaraEmitterPropertyParams
         if (PropertyName.IsEmpty())
         {
             OutError = TEXT("Property name cannot be empty");
+            return false;
+        }
+        return true;
+    }
+};
+
+/**
+ * Parameters for setting a static switch on a module
+ */
+struct UNREALMCP_API FNiagaraModuleStaticSwitchParams
+{
+    /** Path to the system containing the emitter */
+    FString SystemPath;
+
+    /** Name of the emitter containing the module */
+    FString EmitterName;
+
+    /** Name of the module */
+    FString ModuleName;
+
+    /** Stage the module is in */
+    FString Stage;
+
+    /** Name of the static switch (e.g., "Scale Color Mode") */
+    FString SwitchName;
+
+    /** Value to set - can be display name, internal name, or index */
+    FString Value;
+
+    /** Default constructor */
+    FNiagaraModuleStaticSwitchParams() = default;
+
+    /**
+     * Validate the parameters
+     * @param OutError - Error message if validation fails
+     * @return true if parameters are valid
+     */
+    bool IsValid(FString& OutError) const
+    {
+        if (SystemPath.IsEmpty())
+        {
+            OutError = TEXT("System path cannot be empty");
+            return false;
+        }
+        if (EmitterName.IsEmpty())
+        {
+            OutError = TEXT("Emitter name cannot be empty");
+            return false;
+        }
+        if (ModuleName.IsEmpty())
+        {
+            OutError = TEXT("Module name cannot be empty");
+            return false;
+        }
+        if (Stage.IsEmpty())
+        {
+            OutError = TEXT("Stage cannot be empty");
+            return false;
+        }
+        if (SwitchName.IsEmpty())
+        {
+            OutError = TEXT("Switch name cannot be empty");
+            return false;
+        }
+        if (Value.IsEmpty())
+        {
+            OutError = TEXT("Value cannot be empty");
             return false;
         }
         return true;
@@ -999,6 +1136,23 @@ public:
      * @return true if random input was set successfully
      */
     virtual bool SetModuleRandomInput(const FNiagaraModuleRandomInputParams& Params, FString& OutError) = 0;
+
+    /**
+     * Set a linked input on a module (binding to a particle attribute like Particles.NormalizedAge)
+     * @param Params - Linked input parameters
+     * @param OutError - Error message if setting fails
+     * @return true if linked input was set successfully
+     */
+    virtual bool SetModuleLinkedInput(const FNiagaraModuleLinkedInputParams& Params, FString& OutError) = 0;
+
+    /**
+     * Set a static switch on a module
+     * Static switches control compile-time branching in modules, enabling different behavior modes
+     * @param Params - Static switch parameters
+     * @param OutError - Error message if setting fails
+     * @return true if static switch was set successfully
+     */
+    virtual bool SetModuleStaticSwitch(const FNiagaraModuleStaticSwitchParams& Params, FString& OutError) = 0;
 
     // ========================================================================
     // Parameters (Feature 3)

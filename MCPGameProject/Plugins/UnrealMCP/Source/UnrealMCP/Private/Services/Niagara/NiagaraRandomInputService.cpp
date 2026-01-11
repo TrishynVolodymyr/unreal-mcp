@@ -25,6 +25,8 @@ static UNiagaraNodeFunctionCall* FindModuleNodeByNameForRandom(
     const FString& ModuleName)
 {
     FString NormalizedSearchName = ModuleName.Replace(TEXT(" "), TEXT(""));
+    UNiagaraNodeFunctionCall* PartialMatchNode = nullptr;
+
     for (UEdGraphNode* Node : Graph->Nodes)
     {
         UNiagaraNodeFunctionCall* FunctionNode = Cast<UNiagaraNodeFunctionCall>(Node);
@@ -32,14 +34,20 @@ static UNiagaraNodeFunctionCall* FindModuleNodeByNameForRandom(
         {
             FString NodeName = FunctionNode->GetFunctionName();
             FString NormalizedNodeName = NodeName.Replace(TEXT(" "), TEXT(""));
-            if (NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase) ||
-                NormalizedSearchName.Contains(NormalizedNodeName, ESearchCase::IgnoreCase))
+
+            // Exact match takes priority
+            if (NormalizedNodeName.Equals(NormalizedSearchName, ESearchCase::IgnoreCase))
             {
                 return FunctionNode;
             }
+            // Track partial match as fallback
+            if (!PartialMatchNode && NormalizedNodeName.Contains(NormalizedSearchName, ESearchCase::IgnoreCase))
+            {
+                PartialMatchNode = FunctionNode;
+            }
         }
     }
-    return nullptr;
+    return PartialMatchNode;
 }
 
 // ============================================================================

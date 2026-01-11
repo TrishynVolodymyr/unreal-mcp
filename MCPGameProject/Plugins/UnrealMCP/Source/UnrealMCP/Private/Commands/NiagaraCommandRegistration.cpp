@@ -22,6 +22,8 @@
 #include "Commands/Niagara/SetModuleCurveInputCommand.h"
 #include "Commands/Niagara/SetModuleColorCurveInputCommand.h"
 #include "Commands/Niagara/SetModuleRandomInputCommand.h"
+#include "Commands/Niagara/SetModuleLinkedInputCommand.h"
+#include "Commands/Niagara/SetModuleStaticSwitchCommand.h"
 #include "Commands/Niagara/GetModuleInputsCommand.h"
 #include "Commands/Niagara/GetEmitterModulesCommand.h"
 #include "Commands/Niagara/RemoveModuleFromEmitterCommand.h"
@@ -79,6 +81,8 @@ void FNiagaraCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FSetModuleCurveInputCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetModuleColorCurveInputCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FSetModuleRandomInputCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetModuleLinkedInputCommand>(NiagaraService));
+    RegisterAndTrackCommand(MakeShared<FSetModuleStaticSwitchCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FGetModuleInputsCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FGetEmitterModulesCommand>(NiagaraService));
     RegisterAndTrackCommand(MakeShared<FRemoveModuleFromEmitterCommand>(NiagaraService));
