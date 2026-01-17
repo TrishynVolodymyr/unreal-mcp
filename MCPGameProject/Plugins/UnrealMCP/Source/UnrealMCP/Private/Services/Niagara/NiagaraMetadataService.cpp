@@ -228,6 +228,524 @@ static UNiagaraDataInterface* FindCurveDataInterfaceFromDynamicNode(UNiagaraNode
     return nullptr;
 }
 
+// Helper to read a value from a pin (either from DefaultValue or linked ParameterMapGet)
+static FString ReadPinValue(UEdGraphPin* Pin, const FNiagaraTypeDefinition& ExpectedType)
+{
+    if (!Pin)
+    {
+        return TEXT("");
+    }
+
+    // Check if pin has a default value
+    if (!Pin->DefaultValue.IsEmpty())
+    {
+        const UEdGraphSchema_Niagara* NiagaraSchema = GetDefault<UEdGraphSchema_Niagara>();
+        FNiagaraVariable ValueVariable = NiagaraSchema->PinToNiagaraVariable(Pin, false);
+
+        if (ValueVariable.IsDataAllocated())
+        {
+            FNiagaraTypeDefinition ActualType = ValueVariable.GetType();
+
+            if (ActualType == FNiagaraTypeDefinition::GetFloatDef())
+            {
+                return FString::Printf(TEXT("%.4f"), ValueVariable.GetValue<float>());
+            }
+            else if (ActualType == FNiagaraTypeDefinition::GetIntDef())
+            {
+                return FString::Printf(TEXT("%d"), ValueVariable.GetValue<int32>());
+            }
+            else if (ActualType == FNiagaraTypeDefinition::GetVec2Def())
+            {
+                FVector2f Vec = ValueVariable.GetValue<FVector2f>();
+                return FString::Printf(TEXT("(%.4f, %.4f)"), Vec.X, Vec.Y);
+            }
+            else if (ActualType == FNiagaraTypeDefinition::GetVec3Def())
+            {
+                FVector3f Vec = ValueVariable.GetValue<FVector3f>();
+                return FString::Printf(TEXT("(%.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z);
+            }
+            else if (ActualType == FNiagaraTypeDefinition::GetVec4Def())
+            {
+                FVector4f Vec = ValueVariable.GetValue<FVector4f>();
+                return FString::Printf(TEXT("(%.4f, %.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z, Vec.W);
+            }
+            else if (ActualType == FNiagaraTypeDefinition::GetColorDef())
+            {
+                FLinearColor Color = ValueVariable.GetValue<FLinearColor>();
+                return FString::Printf(TEXT("(R=%.4f, G=%.4f, B=%.4f, A=%.4f)"), Color.R, Color.G, Color.B, Color.A);
+            }
+        }
+        // Fall back to raw pin value
+        return Pin->DefaultValue;
+    }
+
+    // Check if linked to a parameter map get node
+    if (Pin->LinkedTo.Num() > 0 && Pin->LinkedTo[0])
+    {
+        UEdGraphNode* LinkedNode = Pin->LinkedTo[0]->GetOwningNode();
+        if (UNiagaraNodeParameterMapGet* GetNode = Cast<UNiagaraNodeParameterMapGet>(LinkedNode))
+        {
+            // Get the variable being linked from
+            FNiagaraVariable LinkedVar = UEdGraphSchema_Niagara::PinToNiagaraVariable(Pin->LinkedTo[0]);
+            return FString::Printf(TEXT("[Linked: %s]"), *LinkedVar.GetName().ToString());
+        }
+    }
+
+    return TEXT("");
+}
+
+// Helper to extract value from FNiagaraVariable to string
+static FString NiagaraVariableToString(const FNiagaraVariable& Variable)
+{
+    if (!Variable.IsDataAllocated())
+    {
+        return TEXT("");
+    }
+
+    FNiagaraTypeDefinition Type = Variable.GetType();
+
+    if (Type == FNiagaraTypeDefinition::GetFloatDef())
+    {
+        return FString::Printf(TEXT("%.4f"), Variable.GetValue<float>());
+    }
+    else if (Type == FNiagaraTypeDefinition::GetIntDef())
+    {
+        return FString::Printf(TEXT("%d"), Variable.GetValue<int32>());
+    }
+    else if (Type == FNiagaraTypeDefinition::GetVec2Def())
+    {
+        FVector2f Vec = Variable.GetValue<FVector2f>();
+        return FString::Printf(TEXT("(%.4f, %.4f)"), Vec.X, Vec.Y);
+    }
+    else if (Type == FNiagaraTypeDefinition::GetVec3Def())
+    {
+        FVector3f Vec = Variable.GetValue<FVector3f>();
+        return FString::Printf(TEXT("(%.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z);
+    }
+    else if (Type == FNiagaraTypeDefinition::GetVec4Def())
+    {
+        FVector4f Vec = Variable.GetValue<FVector4f>();
+        return FString::Printf(TEXT("(%.4f, %.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z, Vec.W);
+    }
+    else if (Type == FNiagaraTypeDefinition::GetColorDef())
+    {
+        FLinearColor Color = Variable.GetValue<FLinearColor>();
+        return FString::Printf(TEXT("(R=%.4f, G=%.4f, B=%.4f, A=%.4f)"), Color.R, Color.G, Color.B, Color.A);
+    }
+
+    return TEXT("");
+}
+
+// Helper function to get ParameterMap pin from a collection of pins
+// Replicates FNiagaraStackGraphUtilities::GetParameterMapPin logic (not exported)
+static UEdGraphPin* GetParameterMapPinFromArray_Meta(const TArray<UEdGraphPin*>& Pins)
+{
+    for (UEdGraphPin* Pin : Pins)
+    {
+        if (Pin)
+        {
+            const UEdGraphSchema_Niagara* NiagaraSchema = Cast<UEdGraphSchema_Niagara>(Pin->GetSchema());
+            if (NiagaraSchema)
+            {
+                FNiagaraTypeDefinition PinDefinition = NiagaraSchema->PinToTypeDefinition(Pin);
+                if (PinDefinition == FNiagaraTypeDefinition::GetParameterMapDef())
+                {
+                    return Pin;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
+// Helper to get ParameterMapInput pin (replicates unexported FNiagaraStackGraphUtilities::GetParameterMapInputPin)
+static UEdGraphPin* GetParameterMapInputPinLocal_Meta(UNiagaraNode& Node)
+{
+    TArray<UEdGraphPin*> InputPins;
+    Node.GetInputPins(InputPins);
+    return GetParameterMapPinFromArray_Meta(InputPins);
+}
+
+// Helper to find the ParameterMapSet node connected to a function call node
+// Replicates FNiagaraStackGraphUtilities::GetStackFunctionOverrideNode logic (not exported)
+static UNiagaraNodeParameterMapSet* GetOverrideNodeForFunctionCall(UNiagaraNodeFunctionCall& FunctionCallNode)
+{
+    UEdGraphPin* ParameterMapInput = GetParameterMapInputPinLocal_Meta(FunctionCallNode);
+    if (ParameterMapInput != nullptr && ParameterMapInput->LinkedTo.Num() == 1)
+    {
+        return Cast<UNiagaraNodeParameterMapSet>(ParameterMapInput->LinkedTo[0]->GetOwningNode());
+    }
+    return nullptr;
+}
+
+// Helper to extract min/max values from UniformRanged dynamic input nodes
+// Optional parameters for RapidIterationParameters lookup:
+// - Script: The Niagara script containing the parameter
+// - UniqueEmitterName: The emitter's unique name
+// - ScriptUsage: The script usage type
+static void ExtractUniformRangedValues(
+    UNiagaraNodeFunctionCall* DynamicInputNode,
+    UNiagaraSystem* System,
+    TSharedPtr<FJsonObject>& InputObj,
+    UNiagaraScript* Script = nullptr,
+    const FString& UniqueEmitterName = TEXT(""),
+    ENiagaraScriptUsage ScriptUsage = ENiagaraScriptUsage::ParticleSpawnScript)
+{
+    if (!DynamicInputNode || !System)
+    {
+        return;
+    }
+
+    // Check if this is a UniformRanged dynamic input
+    FString FunctionName = DynamicInputNode->GetFunctionName();
+    if (!FunctionName.Contains(TEXT("UniformRanged"), ESearchCase::IgnoreCase))
+    {
+        return;
+    }
+
+    // Add the random type info
+    InputObj->SetStringField(TEXT("random_type"), FunctionName);
+
+    FString MinValueStr, MaxValueStr;
+
+    // Determine the value type based on the function name
+    FNiagaraTypeDefinition ValueType;
+    if (FunctionName.Contains(TEXT("Float")))
+    {
+        ValueType = FNiagaraTypeDefinition::GetFloatDef();
+    }
+    else if (FunctionName.Contains(TEXT("Vector2D")) || FunctionName.Contains(TEXT("Vec2")))
+    {
+        ValueType = FNiagaraTypeDefinition::GetVec2Def();
+    }
+    else if (FunctionName.Contains(TEXT("Vector")) || FunctionName.Contains(TEXT("Vec3")))
+    {
+        ValueType = FNiagaraTypeDefinition::GetVec3Def();
+    }
+    else if (FunctionName.Contains(TEXT("Color")) || FunctionName.Contains(TEXT("LinearColor")))
+    {
+        ValueType = FNiagaraTypeDefinition::GetColorDef();
+    }
+    else
+    {
+        ValueType = FNiagaraTypeDefinition::GetFloatDef(); // Default to float
+    }
+
+    // APPROACH 1: Check DynamicInputNode's direct input pins for Minimum/Maximum values
+    // Dynamic inputs have input pins for their parameters (Minimum, Maximum)
+    for (UEdGraphPin* Pin : DynamicInputNode->Pins)
+    {
+        if (Pin->Direction != EGPD_Input)
+        {
+            continue;
+        }
+
+        FString PinName = Pin->PinName.ToString();
+        bool bIsMin = PinName.Contains(TEXT("Minimum"), ESearchCase::IgnoreCase) ||
+                      PinName.Equals(TEXT("Min"), ESearchCase::IgnoreCase);
+        bool bIsMax = PinName.Contains(TEXT("Maximum"), ESearchCase::IgnoreCase) ||
+                      PinName.Equals(TEXT("Max"), ESearchCase::IgnoreCase);
+
+        if (!bIsMin && !bIsMax)
+        {
+            continue;
+        }
+
+        FString ValueStr;
+
+        // First check DefaultValue on the pin itself
+        if (!Pin->DefaultValue.IsEmpty())
+        {
+            ValueStr = Pin->DefaultValue;
+        }
+        // If no DefaultValue, check if pin is linked to another node
+        else if (Pin->LinkedTo.Num() > 0 && Pin->LinkedTo[0])
+        {
+            UEdGraphPin* LinkedPin = Pin->LinkedTo[0];
+            // If linked to a ParameterMapGet output, try to get the value from there
+            if (!LinkedPin->DefaultValue.IsEmpty())
+            {
+                ValueStr = LinkedPin->DefaultValue;
+            }
+        }
+
+        if (!ValueStr.IsEmpty())
+        {
+            if (bIsMin && MinValueStr.IsEmpty())
+            {
+                MinValueStr = ValueStr;
+            }
+            else if (bIsMax && MaxValueStr.IsEmpty())
+            {
+                MaxValueStr = ValueStr;
+            }
+        }
+    }
+
+    // APPROACH 2: Search ALL ParameterMapSet nodes in the graph for override pins
+    // Override pins for dynamic input parameters are named like "Module.<DynamicInputName>.<ParamName>"
+    // e.g., "Module.UniformRangedFloat003.Minimum"
+    if (MinValueStr.IsEmpty() || MaxValueStr.IsEmpty())
+    {
+        UNiagaraGraph* Graph = Cast<UNiagaraGraph>(DynamicInputNode->GetGraph());
+        if (Graph)
+        {
+            TArray<UNiagaraNodeParameterMapSet*> MapSetNodes;
+            Graph->GetNodesOfClass<UNiagaraNodeParameterMapSet>(MapSetNodes);
+
+            for (UNiagaraNodeParameterMapSet* MapSetNode : MapSetNodes)
+            {
+                for (UEdGraphPin* Pin : MapSetNode->Pins)
+                {
+                    if (Pin->Direction != EGPD_Input)
+                    {
+                        continue;
+                    }
+
+                    FString PinName = Pin->PinName.ToString();
+
+                    // Check if this pin belongs to our dynamic input
+                    // Pin names are like "Module.UniformRangedFloat003.Minimum"
+                    if (!PinName.Contains(FunctionName, ESearchCase::IgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    bool bIsMin = PinName.Contains(TEXT("Minimum"), ESearchCase::IgnoreCase);
+                    bool bIsMax = PinName.Contains(TEXT("Maximum"), ESearchCase::IgnoreCase);
+
+                    if (!bIsMin && !bIsMax)
+                    {
+                        continue;
+                    }
+
+                    // Get value from pin's DefaultValue
+                    if (!Pin->DefaultValue.IsEmpty())
+                    {
+                        if (bIsMin && MinValueStr.IsEmpty())
+                        {
+                            MinValueStr = Pin->DefaultValue;
+                        }
+                        else if (bIsMax && MaxValueStr.IsEmpty())
+                        {
+                            MaxValueStr = Pin->DefaultValue;
+                        }
+                    }
+                }
+
+                // Stop searching if we found both values
+                if (!MinValueStr.IsEmpty() && !MaxValueStr.IsEmpty())
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    // APPROACH 3: Try to read from RapidIterationParameters if Script info is provided
+    // Dynamic input parameters can be stored as rapid iteration constants
+    if ((MinValueStr.IsEmpty() || MaxValueStr.IsEmpty()) && Script && !UniqueEmitterName.IsEmpty())
+    {
+        // Try to read Minimum value
+        if (MinValueStr.IsEmpty())
+        {
+            FNiagaraParameterHandle MinHandle = FNiagaraParameterHandle::CreateAliasedModuleParameterHandle(
+                FName(TEXT("Minimum")),
+                FName(*FunctionName)
+            );
+
+            FNiagaraVariable MinVar(ValueType, FName(*MinHandle.GetParameterHandleString().ToString()));
+            FNiagaraVariable RapidIterMin = FNiagaraUtilities::ConvertVariableToRapidIterationConstantName(
+                MinVar,
+                *UniqueEmitterName,
+                ScriptUsage
+            );
+
+            const uint8* MinData = Script->RapidIterationParameters.GetParameterData(RapidIterMin);
+            if (MinData)
+            {
+                FNiagaraVariable TempVar(ValueType, RapidIterMin.GetName());
+                TempVar.SetData(MinData);
+                const uint8* SafeData = TempVar.GetData();
+                if (SafeData)
+                {
+                    if (ValueType == FNiagaraTypeDefinition::GetFloatDef())
+                    {
+                        float Val = TempVar.GetValue<float>();
+                        MinValueStr = FString::Printf(TEXT("%.4f"), Val);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetVec2Def())
+                    {
+                        FVector2f Vec = TempVar.GetValue<FVector2f>();
+                        MinValueStr = FString::Printf(TEXT("(%.4f, %.4f)"), Vec.X, Vec.Y);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetVec3Def())
+                    {
+                        FVector3f Vec = TempVar.GetValue<FVector3f>();
+                        MinValueStr = FString::Printf(TEXT("(%.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetColorDef())
+                    {
+                        FLinearColor Color = TempVar.GetValue<FLinearColor>();
+                        MinValueStr = FString::Printf(TEXT("(R=%.4f, G=%.4f, B=%.4f, A=%.4f)"), Color.R, Color.G, Color.B, Color.A);
+                    }
+                }
+            }
+        }
+
+        // Try to read Maximum value
+        if (MaxValueStr.IsEmpty())
+        {
+            FNiagaraParameterHandle MaxHandle = FNiagaraParameterHandle::CreateAliasedModuleParameterHandle(
+                FName(TEXT("Maximum")),
+                FName(*FunctionName)
+            );
+
+            FNiagaraVariable MaxVar(ValueType, FName(*MaxHandle.GetParameterHandleString().ToString()));
+            FNiagaraVariable RapidIterMax = FNiagaraUtilities::ConvertVariableToRapidIterationConstantName(
+                MaxVar,
+                *UniqueEmitterName,
+                ScriptUsage
+            );
+
+            const uint8* MaxData = Script->RapidIterationParameters.GetParameterData(RapidIterMax);
+            if (MaxData)
+            {
+                FNiagaraVariable TempVar(ValueType, RapidIterMax.GetName());
+                TempVar.SetData(MaxData);
+                const uint8* SafeData = TempVar.GetData();
+                if (SafeData)
+                {
+                    if (ValueType == FNiagaraTypeDefinition::GetFloatDef())
+                    {
+                        float Val = TempVar.GetValue<float>();
+                        MaxValueStr = FString::Printf(TEXT("%.4f"), Val);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetVec2Def())
+                    {
+                        FVector2f Vec = TempVar.GetValue<FVector2f>();
+                        MaxValueStr = FString::Printf(TEXT("(%.4f, %.4f)"), Vec.X, Vec.Y);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetVec3Def())
+                    {
+                        FVector3f Vec = TempVar.GetValue<FVector3f>();
+                        MaxValueStr = FString::Printf(TEXT("(%.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetColorDef())
+                    {
+                        FLinearColor Color = TempVar.GetValue<FLinearColor>();
+                        MaxValueStr = FString::Printf(TEXT("(R=%.4f, G=%.4f, B=%.4f, A=%.4f)"), Color.R, Color.G, Color.B, Color.A);
+                    }
+                }
+            }
+        }
+    }
+
+    // APPROACH 4: Read default values from the dynamic input script's graph
+    // When a dynamic input hasn't been modified, its defaults are stored in the script asset's graph
+    // as UNiagaraScriptVariable objects with DefaultValueVariant containing the actual values
+    if (MinValueStr.IsEmpty() || MaxValueStr.IsEmpty())
+    {
+        UNiagaraScript* DynamicInputScript = DynamicInputNode->FunctionScript;
+        if (DynamicInputScript)
+        {
+            UNiagaraScriptSource* DynamicScriptSource = Cast<UNiagaraScriptSource>(DynamicInputScript->GetLatestSource());
+            if (DynamicScriptSource && DynamicScriptSource->NodeGraph)
+            {
+                UNiagaraGraph* DynamicGraph = DynamicScriptSource->NodeGraph;
+
+                // Helper lambda to read default value from a script variable
+                auto ReadScriptVariableDefault = [&ValueType](UNiagaraScriptVariable* ScriptVar) -> FString
+                {
+                    if (!ScriptVar)
+                    {
+                        return TEXT("");
+                    }
+
+                    // Check if the default mode is Value (not Binding or Custom)
+                    if (ScriptVar->DefaultMode != ENiagaraDefaultMode::Value)
+                    {
+                        return TEXT("");
+                    }
+
+                    const uint8* DefaultData = ScriptVar->GetDefaultValueData();
+                    if (!DefaultData)
+                    {
+                        return TEXT("");
+                    }
+
+                    // Create a temp variable to safely read the value
+                    FNiagaraVariable TempVar(ValueType, ScriptVar->Variable.GetName());
+                    TempVar.SetData(DefaultData);
+
+                    if (ValueType == FNiagaraTypeDefinition::GetFloatDef())
+                    {
+                        float Val = TempVar.GetValue<float>();
+                        return FString::Printf(TEXT("%.4f"), Val);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetVec2Def())
+                    {
+                        FVector2f Vec = TempVar.GetValue<FVector2f>();
+                        return FString::Printf(TEXT("(%.4f, %.4f)"), Vec.X, Vec.Y);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetVec3Def())
+                    {
+                        FVector3f Vec = TempVar.GetValue<FVector3f>();
+                        return FString::Printf(TEXT("(%.4f, %.4f, %.4f)"), Vec.X, Vec.Y, Vec.Z);
+                    }
+                    else if (ValueType == FNiagaraTypeDefinition::GetColorDef())
+                    {
+                        FLinearColor Color = TempVar.GetValue<FLinearColor>();
+                        return FString::Printf(TEXT("(R=%.4f, G=%.4f, B=%.4f, A=%.4f)"), Color.R, Color.G, Color.B, Color.A);
+                    }
+
+                    return TEXT("");
+                };
+
+                // Try to find and read Minimum
+                if (MinValueStr.IsEmpty())
+                {
+                    // Try different common naming patterns for Minimum parameter
+                    UNiagaraScriptVariable* MinScriptVar = DynamicGraph->GetScriptVariable(FName(TEXT("Minimum")));
+                    if (!MinScriptVar)
+                    {
+                        MinScriptVar = DynamicGraph->GetScriptVariable(FName(TEXT("Module.Minimum")));
+                    }
+                    if (MinScriptVar)
+                    {
+                        MinValueStr = ReadScriptVariableDefault(MinScriptVar);
+                    }
+                }
+
+                // Try to find and read Maximum
+                if (MaxValueStr.IsEmpty())
+                {
+                    // Try different common naming patterns for Maximum parameter
+                    UNiagaraScriptVariable* MaxScriptVar = DynamicGraph->GetScriptVariable(FName(TEXT("Maximum")));
+                    if (!MaxScriptVar)
+                    {
+                        MaxScriptVar = DynamicGraph->GetScriptVariable(FName(TEXT("Module.Maximum")));
+                    }
+                    if (MaxScriptVar)
+                    {
+                        MaxValueStr = ReadScriptVariableDefault(MaxScriptVar);
+                    }
+                }
+            }
+        }
+    }
+
+    // Add the extracted values to the JSON object
+    if (!MinValueStr.IsEmpty())
+    {
+        InputObj->SetStringField(TEXT("random_min"), MinValueStr);
+    }
+    if (!MaxValueStr.IsEmpty())
+    {
+        InputObj->SetStringField(TEXT("random_max"), MaxValueStr);
+    }
+}
+
 // Helper to add curve data from a DataInterface to a JSON object
 static void AddCurveDataToJson(TSharedPtr<FJsonObject>& InputObj, UNiagaraDataInterface* DataInterface)
 {
@@ -524,6 +1042,9 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
                 ValueStr = FString::Printf(TEXT("[Dynamic: %s]"), *DynamicNode->GetFunctionName());
                 bFoundValue = true;
 
+                // Extract min/max values from UniformRanged dynamic inputs
+                ExtractUniformRangedValues(DynamicNode, System, InputObj, Script, UniqueEmitterName, ScriptUsage);
+
                 // Check if this dynamic input has a curve DataInterface
                 UNiagaraDataInterface* CurveDI = FindCurveDataInterfaceFromDynamicNode(DynamicNode);
                 if (CurveDI)
@@ -683,6 +1204,9 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
                                 ValueMode = TEXT("Dynamic");
                                 ValueStr = FString::Printf(TEXT("[Dynamic: %s]"), *DynamicNode->GetFunctionName());
                                 bFoundValue = true;
+
+                                // Extract min/max values from UniformRanged dynamic inputs
+                                ExtractUniformRangedValues(DynamicNode, System, InputObj, Script, UniqueEmitterName, ScriptUsage);
 
                                 UNiagaraDataInterface* CurveDI = FindCurveDataInterfaceFromDynamicNode(DynamicNode);
                                 if (CurveDI)
@@ -993,6 +1517,8 @@ bool FNiagaraService::GetModuleInputs(const FString& SystemPath, const FString& 
                         {
                             PinValueMode = TEXT("Dynamic");
                             Value = FString::Printf(TEXT("[Dynamic: %s]"), *DynamicNode->GetFunctionName());
+                            // Extract min/max values from UniformRanged dynamic inputs
+                            ExtractUniformRangedValues(DynamicNode, System, InputObj, Script, UniqueEmitterName, ScriptUsage);
                         }
                         else
                         {

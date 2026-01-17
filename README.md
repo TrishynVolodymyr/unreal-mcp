@@ -31,6 +31,7 @@ These videos showcase systems built entirely through AI assistants using unreal-
 | [Branching Dialogue System](https://www.youtube.com/watch?v=s8949Xcvyow) | Claude Opus 4.5 | [dialogue-branching-plan](Docs/Implementation-Examples/dialogue-branching-plan/) |
 | [Inventory System](https://www.youtube.com/watch?v=psqTS8jX-NI) | Claude Opus 4.5 | [inventory-plan](Docs/Implementation-Examples/inventory-plan/) |
 | [Lootable Extension](https://www.youtube.com/watch?v=VRl7xGooVSw) | Claude Opus 4.5 | [loot-plan](Docs/Implementation-Examples/loot-plan/) |
+| [Niagara Fire Embers VFX](https://youtu.be/oaGBUfUnzkw) | Claude Opus 4.5 | Multi-skill workflow: VFX Reference Transcriber extracted frames from reference video → Niagara VFX Architect created initial effect → Asset State Extractor captured current emitter state to readable markdown → state fed back to VFX Architect for iterative refinement |
 
 ## 🌟 What You Can Do
 
