@@ -57,12 +57,39 @@ get_widget_blueprint_metadata(
 ```
 
 **Niagara System/Emitter:**
+
+**Step 1: Get structure**
 ```
 get_niagara_metadata(
   asset_path="/Game/Effects/NS_SystemName"
 )
 ```
-Returns: emitters, modules, parameters, renderers, data interfaces.
+Returns: emitters, modules list, parameters, renderers, data interfaces.
+
+**Step 2: For EACH module, get actual values (CRITICAL)**
+```
+get_module_inputs(
+  system_path="/Game/Effects/NS_SystemName",
+  emitter_name="NE_EmitterName",
+  module_name="ModuleName",        // e.g., "InitializeParticle", "Gravity Force", "Set"
+  stage="Spawn"                    // or "Update", "EmitterSpawn", "EmitterUpdate"
+)
+```
+Returns: All input parameters with actual values, dynamic input types, random ranges, curves.
+
+**IMPORTANT: Query ALL modules including:**
+- Standard modules (InitializeParticle, Gravity Force, Drag, etc.)
+- **SetVariables/Scratch modules** (named "Set" or with GUID suffix) - These OVERRIDE particle attributes directly!
+- Custom modules
+
+**Step 3: Get renderer configuration**
+```
+get_renderer_properties(
+  system_path="/Game/Effects/NS_SystemName",
+  emitter_name="NE_EmitterName"
+)
+```
+Returns: Material, alignment, bindings, sort mode, etc.
 
 **Material:**
 ```
@@ -120,8 +147,33 @@ Save to project working directory:
 {Key event handlers and their connections}
 
 ### Emitters (Niagara)
-| Emitter | Sim Target | Modules | Renderer |
-|---------|-----------|---------|----------|
+| Emitter | Sim Target | Renderer |
+|---------|-----------|----------|
+
+### Module Stack (Niagara) - Query EACH module for values!
+
+**Emitter Update:**
+| Module | Enabled | Key Parameters |
+|--------|---------|----------------|
+
+**Particle Spawn:**
+| Module | Enabled | Key Parameters |
+|--------|---------|----------------|
+| InitializeParticle | Yes | Lifetime: X-Y, SpriteSize: (W,H), Color: RGBA |
+| **SetVariables** | Yes | **⚠️ CRITICAL: SpriteSize: (15,15), Lifetime: 5** |
+
+**Particle Update:**
+| Module | Enabled | Key Parameters |
+|--------|---------|----------------|
+
+**⚠️ SetVariables modules OVERRIDE particle attributes - always capture their values!**
+
+### Renderer (Niagara)
+| Property | Value |
+|----------|-------|
+| Material | /Game/path |
+| Alignment | VelocityAligned |
+| Bindings | Position, Color, SpriteSize, etc. |
 
 ### Parameters (Niagara/Materials)
 | Name | Type | Default | Exposed |
@@ -146,13 +198,18 @@ Save to project working directory:
 
 ## Quick Reference
 
-| Asset | Tool | Key Fields |
-|-------|------|-----------|
+| Asset | Tools | Key Fields |
+|-------|-------|-----------|
 | BP_ | `get_blueprint_metadata` | variables, functions, graph_nodes, components |
 | WBP_ | `get_widget_blueprint_metadata` | layout, components, bindings, variables |
-| NS_/NE_ | `get_niagara_metadata` | emitters, modules, parameters, renderers |
+| NS_/NE_ | `get_niagara_metadata` + `get_module_inputs` (per module!) + `get_renderer_properties` | emitters, module values, parameters, renderer config |
 | M_ | `get_material_metadata` + `get_material_graph_metadata` | expressions, parameters, connections |
 | DT_ | `get_datatable_row_names` + `get_datatable_rows` | rows, fields |
+
+**Niagara requires multiple tool calls:**
+1. `get_niagara_metadata` → Get structure (emitter list, module names)
+2. `get_module_inputs` → Call for EACH module to get actual parameter values
+3. `get_renderer_properties` → Get renderer configuration
 
 ## Multiple Assets
 

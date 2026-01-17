@@ -868,11 +868,11 @@ async def add_renderer_to_emitter(
         )
     """
     params = {
-        "system": system,
-        "emitter": emitter,
+        "system_path": system,
+        "emitter_name": emitter,
         "renderer_type": renderer_type
     }
-    return await send_tcp_command("add_renderer_to_emitter", params)
+    return await send_tcp_command("add_renderer", params)
 
 
 # ============================================================================

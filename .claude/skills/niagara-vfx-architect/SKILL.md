@@ -24,6 +24,107 @@ Expert-level VFX creation using niagaraMCP tools. **Optimization is the top prio
 
 ---
 
+## Units & Measurements Reference (CRITICAL)
+
+**All Niagara values use Unreal Units. 1 Unreal Unit (UU) = 1 centimeter (cm).**
+
+### Base Units
+
+| Measurement Type | Unit | Notes |
+|------------------|------|-------|
+| **Distance/Position** | cm | 100 UU = 1 meter |
+| **Velocity** | cm/s | centimeters per second |
+| **Acceleration/Force** | cm/s² | centimeters per second squared |
+| **Size (SpriteSize)** | cm | width × height in centimeters |
+| **Angles** | degrees | 0-360 for rotation |
+| **Time** | seconds | Lifetime, delays |
+
+### World Scale References
+
+| Object | Size (UU/cm) | Notes |
+|--------|--------------|-------|
+| UE Mannequin | ~180 cm tall | Standard human reference |
+| Default floor tile | 100 × 100 cm | 1 meter grid squares |
+| Door height | ~200-220 cm | Standard doorway |
+| Character capsule | ~88 cm radius, ~96 cm half-height | Default Third Person |
+| Small prop | 10-50 cm | Bottles, books, tools |
+| Medium prop | 50-150 cm | Chairs, crates, barrels |
+| Large prop | 150-300 cm | Tables, vehicles |
+
+### Physics Values
+
+| Parameter | Real-World Value | UE Value | Notes |
+|-----------|------------------|----------|-------|
+| **Earth gravity** | 9.8 m/s² | **980 cm/s²** | Use (0, 0, -980) for realistic fall |
+| **Light gravity** | ~1 m/s² | **100 cm/s²** | Floaty/slow fall |
+| **Moon gravity** | 1.6 m/s² | **160 cm/s²** | Low-gravity feel |
+| **Walking speed** | ~1.4 m/s | **140 cm/s** | Casual walk |
+| **Running speed** | ~5-7 m/s | **500-700 cm/s** | Sprint |
+| **Terminal velocity (human)** | ~55 m/s | **5500 cm/s** | Max fall speed |
+
+### Sprite Size Guidelines
+
+| Effect Type | Typical Size (cm) | Visual Reference |
+|-------------|-------------------|------------------|
+| **Tiny sparks/dust** | 0.5 - 2 cm | Barely visible specks |
+| **Small embers** | 2 - 5 cm | Fingertip-sized glowing dots |
+| **Medium sparks** | 5 - 15 cm | Fist-sized, clearly visible |
+| **Fire embers** | 1 - 5 cm | Small glowing particles |
+| **Smoke puffs** | 20 - 100 cm | Basketball to large beach ball |
+| **Explosion debris** | 5 - 30 cm | Fist to head-sized chunks |
+| **Magic orbs** | 10 - 50 cm | Tennis ball to basketball |
+| **Rain drops** | 1 - 3 cm length | Elongated streaks |
+| **Snow flakes** | 0.5 - 2 cm | Small, slow-falling |
+| **Leaves** | 5 - 15 cm | Hand-sized |
+
+### Velocity Guidelines
+
+| Effect Type | Typical Velocity (cm/s) | Notes |
+|-------------|-------------------------|-------|
+| **Slow drift (dust, ash)** | 5 - 30 | Gentle floating |
+| **Rising embers** | 50 - 200 | Lazy upward drift |
+| **Smoke rise** | 100 - 300 | Thermal lift |
+| **Fire sparks** | 200 - 500 | Energetic but short-lived |
+| **Explosion debris** | 500 - 2000 | Initial burst, decays quickly |
+| **Bullet trails** | 5000 - 30000 | Very fast |
+| **Magic projectile** | 500 - 1500 | Visible travel |
+| **Rain** | 500 - 1500 (downward) | Fast falling |
+| **Snow** | 50 - 150 (downward) | Slow falling |
+
+### Force Module Values
+
+| Module | Light | Medium | Strong | Notes |
+|--------|-------|--------|--------|-------|
+| **Gravity Force** | (0,0,-100) | (0,0,-500) | (0,0,-980) | Z is up/down |
+| **Drag** | 0.1 - 0.5 | 0.5 - 2.0 | 2.0 - 5.0 | Higher = more resistance |
+| **Vortex Force** | 20 - 50 | 50 - 150 | 150 - 500 | Swirl intensity |
+| **Curl Noise Strength** | 5 - 20 | 20 - 100 | 100 - 500 | Turbulence intensity |
+| **Curl Noise Frequency** | 0.5 - 1.0 | 1.0 - 3.0 | 3.0 - 10.0 | Higher = finer detail |
+
+### Common Mistakes
+
+| Mistake | Problem | Fix |
+|---------|---------|-----|
+| Gravity = -9.8 | Way too weak (should be -980) | Use -980 for Earth gravity |
+| Velocity = 10 | Barely moves (10 cm/s = 0.1 m/s) | Use 100-500 for visible motion |
+| SpriteSize = 100 | May be too large (1 meter!) | Check against world references |
+| Drag = 10 | Particles stop almost instantly | Use 0.5-2.0 for natural decel |
+
+### Quick Conversion Reference
+
+```
+1 cm = 1 UU (Unreal Unit)
+1 m = 100 UU
+1 km = 100,000 UU
+
+1 m/s = 100 cm/s = 100 UU/s
+1 km/h ≈ 27.8 cm/s ≈ 28 UU/s
+
+Earth gravity: 9.8 m/s² = 980 cm/s² = 980 UU/s²
+```
+
+---
+
 ## Core Workflow
 
 ### Step 1: Define Effect Requirements
