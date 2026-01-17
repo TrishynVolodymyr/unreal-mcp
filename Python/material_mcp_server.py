@@ -643,6 +643,39 @@ async def compile_material(
 
 
 @app.tool()
+async def delete_material_expression(
+    material_path: str,
+    expression_id: str
+) -> Dict[str, Any]:
+    """
+    Delete a material expression from a material graph.
+
+    Use this to remove orphan expressions or clean up unused nodes from materials.
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+        expression_id: GUID of the expression to delete
+
+    Returns:
+        Dictionary containing:
+        - success: Whether deletion was successful
+        - message: Success/error message
+
+    Example:
+        delete_material_expression(
+            material_path="/Game/Materials/M_Ember",
+            expression_id="E880D7F146304B1CC5ECF2AA1697DF33"
+        )
+    """
+    params = {
+        "material_path": material_path,
+        "expression_id": expression_id
+    }
+
+    return await send_tcp_command("delete_material_expression", params)
+
+
+@app.tool()
 async def search_material_palette(
     search_query: str = "",
     category_filter: str = "",

@@ -110,7 +110,45 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
+### MaterialMCP compile_material Doesn't Report All Shader Compilation Errors
+- **Affected**: `compile_material` in materialMCP
+- **Date Discovered**: 2026-01-11
+- **Problem**: `compile_material` returns `success: true` with empty `compile_errors` array even when shader compilation fails
+- **Example**: Noise expression with 2D input (TexCoord) instead of required 3D input causes shader error, but MCP reports success
+- **Actual Error** (visible in UE Output Log):
+  ```
+  [SM6] Shader debug info dumped to: "E:\code\unreal-mcp\MCPGameProject\Saved\ShaderDebugInfo\PCD3D_SM6\M_Ember_..."
+  C:\Program Files\Epic Games\UE_5.7\Engine\Shaders\Private\MaterialTemplate.ush(4567,18):
+  Shader FLumenCardPS, Permutation 0, VF FLocalVertexFactory:
+  /Engine/Generated/Material.ush:4567:18: error: no matching function for call to 'MaterialExpressionNoise'
+  float Local11 = MaterialExpressionNoise( Local10 ,8.00000000f,1.00000000f,0.00000000f,...);
+  ```
+- **MCP Response** (incorrect):
+  ```json
+  {
+    "success": true,
+    "compile_errors": [],
+    "has_compile_errors": false
+  }
+  ```
+- **Impact**: AI thinks material compiled successfully when it actually has broken shaders
+- **Root Cause**: MCP tool likely only checks `UMaterial::GetCompileErrors()` which returns expression-level errors, not shader compilation errors from the HLSL compiler
+- **Workaround**: Always visually verify material preview in Unreal Editor after compile; check Output Log for shader errors
+- **Suggested Fix**: Capture shader compilation errors from `FMaterialResource::GetCompileErrors()` or hook into shader compilation result callbacks
+
+---
+
 ## Resolved Issues
+
+- **NiagaraMCP get_module_inputs Cannot Read Default UniformRanged Dynamic Input Min/Max Values** - Fixed 2026-01-17
+  - Issue: When a module input uses an UniformRanged dynamic input with default/unmodified values (e.g., systems created in Unreal Editor using stock dynamic inputs), the min/max values could not be read because they were baked into the dynamic input script asset.
+  - Root Cause: Unreal stores dynamic input values in multiple locations:
+    1. Override pins (created when user modifies defaults)
+    2. RapidIterationParameters (alternative storage)
+    3. Script asset defaults (baked into the dynamic input script graph)
+    - Previous implementation only read from locations 1 and 2, missing location 3.
+  - Fix: Added APPROACH 4 in `ExtractUniformRangedValues()` that loads the dynamic input script's graph via `DynamicInputNode->FunctionScript->GetLatestSource()` and reads the `UNiagaraScriptVariable` default values for "Minimum" and "Maximum" parameters using `GetDefaultValueData()`.
+  - Now `get_module_inputs` returns `random_min` and `random_max` for ALL UniformRanged dynamic inputs, including those with stock/default values.
 
 - **MaterialMCP Created Assets Don't Persist to Disk** - Fixed 2026-01-11
   - Issue: Materials created via `create_material` existed in memory but weren't saved to disk. "Save All" didn't persist them.
