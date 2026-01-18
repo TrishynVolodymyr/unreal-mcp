@@ -40,6 +40,7 @@
 #include "Materials/MaterialExpressionVertexColor.h"
 #include "Materials/MaterialExpressionSphereMask.h"
 #include "Materials/MaterialExpressionParticleRandom.h"
+#include "Materials/MaterialExpressionParticleSubUV.h"
 // Noise and math expressions
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionLength.h"
@@ -130,6 +131,7 @@ UClass* FMaterialExpressionService::GetExpressionClassFromTypeName(const FString
         ExpressionTypeMap.Add(TEXT("VertexColor"), UMaterialExpressionVertexColor::StaticClass());
         ExpressionTypeMap.Add(TEXT("SphereMask"), UMaterialExpressionSphereMask::StaticClass());
         ExpressionTypeMap.Add(TEXT("ParticleRandom"), UMaterialExpressionParticleRandom::StaticClass());
+        ExpressionTypeMap.Add(TEXT("ParticleSubUV"), UMaterialExpressionParticleSubUV::StaticClass());
 
         // Noise expression - procedural noise generation
         ExpressionTypeMap.Add(TEXT("Noise"), UMaterialExpressionNoise::StaticClass());
@@ -210,6 +212,55 @@ UMaterial* FMaterialExpressionService::FindAndValidateMaterial(const FString& Ma
     }
 
     return Material;
+}
+
+UMaterial* FMaterialExpressionService::FindWorkingMaterial(const FString& MaterialPath, FString& OutError, TSharedPtr<IMaterialEditor>* OutMaterialEditor)
+{
+    // First, find the original material asset
+    UMaterial* OriginalMaterial = FindAndValidateMaterial(MaterialPath, OutError);
+    if (!OriginalMaterial)
+    {
+        return nullptr;
+    }
+
+    // Check if Material Editor is open for this material
+    if (GEditor)
+    {
+        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+        if (AssetEditorSubsystem)
+        {
+            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(OriginalMaterial, /*bFocusIfOpen*/ false);
+            if (EditorInstance)
+            {
+                // Material Editor is open - get the editor's working copy
+                TSharedPtr<IMaterialEditor> MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(
+                    TSharedPtr<IAssetEditorInstance>(EditorInstance, [](IAssetEditorInstance*){}));
+
+                if (MaterialEditor.IsValid())
+                {
+                    // Return the editor pointer if requested
+                    if (OutMaterialEditor)
+                    {
+                        *OutMaterialEditor = MaterialEditor;
+                    }
+
+                    // GetMaterialInterface returns the editor's transient working copy
+                    UMaterialInterface* EditorMaterial = MaterialEditor->GetMaterialInterface();
+                    UMaterial* WorkingMaterial = Cast<UMaterial>(EditorMaterial);
+
+                    if (WorkingMaterial)
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("FindWorkingMaterial: Using Material Editor's transient copy for %s"), *MaterialPath);
+                        return WorkingMaterial;
+                    }
+                }
+            }
+        }
+    }
+
+    // Material Editor not open - return the original asset
+    UE_LOG(LogTemp, Log, TEXT("FindWorkingMaterial: Using original asset for %s"), *MaterialPath);
+    return OriginalMaterial;
 }
 
 bool FMaterialExpressionService::EnsureMaterialGraph(UMaterial* Material)
@@ -315,8 +366,16 @@ void FMaterialExpressionService::RecompileMaterial(UMaterial* Material)
     }
     if (MaterialEditor.IsValid())
     {
-        // Update preview material and refresh expression previews
-        MaterialEditor->UpdateMaterialAfterGraphChange();
+        // IMPORTANT: Do NOT call UpdateMaterialAfterGraphChange() here!
+        // That method calls LinkMaterialExpressionsFromGraph() which syncs Graph → Expressions,
+        // potentially overwriting the expression connections we just made.
+        // Instead, we've already synced Expressions → Graph via RebuildGraph + LinkGraphNodesFromMaterial,
+        // so we only need to refresh the UI and mark dirty.
+
+        // Mark the material as dirty in the editor so it prompts to save
+        MaterialEditor->MarkMaterialDirty();
+
+        // Refresh expression previews to show updated connections
         MaterialEditor->ForceRefreshExpressionPreviews();
     }
 

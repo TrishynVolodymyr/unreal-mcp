@@ -47,13 +47,33 @@ UMaterial* FMaterialService::CreateMaterial(const FMaterialCreationParams& Param
 
     UE_LOG(LogTemp, Log, TEXT("Creating material at path: %s"), *PackagePath);
 
-    // Create the package
+    // Check if package already exists (may be partially loaded from previous crash)
+    UPackage* ExistingPackage = FindPackage(nullptr, *PackageName);
+    if (ExistingPackage)
+    {
+        // Fully load the existing package to avoid "partially loaded" errors
+        ExistingPackage->FullyLoad();
+
+        // Check if there's an existing material in this package
+        UMaterial* ExistingMaterial = FindObject<UMaterial>(ExistingPackage, *Params.Name);
+        if (ExistingMaterial)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Material already exists at path: %s. Returning existing material."), *PackagePath);
+            OutMaterialPath = PackagePath;
+            return ExistingMaterial;
+        }
+    }
+
+    // Create or get the package
     UPackage* Package = CreatePackage(*PackageName);
     if (!Package)
     {
         OutError = FString::Printf(TEXT("Failed to create package for material: %s"), *PackageName);
         return nullptr;
     }
+
+    // Ensure package is fully loaded before modifications
+    Package->FullyLoad();
 
     // Create material factory
     UMaterialFactoryNew* MaterialFactory = NewObject<UMaterialFactoryNew>();

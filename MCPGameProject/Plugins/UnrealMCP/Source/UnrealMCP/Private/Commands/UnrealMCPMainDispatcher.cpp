@@ -11,6 +11,7 @@
 #include "Commands/MaterialCommandRegistration.h"
 #include "Commands/NiagaraCommandRegistration.h"
 #include "Commands/AnimationCommandRegistration.h"
+#include "Commands/SoundCommandRegistration.h"
 #include "Services/BlueprintActionService.h"
 // Legacy adapter removed
 #include "Services/BlueprintService.h"
@@ -121,6 +122,9 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
     
     // Register Animation commands
     FAnimationCommandRegistration::RegisterAllAnimationCommands();
+
+    // Register Sound/Audio commands
+    FSoundCommandRegistration::RegisterAllCommands();
 
     UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::RegisterAllCommands: All command types registered"));
 }

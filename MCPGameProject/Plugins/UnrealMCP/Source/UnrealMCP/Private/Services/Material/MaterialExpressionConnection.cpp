@@ -15,8 +15,8 @@ bool FMaterialExpressionService::ConnectExpressions(
         return false;
     }
 
-    // Find the material
-    UMaterial* Material = FindAndValidateMaterial(Params.MaterialPath, OutError);
+    // Find the working material (editor's transient copy if editor is open)
+    UMaterial* Material = FindWorkingMaterial(Params.MaterialPath, OutError);
     if (!Material)
     {
         return false;
@@ -80,40 +80,10 @@ bool FMaterialExpressionService::ConnectExpressions(
         return false;
     }
 
-    // Close Material Editor if open (we'll reopen after save)
-    // This ensures our changes persist and aren't overwritten by the editor's in-memory state
-    bool bEditorWasOpen = false;
-    if (GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
-        {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
-            if (EditorInstance)
-            {
-                bEditorWasOpen = true;
-                // Save package BEFORE closing to avoid save dialog prompt
-                UPackage* Package = Material->GetOutermost();
-                if (Package && Package->IsDirty())
-                {
-                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
-                    FSavePackageArgs SaveArgs;
-                    SaveArgs.TopLevelFlags = RF_Standalone;
-                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-                }
-                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
-            }
-        }
-    }
-
     // Mark objects for modification (Undo/Redo support)
     SourceExpr->Modify();
     TargetExpr->Modify();
     Material->Modify();
-    if (Material->MaterialGraph)
-    {
-        Material->MaterialGraph->Modify();
-    }
 
     // Use UE5's built-in ConnectExpression() method - this correctly sets ALL fields
     // including the Mask fields (MaskR, MaskG, MaskB, MaskA) that direct assignment misses
@@ -124,38 +94,17 @@ bool FMaterialExpressionService::ConnectExpressions(
         *TargetExpr->GetName(), *Params.TargetInputName);
 
     // Ensure MaterialGraph exists for visual sync
-    if (!Material->MaterialGraph)
-    {
-        Material->MaterialGraph = CastChecked<UMaterialGraph>(
-            FBlueprintEditorUtils::CreateNewGraph(Material, NAME_None, UMaterialGraph::StaticClass(), UMaterialGraphSchema::StaticClass()));
-        Material->MaterialGraph->Material = Material;
-    }
+    EnsureMaterialGraph(Material);
 
-    // Sync the visual graph FROM expressions (expressions are the source of truth)
+    // For connections, we only need to update links - nodes already exist
+    // LinkGraphNodesFromMaterial syncs the graph links (wires) from expression connections
+    // Do NOT call RebuildGraph() here as it destroys/recreates all nodes, causing UI issues
+    Material->MaterialGraph->Modify();
     Material->MaterialGraph->LinkGraphNodesFromMaterial();
     Material->MaterialGraph->NotifyGraphChanged();
 
-    // Mark package dirty and save
+    // Mark package dirty (let user save when ready)
     Material->MarkPackageDirty();
-
-    UPackage* Package = Material->GetOutermost();
-    if (Package)
-    {
-        FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
-        FSavePackageArgs SaveArgs;
-        SaveArgs.TopLevelFlags = RF_Standalone;
-        UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-    }
-
-    // Reopen editor if it was open
-    if (bEditorWasOpen && GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
-        {
-            AssetEditorSubsystem->OpenEditorForAsset(Material);
-        }
-    }
 
     UE_LOG(LogTemp, Log, TEXT("Connected expressions in material %s: %s -> %s.%s"),
         *Params.MaterialPath, *SourceExpr->GetName(), *TargetExpr->GetName(), *Params.TargetInputName);
@@ -175,51 +124,21 @@ bool FMaterialExpressionService::ConnectExpressionsBatch(
         return false;
     }
 
-    // Find the material once
-    UMaterial* Material = FindAndValidateMaterial(MaterialPath, OutError);
+    // Find the working material once (editor's transient copy if editor is open)
+    UMaterial* Material = FindWorkingMaterial(MaterialPath, OutError);
     if (!Material)
     {
         return false;
     }
 
-    // Close Material Editor if open (we'll reopen after save)
-    bool bEditorWasOpen = false;
-    if (GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
-        {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
-            if (EditorInstance)
-            {
-                bEditorWasOpen = true;
-                // Save package BEFORE closing to avoid save dialog prompt
-                UPackage* Package = Material->GetOutermost();
-                if (Package && Package->IsDirty())
-                {
-                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
-                    FSavePackageArgs SaveArgs;
-                    SaveArgs.TopLevelFlags = RF_Standalone;
-                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-                }
-                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
-            }
-        }
-    }
-
     // Mark material for modification once
     Material->Modify();
-    if (Material->MaterialGraph)
-    {
-        Material->MaterialGraph->Modify();
-    }
 
     // Process each connection
     int32 SuccessCount = 0;
     for (const FMaterialExpressionConnectionParams& Conn : Connections)
     {
         // Validate connection
-        FString ValidationError;
         if (!Conn.SourceExpressionId.IsValid() || !Conn.TargetExpressionId.IsValid() || Conn.TargetInputName.IsEmpty())
         {
             OutResults.Add(FString::Printf(TEXT("FAILED: Invalid connection parameters")));
@@ -284,36 +203,14 @@ bool FMaterialExpressionService::ConnectExpressionsBatch(
         SuccessCount++;
     }
 
-    // Sync graph once after all connections
-    if (!Material->MaterialGraph)
-    {
-        Material->MaterialGraph = CastChecked<UMaterialGraph>(
-            FBlueprintEditorUtils::CreateNewGraph(Material, NAME_None, UMaterialGraph::StaticClass(), UMaterialGraphSchema::StaticClass()));
-        Material->MaterialGraph->Material = Material;
-    }
+    // Ensure graph exists and update links once after all connections
+    EnsureMaterialGraph(Material);
+    Material->MaterialGraph->Modify();
     Material->MaterialGraph->LinkGraphNodesFromMaterial();
     Material->MaterialGraph->NotifyGraphChanged();
 
-    // Save once
+    // Mark dirty (let user save when ready)
     Material->MarkPackageDirty();
-    UPackage* Package = Material->GetOutermost();
-    if (Package)
-    {
-        FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
-        FSavePackageArgs SaveArgs;
-        SaveArgs.TopLevelFlags = RF_Standalone;
-        UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-    }
-
-    // Reopen editor if it was open
-    if (bEditorWasOpen && GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
-        {
-            AssetEditorSubsystem->OpenEditorForAsset(Material);
-        }
-    }
 
     UE_LOG(LogTemp, Log, TEXT("Batch connected %d/%d expressions in material %s"),
         SuccessCount, Connections.Num(), *MaterialPath);
@@ -334,8 +231,8 @@ bool FMaterialExpressionService::ConnectToMaterialOutput(
     const FString& MaterialProperty,
     FString& OutError)
 {
-    // Find the material
-    UMaterial* Material = FindAndValidateMaterial(MaterialPath, OutError);
+    // Find the working material (editor's transient copy if editor is open)
+    UMaterial* Material = FindWorkingMaterial(MaterialPath, OutError);
     if (!Material)
     {
         return false;
@@ -367,77 +264,22 @@ bool FMaterialExpressionService::ConnectToMaterialOutput(
         return false;
     }
 
-    // Close Material Editor if open (we'll reopen after save)
-    // This ensures our changes persist and aren't overwritten by the editor's in-memory state
-    bool bEditorWasOpen = false;
-    if (GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
-        {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, false);
-            if (EditorInstance)
-            {
-                bEditorWasOpen = true;
-                // Save package BEFORE closing to avoid save dialog prompt
-                UPackage* Package = Material->GetOutermost();
-                if (Package && Package->IsDirty())
-                {
-                    FString PackageFileName = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetAssetPackageExtension());
-                    FSavePackageArgs SaveArgs;
-                    SaveArgs.TopLevelFlags = RF_Standalone;
-                    UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-                }
-                AssetEditorSubsystem->CloseAllEditorsForAsset(Material);
-            }
-        }
-    }
-
     // Mark objects for modification (Undo/Redo support)
     Expression->Modify();
     Material->Modify();
-    if (Material->MaterialGraph)
-    {
-        Material->MaterialGraph->Modify();
-    }
 
     // Connect at material data level using UE5's built-in ConnectExpression()
     Expression->ConnectExpression(MaterialInput, OutputIndex);
 
-    // Ensure MaterialGraph exists for visual sync
-    if (!Material->MaterialGraph)
-    {
-        Material->MaterialGraph = CastChecked<UMaterialGraph>(
-            FBlueprintEditorUtils::CreateNewGraph(Material, NAME_None, UMaterialGraph::StaticClass(), UMaterialGraphSchema::StaticClass()));
-        Material->MaterialGraph->Material = Material;
-    }
-
-    // Sync the visual graph FROM expressions
+    // Ensure MaterialGraph exists and update links to sync visual representation
+    // Use LinkGraphNodesFromMaterial (not RebuildGraph) to preserve existing node references
+    EnsureMaterialGraph(Material);
+    Material->MaterialGraph->Modify();
     Material->MaterialGraph->LinkGraphNodesFromMaterial();
     Material->MaterialGraph->NotifyGraphChanged();
 
-    // Mark package dirty and save
+    // Mark package dirty (let user save when ready)
     Material->MarkPackageDirty();
-
-    UPackage* Package = Material->GetOutermost();
-    if (Package)
-    {
-        FString PackageFileName = FPackageName::LongPackageNameToFilename(
-            Package->GetName(), FPackageName::GetAssetPackageExtension());
-        FSavePackageArgs SaveArgs;
-        SaveArgs.TopLevelFlags = RF_Standalone;
-        UPackage::SavePackage(Package, Material, *PackageFileName, SaveArgs);
-    }
-
-    // Reopen editor if it was open
-    if (bEditorWasOpen && GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
-        {
-            AssetEditorSubsystem->OpenEditorForAsset(Material);
-        }
-    }
 
     UE_LOG(LogTemp, Log, TEXT("Connected expression %s to %s in material %s"),
         *Expression->GetName(), *MaterialProperty, *MaterialPath);
