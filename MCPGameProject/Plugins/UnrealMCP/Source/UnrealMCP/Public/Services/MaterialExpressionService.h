@@ -236,6 +236,19 @@ private:
     UMaterial* FindAndValidateMaterial(const FString& MaterialPath, FString& OutError);
 
     /**
+     * Find the "working" material - the one that should be modified.
+     * If Material Editor is open for this material, returns the editor's transient copy.
+     * Otherwise, returns the original asset.
+     * IMPORTANT: This must be used for all expression operations when the editor might be open,
+     * because the Material Editor works on a duplicate in the transient package.
+     * @param MaterialPath - Path to the material
+     * @param OutError - Error message if not found
+     * @param OutMaterialEditor - If provided, outputs the IMaterialEditor pointer if editor is open
+     * @return Working material or nullptr if not found
+     */
+    UMaterial* FindWorkingMaterial(const FString& MaterialPath, FString& OutError, TSharedPtr<class IMaterialEditor>* OutMaterialEditor = nullptr);
+
+    /**
      * Ensure the MaterialGraph exists for a material
      * Creates it if it doesn't exist, similar to how Material Editor does
      * @param Material - Material to ensure graph for

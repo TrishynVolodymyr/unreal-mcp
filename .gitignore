@@ -168,3 +168,5 @@ build_output.txt
 Python/tcp_debug.log
 
 vfx_frames/
+state/
+.claude/skills/*/output/

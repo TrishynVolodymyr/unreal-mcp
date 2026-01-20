@@ -31,6 +31,13 @@ public class UnrealMCP : ModuleRules
 		{
 			PrivateIncludePaths.Add(NiagaraEditorPrivatePath);
 		}
+
+		// Add MetasoundEditor private includes for FGraphBuilder access
+		string MetasoundEditorPrivatePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(EngineDirectory, "Plugins", "Runtime", "Metasound", "Source", "MetasoundEditor", "Private"));
+		if (System.IO.Directory.Exists(MetasoundEditorPrivatePath))
+		{
+			PrivateIncludePaths.Add(MetasoundEditorPrivatePath);
+		}
 		
 		PublicDependencyModuleNames.AddRange(
 			new string[]
@@ -102,7 +109,12 @@ public class UnrealMCP : ModuleRules
 					"Niagara",             // Core Niagara runtime
 					"NiagaraCore",         // Niagara core types
 					"NiagaraEditor",       // Niagara editor utilities (factories, graph utilities)
-					"NiagaraShader"        // Niagara shader compilation
+					"NiagaraShader",       // Niagara shader compilation
+					// MetaSound audio support
+					"MetasoundEngine",     // UMetaSoundSource, builders
+					"MetasoundFrontend",   // FMetaSoundFrontendDocumentBuilder
+					"MetasoundGraphCore",  // Core graph types
+					"MetasoundEditor"      // Editor-specific utilities
 				}
 			);
 		}

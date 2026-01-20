@@ -24,6 +24,7 @@
 #include "Components/DecalComponent.h"
 #include "Components/SplineComponent.h"
 #include "Components/TimelineComponent.h"
+#include "NiagaraComponent.h"
 #include "Engine/Blueprint.h"
 #include "Misc/Paths.h"
 #include "Engine/Engine.h"
@@ -215,7 +216,10 @@ void FComponentFactory::InitializeDefaultTypes()
     
     // Particle Components (UParticleSystemComponent not available in UE 5.7)
     // RegisterComponentType(TEXT("ParticleSystemComponent"), UParticleSystemComponent::StaticClass());
-    
+
+    // Niagara Components
+    RegisterComponentType(TEXT("NiagaraComponent"), UNiagaraComponent::StaticClass());
+
     // Camera Components
     RegisterComponentType(TEXT("CameraComponent"), UCameraComponent::StaticClass());
     

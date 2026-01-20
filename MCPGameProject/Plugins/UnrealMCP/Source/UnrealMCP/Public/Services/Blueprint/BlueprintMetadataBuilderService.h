@@ -28,6 +28,7 @@ struct FGraphNodesFilter
     FString GraphName;
     FString NodeType;
     FString EventType;
+    FString ComponentName;  // For component_properties field
     EGraphNodesDetailLevel DetailLevel = EGraphNodesDetailLevel::Flow;
 };
 
@@ -49,6 +50,7 @@ public:
     TSharedPtr<FJsonObject> BuildVariablesInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildFunctionsInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildComponentsInfo(UBlueprint* Blueprint) const;
+    TSharedPtr<FJsonObject> BuildComponentPropertiesInfo(UBlueprint* Blueprint, const FString& ComponentName) const;
     TSharedPtr<FJsonObject> BuildGraphsInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildStatusInfo(UBlueprint* Blueprint) const;
     TSharedPtr<FJsonObject> BuildMetadataInfo(UBlueprint* Blueprint) const;
