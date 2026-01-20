@@ -2,6 +2,8 @@
 #include "Services/IBlueprintService.h"
 #include "Utils/GraphUtils.h"
 #include "Engine/Blueprint.h"
+#include "Engine/SCS_Node.h"
+#include "Engine/SimpleConstructionScript.h"
 #include "EdGraphSchema_K2.h"
 #include "K2Node_Event.h"
 #include "K2Node_FunctionEntry.h"
@@ -286,6 +288,257 @@ TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildComponentsInfo(UB
     }
 
     return ComponentsInfo;
+}
+
+TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildComponentPropertiesInfo(UBlueprint* Blueprint, const FString& ComponentName) const
+{
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+
+    if (!Blueprint)
+    {
+        Result->SetStringField(TEXT("error"), TEXT("Invalid Blueprint"));
+        return Result;
+    }
+
+    if (ComponentName.IsEmpty())
+    {
+        Result->SetStringField(TEXT("error"), TEXT("component_name parameter is required"));
+        return Result;
+    }
+
+    // Get components from Simple Construction Script
+    if (Blueprint->SimpleConstructionScript)
+    {
+        for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+        {
+            if (Node && Node->ComponentTemplate)
+            {
+                FString CurrentName = Node->GetVariableName().ToString();
+
+                // Only process the requested component
+                if (!CurrentName.Equals(ComponentName, ESearchCase::IgnoreCase))
+                {
+                    continue;
+                }
+                TSharedPtr<FJsonObject> CompObj = MakeShared<FJsonObject>();
+                CompObj->SetStringField(TEXT("name"), Node->GetVariableName().ToString());
+                CompObj->SetStringField(TEXT("type"), Node->ComponentTemplate->GetClass()->GetName());
+
+                // Extract properties from the component template
+                TSharedPtr<FJsonObject> PropertiesObj = MakeShared<FJsonObject>();
+                UActorComponent* ComponentTemplate = Node->ComponentTemplate;
+                UClass* ComponentClass = ComponentTemplate->GetClass();
+
+                // Iterate through all blueprint-visible properties
+                for (TFieldIterator<FProperty> PropIt(ComponentClass); PropIt; ++PropIt)
+                {
+                    FProperty* Property = *PropIt;
+                    if (!Property) continue;
+
+                    // Only include editable/visible properties
+                    if (!Property->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible))
+                        continue;
+
+                    FString PropName = Property->GetName();
+                    void* ValuePtr = Property->ContainerPtrToValuePtr<void>(ComponentTemplate);
+
+                    // Handle different property types
+                    if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
+                    {
+                        bool Value = BoolProp->GetPropertyValue(ValuePtr);
+                        PropertiesObj->SetBoolField(PropName, Value);
+                    }
+                    else if (FIntProperty* IntProp = CastField<FIntProperty>(Property))
+                    {
+                        int32 Value = IntProp->GetPropertyValue(ValuePtr);
+                        PropertiesObj->SetNumberField(PropName, Value);
+                    }
+                    else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Property))
+                    {
+                        float Value = FloatProp->GetPropertyValue(ValuePtr);
+                        PropertiesObj->SetNumberField(PropName, Value);
+                    }
+                    else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(Property))
+                    {
+                        double Value = DoubleProp->GetPropertyValue(ValuePtr);
+                        PropertiesObj->SetNumberField(PropName, Value);
+                    }
+                    else if (FStrProperty* StrProp = CastField<FStrProperty>(Property))
+                    {
+                        FString Value = StrProp->GetPropertyValue(ValuePtr);
+                        PropertiesObj->SetStringField(PropName, Value);
+                    }
+                    else if (FNameProperty* NameProp = CastField<FNameProperty>(Property))
+                    {
+                        FName Value = NameProp->GetPropertyValue(ValuePtr);
+                        PropertiesObj->SetStringField(PropName, Value.ToString());
+                    }
+                    else if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Property))
+                    {
+                        UObject* ObjValue = ObjProp->GetPropertyValue(ValuePtr);
+                        if (ObjValue)
+                        {
+                            PropertiesObj->SetStringField(PropName, ObjValue->GetPathName());
+                        }
+                        else
+                        {
+                            PropertiesObj->SetStringField(PropName, TEXT("None"));
+                        }
+                    }
+                    else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+                    {
+                        FNumericProperty* UnderlyingProp = EnumProp->GetUnderlyingProperty();
+                        int64 Value = UnderlyingProp->GetSignedIntPropertyValue(ValuePtr);
+                        UEnum* Enum = EnumProp->GetEnum();
+                        if (Enum)
+                        {
+                            PropertiesObj->SetStringField(PropName, Enum->GetNameStringByValue(Value));
+                        }
+                        else
+                        {
+                            PropertiesObj->SetNumberField(PropName, Value);
+                        }
+                    }
+                    else if (FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+                    {
+                        uint8 Value = ByteProp->GetPropertyValue(ValuePtr);
+                        if (ByteProp->Enum)
+                        {
+                            PropertiesObj->SetStringField(PropName, ByteProp->Enum->GetNameStringByValue(Value));
+                        }
+                        else
+                        {
+                            PropertiesObj->SetNumberField(PropName, Value);
+                        }
+                    }
+                    else if (FStructProperty* StructProp = CastField<FStructProperty>(Property))
+                    {
+                        // Handle common struct types
+                        if (StructProp->Struct == TBaseStructure<FVector>::Get())
+                        {
+                            FVector* VecValue = static_cast<FVector*>(ValuePtr);
+                            TArray<TSharedPtr<FJsonValue>> VecArray;
+                            VecArray.Add(MakeShared<FJsonValueNumber>(VecValue->X));
+                            VecArray.Add(MakeShared<FJsonValueNumber>(VecValue->Y));
+                            VecArray.Add(MakeShared<FJsonValueNumber>(VecValue->Z));
+                            PropertiesObj->SetArrayField(PropName, VecArray);
+                        }
+                        else if (StructProp->Struct == TBaseStructure<FRotator>::Get())
+                        {
+                            FRotator* RotValue = static_cast<FRotator*>(ValuePtr);
+                            TArray<TSharedPtr<FJsonValue>> RotArray;
+                            RotArray.Add(MakeShared<FJsonValueNumber>(RotValue->Pitch));
+                            RotArray.Add(MakeShared<FJsonValueNumber>(RotValue->Yaw));
+                            RotArray.Add(MakeShared<FJsonValueNumber>(RotValue->Roll));
+                            PropertiesObj->SetArrayField(PropName, RotArray);
+                        }
+                        else if (StructProp->Struct == TBaseStructure<FLinearColor>::Get())
+                        {
+                            FLinearColor* ColorValue = static_cast<FLinearColor*>(ValuePtr);
+                            TArray<TSharedPtr<FJsonValue>> ColorArray;
+                            ColorArray.Add(MakeShared<FJsonValueNumber>(ColorValue->R));
+                            ColorArray.Add(MakeShared<FJsonValueNumber>(ColorValue->G));
+                            ColorArray.Add(MakeShared<FJsonValueNumber>(ColorValue->B));
+                            ColorArray.Add(MakeShared<FJsonValueNumber>(ColorValue->A));
+                            PropertiesObj->SetArrayField(PropName, ColorArray);
+                        }
+                        else if (StructProp->Struct == TBaseStructure<FVector2D>::Get())
+                        {
+                            FVector2D* Vec2DValue = static_cast<FVector2D*>(ValuePtr);
+                            TArray<TSharedPtr<FJsonValue>> Vec2DArray;
+                            Vec2DArray.Add(MakeShared<FJsonValueNumber>(Vec2DValue->X));
+                            Vec2DArray.Add(MakeShared<FJsonValueNumber>(Vec2DValue->Y));
+                            PropertiesObj->SetArrayField(PropName, Vec2DArray);
+                        }
+                        else if (StructProp->Struct->GetName() == TEXT("BodyInstance"))
+                        {
+                            // Expand BodyInstance to show key physics properties
+                            TSharedPtr<FJsonObject> BodyObj = MakeShared<FJsonObject>();
+                            UScriptStruct* BodyStruct = StructProp->Struct;
+
+                            for (TFieldIterator<FProperty> BodyPropIt(BodyStruct); BodyPropIt; ++BodyPropIt)
+                            {
+                                FProperty* BodyProp = *BodyPropIt;
+                                if (!BodyProp) continue;
+
+                                // Only include important physics properties
+                                FString BodyPropName = BodyProp->GetName();
+                                if (!BodyPropName.StartsWith(TEXT("b")) &&
+                                    BodyPropName != TEXT("ObjectType") &&
+                                    BodyPropName != TEXT("CollisionEnabled") &&
+                                    BodyPropName != TEXT("MassInKgOverride") &&
+                                    BodyPropName != TEXT("LinearDamping") &&
+                                    BodyPropName != TEXT("AngularDamping") &&
+                                    BodyPropName != TEXT("CollisionProfileName"))
+                                {
+                                    continue;
+                                }
+
+                                void* BodyValuePtr = BodyProp->ContainerPtrToValuePtr<void>(ValuePtr);
+
+                                if (FBoolProperty* BodyBoolProp = CastField<FBoolProperty>(BodyProp))
+                                {
+                                    BodyObj->SetBoolField(BodyPropName, BodyBoolProp->GetPropertyValue(BodyValuePtr));
+                                }
+                                else if (FFloatProperty* BodyFloatProp = CastField<FFloatProperty>(BodyProp))
+                                {
+                                    BodyObj->SetNumberField(BodyPropName, BodyFloatProp->GetPropertyValue(BodyValuePtr));
+                                }
+                                else if (FDoubleProperty* BodyDoubleProp = CastField<FDoubleProperty>(BodyProp))
+                                {
+                                    BodyObj->SetNumberField(BodyPropName, BodyDoubleProp->GetPropertyValue(BodyValuePtr));
+                                }
+                                else if (FByteProperty* BodyByteProp = CastField<FByteProperty>(BodyProp))
+                                {
+                                    uint8 ByteVal = BodyByteProp->GetPropertyValue(BodyValuePtr);
+                                    if (BodyByteProp->Enum)
+                                    {
+                                        BodyObj->SetStringField(BodyPropName, BodyByteProp->Enum->GetNameStringByValue(ByteVal));
+                                    }
+                                    else
+                                    {
+                                        BodyObj->SetNumberField(BodyPropName, ByteVal);
+                                    }
+                                }
+                                else if (FEnumProperty* BodyEnumProp = CastField<FEnumProperty>(BodyProp))
+                                {
+                                    FNumericProperty* UnderlyingNumProp = BodyEnumProp->GetUnderlyingProperty();
+                                    int64 EnumVal = UnderlyingNumProp->GetSignedIntPropertyValue(BodyValuePtr);
+                                    UEnum* BodyEnum = BodyEnumProp->GetEnum();
+                                    if (BodyEnum)
+                                    {
+                                        BodyObj->SetStringField(BodyPropName, BodyEnum->GetNameStringByValue(EnumVal));
+                                    }
+                                }
+                                else if (FNameProperty* BodyNameProp = CastField<FNameProperty>(BodyProp))
+                                {
+                                    FName NameVal = BodyNameProp->GetPropertyValue(BodyValuePtr);
+                                    BodyObj->SetStringField(BodyPropName, NameVal.ToString());
+                                }
+                            }
+
+                            PropertiesObj->SetObjectField(PropName, BodyObj);
+                        }
+                        else
+                        {
+                            // For other struct types, just indicate the type
+                            PropertiesObj->SetStringField(PropName, FString::Printf(TEXT("[Struct:%s]"), *StructProp->Struct->GetName()));
+                        }
+                    }
+                }
+
+                // Found the component - return its properties directly
+                Result->SetStringField(TEXT("name"), CurrentName);
+                Result->SetStringField(TEXT("type"), Node->ComponentTemplate->GetClass()->GetName());
+                Result->SetObjectField(TEXT("properties"), PropertiesObj);
+                return Result;
+            }
+        }
+    }
+
+    // Component not found
+    Result->SetStringField(TEXT("error"), FString::Printf(TEXT("Component '%s' not found in Blueprint"), *ComponentName));
+    return Result;
 }
 
 TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildGraphsInfo(UBlueprint* Blueprint) const

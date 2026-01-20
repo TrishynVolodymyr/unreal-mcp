@@ -18,8 +18,8 @@ Procedural generation of grayscale + alpha textures for Unreal Engine VFX pipeli
 ## Core Principles
 
 1. **Grayscale + Alpha** — Color applied in-engine via curves/parameters
-2. **Power-of-two** — Resolutions: 256, 512, 1024, 2048
-3. **PNG with alpha** — Straight alpha, sRGB for sprites, Linear for data textures
+2. **Flexible resolution** — Any size supported; power-of-two (256, 512, 1024, 2048) recommended for UE5
+3. **PNG with alpha** — Premultiplied alpha, sRGB for sprites, Linear for data textures
 4. **UE5-ready** — Naming and structure for direct import
 
 ---
@@ -146,6 +146,31 @@ See `references/pattern-params.md` for:
 | `--animation` | Animation type: evolve, scale, rotate | evolve |
 | `--speed` | Animation speed multiplier | 1.0 |
 
+### Flipbook Radial Alpha (Soft Circular Edges)
+
+For particle flipbooks that need soft circular edges per frame (fire, smoke, magic), use radial alpha:
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--alpha_source` | Set to `radial` for per-frame circular mask | value |
+| `--radial_radius` | Mask radius relative to frame (0-0.5) | 0.45 |
+| `--radial_softness` | Edge falloff width | 0.2 |
+| `--radial_power` | Falloff curve exponent (higher = sharper) | 1.5 |
+| `--radial_combine` | How to combine with pattern: `value`, `multiply`, `max` | multiply |
+
+**Combine modes:**
+- `value` — Radial mask only (ignores pattern values)
+- `multiply` — Radial mask × pattern value (recommended for fire/smoke)
+- `max` — Max of radial and pattern (for glow effects)
+
+**Example - Fire flipbook with soft edges:**
+```bash
+python3 scripts/generate_flipbook.py --pattern fbm --turbulence --grid 4x2 --resolution 256 \
+    --alpha_source radial --radial_radius 0.42 --radial_softness 0.2 --radial_combine multiply
+```
+
+**Note:** RGB is premultiplied by alpha, so pixels outside the mask are black (clean edges in image editors).
+
 ### Volume-Specific Parameters
 
 | Parameter | Description | Default |
@@ -223,6 +248,12 @@ python3 scripts/generate_sprite.py --pattern radial --resolution 256
 **Evolving smoke flipbook 8x8:**
 ```bash
 python3 scripts/generate_flipbook.py --pattern fbm --resolution 512 --grid 8x8 --animation evolve
+```
+
+**Fire flipbook with soft circular edges (4x2 grid):**
+```bash
+python3 scripts/generate_flipbook.py --pattern fbm --turbulence --grid 4x2 --resolution 256 \
+    --alpha_source radial --radial_radius 0.42 --radial_softness 0.2 --radial_combine multiply
 ```
 
 **Tileable distortion noise:**

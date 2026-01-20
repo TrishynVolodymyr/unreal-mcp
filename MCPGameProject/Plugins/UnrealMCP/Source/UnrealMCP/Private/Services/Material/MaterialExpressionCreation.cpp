@@ -60,22 +60,52 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
     // Handle Constant expression
     if (UMaterialExpressionConstant* ConstExpr = Cast<UMaterialExpressionConstant>(Expression))
     {
+        bool bValueChanged = false;
         if (Properties->HasField(TEXT("value")))
         {
             ConstExpr->R = Properties->GetNumberField(TEXT("value"));
+            bValueChanged = true;
         }
         if (Properties->HasField(TEXT("R")))
         {
             ConstExpr->R = Properties->GetNumberField(TEXT("R"));
+            bValueChanged = true;
+        }
+        // Trigger PostEditChangeProperty to update UI
+        if (bValueChanged)
+        {
+            FProperty* RProp = ConstExpr->GetClass()->FindPropertyByName(TEXT("R"));
+            if (RProp)
+            {
+                FPropertyChangedEvent PropertyChangedEvent(RProp, EPropertyChangeType::ValueSet);
+                ConstExpr->PostEditChangeProperty(PropertyChangedEvent);
+            }
         }
     }
     // Handle Constant2Vector
     else if (UMaterialExpressionConstant2Vector* Const2Expr = Cast<UMaterialExpressionConstant2Vector>(Expression))
     {
+        bool bValueChanged = false;
         if (Properties->HasField(TEXT("R")))
+        {
             Const2Expr->R = Properties->GetNumberField(TEXT("R"));
+            bValueChanged = true;
+        }
         if (Properties->HasField(TEXT("G")))
+        {
             Const2Expr->G = Properties->GetNumberField(TEXT("G"));
+            bValueChanged = true;
+        }
+        // Trigger PostEditChangeProperty to update UI
+        if (bValueChanged)
+        {
+            FProperty* RProp = Const2Expr->GetClass()->FindPropertyByName(TEXT("R"));
+            if (RProp)
+            {
+                FPropertyChangedEvent PropertyChangedEvent(RProp, EPropertyChangeType::ValueSet);
+                Const2Expr->PostEditChangeProperty(PropertyChangedEvent);
+            }
+        }
     }
     // Handle Constant3Vector (color)
     else if (UMaterialExpressionConstant3Vector* Const3Expr = Cast<UMaterialExpressionConstant3Vector>(Expression))
@@ -459,6 +489,9 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
             // Apply type-specific properties after creation
             if (Params.Properties.IsValid())
             {
+                // Mark expression for modification before changing properties
+                NewExpression->Modify();
+
                 if (!ApplyExpressionProperties(NewExpression, Params.Properties, OutError))
                 {
                     // Property validation failed - clean up and return
@@ -466,10 +499,25 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
                     NewExpression->MarkAsGarbage();
                     return nullptr;
                 }
+
+                // After setting properties, we need to update the graph node to reflect changes
+                // Find the graph node for this expression and reconstruct it
+                if (Material->MaterialGraph)
+                {
+                    for (UEdGraphNode* Node : Material->MaterialGraph->Nodes)
+                    {
+                        UMaterialGraphNode* MatNode = Cast<UMaterialGraphNode>(Node);
+                        if (MatNode && MatNode->MaterialExpression == NewExpression)
+                        {
+                            // Reconstruct the node to pick up property changes
+                            MatNode->ReconstructNode();
+                            break;
+                        }
+                    }
+                }
             }
 
-            // The MaterialEditor API already created the graph node, just notify of changes
-            // Do NOT call RebuildGraph here as it would destroy and recreate the node unnecessarily
+            // Notify graph of changes
             if (Material->MaterialGraph)
             {
                 Material->MaterialGraph->NotifyGraphChanged();
@@ -496,6 +544,9 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
         // Apply type-specific properties
         if (Params.Properties.IsValid())
         {
+            // Mark expression for modification before changing properties
+            NewExpression->Modify();
+
             if (!ApplyExpressionProperties(NewExpression, Params.Properties, OutError))
             {
                 // Property validation failed - clean up and return

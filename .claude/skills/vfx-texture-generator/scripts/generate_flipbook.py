@@ -25,7 +25,7 @@ def parse_args():
                        choices=['simplex', 'fbm', 'voronoi', 'caustics'],
                        help='Pattern type')
     parser.add_argument('--resolution', type=int, default=512,
-                       choices=[256, 512, 1024, 2048], help='Per-frame resolution')
+                       help='Per-frame resolution in pixels')
     parser.add_argument('--grid', type=str, default='4x4', help='Grid size (e.g., 8x8)')
     parser.add_argument('--output', type=str, default='./', help='Output directory')
     parser.add_argument('--name', type=str, default=None, help='Custom filename')
@@ -82,11 +82,23 @@ def parse_args():
     
     # Alpha
     parser.add_argument('--alpha_source', type=str, default='value',
-                       choices=['value', 'edge', 'threshold'])
+                       choices=['value', 'edge', 'threshold', 'radial'],
+                       help='Alpha source: value, edge, threshold, or radial (per-frame circular mask)')
     parser.add_argument('--alpha_threshold', type=float, default=0.1)
     parser.add_argument('--alpha_softness', type=float, default=0.1)
     parser.add_argument('--alpha_multiply', type=float, default=1.0)
-    
+
+    # Radial alpha params (used when alpha_source=radial)
+    parser.add_argument('--radial_radius', type=float, default=0.45,
+                       help='Radial mask radius relative to frame (0-0.5)')
+    parser.add_argument('--radial_softness', type=float, default=0.2,
+                       help='Radial mask edge softness')
+    parser.add_argument('--radial_power', type=float, default=1.5,
+                       help='Radial falloff curve power')
+    parser.add_argument('--radial_combine', type=str, default='multiply',
+                       choices=['value', 'multiply', 'max'],
+                       help='How to combine radial mask with pattern: value (mask only), multiply, max')
+
     return parser.parse_args()
 
 
@@ -107,6 +119,45 @@ def apply_curve(t: float, curve: str) -> float:
     elif curve == 'ease_both':
         return t * t * (3 - 2 * t)
     return t
+
+
+def generate_radial_mask(size: int, radius: float, softness: float, power: float) -> np.ndarray:
+    """Generate soft circular mask for a single frame.
+
+    Args:
+        size: Frame size in pixels
+        radius: Mask radius relative to frame (0-0.5)
+        softness: Edge falloff width relative to frame
+        power: Falloff curve exponent (higher = sharper edge)
+
+    Returns:
+        2D numpy array with values 0-1 (1 at center, 0 at edges)
+    """
+    mask = np.zeros((size, size), dtype=np.float64)
+    center = size / 2.0
+    max_radius = radius * size
+    soft_range = softness * size
+
+    for y in range(size):
+        for x in range(size):
+            dist = math.sqrt((x - center + 0.5)**2 + (y - center + 0.5)**2)
+
+            if dist < max_radius - soft_range:
+                value = 1.0
+            elif dist > max_radius + soft_range:
+                value = 0.0
+            else:
+                # Smooth falloff in soft range
+                t = (dist - (max_radius - soft_range)) / (2 * soft_range + 1e-8)
+                t = max(0.0, min(1.0, t))
+                # Apply power curve for controllable falloff
+                value = 1.0 - (t ** power)
+                # Smoothstep for extra smoothness
+                value = value * value * (3 - 2 * value)
+
+            mask[y, x] = value
+
+    return mask
 
 
 def generate_frame(
@@ -261,56 +312,89 @@ def generate_flipbook(args):
     cols, rows = parse_grid(args.grid)
     total_frames = cols * rows
     frame_size = args.resolution
-    
+
     # Output image size
     out_width = frame_size * cols
     out_height = frame_size * rows
-    
+
     # Create output arrays
     flipbook_data = np.zeros((out_height, out_width), dtype=np.float64)
     flipbook_alpha = np.zeros((out_height, out_width), dtype=np.float64)
-    
+
+    # Pre-generate radial mask if using radial alpha (same for all frames)
+    radial_mask = None
+    if args.alpha_source == 'radial':
+        print(f"Generating radial mask (radius={args.radial_radius}, softness={args.radial_softness})...")
+        radial_mask = generate_radial_mask(
+            frame_size,
+            args.radial_radius,
+            args.radial_softness,
+            args.radial_power
+        )
+
     print(f"Generating {total_frames} frames ({cols}x{rows} grid)...")
-    
+
     for frame in range(total_frames):
         row = frame // cols
         col = frame % cols
-        
+
         # Generate frame
         data = generate_frame(gen, args, frame, total_frames, frame_size)
-        
+
         # Apply modifiers
         data = PatternGenerator.apply_modifiers(
             data, args.invert, args.contrast,
             args.brightness, args.gamma
         )
-        
-        # Generate alpha
-        alpha = PatternGenerator.generate_alpha(
-            data, args.alpha_source,
-            args.alpha_threshold, args.alpha_softness,
-            args.alpha_multiply
-        )
-        
+
+        # Generate alpha based on source type
+        if args.alpha_source == 'radial':
+            # Radial alpha with combine modes
+            if args.radial_combine == 'value':
+                # Radial mask only (ignores pattern values)
+                alpha = radial_mask.copy()
+            elif args.radial_combine == 'multiply':
+                # Radial mask * pattern value
+                alpha = radial_mask * data
+            elif args.radial_combine == 'max':
+                # Max of radial and pattern (for glow effects)
+                alpha = np.maximum(radial_mask, data)
+            else:
+                alpha = radial_mask * data
+
+            # Apply alpha multiply
+            alpha = alpha * args.alpha_multiply
+            alpha = np.clip(alpha, 0.0, 1.0)
+        else:
+            # Standard alpha generation (value, edge, threshold)
+            alpha = PatternGenerator.generate_alpha(
+                data, args.alpha_source,
+                args.alpha_threshold, args.alpha_softness,
+                args.alpha_multiply
+            )
+
         # Place in grid
         y_start = row * frame_size
         x_start = col * frame_size
         flipbook_data[y_start:y_start+frame_size, x_start:x_start+frame_size] = data
         flipbook_alpha[y_start:y_start+frame_size, x_start:x_start+frame_size] = alpha
-        
+
         print(f"  Frame {frame + 1}/{total_frames}")
-    
+
     return flipbook_data, flipbook_alpha, cols, rows
 
 
 def save_flipbook(data: np.ndarray, alpha: np.ndarray, args, cols: int, rows: int):
     """Save flipbook as PNG with alpha."""
     height, width = data.shape
-    
+
+    # Premultiply RGB by alpha so pixels outside mask are black
+    premultiplied = data * alpha
+
     # Convert to 8-bit
-    gray = (data * 255).astype(np.uint8)
+    gray = (premultiplied * 255).astype(np.uint8)
     alpha_8 = (alpha * 255).astype(np.uint8)
-    
+
     # Create RGBA image
     img = Image.new('RGBA', (width, height))
     for y in range(height):

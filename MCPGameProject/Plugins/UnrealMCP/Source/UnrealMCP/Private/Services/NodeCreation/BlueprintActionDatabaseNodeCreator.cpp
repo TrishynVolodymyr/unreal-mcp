@@ -3,6 +3,7 @@
 #include "BlueprintActionDatabaseNodeCreator.h"
 #include "EnhancedInputActionNodeCreator.h"
 #include "ArrayNodeCreator.h"
+#include "SpawnActorNodeCreator.h"
 #include "ActionSpawnerMatcher.h"
 #include "VariableNodePostProcessor.h"
 #include "BlueprintNodeSpawner.h"
@@ -61,6 +62,19 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
     if (FArrayNodeCreator::IsArrayLengthOperation(FunctionName, ClassName))
     {
         return FArrayNodeCreator::TryCreateArrayLengthNode(
+            EventGraph,
+            PositionX,
+            PositionY,
+            NewNode,
+            NodeTitle,
+            NodeType
+        );
+    }
+
+    // Special handling for Spawn Actor from Class node
+    if (FSpawnActorNodeCreator::IsSpawnActorFromClassRequest(FunctionName))
+    {
+        return FSpawnActorNodeCreator::TryCreateSpawnActorFromClassNode(
             EventGraph,
             PositionX,
             PositionY,
