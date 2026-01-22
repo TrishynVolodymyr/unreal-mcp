@@ -23,6 +23,8 @@
 #include "Materials/MaterialFunctionInterface.h"
 // Noise expression
 #include "Materials/MaterialExpressionNoise.h"
+// Particle SubUV for flipbook animations
+#include "Materials/MaterialExpressionParticleSubUV.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 
@@ -58,22 +60,52 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
     // Handle Constant expression
     if (UMaterialExpressionConstant* ConstExpr = Cast<UMaterialExpressionConstant>(Expression))
     {
+        bool bValueChanged = false;
         if (Properties->HasField(TEXT("value")))
         {
             ConstExpr->R = Properties->GetNumberField(TEXT("value"));
+            bValueChanged = true;
         }
         if (Properties->HasField(TEXT("R")))
         {
             ConstExpr->R = Properties->GetNumberField(TEXT("R"));
+            bValueChanged = true;
+        }
+        // Trigger PostEditChangeProperty to update UI
+        if (bValueChanged)
+        {
+            FProperty* RProp = ConstExpr->GetClass()->FindPropertyByName(TEXT("R"));
+            if (RProp)
+            {
+                FPropertyChangedEvent PropertyChangedEvent(RProp, EPropertyChangeType::ValueSet);
+                ConstExpr->PostEditChangeProperty(PropertyChangedEvent);
+            }
         }
     }
     // Handle Constant2Vector
     else if (UMaterialExpressionConstant2Vector* Const2Expr = Cast<UMaterialExpressionConstant2Vector>(Expression))
     {
+        bool bValueChanged = false;
         if (Properties->HasField(TEXT("R")))
+        {
             Const2Expr->R = Properties->GetNumberField(TEXT("R"));
+            bValueChanged = true;
+        }
         if (Properties->HasField(TEXT("G")))
+        {
             Const2Expr->G = Properties->GetNumberField(TEXT("G"));
+            bValueChanged = true;
+        }
+        // Trigger PostEditChangeProperty to update UI
+        if (bValueChanged)
+        {
+            FProperty* RProp = Const2Expr->GetClass()->FindPropertyByName(TEXT("R"));
+            if (RProp)
+            {
+                FPropertyChangedEvent PropertyChangedEvent(RProp, EPropertyChangeType::ValueSet);
+                Const2Expr->PostEditChangeProperty(PropertyChangedEvent);
+            }
+        }
     }
     // Handle Constant3Vector (color)
     else if (UMaterialExpressionConstant3Vector* Const3Expr = Cast<UMaterialExpressionConstant3Vector>(Expression))
@@ -152,6 +184,35 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                     VectorParam->DefaultValue.A = (*ColorArray)[3]->AsNumber();
                 }
             }
+        }
+    }
+    // Handle ParticleSubUV (flipbook texture sampler for particles)
+    // NOTE: Must be checked BEFORE TextureSample since ParticleSubUV inherits from it
+    else if (UMaterialExpressionParticleSubUV* ParticleSubUVExpr = Cast<UMaterialExpressionParticleSubUV>(Expression))
+    {
+        if (Properties->HasField(TEXT("texture")))
+        {
+            FString TexturePath = Properties->GetStringField(TEXT("texture"));
+            UTexture* Texture = LoadObject<UTexture>(nullptr, *TexturePath);
+            if (Texture)
+            {
+                ParticleSubUVExpr->Texture = Texture;
+            }
+        }
+        // Handle bBlend property - whether to blend between SubUV frames
+        if (Properties->HasField(TEXT("blend")) || Properties->HasField(TEXT("bBlend")))
+        {
+            ParticleSubUVExpr->bBlend = Properties->HasField(TEXT("blend"))
+                ? Properties->GetBoolField(TEXT("blend"))
+                : Properties->GetBoolField(TEXT("bBlend"));
+        }
+        // Handle SamplerType property (inherited from TextureSample)
+        if (Properties->HasField(TEXT("SamplerType")) || Properties->HasField(TEXT("sampler_type")))
+        {
+            int32 SamplerTypeValue = Properties->HasField(TEXT("SamplerType"))
+                ? (int32)Properties->GetNumberField(TEXT("SamplerType"))
+                : (int32)Properties->GetNumberField(TEXT("sampler_type"));
+            ParticleSubUVExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
         }
     }
     // Handle TextureSample
@@ -384,8 +445,10 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
         return nullptr;
     }
 
-    // Find the material
-    UMaterial* Material = FindAndValidateMaterial(Params.MaterialPath, OutError);
+    // Find the working material (editor's transient copy if editor is open)
+    // Also get the MaterialEditor pointer if it's open
+    TSharedPtr<IMaterialEditor> MaterialEditor;
+    UMaterial* Material = FindWorkingMaterial(Params.MaterialPath, OutError, &MaterialEditor);
     if (!Material)
     {
         return nullptr;
@@ -402,23 +465,7 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
     UMaterialExpression* NewExpression = nullptr;
     FVector2D NodePos(Params.Position.X, Params.Position.Y);
 
-    // Try to use IMaterialEditor if the material is open in an editor
-    // This provides proper UI refresh including SGraphEditor notification
-    // NOTE: Must use UAssetEditorSubsystem->FindEditorForAsset, NOT FMaterialEditorUtilities::GetIMaterialEditorForObject
-    // because GetIMaterialEditorForObject expects an object inside the material (like a graph), not the material itself
-    TSharedPtr<IMaterialEditor> MaterialEditor;
-    if (GEditor)
-    {
-        UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-        if (AssetEditorSubsystem)
-        {
-            IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Material, /*bFocusIfOpen*/ false);
-            if (EditorInstance)
-            {
-                MaterialEditor = StaticCastSharedPtr<IMaterialEditor>(TSharedPtr<IAssetEditorInstance>(EditorInstance, [](IAssetEditorInstance*){}));
-            }
-        }
-    }
+    // If Material Editor is open, use its API for proper UI refresh
     if (MaterialEditor.IsValid())
     {
         // Use the editor's CreateNewMaterialExpression which handles UI refresh properly
@@ -442,6 +489,9 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
             // Apply type-specific properties after creation
             if (Params.Properties.IsValid())
             {
+                // Mark expression for modification before changing properties
+                NewExpression->Modify();
+
                 if (!ApplyExpressionProperties(NewExpression, Params.Properties, OutError))
                 {
                     // Property validation failed - clean up and return
@@ -449,20 +499,32 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
                     NewExpression->MarkAsGarbage();
                     return nullptr;
                 }
+
+                // After setting properties, we need to update the graph node to reflect changes
+                // Find the graph node for this expression and reconstruct it
+                if (Material->MaterialGraph)
+                {
+                    for (UEdGraphNode* Node : Material->MaterialGraph->Nodes)
+                    {
+                        UMaterialGraphNode* MatNode = Cast<UMaterialGraphNode>(Node);
+                        if (MatNode && MatNode->MaterialExpression == NewExpression)
+                        {
+                            // Reconstruct the node to pick up property changes
+                            MatNode->ReconstructNode();
+                            break;
+                        }
+                    }
+                }
             }
 
-            // Mark dirty after property changes
-            Material->MarkPackageDirty();
-
-            // IMPORTANT: Refresh the Material Editor UI after creating the expression
-            // CreateNewMaterialExpression handles the initial node creation, but we need
-            // to explicitly refresh for the node to become visible in the graph view
+            // Notify graph of changes
             if (Material->MaterialGraph)
             {
                 Material->MaterialGraph->NotifyGraphChanged();
             }
-            MaterialEditor->UpdateMaterialAfterGraphChange();
-            MaterialEditor->ForceRefreshExpressionPreviews();
+
+            // Mark dirty (let user save when ready)
+            Material->MarkPackageDirty();
         }
     }
     else
@@ -482,6 +544,9 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
         // Apply type-specific properties
         if (Params.Properties.IsValid())
         {
+            // Mark expression for modification before changing properties
+            NewExpression->Modify();
+
             if (!ApplyExpressionProperties(NewExpression, Params.Properties, OutError))
             {
                 // Property validation failed - clean up and return
@@ -497,14 +562,14 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
             EditorData->ExpressionCollection.AddExpression(NewExpression);
         }
 
-        // Add to the material graph to create the visual node
-        if (Material->MaterialGraph)
-        {
-            Material->MaterialGraph->AddExpression(NewExpression, /*bUserInvoked*/ true);
-        }
+        // Ensure graph exists and rebuild to create visual nodes
+        EnsureMaterialGraph(Material);
+        Material->MaterialGraph->Modify();
+        Material->MaterialGraph->RebuildGraph();
+        Material->MaterialGraph->NotifyGraphChanged();
 
-        // Recompile the material
-        RecompileMaterial(Material);
+        // Mark dirty (let user save when ready)
+        Material->MarkPackageDirty();
     }
 
     if (!NewExpression)

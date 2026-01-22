@@ -12,6 +12,7 @@
 #include "Commands/NiagaraCommandRegistration.h"
 #include "Commands/AnimationCommandRegistration.h"
 #include "Commands/StateTreeCommandRegistration.h"
+#include "Commands/SoundCommandRegistration.h"
 #include "Services/BlueprintActionService.h"
 // Legacy adapter removed
 #include "Services/BlueprintService.h"
@@ -125,6 +126,9 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
 
     // Register StateTree commands
     FStateTreeCommandRegistration::RegisterAllStateTreeCommands();
+  
+    // Register Sound/Audio commands
+    FSoundCommandRegistration::RegisterAllCommands();
 
     UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::RegisterAllCommands: All command types registered"));
 }

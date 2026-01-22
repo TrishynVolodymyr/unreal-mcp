@@ -315,6 +315,114 @@ bool FNiagaraService::SetRendererProperty(const FString& SystemPath, const FStri
                 return false;
             }
         }
+        // Handle FVector2D (e.g., SubImageSize)
+        else if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("Vector2D"))
+        {
+            FVector2D* Vec = StructProp->ContainerPtrToValuePtr<FVector2D>(FoundRenderer);
+            if (Vec)
+            {
+                // Parse "X,Y" format (e.g., "4,2" or "(X=4,Y=2)")
+                TArray<FString> Components;
+                FString CleanedStr = ValueStr;
+                CleanedStr.ReplaceInline(TEXT("("), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT(")"), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("X="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("Y="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT(" "), TEXT(""));
+                CleanedStr.ParseIntoArray(Components, TEXT(","), true);
+
+                if (Components.Num() >= 2)
+                {
+                    Vec->X = FCString::Atof(*Components[0]);
+                    Vec->Y = FCString::Atof(*Components[1]);
+                    UE_LOG(LogNiagaraService, Log, TEXT("Set Vector2D property '%s' to (%f, %f)"), *PropertyName, Vec->X, Vec->Y);
+                }
+                else
+                {
+                    OutError = FString::Printf(TEXT("Invalid Vector2D format for '%s'. Expected 'X,Y' (e.g., '4,2')"), *PropertyName);
+                    return false;
+                }
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Failed to get Vector2D struct for '%s'"), *PropertyName);
+                return false;
+            }
+        }
+        // Handle FVector
+        else if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("Vector"))
+        {
+            FVector* Vec = StructProp->ContainerPtrToValuePtr<FVector>(FoundRenderer);
+            if (Vec)
+            {
+                // Parse "X,Y,Z" format
+                TArray<FString> Components;
+                FString CleanedStr = ValueStr;
+                CleanedStr.ReplaceInline(TEXT("("), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT(")"), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("X="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("Y="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("Z="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT(" "), TEXT(""));
+                CleanedStr.ParseIntoArray(Components, TEXT(","), true);
+
+                if (Components.Num() >= 3)
+                {
+                    Vec->X = FCString::Atof(*Components[0]);
+                    Vec->Y = FCString::Atof(*Components[1]);
+                    Vec->Z = FCString::Atof(*Components[2]);
+                    UE_LOG(LogNiagaraService, Log, TEXT("Set Vector property '%s' to (%f, %f, %f)"), *PropertyName, Vec->X, Vec->Y, Vec->Z);
+                }
+                else
+                {
+                    OutError = FString::Printf(TEXT("Invalid Vector format for '%s'. Expected 'X,Y,Z' (e.g., '1,2,3')"), *PropertyName);
+                    return false;
+                }
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Failed to get Vector struct for '%s'"), *PropertyName);
+                return false;
+            }
+        }
+        // Handle FLinearColor
+        else if (StructProp->Struct && StructProp->Struct->GetName() == TEXT("LinearColor"))
+        {
+            FLinearColor* Color = StructProp->ContainerPtrToValuePtr<FLinearColor>(FoundRenderer);
+            if (Color)
+            {
+                // Parse "R,G,B,A" format
+                TArray<FString> Components;
+                FString CleanedStr = ValueStr;
+                CleanedStr.ReplaceInline(TEXT("("), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT(")"), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("R="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("G="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("B="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT("A="), TEXT(""));
+                CleanedStr.ReplaceInline(TEXT(" "), TEXT(""));
+                CleanedStr.ParseIntoArray(Components, TEXT(","), true);
+
+                if (Components.Num() >= 3)
+                {
+                    Color->R = FCString::Atof(*Components[0]);
+                    Color->G = FCString::Atof(*Components[1]);
+                    Color->B = FCString::Atof(*Components[2]);
+                    Color->A = Components.Num() >= 4 ? FCString::Atof(*Components[3]) : 1.0f;
+                    UE_LOG(LogNiagaraService, Log, TEXT("Set LinearColor property '%s' to (%f, %f, %f, %f)"), *PropertyName, Color->R, Color->G, Color->B, Color->A);
+                }
+                else
+                {
+                    OutError = FString::Printf(TEXT("Invalid LinearColor format for '%s'. Expected 'R,G,B' or 'R,G,B,A' (e.g., '1,0.5,0,1')"), *PropertyName);
+                    return false;
+                }
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Failed to get LinearColor struct for '%s'"), *PropertyName);
+                return false;
+            }
+        }
         else
         {
             OutError = FString::Printf(TEXT("Unsupported struct type '%s' for property '%s'"),

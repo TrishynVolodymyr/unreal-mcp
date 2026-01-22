@@ -208,6 +208,81 @@ FString FSetNodePinValueCommand::Execute(const FString& Parameters)
             return CreateErrorResponse(FString::Printf(TEXT("Class not found: %s"), *Value));
         }
     }
+    else if (TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+    {
+        // Handle object reference pins (UNiagaraSystem, UStaticMesh, UMaterial, etc.)
+        // For object pins, we must set DefaultObject (pointer) not DefaultValue (string)
+        UObject* ObjectToSet = nullptr;
+
+        if (Value.StartsWith(TEXT("/Game/")) || Value.StartsWith(TEXT("/Engine/")))
+        {
+            // Full path provided - load directly
+            ObjectToSet = LoadObject<UObject>(nullptr, *Value);
+
+            // If not found, try with proper asset path format (Package.AssetName)
+            if (!ObjectToSet)
+            {
+                FString BaseName = FPaths::GetBaseFilename(Value);
+                FString FullAssetPath = FString::Printf(TEXT("%s.%s"), *Value, *BaseName);
+                ObjectToSet = LoadObject<UObject>(nullptr, *FullAssetPath);
+            }
+        }
+        else
+        {
+            // Short name provided (e.g., "NS_Explosion")
+            // Get the expected class from the pin to help narrow search
+            UClass* ExpectedClass = nullptr;
+            if (TargetPin->PinType.PinSubCategoryObject.IsValid())
+            {
+                ExpectedClass = Cast<UClass>(TargetPin->PinType.PinSubCategoryObject.Get());
+            }
+
+            // Try common asset paths
+            TArray<FString> PossiblePaths;
+            PossiblePaths.Add(FString::Printf(TEXT("/Game/Effects/%s.%s"), *Value, *Value));
+            PossiblePaths.Add(FString::Printf(TEXT("/Game/VFX/%s.%s"), *Value, *Value));
+            PossiblePaths.Add(FString::Printf(TEXT("/Game/Particles/%s.%s"), *Value, *Value));
+            PossiblePaths.Add(FString::Printf(TEXT("/Game/Materials/%s.%s"), *Value, *Value));
+            PossiblePaths.Add(FString::Printf(TEXT("/Game/Meshes/%s.%s"), *Value, *Value));
+            PossiblePaths.Add(FString::Printf(TEXT("/Game/Textures/%s.%s"), *Value, *Value));
+            PossiblePaths.Add(FString::Printf(TEXT("/Game/%s.%s"), *Value, *Value));
+
+            for (const FString& Path : PossiblePaths)
+            {
+                ObjectToSet = LoadObject<UObject>(nullptr, *Path);
+                if (ObjectToSet)
+                {
+                    // Verify type if we have expected class
+                    if (ExpectedClass && !ObjectToSet->IsA(ExpectedClass))
+                    {
+                        ObjectToSet = nullptr;
+                        continue;
+                    }
+                    break;
+                }
+            }
+
+            // Last resort: try to find any loaded object with this name
+            if (!ObjectToSet)
+            {
+                ObjectToSet = FindFirstObject<UObject>(*Value, EFindFirstObjectOptions::None, ELogVerbosity::NoLogging);
+                if (ObjectToSet && ExpectedClass && !ObjectToSet->IsA(ExpectedClass))
+                {
+                    ObjectToSet = nullptr;
+                }
+            }
+        }
+
+        if (ObjectToSet)
+        {
+            // Use schema's method to properly set object pin value
+            K2Schema->TrySetDefaultObject(*TargetPin, ObjectToSet);
+        }
+        else
+        {
+            return CreateErrorResponse(FString::Printf(TEXT("Object not found: %s. Try providing full path like /Game/Effects/%s"), *Value, *Value));
+        }
+    }
     else if (TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Byte && TargetPin->PinType.PinSubCategoryObject.IsValid())
     {
         // Handle enum pins

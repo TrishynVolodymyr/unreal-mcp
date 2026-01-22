@@ -31,6 +31,13 @@ public class UnrealMCP : ModuleRules
 		{
 			PrivateIncludePaths.Add(NiagaraEditorPrivatePath);
 		}
+
+		// Add MetasoundEditor private includes for FGraphBuilder access
+		string MetasoundEditorPrivatePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(EngineDirectory, "Plugins", "Runtime", "Metasound", "Source", "MetasoundEditor", "Private"));
+		if (System.IO.Directory.Exists(MetasoundEditorPrivatePath))
+		{
+			PrivateIncludePaths.Add(MetasoundEditorPrivatePath);
+		}
 		
 		PublicDependencyModuleNames.AddRange(
 			new string[]
@@ -106,6 +113,11 @@ public class UnrealMCP : ModuleRules
 					// StateTree AI support
 					"StateTreeModule",         // Core StateTree runtime
 					"StateTreeEditorModule"    // StateTree editor utilities (factories, compilation)
+					// MetaSound audio support
+					"MetasoundEngine",     // UMetaSoundSource, builders
+					"MetasoundFrontend",   // FMetaSoundFrontendDocumentBuilder
+					"MetasoundGraphCore",  // Core graph types
+					"MetasoundEditor"      // Editor-specific utilities
 				}
 			);
 		}

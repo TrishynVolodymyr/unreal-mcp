@@ -91,6 +91,7 @@ bool FGetBlueprintMetadataCommand::ParseParameters(const FString& JsonString, FS
     JsonObject->TryGetStringField(TEXT("graph_name"), OutFilter.GraphName);
     JsonObject->TryGetStringField(TEXT("node_type"), OutFilter.NodeType);
     JsonObject->TryGetStringField(TEXT("event_type"), OutFilter.EventType);
+    JsonObject->TryGetStringField(TEXT("component_name"), OutFilter.ComponentName);
 
     // Parse detail_level (default: flow)
     FString DetailLevelStr;
@@ -117,6 +118,13 @@ bool FGetBlueprintMetadataCommand::ParseParameters(const FString& JsonString, FS
     if (OutFields.Contains(TEXT("graph_nodes")) && OutFilter.GraphName.IsEmpty())
     {
         OutError = TEXT("When requesting 'graph_nodes' field, 'graph_name' parameter is required to limit response size");
+        return false;
+    }
+
+    // Validate: component_properties requires component_name to be specified
+    if (OutFields.Contains(TEXT("component_properties")) && OutFilter.ComponentName.IsEmpty())
+    {
+        OutError = TEXT("When requesting 'component_properties' field, 'component_name' parameter is required");
         return false;
     }
 
@@ -179,6 +187,10 @@ TSharedPtr<FJsonObject> FGetBlueprintMetadataCommand::BuildMetadata(UBlueprint* 
     if (ShouldIncludeField(TEXT("components"), Fields))
     {
         Metadata->SetObjectField(TEXT("components"), MetadataBuilder.BuildComponentsInfo(Blueprint));
+    }
+    if (ShouldIncludeField(TEXT("component_properties"), Fields))
+    {
+        Metadata->SetObjectField(TEXT("component_properties"), MetadataBuilder.BuildComponentPropertiesInfo(Blueprint, Filter.ComponentName));
     }
     if (ShouldIncludeField(TEXT("graphs"), Fields))
     {

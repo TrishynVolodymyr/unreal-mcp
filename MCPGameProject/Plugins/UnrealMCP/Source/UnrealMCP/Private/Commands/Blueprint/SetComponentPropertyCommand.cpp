@@ -291,23 +291,33 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
             continue;
         }
         
-        // Find the property on the component
+        // Check for special collision properties that are handled by PropertyService
+        // These are nested in BodyInstance and require special handling
+        static const TSet<FString> CollisionProperties = {
+            TEXT("CollisionEnabled"),
+            TEXT("CollisionProfileName"),
+            TEXT("bNotifyRigidBodyCollision")
+        };
+
+        bool bIsCollisionProperty = CollisionProperties.Contains(PropertyName);
+
+        // Find the property on the component (unless it's a collision property)
         FProperty* Property = FindFProperty<FProperty>(ComponentTemplate->GetClass(), *PropertyName);
-        if (!Property)
+        if (!Property && !bIsCollisionProperty)
         {
             FString ErrorMsg = FString::Printf(
                 TEXT("Property '%s' not found on component '%s' (Class: %s)"),
-                *PropertyName, 
-                *ComponentName, 
+                *PropertyName,
+                *ComponentName,
                 *ComponentTemplate->GetClass()->GetName()
             );
-            
+
             OutFailedProperties.Add(PropertyName, ErrorMsg);
             UE_LOG(LogUnrealMCP, Warning, TEXT("%s"), *ErrorMsg);
             continue;
         }
-        
-        // Set the property using PropertyService
+
+        // Set the property using PropertyService (handles both regular and collision properties)
         FString PropertyError;
         if (FPropertyService::Get().SetObjectProperty(ComponentTemplate, PropertyName, JsonValue, PropertyError))
         {

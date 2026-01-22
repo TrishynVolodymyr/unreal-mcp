@@ -280,7 +280,8 @@ async def get_blueprint_metadata(
     graph_name: str = None,
     node_type: str = None,
     event_type: str = None,
-    detail_level: str = None
+    detail_level: str = None,
+    component_name: str = None
 ) -> Dict[str, Any]:
     """
     Get comprehensive metadata about a Blueprint with selective field querying.
@@ -301,6 +302,7 @@ async def get_blueprint_metadata(
                 - "variables": Blueprint variables with types and default values
                 - "functions": Custom Blueprint functions
                 - "components": All components with names and types (replaces list_blueprint_components)
+                - "component_properties": Single component's property values (requires component_name parameter)
                 - "graphs": Event graphs and function graphs
                 - "status": Compilation status and error state
                 - "metadata": Asset metadata and tags
@@ -319,6 +321,8 @@ async def get_blueprint_metadata(
                      - "summary": Node IDs and titles only (minimal output)
                      - "flow": Node IDs, titles, and exec pin connections only (DEFAULT)
                      - "full": Everything including all data pin connections and default values
+        component_name: Required when using "component_properties" field. Specifies which
+                       component to get properties for (e.g., "ProjectileMovement", "CollisionSphere").
 
     Returns:
         Dictionary containing requested metadata fields
@@ -337,6 +341,8 @@ async def get_blueprint_metadata(
         params["event_type"] = event_type
     if detail_level is not None:
         params["detail_level"] = detail_level
+    if component_name is not None:
+        params["component_name"] = component_name
     return await send_tcp_command("get_blueprint_metadata", params)
 
 
