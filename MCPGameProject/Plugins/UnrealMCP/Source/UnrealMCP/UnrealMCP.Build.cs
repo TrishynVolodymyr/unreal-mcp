@@ -102,7 +102,10 @@ public class UnrealMCP : ModuleRules
 					"Niagara",             // Core Niagara runtime
 					"NiagaraCore",         // Niagara core types
 					"NiagaraEditor",       // Niagara editor utilities (factories, graph utilities)
-					"NiagaraShader"        // Niagara shader compilation
+					"NiagaraShader",       // Niagara shader compilation
+					// StateTree AI support
+					"StateTreeModule",         // Core StateTree runtime
+					"StateTreeEditorModule"    // StateTree editor utilities (factories, compilation)
 				}
 			);
 		}
