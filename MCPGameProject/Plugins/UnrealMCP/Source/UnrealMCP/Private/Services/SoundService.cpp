@@ -299,15 +299,15 @@ USoundAttenuation* FSoundService::CreateSoundAttenuation(const FSoundAttenuation
     FSoundAttenuationSettings& Settings = Attenuation->Attenuation;
 
     // Distance settings
-    Settings.DistanceAlgorithm = static_cast<EAttenuationDistanceModel>(GetAttenuationFunction(Params.DistanceAlgorithm));
-    Settings.AttenuationShape = Params.bUseSpatialization ? EAttenuationShape::Sphere : EAttenuationShape::Capsule;
+    Settings.DistanceAlgorithm = static_cast<EAttenuationDistanceModel>(GetAttenuationFunction(Params.AttenuationFunction));
+    Settings.AttenuationShape = Params.bSpatialize ? EAttenuationShape::Sphere : EAttenuationShape::Capsule;
     Settings.FalloffDistance = Params.FalloffDistance;
 
     // Radius settings
     Settings.AttenuationShapeExtents = FVector(Params.InnerRadius, 0.0f, 0.0f);
 
     // Spatialization
-    Settings.bSpatialize = Params.bUseSpatialization;
+    Settings.bSpatialize = Params.bSpatialize;
 
     if (!SaveAsset(Attenuation, OutError))
     {

@@ -16,6 +16,8 @@
 #include "NiagaraEditorModule.h"
 #include "EdGraphSchema_Niagara.h"
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
+#include "NiagaraSpriteRendererProperties.h"
+#include "NiagaraDataInterfaceSpriteRendererInfo.h"
 
 // Helper function to find ParameterMap pin from a collection of pins
 static UEdGraphPin* GetParameterMapPinFromArray(const TArray<UEdGraphPin*>& Pins)
@@ -307,6 +309,65 @@ bool FNiagaraService::AddModule(const FNiagaraModuleAddParams& Params, FString& 
 
     // Get the module node ID
     OutModuleId = NewModuleNode->NodeGuid.ToString();
+
+    // Auto-link SubUVAnimation module's Sprite Renderer input to the emitter's renderer
+    FString ModuleName = ModuleScript->GetName();
+    if (ModuleName.Contains(TEXT("SubUVAnimation")))
+    {
+        // Find the first sprite renderer in the emitter
+        UNiagaraSpriteRendererProperties* SpriteRenderer = nullptr;
+        for (UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+        {
+            SpriteRenderer = Cast<UNiagaraSpriteRendererProperties>(Renderer);
+            if (SpriteRenderer)
+            {
+                break;
+            }
+        }
+
+        if (SpriteRenderer)
+        {
+            // Create the aliased parameter handle for the Sprite Renderer input
+            // The input name from get_module_inputs shows "Sprite Renderer " (with trailing space)
+            FNiagaraParameterHandle InputHandle(TEXT("Module.Sprite Renderer "));
+
+            // Get the type definition for the SpriteRendererInfo data interface
+            FNiagaraTypeDefinition DIType = FNiagaraTypeDefinition(UNiagaraDataInterfaceSpriteRendererInfo::StaticClass());
+
+            // Create or get the override pin for this input
+            UEdGraphPin& OverridePin = FNiagaraStackGraphUtilities::GetOrCreateStackFunctionInputOverridePin(
+                *NewModuleNode,
+                InputHandle,
+                DIType,
+                FGuid(),  // InputScriptVariableId - not needed
+                FGuid()   // PreferredOverrideNodeGuid - not needed
+            );
+
+            // Create the data interface and link it
+            UNiagaraDataInterface* CreatedDI = nullptr;
+            FNiagaraStackGraphUtilities::SetDataInterfaceValueForFunctionInput(
+                OverridePin,
+                UNiagaraDataInterfaceSpriteRendererInfo::StaticClass(),
+                InputHandle.GetParameterHandleString().ToString(),
+                CreatedDI
+            );
+
+            // Set the SpriteRenderer property on the created data interface
+            if (CreatedDI)
+            {
+                UNiagaraDataInterfaceSpriteRendererInfo* RendererInfoDI = Cast<UNiagaraDataInterfaceSpriteRendererInfo>(CreatedDI);
+                if (RendererInfoDI)
+                {
+                    RendererInfoDI->OnSpriteRendererChanged(SpriteRenderer);
+                    UE_LOG(LogNiagaraService, Log, TEXT("Auto-linked SubUVAnimation 'Sprite Renderer' input to '%s'"), *SpriteRenderer->GetName());
+                }
+            }
+        }
+        else
+        {
+            UE_LOG(LogNiagaraService, Warning, TEXT("SubUVAnimation module added but no Sprite Renderer found on emitter '%s'. Add a renderer first."), *Params.EmitterName);
+        }
+    }
 
     // Mark system dirty - DON'T trigger recompilation here
     // Recompilation will happen when compile_niagara_asset is called explicitly
