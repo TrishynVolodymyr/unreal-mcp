@@ -495,6 +495,117 @@ async def get_material_parameters(
 # ============================================================================
 
 @app.tool()
+async def get_material_graph_metadata(
+    material_path: str,
+    fields: List[str] = None
+) -> Dict[str, Any]:
+    """
+    Get comprehensive metadata about a material's expression graph.
+
+    Retrieves all expressions, connections, material outputs, orphan nodes, and
+    data flow paths from a base Material (not Material Instance). Essential for
+    understanding material structure before modifying expressions.
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+        fields: Optional list to filter which fields to return. Available fields:
+            - "expressions": All expression nodes with id, type, position, inputs, outputs
+            - "connections": All connections between expressions
+            - "material_outputs": Which expressions connect to BaseColor, Emissive, etc.
+            - "orphans": Expressions with no connected outputs (cleanup candidates)
+            - "flow": Traced data flow from sources to material outputs
+
+    Returns:
+        Dictionary containing:
+        - success: Whether retrieval was successful
+        - expressions: Array of expression objects with:
+            - expression_id: GUID for the expression
+            - expression_type: Type name (e.g., "Constant", "Multiply", "TextureSample")
+            - position: [X, Y] position in graph
+            - description: Human-readable description
+            - inputs: Array of input pins
+            - outputs: Array of output pins with connections
+        - connections: Array of connection objects
+        - material_outputs: Object mapping property names to connected expressions
+        - orphans: Array of expressions with unused outputs
+        - flow: Traced paths from sources to outputs
+
+    Example:
+        # Get full graph metadata
+        get_material_graph_metadata(material_path="/Game/VFX/Fireball/M_FireballProjectile_v2")
+
+        # Get only expressions and outputs
+        get_material_graph_metadata(
+            material_path="/Game/Materials/M_Crystal",
+            fields=["expressions", "material_outputs"]
+        )
+    """
+    params = {"material_path": material_path}
+    if fields:
+        params["fields"] = fields
+
+    return await send_tcp_command("get_material_expression_metadata", params)
+
+
+@app.tool()
+async def set_material_expression_property(
+    material_path: str,
+    expression_id: str,
+    property_name: str,
+    property_value: str
+) -> Dict[str, Any]:
+    """
+    Set a property on an existing material expression node.
+
+    Allows modifying properties of expressions already in a material graph,
+    such as changing the texture on a TextureSample node or the value of a Constant.
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+        expression_id: GUID of the expression to modify (from get_material_graph_metadata)
+        property_name: Name of the property to set. Common properties:
+            - For TextureSample: "Texture" (texture path)
+            - For Constant: "R" (float value)
+            - For Constant3Vector: "Constant" (color as "R,G,B")
+            - For Constant4Vector: "Constant" (color as "R,G,B,A")
+            - For TextureCoordinate: "UTiling", "VTiling"
+            - For ScalarParameter: "DefaultValue", "ParameterName"
+        property_value: Value to set (as string, number, or path depending on property type)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the property was set successfully
+        - property_name: Name of the property that was modified
+        - message: Success/error message
+
+    Example:
+        # Change texture on a TextureSample node
+        set_material_expression_property(
+            material_path="/Game/VFX/Fireball/M_FireballProjectile_v2",
+            expression_id="A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6",
+            property_name="Texture",
+            property_value="/Game/VFX/Fireball/T_Fireball_density"
+        )
+
+        # Change a constant value
+        set_material_expression_property(
+            material_path="/Game/Materials/M_Glow",
+            expression_id="X1Y2Z3...",
+            property_name="R",
+            property_value=2.5
+        )
+    """
+    params = {
+        "material_path": material_path,
+        "expression_id": expression_id,
+        "property_name": property_name,
+        "property_value": property_value
+    }
+
+    return await send_tcp_command("set_material_expression_property", params)
+
+
+@app.tool()
 async def add_material_expression(
     material_path: str,
     expression_type: str,

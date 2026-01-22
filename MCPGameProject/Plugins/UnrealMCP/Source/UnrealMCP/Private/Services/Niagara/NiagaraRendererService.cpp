@@ -8,6 +8,7 @@
 #include "NiagaraRendererProperties.h"
 #include "NiagaraCommon.h"
 #include "NiagaraSpriteRendererProperties.h"
+#include "NiagaraMeshRendererProperties.h"
 
 // ============================================================================
 // Renderers (Feature 5)
@@ -164,6 +165,83 @@ bool FNiagaraService::SetRendererProperty(const FString& SystemPath, const FStri
     // Use reflection to set the property
     System->Modify();
     FoundRenderer->Modify();
+
+    // Special handling for mesh renderer ParticleMesh (sets mesh in Meshes array)
+    if (PropertyName.Equals(TEXT("ParticleMesh"), ESearchCase::IgnoreCase) ||
+        PropertyName.Equals(TEXT("Mesh"), ESearchCase::IgnoreCase) ||
+        PropertyName.Equals(TEXT("Meshes"), ESearchCase::IgnoreCase))
+    {
+        UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(FoundRenderer);
+        if (!MeshRenderer)
+        {
+            OutError = TEXT("ParticleMesh/Meshes is only valid for mesh renderers");
+            return false;
+        }
+
+        // Load the static mesh asset
+        UStaticMesh* StaticMesh = LoadObject<UStaticMesh>(nullptr, *ValueStr);
+        if (!StaticMesh)
+        {
+            OutError = FString::Printf(TEXT("Failed to load static mesh: %s"), *ValueStr);
+            return false;
+        }
+
+        // Ensure Meshes array has at least one element and set the mesh
+        if (MeshRenderer->Meshes.Num() == 0)
+        {
+            MeshRenderer->Meshes.AddDefaulted();
+        }
+        MeshRenderer->Meshes[0].Mesh = StaticMesh;
+
+        UE_LOG(LogNiagaraService, Log, TEXT("Set mesh renderer ParticleMesh to '%s'"), *ValueStr);
+
+        // Mark dirty and compile
+        MarkSystemDirty(System);
+        System->OnSystemPostEditChange().Broadcast(System);
+        System->RequestCompile(false);
+        System->WaitForCompilationComplete();
+        RefreshEditors(System);
+
+        return true;
+    }
+
+    // Special handling for mesh renderer OverrideMaterials array
+    if (PropertyName.Equals(TEXT("OverrideMaterials"), ESearchCase::IgnoreCase))
+    {
+        UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(FoundRenderer);
+        if (!MeshRenderer)
+        {
+            OutError = TEXT("OverrideMaterials is only valid for mesh renderers");
+            return false;
+        }
+
+        // Load the material asset
+        UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, *ValueStr);
+        if (!Material)
+        {
+            OutError = FString::Printf(TEXT("Failed to load material: %s"), *ValueStr);
+            return false;
+        }
+
+        // Enable material overrides
+        MeshRenderer->bOverrideMaterials = true;
+
+        // Clear existing and add the new material override
+        MeshRenderer->OverrideMaterials.Empty();
+        FNiagaraMeshMaterialOverride& NewOverride = MeshRenderer->OverrideMaterials.AddDefaulted_GetRef();
+        NewOverride.ExplicitMat = Material;
+
+        UE_LOG(LogNiagaraService, Log, TEXT("Set mesh renderer OverrideMaterials to '%s'"), *ValueStr);
+
+        // Mark dirty and compile
+        MarkSystemDirty(System);
+        System->OnSystemPostEditChange().Broadcast(System);
+        System->RequestCompile(false);
+        System->WaitForCompilationComplete();
+        RefreshEditors(System);
+
+        return true;
+    }
 
     FProperty* Property = FoundRenderer->GetClass()->FindPropertyByName(FName(*PropertyName));
     if (!Property)
