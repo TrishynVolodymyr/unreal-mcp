@@ -110,14 +110,15 @@ public class UnrealMCP : ModuleRules
 					"NiagaraCore",         // Niagara core types
 					"NiagaraEditor",       // Niagara editor utilities (factories, graph utilities)
 					"NiagaraShader",       // Niagara shader compilation
-					// StateTree AI support
-					"StateTreeModule",         // Core StateTree runtime
-					"StateTreeEditorModule"    // StateTree editor utilities (factories, compilation)
 					// MetaSound audio support
 					"MetasoundEngine",     // UMetaSoundSource, builders
 					"MetasoundFrontend",   // FMetaSoundFrontendDocumentBuilder
 					"MetasoundGraphCore",  // Core graph types
-					"MetasoundEditor"      // Editor-specific utilities
+					"MetasoundEditor",      // Editor-specific utilities
+					// StateTree AI support
+					"StateTreeModule",         // Core StateTree runtime
+					"StateTreeEditorModule",   // StateTree editor utilities (factories, compilation)
+					"PropertyBindingUtils"     // Property binding path utilities
 				}
 			);
 		}

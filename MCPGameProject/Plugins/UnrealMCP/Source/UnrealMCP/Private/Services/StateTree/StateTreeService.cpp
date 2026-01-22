@@ -5,9 +5,11 @@
 #include "StateTreeTaskBase.h"
 #include "StateTreeConditionBase.h"
 #include "StateTreeEvaluatorBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreeSchema.h"
 #include "StateTreeCompiler.h"
 #include "StateTreeTypes.h"
+#include "GameFramework/Actor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
@@ -19,6 +21,93 @@
 #include "Serialization/JsonSerializer.h"
 #include "GameplayTagContainer.h"
 #include "Engine/Blueprint.h"
+#include "Modules/ModuleManager.h"
+
+// Helper function to find UScriptStruct by path, handling both native (/Script/) and asset paths
+static UScriptStruct* FindScriptStructByPath(const FString& StructPath)
+{
+    if (StructPath.IsEmpty())
+    {
+        return nullptr;
+    }
+
+    // For paths like /Script/ModuleName.StructName, we need special handling
+    // because these are native structs registered in memory, not loadable assets
+    if (StructPath.StartsWith(TEXT("/Script/")))
+    {
+        // Extract module name from path (e.g., "Ethereal_Revenants" from "/Script/Ethereal_Revenants.FEval_...")
+        FString PackagePath = FPackageName::ObjectPathToPackageName(StructPath);
+        FString ModuleName = PackagePath.Replace(TEXT("/Script/"), TEXT(""));
+
+        // Force-load the module to ensure all structs are registered
+        if (!ModuleName.IsEmpty() && !FModuleManager::Get().IsModuleLoaded(*ModuleName))
+        {
+            FModuleManager::Get().LoadModule(*ModuleName);
+        }
+
+        // Extract struct name
+        FString StructName = FPackageName::ObjectPathToObjectName(StructPath);
+
+        // Method 1: Quick check with FindFirstObject
+        UScriptStruct* QuickFind = FindFirstObject<UScriptStruct>(*StructName, EFindFirstObjectOptions::NativeFirst);
+        if (QuickFind)
+        {
+            return QuickFind;
+        }
+
+        // Method 2: Find the package first, then find the struct within it
+        UPackage* Package = FindPackage(nullptr, *PackagePath);
+        if (Package)
+        {
+            UScriptStruct* FoundStruct = FindObject<UScriptStruct>(Package, *StructName);
+            if (FoundStruct)
+            {
+                return FoundStruct;
+            }
+        }
+
+        // Method 3: Try with StaticFindObject using the full path
+        UScriptStruct* FoundStruct = Cast<UScriptStruct>(StaticFindObject(UScriptStruct::StaticClass(), nullptr, *StructPath));
+        if (FoundStruct)
+        {
+            return FoundStruct;
+        }
+
+        // Method 4: Try finding via StateTree's base struct hierarchy
+        UScriptStruct* StateTreeEvaluatorBase = FindFirstObject<UScriptStruct>(TEXT("FStateTreeEvaluatorBase"), EFindFirstObjectOptions::NativeFirst);
+        UScriptStruct* StateTreeTaskBase = FindFirstObject<UScriptStruct>(TEXT("FStateTreeTaskBase"), EFindFirstObjectOptions::NativeFirst);
+        UScriptStruct* StateTreeConditionBase = FindFirstObject<UScriptStruct>(TEXT("FStateTreeConditionBase"), EFindFirstObjectOptions::NativeFirst);
+
+        for (TObjectIterator<UScriptStruct> It; It; ++It)
+        {
+            UScriptStruct* TestStruct = *It;
+            if (TestStruct->GetName() == StructName)
+            {
+                // Check if this is a StateTree-related struct
+                if ((StateTreeEvaluatorBase && TestStruct->IsChildOf(StateTreeEvaluatorBase)) ||
+                    (StateTreeTaskBase && TestStruct->IsChildOf(StateTreeTaskBase)) ||
+                    (StateTreeConditionBase && TestStruct->IsChildOf(StateTreeConditionBase)))
+                {
+                    return TestStruct;
+                }
+            }
+        }
+
+        // Method 5: Final fallback - iterate over all UScriptStructs to find a match by name
+        for (TObjectIterator<UScriptStruct> It; It; ++It)
+        {
+            if (It->GetName() == StructName)
+            {
+                return *It;
+            }
+        }
+
+        return nullptr;
+    }
+
+    // For asset-based structs (Blueprint structs, etc.), use LoadObject
+    return LoadObject<UScriptStruct>(nullptr, *StructPath);
+}
 
 // Param struct validation implementations
 bool FStateTreeCreationParams::IsValid(FString& OutError) const
@@ -647,25 +736,53 @@ UStateTree* FStateTreeService::CreateStateTree(const FStateTreeCreationParams& P
     // Find and set the schema class
     UClass* SchemaClass = nullptr;
     FString SchemaClassName = Params.SchemaClass;
+    FString TargetNameWithU = TEXT("U") + SchemaClassName;
 
-    // Try to find the schema class (nullptr replaces deprecated ANY_PACKAGE in UE5)
+    // Try FindObject with exact name and U prefix
     SchemaClass = FindObject<UClass>(nullptr, *SchemaClassName);
     if (!SchemaClass)
     {
-        // Try with "U" prefix
-        SchemaClass = FindObject<UClass>(nullptr, *(TEXT("U") + SchemaClassName));
+        SchemaClass = FindObject<UClass>(nullptr, *TargetNameWithU);
+    }
+
+    // Try LoadClass from common StateTree modules
+    if (!SchemaClass)
+    {
+        SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *FString::Printf(TEXT("/Script/StateTreeModule.%s"), *SchemaClassName));
     }
     if (!SchemaClass)
     {
-        // Try loading from StateTreeModule
-        FString FullPath = FString::Printf(TEXT("/Script/StateTreeModule.%s"), *SchemaClassName);
-        SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *FullPath);
+        SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *FString::Printf(TEXT("/Script/StateTreeModule.U%s"), *SchemaClassName));
+    }
+    if (!SchemaClass)
+    {
+        // GameplayStateTreeModule is where AI and Component schemas live in UE5.7+
+        SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *FString::Printf(TEXT("/Script/GameplayStateTreeModule.U%s"), *SchemaClassName));
+    }
+
+    // Last resort: iterate through all loaded UStateTreeSchema subclasses and find by name
+    if (!SchemaClass)
+    {
+        for (TObjectIterator<UClass> It; It; ++It)
+        {
+            UClass* Class = *It;
+            if (Class && Class->IsChildOf(UStateTreeSchema::StaticClass()) && !Class->HasAnyClassFlags(CLASS_Abstract))
+            {
+                FString ClassName = Class->GetName();
+                if (ClassName.Equals(SchemaClassName, ESearchCase::IgnoreCase) ||
+                    ClassName.Equals(TargetNameWithU, ESearchCase::IgnoreCase))
+                {
+                    SchemaClass = Class;
+                    break;
+                }
+            }
+        }
     }
 
     if (SchemaClass && SchemaClass->IsChildOf(UStateTreeSchema::StaticClass()))
     {
-        // Get the CDO of the schema class for UE5.7 TObjectPtr compatibility
-        UStateTreeSchema* SchemaInstance = SchemaClass->GetDefaultObject<UStateTreeSchema>();
+        // Create a new instance of the schema class owned by the EditorData
+        UStateTreeSchema* SchemaInstance = NewObject<UStateTreeSchema>(EditorData, SchemaClass, NAME_None, RF_Transactional);
         if (SchemaInstance)
         {
             EditorData->Schema = SchemaInstance;
@@ -673,8 +790,7 @@ UStateTree* FStateTreeService::CreateStateTree(const FStateTreeCreationParams& P
     }
     else
     {
-        // Use default schema
-        UE_LOG(LogTemp, Warning, TEXT("FStateTreeService::CreateStateTree: Schema '%s' not found, using default"), *SchemaClassName);
+        UE_LOG(LogTemp, Warning, TEXT("FStateTreeService::CreateStateTree: Schema '%s' not found"), *SchemaClassName);
     }
 
     // Mark the package as dirty
@@ -1121,15 +1237,11 @@ bool FStateTreeService::AddConditionToTransition(const FAddConditionParams& Para
         return false;
     }
 
-    // Find the condition struct (nullptr replaces deprecated ANY_PACKAGE in UE5)
-    UScriptStruct* ConditionStruct = FindObject<UScriptStruct>(nullptr, *FPackageName::GetShortName(Params.ConditionStructPath));
+    // Find the condition struct (handles both native /Script/ and asset paths)
+    UScriptStruct* ConditionStruct = FindScriptStructByPath(Params.ConditionStructPath);
     if (!ConditionStruct)
     {
-        ConditionStruct = LoadObject<UScriptStruct>(nullptr, *Params.ConditionStructPath);
-    }
-    if (!ConditionStruct)
-    {
-        OutError = FString::Printf(TEXT("Condition struct not found: '%s'"), *Params.ConditionStructPath);
+        OutError = FString::Printf(TEXT("Condition struct not found: '%s'. Ensure the module containing this struct is loaded."), *Params.ConditionStructPath);
         return false;
     }
 
@@ -1177,11 +1289,11 @@ bool FStateTreeService::AddTaskToState(const FAddTaskParams& Params, FString& Ou
     UE_LOG(LogTemp, Log, TEXT("FStateTreeService::AddTaskToState: Adding task '%s' to state '%s'"),
         *Params.TaskStructPath, *Params.StateName);
 
-    // Find the task struct
-    UScriptStruct* TaskStruct = LoadObject<UScriptStruct>(nullptr, *Params.TaskStructPath);
+    // Find the task struct (handles both native /Script/ and asset paths)
+    UScriptStruct* TaskStruct = FindScriptStructByPath(Params.TaskStructPath);
     if (!TaskStruct)
     {
-        OutError = FString::Printf(TEXT("Task struct not found: '%s'"), *Params.TaskStructPath);
+        OutError = FString::Printf(TEXT("Task struct not found: '%s'. Ensure the module containing this struct is loaded."), *Params.TaskStructPath);
         return false;
     }
 
@@ -1241,15 +1353,11 @@ bool FStateTreeService::AddEnterCondition(const FAddEnterConditionParams& Params
         return false;
     }
 
-    // Find the condition struct (nullptr replaces deprecated ANY_PACKAGE in UE5)
-    UScriptStruct* ConditionStruct = FindObject<UScriptStruct>(nullptr, *FPackageName::GetShortName(Params.ConditionStructPath));
+    // Find the condition struct (handles both native /Script/ and asset paths)
+    UScriptStruct* ConditionStruct = FindScriptStructByPath(Params.ConditionStructPath);
     if (!ConditionStruct)
     {
-        ConditionStruct = LoadObject<UScriptStruct>(nullptr, *Params.ConditionStructPath);
-    }
-    if (!ConditionStruct)
-    {
-        OutError = FString::Printf(TEXT("Condition struct not found: '%s'"), *Params.ConditionStructPath);
+        OutError = FString::Printf(TEXT("Condition struct not found: '%s'. Ensure the module containing this struct is loaded."), *Params.ConditionStructPath);
         return false;
     }
 
@@ -1286,15 +1394,11 @@ bool FStateTreeService::AddEvaluator(const FAddEvaluatorParams& Params, FString&
     UE_LOG(LogTemp, Log, TEXT("FStateTreeService::AddEvaluator: Adding evaluator '%s' to '%s'"),
         *Params.EvaluatorStructPath, *StateTree->GetName());
 
-    // Find the evaluator struct (nullptr replaces deprecated ANY_PACKAGE in UE5)
-    UScriptStruct* EvaluatorStruct = FindObject<UScriptStruct>(nullptr, *FPackageName::GetShortName(Params.EvaluatorStructPath));
+    // Find the evaluator struct (handles both native /Script/ and asset paths)
+    UScriptStruct* EvaluatorStruct = FindScriptStructByPath(Params.EvaluatorStructPath);
     if (!EvaluatorStruct)
     {
-        EvaluatorStruct = LoadObject<UScriptStruct>(nullptr, *Params.EvaluatorStructPath);
-    }
-    if (!EvaluatorStruct)
-    {
-        OutError = FString::Printf(TEXT("Evaluator struct not found: '%s'"), *Params.EvaluatorStructPath);
+        OutError = FString::Printf(TEXT("Evaluator struct not found: '%s'. Ensure the module containing this struct is loaded."), *Params.EvaluatorStructPath);
         return false;
     }
 
@@ -1507,14 +1611,148 @@ bool FStateTreeService::BindProperty(const FBindPropertyParams& Params, FString&
         return false;
     }
 
-    UE_LOG(LogTemp, Log, TEXT("FStateTreeService::BindProperty: Binding '%s.%s' to '%s.%s'"),
-        *Params.SourceNodeName, *Params.SourcePropertyName,
-        *Params.TargetNodeName, *Params.TargetPropertyName);
+    // Find source struct ID
+    FGuid SourceStructID;
+    bool bSourceFound = false;
 
-    // Property binding in StateTree is complex and version-dependent
-    // This is a placeholder implementation
-    OutError = TEXT("Property binding requires StateTree editor subsystem - implementation pending");
-    return false;
+    // Check if source is schema context
+    if (Params.SourceNodeName.Equals(TEXT("Context"), ESearchCase::IgnoreCase))
+    {
+        // For context bindings, we need to find the context data from schema
+        if (EditorData->Schema)
+        {
+            FStateTreeBindableStructDesc ContextDesc = EditorData->FindContextData(AActor::StaticClass(), Params.SourcePropertyName);
+            if (ContextDesc.ID.IsValid())
+            {
+                SourceStructID = ContextDesc.ID;
+                bSourceFound = true;
+            }
+        }
+
+        if (!bSourceFound)
+        {
+            // Fallback: search by iterating available bindable structs
+            TArray<TInstancedStruct<FPropertyBindingBindableStructDescriptor>> BindableStructs;
+            EditorData->GetBindableStructs(FGuid(), BindableStructs);
+
+            for (const auto& StructInst : BindableStructs)
+            {
+                if (StructInst.IsValid())
+                {
+                    const FPropertyBindingBindableStructDescriptor& Desc = StructInst.Get<FPropertyBindingBindableStructDescriptor>();
+                    if (Desc.Name.ToString().Contains(Params.SourcePropertyName, ESearchCase::IgnoreCase))
+                    {
+                        SourceStructID = Desc.ID;
+                        bSourceFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        // Search evaluators by struct name
+        for (const FStateTreeEditorNode& Evaluator : EditorData->Evaluators)
+        {
+            if (Evaluator.Node.GetScriptStruct())
+            {
+                FString EvalName = Evaluator.Node.GetScriptStruct()->GetName();
+                FString CompareSource = Params.SourceNodeName;
+                if (!CompareSource.StartsWith(TEXT("F")))
+                {
+                    CompareSource = TEXT("F") + CompareSource;
+                }
+
+                if (EvalName.Equals(CompareSource, ESearchCase::IgnoreCase) ||
+                    EvalName.Equals(Params.SourceNodeName, ESearchCase::IgnoreCase))
+                {
+                    SourceStructID = Evaluator.ID;
+                    bSourceFound = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!bSourceFound)
+    {
+        OutError = FString::Printf(TEXT("Source node not found: '%s'"), *Params.SourceNodeName);
+        return false;
+    }
+
+    // Find target struct ID
+    FGuid TargetStructID;
+    bool bTargetFound = false;
+
+    // Check if target is an evaluator
+    for (const FStateTreeEditorNode& Evaluator : EditorData->Evaluators)
+    {
+        if (Evaluator.Node.GetScriptStruct())
+        {
+            FString EvalName = Evaluator.Node.GetScriptStruct()->GetName();
+            FString CompareTarget = Params.TargetNodeName;
+            if (!CompareTarget.StartsWith(TEXT("F")))
+            {
+                CompareTarget = TEXT("F") + CompareTarget;
+            }
+
+            if (EvalName.Equals(CompareTarget, ESearchCase::IgnoreCase) ||
+                EvalName.Equals(Params.TargetNodeName, ESearchCase::IgnoreCase))
+            {
+                TargetStructID = Evaluator.ID;
+                bTargetFound = true;
+                break;
+            }
+        }
+    }
+
+    // Check if target is a task in a state
+    if (!bTargetFound)
+    {
+        UStateTreeState* TargetState = FindStateByName(EditorData, Params.TargetNodeName);
+        if (TargetState)
+        {
+            int32 TaskIdx = Params.TaskIndex >= 0 ? Params.TaskIndex : 0;
+            if (TaskIdx < TargetState->Tasks.Num())
+            {
+                TargetStructID = TargetState->Tasks[TaskIdx].ID;
+                bTargetFound = true;
+            }
+        }
+    }
+
+    if (!bTargetFound)
+    {
+        OutError = FString::Printf(TEXT("Target node not found: '%s'"), *Params.TargetNodeName);
+        return false;
+    }
+
+    // Create the property binding paths
+    FPropertyBindingPath SourcePath(SourceStructID);
+    FPropertyBindingPath TargetPath(TargetStructID);
+
+    // Parse property paths - can be simple ("Actor") or nested ("Actor.RootComponent")
+    if (!SourcePath.FromString(Params.SourcePropertyName))
+    {
+        // If FromString fails, just add as single segment
+        SourcePath.AddPathSegment(FName(*Params.SourcePropertyName));
+    }
+
+    if (!TargetPath.FromString(Params.TargetPropertyName))
+    {
+        // If FromString fails, just add as single segment
+        TargetPath.AddPathSegment(FName(*Params.TargetPropertyName));
+    }
+
+    // Add the binding
+    EditorData->EditorBindings.AddBinding(SourcePath, TargetPath);
+
+    // Mark modified and save
+    StateTree->Modify();
+    SaveAsset(StateTree, OutError);
+
+    return true;
 }
 
 bool FStateTreeService::GetNodeBindableInputs(const FString& StateTreePath, const FString& NodeIdentifier, int32 TaskIndex, TSharedPtr<FJsonObject>& OutInputs)
@@ -1674,8 +1912,31 @@ bool FStateTreeService::SetContextRequirements(const FString& StateTreePath, con
         return false;
     }
 
-    // Context requirements are schema-specific and complex to modify
-    OutError = TEXT("Context requirements modification requires schema-specific handling - implementation pending");
+    // In UE5.7, context requirements are defined at the schema level, not per-asset
+    // The schema class (e.g., UStateTreeAIComponentSchema, UStateTreeComponentSchema)
+    // defines what context data is required (Actor, AIController, etc.)
+    //
+    // What CAN be modified:
+    // 1. The schema class itself (via SetSchemaClass/CreateStateTree with schema parameter)
+    // 2. Root parameters in the StateTree (via the RootParameterPropertyBag)
+    //
+    // What CANNOT be modified per-asset:
+    // 1. The schema's context struct requirements - these are defined in schema class code
+    //
+    // For custom context requirements, you need to:
+    // 1. Create a custom schema class deriving from an existing schema
+    // 2. Override GetContextDataDescs() to provide custom context structs
+    // 3. Assign that schema to the StateTree
+
+    if (!EditorData->Schema)
+    {
+        OutError = TEXT("StateTree has no schema assigned. Set a schema first using create_state_tree with schema parameter.");
+        return false;
+    }
+
+    // Context requirements are defined at the schema level, not per-asset
+    OutError = FString::Printf(TEXT("Context requirements are defined by the schema class '%s'. Use create_state_tree with a different schema parameter for different context requirements."),
+        *EditorData->Schema->GetName());
     return false;
 }
 
@@ -1756,11 +2017,11 @@ bool FStateTreeService::AddGlobalTask(const FAddGlobalTaskParams& Params, FStrin
 
     UE_LOG(LogTemp, Log, TEXT("FStateTreeService::AddGlobalTask: Adding global task '%s'"), *Params.TaskStructPath);
 
-    // Find the task struct
-    UScriptStruct* TaskStruct = LoadObject<UScriptStruct>(nullptr, *Params.TaskStructPath);
+    // Find the task struct (handles both native /Script/ and asset paths)
+    UScriptStruct* TaskStruct = FindScriptStructByPath(Params.TaskStructPath);
     if (!TaskStruct)
     {
-        OutError = FString::Printf(TEXT("Task struct not found: '%s'"), *Params.TaskStructPath);
+        OutError = FString::Printf(TEXT("Task struct not found: '%s'. Ensure the module containing this struct is loaded."), *Params.TaskStructPath);
         return false;
     }
 
@@ -2178,24 +2439,46 @@ bool FStateTreeService::AddConsideration(const FAddConsiderationParams& Params, 
     UE_LOG(LogTemp, Log, TEXT("FStateTreeService::AddConsideration: Adding consideration '%s' to state '%s' (weight=%.2f)"),
         *Params.ConsiderationStructPath, *Params.StateName, Params.Weight);
 
-    // Considerations are typically used with Utility AI schemas
-    // Implementation depends on specific StateTree schema configuration
-    // Find the consideration struct (nullptr replaces deprecated ANY_PACKAGE in UE5)
-    UScriptStruct* ConsiderationStruct = FindObject<UScriptStruct>(nullptr, *FPackageName::GetShortName(Params.ConsiderationStructPath));
+    // Find the consideration struct (handles both native /Script/ and asset paths)
+    UScriptStruct* ConsiderationStruct = FindScriptStructByPath(Params.ConsiderationStructPath);
     if (!ConsiderationStruct)
     {
-        ConsiderationStruct = LoadObject<UScriptStruct>(nullptr, *Params.ConsiderationStructPath);
-    }
-    if (!ConsiderationStruct)
-    {
-        OutError = FString::Printf(TEXT("Consideration struct not found: '%s'"), *Params.ConsiderationStructPath);
+        OutError = FString::Printf(TEXT("Consideration struct not found: '%s'. Ensure the module containing this struct is loaded."), *Params.ConsiderationStructPath);
         return false;
     }
 
-    // Create consideration node - specific implementation depends on UE5.7 API
-    // This would typically be added to a state's considerations array
-    OutError = TEXT("Consideration support requires Utility AI schema - implementation pending");
-    return false;
+    // Verify this is a valid consideration struct (should derive from FStateTreeConsiderationBase)
+    static UScriptStruct* ConsiderationBaseStruct = FStateTreeConsiderationBase::StaticStruct();
+    if (!ConsiderationStruct->IsChildOf(ConsiderationBaseStruct))
+    {
+        OutError = FString::Printf(TEXT("Struct '%s' is not a consideration type (must derive from FStateTreeConsiderationBase)"),
+            *Params.ConsiderationStructPath);
+        return false;
+    }
+
+    // Create the consideration node
+    FStateTreeEditorNode ConsiderationNode;
+    ConsiderationNode.ID = FGuid::NewGuid();
+    ConsiderationNode.Node.InitializeAs(ConsiderationStruct);
+
+    // Initialize instance data if the consideration requires it
+    const FStateTreeNodeBase& NodeBase = ConsiderationNode.Node.Get<FStateTreeNodeBase>();
+    if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(NodeBase.GetInstanceDataType()))
+    {
+        ConsiderationNode.Instance.InitializeAs(InstanceType);
+    }
+
+    // Add to the state's Considerations array
+    State->Considerations.Add(ConsiderationNode);
+
+    // Mark modified and save
+    StateTree->Modify();
+    SaveAsset(StateTree, OutError);
+
+    UE_LOG(LogTemp, Log, TEXT("FStateTreeService::AddConsideration: Successfully added consideration '%s' to state '%s'"),
+        *ConsiderationStruct->GetName(), *Params.StateName);
+
+    return true;
 }
 
 // ============================================================================
@@ -2668,11 +2951,11 @@ bool FStateTreeService::AddStateEventHandler(const FAddStateEventHandlerParams& 
         return false;
     }
 
-    // Find the task struct
-    UScriptStruct* TaskStruct = LoadObject<UScriptStruct>(nullptr, *Params.TaskStructPath);
+    // Find the task struct (handles both native /Script/ and asset paths)
+    UScriptStruct* TaskStruct = FindScriptStructByPath(Params.TaskStructPath);
     if (!TaskStruct)
     {
-        OutError = FString::Printf(TEXT("Task struct not found: '%s'"), *Params.TaskStructPath);
+        OutError = FString::Printf(TEXT("Task struct not found: '%s'. Ensure the module containing this struct is loaded."), *Params.TaskStructPath);
         return false;
     }
 
