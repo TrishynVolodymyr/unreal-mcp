@@ -97,6 +97,35 @@ def add_child_widget_component_to_parent(
     logger.info(f"Adding child '{child_component_name}' to parent '{parent_component_name}' in widget '{widget_name}'")
     return send_unreal_command("add_child_widget_component_to_parent", params)
 
+def create_parent_and_child_widget_components(
+    ctx: Context,
+    widget_name: str,
+    parent_component_name: str,
+    child_component_name: str,
+    parent_component_type: str = "Border",
+    child_component_type: str = "TextBlock",
+    parent_position: List[float] = [0.0, 0.0],
+    parent_size: List[float] = [300.0, 200.0],
+    child_attributes: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """Implementation for creating a new parent widget component with a new child component."""
+    if child_attributes is None:
+        child_attributes = {}
+        
+    params = {
+        "blueprint_name": widget_name,
+        "parent_component_name": parent_component_name,
+        "child_component_name": child_component_name,
+        "parent_component_type": parent_component_type,
+        "child_component_type": child_component_type,
+        "parent_position": parent_position,
+        "parent_size": parent_size,
+        "child_attributes": child_attributes or {}
+    }
+    
+    logger.info(f"Creating parent '{parent_component_name}' ({parent_component_type}) with child '{child_component_name}' ({child_component_type}) in widget '{widget_name}'")
+    return send_unreal_command("create_parent_and_child_widget_components", params)
+
 def set_widget_component_placement(
     ctx: Context,
     widget_name: str,
@@ -459,3 +488,71 @@ def reorder_widget_children(
 
     logger.info(f"Reordering children in container '{container_name}' of widget '{widget_name}': {child_order}")
     return send_unreal_command("reorder_widget_children", params)
+
+
+# =============================================================================
+# WIDGET BLUEPRINT CONFIGURATION TOOLS
+# =============================================================================
+# These tools modify widget blueprint settings like design size and parent class
+# =============================================================================
+
+
+def set_widget_design_size_mode(
+    ctx: Context,
+    widget_name: str,
+    design_size_mode: str,
+    custom_width: int = 1920,
+    custom_height: int = 1080
+) -> Dict[str, Any]:
+    """Set the design size mode for a Widget Blueprint.
+
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        design_size_mode: Design size mode. Options:
+            - "DesiredOnScreen": Widget uses its desired size
+            - "Custom": Use custom width/height values
+            - "FillScreen": Fill entire screen
+            - "CustomOnScreen": Custom size that responds to DPI scaling
+        custom_width: Width when using Custom or CustomOnScreen modes (default: 1920)
+        custom_height: Height when using Custom or CustomOnScreen modes (default: 1080)
+
+    Returns:
+        Dict containing success status and applied design size settings
+    """
+    params = {
+        "widget_name": widget_name,
+        "design_size_mode": design_size_mode,
+        "custom_width": custom_width,
+        "custom_height": custom_height
+    }
+
+    logger.info(f"Setting design size mode for widget '{widget_name}': {design_size_mode} ({custom_width}x{custom_height})")
+    return send_unreal_command("set_widget_design_size_mode", params)
+
+
+def set_widget_parent_class(
+    ctx: Context,
+    widget_name: str,
+    new_parent_class: str
+) -> Dict[str, Any]:
+    """Change the parent class of a Widget Blueprint.
+
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        new_parent_class: New parent class to reparent to. Can be:
+            - Simple class name: "UserWidget", "BaseUserWidget"
+            - Full path: "/Script/UMG.UserWidget"
+            - Blueprint path: "/Game/UI/Base/WBP_BaseWidget"
+
+    Returns:
+        Dict containing success status, old parent class, and new parent class
+    """
+    params = {
+        "widget_name": widget_name,
+        "new_parent_class": new_parent_class
+    }
+
+    logger.info(f"Reparenting widget '{widget_name}' to new parent class: {new_parent_class}")
+    return send_unreal_command("set_widget_parent_class", params)

@@ -58,21 +58,89 @@ def register_editor_tools(mcp: FastMCP):
         decal_material: str = None
     ) -> Dict[str, Any]:
         """
-        Spawn an actor in the level. Supports built-in types, Blueprints, and volumes.
+        Spawn actors in the Unreal Editor level with comprehensive type support.
+
+        TYPE RESOLUTION (in order):
+            1. Friendly names: StaticMeshActor, TriggerBox, PlayerStart, etc.
+            2. Blueprint paths: "Blueprint:/Game/Path/To/BP_Name"
+            3. Native class paths: "Class:/Script/Engine.TriggerBox"
+            4. Direct paths: "/Game/Path/To/BP_Name" (tries Blueprint then Class)
+
+        SUPPORTED FRIENDLY NAMES:
+            Basic Actors:
+                StaticMeshActor, PointLight, SpotLight, DirectionalLight, CameraActor
+
+            Volumes/BSP:
+                TriggerBox, TriggerSphere, TriggerCapsule, BlockingVolume,
+                NavMeshBoundsVolume, PhysicsVolume, AudioVolume, PostProcessVolume,
+                LightmassImportanceVolume, KillZVolume, PainCausingVolume
+
+            Utility Actors:
+                TextRenderActor, PlayerStart, TargetPoint, DecalActor, Note,
+                ExponentialHeightFog, SkyLight, SphereReflectionCapture, BoxReflectionCapture
+
+        BASICSHAPES (for mesh_path):
+            /Engine/BasicShapes/Cube
+            /Engine/BasicShapes/Sphere
+            /Engine/BasicShapes/Cylinder
+            /Engine/BasicShapes/Cone
+            /Engine/BasicShapes/Plane
 
         Args:
-            name: Unique actor name
-            type: Type - friendly name (StaticMeshActor, PointLight, TriggerBox, etc.),
-                  Blueprint path ("Blueprint:/Game/BP_Name"), or Class path
-            location/rotation/scale: Transform values
-            mesh_path: (StaticMeshActor) Mesh asset path
-            text_content/text_size/text_color: (TextRenderActor) Text properties
-            box_extent/sphere_radius: (Volumes) Dimensions
+            name: The name to give the new actor (must be unique)
+            type: Actor type (see TYPE RESOLUTION above)
+            location: [x, y, z] world location
+            rotation: [pitch, yaw, roll] rotation in degrees
+            scale: [x, y, z] scale factor
 
-        Example:
-            spawn_actor(name="Platform", type="StaticMeshActor",
-                       mesh_path="/Engine/BasicShapes/Cube", scale=[10, 10, 0.5])
-            spawn_actor(name="MyPortal", type="Blueprint:/Game/BP_Portal")
+            mesh_path: (StaticMeshActor) Path to mesh asset
+            text_content: (TextRenderActor) Text to display
+            text_size: (TextRenderActor) World size of text
+            text_color: (TextRenderActor) [R, G, B] or [R, G, B, A] color (0-1 range)
+            text_halign: (TextRenderActor) "Left", "Center", or "Right"
+            text_valign: (TextRenderActor) "Top", "Center", or "Bottom"
+            box_extent: (TriggerBox, etc.) [x, y, z] half-extents
+            sphere_radius: (TriggerSphere) Sphere radius
+            player_start_tag: (PlayerStart) Tag for spawn selection
+            decal_size: (DecalActor) [x, y, z] decal dimensions
+            decal_material: (DecalActor) Path to decal material
+
+        Returns:
+            Dict containing the created actor's properties
+
+        Examples:
+            # Platform using BasicShapes cube (scaled to 10x10x0.5 meters)
+            spawn_actor(name="Platform1", type="StaticMeshActor",
+                       mesh_path="/Engine/BasicShapes/Cube",
+                       location=[0, 0, 0], scale=[10, 10, 0.5])
+
+            # Text label
+            spawn_actor(name="Label1", type="TextRenderActor",
+                       text_content="JUMP HERE", text_size=50,
+                       text_color=[1.0, 1.0, 0.0], location=[0, 0, 200])
+
+            # Trigger zone for checkpoint
+            spawn_actor(name="Checkpoint1", type="TriggerBox",
+                       box_extent=[200, 200, 100], location=[500, 0, 50])
+
+            # Player spawn point
+            spawn_actor(name="PlayerSpawn", type="PlayerStart",
+                       location=[0, 0, 100])
+
+            # NavMesh bounds for AI
+            spawn_actor(name="NavBounds1", type="NavMeshBoundsVolume",
+                       scale=[50, 50, 10])
+
+            # Custom Blueprint actor
+            spawn_actor(name="MyPortal", type="Blueprint:/Game/Testing/BP_TestPortal",
+                       location=[1000, 0, 0])
+
+            # ANY native class via Class: prefix
+            spawn_actor(name="CustomVolume", type="Class:/Script/Engine.CameraBlockingVolume")
+
+        Note:
+            This unified function supports both built-in actors and Blueprints.
+            Use the "Blueprint:" prefix for custom Blueprint actors.
         """
         return spawn_actor_impl(
             ctx, name, type, location, rotation, scale,
@@ -87,11 +155,15 @@ def register_editor_tools(mcp: FastMCP):
     def delete_actor(ctx: Context, name: str) -> Dict[str, Any]:
         """
         Delete an actor by name.
-
+        
         Args:
             name: Name of the actor to delete
-
-        Example:
+            
+        Returns:
+            Dict containing response information
+            
+        Examples:
+            # Delete an actor named "MyCube"
             delete_actor(name="MyCube")
         """
         return delete_actor_impl(ctx, name)
@@ -106,19 +178,29 @@ def register_editor_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Set the transform of an actor.
-
+        
         Args:
             name: Name of the actor
             location: Optional [X, Y, Z] position
             rotation: Optional [Pitch, Yaw, Roll] rotation in degrees
             scale: Optional [X, Y, Z] scale
-
-        Example:
+            
+        Returns:
+            Dict containing response information
+            
+        Examples:
+            # Move an actor named "MyCube" to a new position
             set_actor_transform(name="MyCube", location=[100, 200, 50])
+            
+            # Rotate an actor named "MyCube" 45 degrees around Z axis
             set_actor_transform(name="MyCube", rotation=[0, 0, 45])
+            
+            # Scale an actor named "MyCube" to be twice as big
             set_actor_transform(name="MyCube", scale=[2.0, 2.0, 2.0])
+            
+            # Move, rotate, and scale an actor all at once
             set_actor_transform(
-                name="MyCube",
+                name="MyCube", 
                 location=[100, 200, 50],
                 rotation=[0, 0, 45],
                 scale=[2.0, 2.0, 2.0]
@@ -130,15 +212,18 @@ def register_editor_tools(mcp: FastMCP):
     def get_actor_properties(ctx: Context, name: str) -> Dict[str, Any]:
         """
         Get all properties of an actor.
-
+        
         Args:
             name: Name of the actor
-
+            
         Returns:
             Dict containing actor properties
-
-        Example:
+            
+        Examples:
+            # Get properties of an actor named "MyCube"
             props = get_actor_properties(name="MyCube")
+            
+            # Print location
             print(props["transform"]["location"])
         """
         return get_actor_properties_impl(ctx, name)
@@ -152,7 +237,10 @@ def register_editor_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Set a property on an actor.
-
+        
+        Note: Currently there's a limitation with the property_value parameter type.
+        Please contact the MCP system administrator for proper usage.
+        
         Args:
             name: Name of the actor
             property_name: Name of the property to set
@@ -163,7 +251,10 @@ def register_editor_tools(mcp: FastMCP):
                 - For color properties: [R, G, B, A] list (0-255 values)
                 - For vector properties: [X, Y, Z] list
                 - For enum properties: String name of the enum value or integer index
-
+            
+        Returns:
+            Dict containing response information
+            
         Examples:
             # Change the color of a light
             set_actor_property(
@@ -171,21 +262,21 @@ def register_editor_tools(mcp: FastMCP):
                 property_name="LightColor",
                 property_value=[255, 0, 0, 255]  # RGBA
             )
-
+            
             # Change the mobility of an actor
             set_actor_property(
                 name="MyCube",
                 property_name="Mobility",
                 property_value="Movable"  # "Static", "Stationary", or "Movable"
             )
-
+            
             # Set a boolean property
             set_actor_property(
                 name="MyCube",
                 property_name="bHidden",
                 property_value=True
             )
-
+            
             # Set a numeric property
             set_actor_property(
                 name="PointLightTest",
@@ -204,7 +295,9 @@ def register_editor_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Set a property on a light component.
-
+        
+        This function accesses the LightComponent of a light actor and sets properties on it.
+        
         Args:
             name: Name of the light actor
             property_name: Property to set, one of:
@@ -215,22 +308,25 @@ def register_editor_tools(mcp: FastMCP):
                 - "SoftSourceRadius": Size of the soft light source border (float)
                 - "CastShadows": Whether the light casts shadows (boolean)
             property_value: Value to set the property to
-
-        Example:
+            
+        Returns:
+            Dict containing response information
+            
+        Examples:
             # Set light intensity
             set_light_property(
                 name="MyPointLight",
                 property_name="Intensity",
                 property_value=5000.0
             )
-
+            
             # Set light color to red
             set_light_property(
                 name="MyPointLight",
                 property_name="LightColor",
                 property_value=[1.0, 0.0, 0.0]
             )
-
+            
             # Set light attenuation radius
             set_light_property(
                 name="MyPointLight",
@@ -273,6 +369,61 @@ def register_editor_tools(mcp: FastMCP):
         return focus_viewport_impl(ctx, target, location, distance, orientation)
 
     @mcp.tool()
+    def spawn_blueprint_actor(
+        ctx: Context,
+        blueprint_name: str,
+        actor_name: str,
+        location: List[float] = None,
+        rotation: List[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Spawn an actor from a Blueprint class in the current level.
+        This function is used for spawning custom Blueprint actors that can have:
+        - Custom components and hierarchies
+        - Visual scripting logic
+        - Custom variables and events
+        - Complex behaviors and interactions
+        
+        Args:
+            blueprint_name: Path to the Blueprint to spawn from. Can be:
+                          - Absolute path: "/Game/Blueprints/BP_Character"
+                          - Relative path: "BP_Character" (will be prefixed with "/Game/Blueprints/")
+            actor_name: Name to give the spawned actor instance (must be unique)
+            location: The [x, y, z] world location to spawn at
+            rotation: The [pitch, yaw, roll] rotation in degrees
+            
+        Returns:
+            Dict containing the spawned actor's properties
+            
+        Examples:
+            # Spawn a blueprint actor with a relative path (looks in /Game/Blueprints/)
+            spawn_blueprint_actor(
+                blueprint_name="BP_Character",
+                actor_name="MyCharacter_1"
+            )
+            
+            # Spawn a blueprint actor with a full path
+            spawn_blueprint_actor(
+                blueprint_name="/Game/Characters/BP_Enemy",
+                actor_name="Enemy_1",
+                location=[100, 200, 50],
+                rotation=[0, 45, 0]
+            )
+            
+            # For ThirdPerson template project character
+            spawn_blueprint_actor(
+                blueprint_name="/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter",
+                actor_name="Player1",
+                location=[0, 0, 100]
+            )
+            
+        Note:
+            This function requires the Blueprint to exist and be properly compiled.
+            For spawning basic actor types (lights, static meshes, etc.), use spawn_actor() instead.
+        """
+        return spawn_blueprint_actor_impl(ctx, blueprint_name, actor_name, location, rotation)
+
+    @mcp.tool()
     def get_level_metadata(
         ctx: Context,
         fields: List[str] = None,
@@ -280,6 +431,8 @@ def register_editor_tools(mcp: FastMCP):
     ) -> Dict[str, Any]:
         """
         Get level metadata with selective field querying.
+
+        This tool consolidates multiple level query tools into one flexible interface.
 
         Args:
             fields: List of metadata fields to retrieve. Options:
@@ -512,6 +665,7 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(get_actor_properties, category="actors")
     _help_registry.register(set_actor_property, category="actors")
     _help_registry.register(set_light_property, category="lighting")
+    _help_registry.register(spawn_blueprint_actor, category="actors")
     _help_registry.register(get_level_metadata, category="level")
     _help_registry.register(get_mcp_help, category="help")
     _help_registry.register(delete_actors, category="actors")
