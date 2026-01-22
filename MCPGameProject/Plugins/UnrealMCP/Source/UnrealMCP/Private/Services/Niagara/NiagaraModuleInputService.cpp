@@ -394,6 +394,8 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
 
         // Check if this is a rapid iteration type (simple types that can be set directly on the parameter store)
         // We implement our own check since FNiagaraStackGraphUtilities::IsRapidIterationType is not exported
+        // Also check for enum types - they're stored as int32 but need display name conversion
+        UEnum* InputEnumType = InputType.GetEnum();
         bool bIsRapidIterationType =
             InputType == FNiagaraTypeDefinition::GetFloatDef() ||
             InputType == FNiagaraTypeDefinition::GetIntDef() ||
@@ -402,11 +404,12 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
             InputType == FNiagaraTypeDefinition::GetVec3Def() ||
             InputType == FNiagaraTypeDefinition::GetVec4Def() ||
             InputType == FNiagaraTypeDefinition::GetColorDef() ||
-            InputType == FNiagaraTypeDefinition::GetQuatDef();
+            InputType == FNiagaraTypeDefinition::GetQuatDef() ||
+            InputEnumType != nullptr;  // Enum types are rapid iteration compatible
 
         if (!bIsRapidIterationType)
         {
-            OutError = FString::Printf(TEXT("Input type '%s' for '%s' is not a rapid iteration type. Only Float, Int, Bool, Vec2, Vec3, Vec4, Color, Quat are supported."),
+            OutError = FString::Printf(TEXT("Input type '%s' for '%s' is not a rapid iteration type. Only Float, Int, Bool, Vec2, Vec3, Vec4, Color, Quat, and Enum types are supported."),
                 *InputType.GetName(), *Params.InputName);
             return false;
         }
@@ -525,6 +528,72 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
                 bValueSet = true;
             }
         }
+        else if (InputEnumType)
+        {
+            // Handle enum types - convert display name to internal value
+            int32 EnumValue = INDEX_NONE;
+
+            // First try exact match with internal name (e.g., "NewEnumerator0", "NewEnumerator3")
+            int64 ValueByName = InputEnumType->GetValueByNameString(CleanValueStr);
+            if (ValueByName != INDEX_NONE)
+            {
+                EnumValue = static_cast<int32>(ValueByName);
+            }
+            else
+            {
+                // Try to find by short name or display name
+                for (int32 i = 0; i < InputEnumType->NumEnums() - 1; ++i) // -1 to skip MAX value
+                {
+                    FString EnumName = InputEnumType->GetNameStringByIndex(i);
+                    FString ShortName = EnumName;
+
+                    // Remove enum prefix (e.g., "ESubUVAnimationMode::Linear" -> "Linear")
+                    int32 ColonPos;
+                    if (EnumName.FindLastChar(':', ColonPos))
+                    {
+                        ShortName = EnumName.RightChop(ColonPos + 1);
+                    }
+
+                    // Get the display name for user-defined enums (e.g., "Infinite Loop")
+                    FText DisplayNameText = InputEnumType->GetDisplayNameTextByIndex(i);
+                    FString DisplayName = DisplayNameText.ToString();
+
+                    // Match against short name, full internal name, or display name
+                    if (ShortName.Equals(CleanValueStr, ESearchCase::IgnoreCase) ||
+                        EnumName.Equals(CleanValueStr, ESearchCase::IgnoreCase) ||
+                        DisplayName.Equals(CleanValueStr, ESearchCase::IgnoreCase))
+                    {
+                        EnumValue = i;
+                        UE_LOG(LogNiagaraService, Log, TEXT("Matched enum value '%s' to index %d (display: '%s', internal: '%s')"),
+                            *CleanValueStr, i, *DisplayName, *EnumName);
+                        break;
+                    }
+                }
+            }
+
+            if (EnumValue != INDEX_NONE)
+            {
+                TempVariable.AllocateData();
+                TempVariable.SetValue<int32>(EnumValue);
+                bValueSet = true;
+                UE_LOG(LogNiagaraService, Log, TEXT("Set enum input '%s' to value %d (from '%s')"),
+                    *Params.InputName, EnumValue, *CleanValueStr);
+            }
+            else
+            {
+                // Build list of valid enum values for helpful error message
+                TArray<FString> ValidValues;
+                for (int32 i = 0; i < InputEnumType->NumEnums() - 1; ++i)
+                {
+                    FText DisplayText = InputEnumType->GetDisplayNameTextByIndex(i);
+                    FString InternalEnumName = InputEnumType->GetNameStringByIndex(i);
+                    ValidValues.Add(FString::Printf(TEXT("'%s' (internal: %s)"), *DisplayText.ToString(), *InternalEnumName));
+                }
+                OutError = FString::Printf(TEXT("Enum value '%s' not found in enum '%s'. Valid values: %s"),
+                    *CleanValueStr, *InputEnumType->GetName(), *FString::Join(ValidValues, TEXT(", ")));
+                return false;
+            }
+        }
 
         if (!bValueSet)
         {
@@ -608,8 +677,11 @@ bool FNiagaraService::SetModuleInput(const FNiagaraModuleInputParams& Params, FS
             *Params.InputName, *Params.ModuleName, *RapidIterationVariable.GetName().ToString(), AffectedScripts.Num());
     }
 
-    // Mark system dirty (but don't force recompile - rapid iteration params work without it)
+    // Mark system dirty and force recompile to update UI
     MarkSystemDirty(System);
+    Graph->NotifyGraphChanged();
+    System->RequestCompile(false);
+    System->WaitForCompilationComplete();
 
     // Refresh editors to show updated values
     RefreshEditors(System);
