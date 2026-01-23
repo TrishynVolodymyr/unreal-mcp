@@ -1785,6 +1785,8 @@ bool FStateTreeService::BindProperty(const FBindPropertyParams& Params, FString&
     // Find target struct ID
     FGuid TargetStructID;
     bool bTargetFound = false;
+    bool bTargetIsEvaluator = false;
+    const FStateTreeEditorNode* TargetEvaluator = nullptr;
 
     // Check if target is an evaluator
     for (const FStateTreeEditorNode& Evaluator : EditorData->Evaluators)
@@ -1803,9 +1805,77 @@ bool FStateTreeService::BindProperty(const FBindPropertyParams& Params, FString&
             {
                 TargetStructID = Evaluator.ID;
                 bTargetFound = true;
+                bTargetIsEvaluator = true;
+                TargetEvaluator = &Evaluator;
                 break;
             }
         }
+    }
+
+    // Special handling for evaluator targets
+    if (bTargetIsEvaluator && TargetEvaluator)
+    {
+        // Check if the evaluator has instance data
+        const FStateTreeNodeBase& NodeBase = TargetEvaluator->Node.Get<FStateTreeNodeBase>();
+        const UStruct* InstanceType = NodeBase.GetInstanceDataType();
+
+        // Check the target property category
+        if (const UScriptStruct* EvalStruct = TargetEvaluator->Node.GetScriptStruct())
+        {
+            FProperty* TargetProp = EvalStruct->FindPropertyByName(FName(*Params.TargetPropertyName));
+            if (TargetProp)
+            {
+                // Check if property has Category="Context" metadata
+                const FString CategoryMeta = TargetProp->GetMetaData(TEXT("Category"));
+                if (CategoryMeta.Contains(TEXT("Context"), ESearchCase::IgnoreCase))
+                {
+                    // Context properties auto-bind from schema - no explicit binding needed
+                    UE_LOG(LogTemp, Log, TEXT("FStateTreeService::BindProperty: Property '%s' on evaluator '%s' has Category=\"Context\" - it auto-binds from schema context, no explicit binding needed"),
+                        *Params.TargetPropertyName, *Params.TargetNodeName);
+                    return true; // Return success - the property will auto-bind
+                }
+
+                if (CategoryMeta.Contains(TEXT("Input"), ESearchCase::IgnoreCase))
+                {
+                    // UE5.7 StateTree does NOT support data bindings TO evaluator inputs
+                    // The StateTree compiler will reject these with "Node struct(non-instance) only supports DelegateListener and PropertyReference"
+                    // Evaluator inputs must either:
+                    // 1. Use Category="Context" to auto-bind from schema
+                    // 2. Query data internally from components (recommended)
+                    // 3. Use default/parameter values
+                    OutError = FString::Printf(
+                        TEXT("Cannot bind to evaluator input property '%s.%s' - UE5.7 StateTree does not support data bindings TO evaluator inputs. "
+                             "Alternatives: (1) Change the property to Category=\"Context\" for schema auto-binding, "
+                             "(2) Have the evaluator query data internally from components like ThreatComponent, "
+                             "(3) Use Category=\"Parameter\" with a default value."),
+                        *Params.TargetNodeName, *Params.TargetPropertyName);
+                    return false;
+                }
+
+                if (CategoryMeta.Contains(TEXT("Parameter"), ESearchCase::IgnoreCase))
+                {
+                    // Parameter category properties use defaults and typically don't need bindings
+                    UE_LOG(LogTemp, Log, TEXT("FStateTreeService::BindProperty: Property '%s' on evaluator '%s' has Category=\"Parameter\" - uses defaults, binding may not be needed"),
+                        *Params.TargetPropertyName, *Params.TargetNodeName);
+                }
+            }
+        }
+
+        // For evaluators without proper instance data, bindings to inputs may not work
+        if (!InstanceType)
+        {
+            OutError = FString::Printf(
+                TEXT("Evaluator '%s' does not have instance data - property bindings to evaluator inputs require evaluators with GetInstanceDataType() returning non-null. "
+                     "Consider using evaluator outputs instead, or modifying the evaluator to query data internally."),
+                *Params.TargetNodeName);
+            return false;
+        }
+
+        // For evaluators with instance data where GetInstanceDataType() == StaticStruct(),
+        // we need to use the Instance struct ID, not the Node struct ID
+        // In UE5.7, the Instance is stored separately and has its own binding identity
+        UE_LOG(LogTemp, Log, TEXT("FStateTreeService::BindProperty: Binding to evaluator '%s' property '%s' using instance data binding (InstanceType: %s)"),
+            *Params.TargetNodeName, *Params.TargetPropertyName, *InstanceType->GetName());
     }
 
     // Check if target is a condition on a transition
