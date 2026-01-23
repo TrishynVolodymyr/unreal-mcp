@@ -1,4 +1,5 @@
 #include "Services/StateTreeService.h"
+#include "Services/PropertyService.h"
 #include "StateTree.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeState.h"
@@ -1324,6 +1325,93 @@ bool FStateTreeService::AddConditionToTransition(const FAddConditionParams& Para
         if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
         {
             ConditionNode.Instance.InitializeAs(InstanceStruct);
+        }
+    }
+
+    // Apply condition properties from JSON if provided
+    if (Params.ConditionProperties.IsValid())
+    {
+        // Helper lambda to set a property on struct data
+        auto SetPropertyOnStruct = [](const UScriptStruct* Struct, void* StructData, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue) -> bool
+        {
+            if (!Struct || !StructData)
+            {
+                return false;
+            }
+
+            FProperty* Prop = Struct->FindPropertyByName(FName(*PropertyName));
+            if (!Prop)
+            {
+                return false;
+            }
+
+            void* PropertyData = Prop->ContainerPtrToValuePtr<void>(StructData);
+
+            // Handle bool properties
+            if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Prop))
+            {
+                bool BoolValue = false;
+                if (PropertyValue->TryGetBool(BoolValue))
+                {
+                    BoolProp->SetPropertyValue(PropertyData, BoolValue);
+                    UE_LOG(LogTemp, Log, TEXT("AddConditionToTransition: Set bool property '%s' = %s on %s"),
+                        *PropertyName, BoolValue ? TEXT("true") : TEXT("false"), *Struct->GetName());
+                    return true;
+                }
+            }
+            // Handle float properties
+            else if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
+            {
+                double DoubleValue = 0.0;
+                if (PropertyValue->TryGetNumber(DoubleValue))
+                {
+                    FloatProp->SetPropertyValue(PropertyData, static_cast<float>(DoubleValue));
+                    return true;
+                }
+            }
+            // Handle int properties
+            else if (FIntProperty* IntProp = CastField<FIntProperty>(Prop))
+            {
+                int32 IntValue = 0;
+                if (PropertyValue->TryGetNumber(IntValue))
+                {
+                    IntProp->SetPropertyValue(PropertyData, IntValue);
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        for (const auto& PropertyPair : Params.ConditionProperties->Values)
+        {
+            const FString& PropertyName = PropertyPair.Key;
+            const TSharedPtr<FJsonValue>& PropertyValue = PropertyPair.Value;
+            bool bPropertySet = false;
+
+            // First try to set on the Node struct
+            void* NodeData = ConditionNode.Node.GetMutableMemory();
+            if (NodeData)
+            {
+                bPropertySet = SetPropertyOnStruct(ConditionStruct, NodeData, PropertyName, PropertyValue);
+            }
+
+            // If not found on Node, try the Instance struct
+            if (!bPropertySet && ConditionNode.Instance.IsValid())
+            {
+                void* InstanceData = ConditionNode.Instance.GetMutableMemory();
+                const UScriptStruct* InstanceStruct = ConditionNode.Instance.GetScriptStruct();
+                if (InstanceData && InstanceStruct)
+                {
+                    bPropertySet = SetPropertyOnStruct(InstanceStruct, InstanceData, PropertyName, PropertyValue);
+                }
+            }
+
+            if (!bPropertySet)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("AddConditionToTransition: Property '%s' not found on condition Node or Instance"),
+                    *PropertyName);
+            }
         }
     }
 
