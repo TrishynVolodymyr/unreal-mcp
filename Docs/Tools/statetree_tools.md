@@ -6,14 +6,14 @@ Technical documentation for StateTree MCP tools. These tools enable programmatic
 
 ## Overview
 
-StateTree tools provide 53 commands across 16 sections for complete StateTree management:
+StateTree tools provide 54 commands across 16 sections for complete StateTree management:
 
 | Section | Commands | Description |
 |---------|----------|-------------|
 | Tier 1 | 6 | Essential commands (create, add state/transition/task, compile, metadata) |
 | Tier 2 | 7 | Advanced commands (conditions, evaluators, parameters, removal, duplicate) |
 | Tier 3 | 4 | Introspection (diagnostics, available tasks/conditions/evaluators) |
-| Section 1 | 3 | Property binding |
+| Section 1 | 4 | Property binding |
 | Section 2 | 2 | Schema/context configuration |
 | Section 3 | 1 | Blueprint type support |
 | Section 4 | 2 | Global tasks |
@@ -378,6 +378,22 @@ Bind a property from one node to another.
 | `target_node_name` | string | Yes | - | Target node (state name) |
 | `target_property_name` | string | Yes | - | Property to bind to |
 | `task_index` | int | No | -1 | Task index if binding to specific task |
+
+---
+
+### remove_state_tree_binding
+
+Remove a property binding from a target node.
+
+**Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `state_tree_path` | string | Yes | - | Path to the StateTree asset |
+| `target_node_name` | string | Yes | - | Target node (state name or evaluator name) |
+| `target_property_name` | string | Yes | - | Property with binding to remove |
+| `task_index` | int | No | -1 | Task index if removing from specific task |
+| `transition_index` | int | No | -1 | Transition index if removing from condition |
+| `condition_index` | int | No | -1 | Condition index within transition |
 
 ---
 
