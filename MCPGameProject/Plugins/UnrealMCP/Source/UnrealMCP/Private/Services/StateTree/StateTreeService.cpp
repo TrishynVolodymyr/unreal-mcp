@@ -36,7 +36,7 @@ static UScriptStruct* FindScriptStructByPath(const FString& StructPath)
     // because these are native structs registered in memory, not loadable assets
     if (StructPath.StartsWith(TEXT("/Script/")))
     {
-        // Extract module name from path (e.g., "Ethereal_Revenants" from "/Script/Ethereal_Revenants.FEval_...")
+        // Extract module name from path (e.g., "GameModule" from "/Script/GameModule.FEval_...")
         FString PackagePath = FPackageName::ObjectPathToPackageName(StructPath);
         FString ModuleName = PackagePath.Replace(TEXT("/Script/"), TEXT(""));
 
@@ -779,6 +779,22 @@ UStateTree* FStateTreeService::CreateStateTree(const FStateTreeCreationParams& P
     {
         // GameplayStateTreeModule is where AI and Component schemas live in UE5.7+
         SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *FString::Printf(TEXT("/Script/GameplayStateTreeModule.U%s"), *SchemaClassName));
+    }
+
+    // Try full script path format (e.g., "/Script/GameModule.UCustomStateTreeSchema")
+    if (!SchemaClass && SchemaClassName.StartsWith(TEXT("/Script/")))
+    {
+        SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *SchemaClassName);
+    }
+
+    // Try game module (MCPGameProject) for project-specific schemas
+    if (!SchemaClass)
+    {
+        SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *FString::Printf(TEXT("/Script/MCPGameProject.%s"), *SchemaClassName));
+    }
+    if (!SchemaClass)
+    {
+        SchemaClass = LoadClass<UStateTreeSchema>(nullptr, *FString::Printf(TEXT("/Script/MCPGameProject.U%s"), *SchemaClassName));
     }
 
     // Last resort: iterate through all loaded UStateTreeSchema subclasses and find by name
