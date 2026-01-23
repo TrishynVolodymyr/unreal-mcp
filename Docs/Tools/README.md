@@ -20,6 +20,7 @@ Technical documentation for all MCP tool categories. This section provides comma
 | **[Niagara Tools](niagara_tools.md)** | `niagara_tools.md` | Niagara VFX systems, emitters, parameters, renderers |
 | **[Node Tools](node_tools.md)** | `node_tools.md` | Blueprint visual scripting, node creation, connections |
 | **[Project Tools](project_tools.md)** | `project_tools.md` | Project organization, Enhanced Input System, structs |
+| **[StateTree Tools](statetree_tools.md)** | `statetree_tools.md` | StateTree AI behavior trees, states, transitions, tasks, conditions |
 | **[UMG Tools](umg_tools.md)** | `umg_tools.md` | Widget Blueprint creation, UI components, layouts |
 
 ---
@@ -378,6 +379,7 @@ Dispatcher->RegisterCommand(TEXT("my_new_command"),
 - **[Material Tools API](material_tools.md)** - Material Instance commands
 - **[Niagara Tools API](niagara_tools.md)** - VFX particle system commands
 - **[Node Tools API](node_tools.md)** - Visual scripting commands
+- **[StateTree Tools API](statetree_tools.md)** - AI behavior tree commands
 - **[UMG Tools API](umg_tools.md)** - UI widget commands
 
 ---
@@ -416,6 +418,7 @@ Test through AI assistant:
 | Niagara | 12 | `create_niagara_system`, `add_emitter_to_system`, `set_niagara_color_param` |
 | Node | 12+ | `add_event_node`, `connect_nodes`, `create_node_by_action_name` |
 | Project | 9+ | `create_enhanced_input_action`, `create_folder`, `create_struct` |
+| StateTree | 53 | `create_state_tree`, `add_state`, `add_transition`, `add_task_to_state` |
 | UMG | 10+ | `create_widget_blueprint`, `add_widget_component`, `set_widget_property` |
 
-**Total**: 95+ commands across 10 categories
+**Total**: 145+ commands across 11 categories

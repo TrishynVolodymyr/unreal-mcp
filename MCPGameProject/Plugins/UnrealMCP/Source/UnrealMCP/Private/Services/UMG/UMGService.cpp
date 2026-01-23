@@ -22,6 +22,12 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Components/SizeBox.h"
+#include "Components/SizeBoxSlot.h"
+#include "Components/Border.h"
+#include "Components/BorderSlot.h"
 #include "Components/ContentWidget.h"
 #include "EditorAssetLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -868,7 +874,40 @@ UClass* FUMGService::FindParentClass(const FString& ParentClassName) const
         return UUserWidget::StaticClass();
     }
 
-    // Try to find the parent class with various prefixes
+    UClass* FoundClass = nullptr;
+
+    // Try as full path first (if starts with /)
+    if (ParentClassName.StartsWith(TEXT("/")))
+    {
+        FoundClass = LoadClass<UUserWidget>(nullptr, *ParentClassName);
+        if (FoundClass)
+        {
+            return FoundClass;
+        }
+    }
+
+    // Try /Script/ProjectName.ClassName pattern for C++ classes in the game project
+    FString ProjectName = FApp::GetProjectName();
+    FString ProjectPath = FString::Printf(TEXT("/Script/%s.%s"), *ProjectName, *ParentClassName);
+    FoundClass = LoadClass<UUserWidget>(nullptr, *ProjectPath);
+    if (FoundClass)
+    {
+        return FoundClass;
+    }
+
+    // Try with U prefix for C++ classes (e.g., "VitalBarsWidget" -> "UVitalBarsWidget")
+    if (!ParentClassName.StartsWith(TEXT("U")))
+    {
+        FString WithUPrefix = FString::Printf(TEXT("U%s"), *ParentClassName);
+        FString ProjectPathWithU = FString::Printf(TEXT("/Script/%s.%s"), *ProjectName, *WithUPrefix);
+        FoundClass = LoadClass<UUserWidget>(nullptr, *ProjectPathWithU);
+        if (FoundClass)
+        {
+            return FoundClass;
+        }
+    }
+
+    // Try to find the parent class with various prefixes (UMG, Engine, Core)
     TArray<FString> PossibleClassPaths;
     PossibleClassPaths.Add(FUnrealMCPCommonUtils::BuildUMGPath(ParentClassName));
     PossibleClassPaths.Add(FUnrealMCPCommonUtils::BuildEnginePath(ParentClassName));
@@ -878,8 +917,26 @@ UClass* FUMGService::FindParentClass(const FString& ParentClassName) const
 
     for (const FString& ClassPath : PossibleClassPaths)
     {
-        UClass* FoundClass = LoadObject<UClass>(nullptr, *ClassPath);
+        FoundClass = LoadObject<UClass>(nullptr, *ClassPath);
         if (FoundClass)
+        {
+            return FoundClass;
+        }
+    }
+
+    // Try FindObject for already-loaded classes
+    FoundClass = FindObject<UClass>(nullptr, *ParentClassName);
+    if (FoundClass && FoundClass->IsChildOf(UUserWidget::StaticClass()))
+    {
+        return FoundClass;
+    }
+
+    // Try FindObject with U prefix
+    if (!ParentClassName.StartsWith(TEXT("U")))
+    {
+        FString WithUPrefix = FString::Printf(TEXT("U%s"), *ParentClassName);
+        FoundClass = FindObject<UClass>(nullptr, *WithUPrefix);
+        if (FoundClass && FoundClass->IsChildOf(UUserWidget::StaticClass()))
         {
             return FoundClass;
         }
@@ -945,7 +1002,721 @@ bool FUMGService::SetCanvasSlotPlacement(UWidget* Widget, const FVector2D* Posit
     return true;
 }
 
-// SetSlotProperty implementation is in UMGSlotPropertyService.cpp
+bool FUMGService::SetSlotProperty(UWidget* Widget, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutError) const
+{
+    if (!Widget || !Widget->Slot)
+    {
+        OutError = TEXT("Widget has no slot");
+        return false;
+    }
+
+    UPanelSlot* Slot = Widget->Slot;
+
+    // Try HorizontalBoxSlot first
+    if (UHorizontalBoxSlot* HBoxSlot = Cast<UHorizontalBoxSlot>(Slot))
+    {
+        if (PropertyName.Equals(TEXT("SizeRule"), ESearchCase::IgnoreCase) ||
+            PropertyName.Equals(TEXT("Size"), ESearchCase::IgnoreCase))
+        {
+            FString SizeRuleStr = PropertyValue->AsString();
+            FSlateChildSize ChildSize = HBoxSlot->GetSize();
+
+            if (SizeRuleStr.Equals(TEXT("Auto"), ESearchCase::IgnoreCase) ||
+                SizeRuleStr.Equals(TEXT("ESlateSizeRule::Auto"), ESearchCase::IgnoreCase))
+            {
+                ChildSize.SizeRule = ESlateSizeRule::Automatic;
+            }
+            else if (SizeRuleStr.Equals(TEXT("Fill"), ESearchCase::IgnoreCase) ||
+                     SizeRuleStr.Equals(TEXT("ESlateSizeRule::Fill"), ESearchCase::IgnoreCase))
+            {
+                ChildSize.SizeRule = ESlateSizeRule::Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown SizeRule value: %s"), *SizeRuleStr);
+                return false;
+            }
+
+            HBoxSlot->SetSize(ChildSize);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.SizeRule to %s"), *SizeRuleStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("FillSpanWhenLessThan"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("SizeValue"), ESearchCase::IgnoreCase))
+        {
+            double Value = 0.0;
+            if (PropertyValue->TryGetNumber(Value))
+            {
+                FSlateChildSize ChildSize = HBoxSlot->GetSize();
+                ChildSize.Value = static_cast<float>(Value);
+                HBoxSlot->SetSize(ChildSize);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.SizeValue to %f"), Value);
+                return true;
+            }
+            OutError = TEXT("SizeValue must be a number");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("VerticalAlignment"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("VAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EVerticalAlignment VAlign = EVerticalAlignment::VAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Top")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Top;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Bottom")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Bottom;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown VerticalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            HBoxSlot->SetVerticalAlignment(VAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.VerticalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("HorizontalAlignment"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("HAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EHorizontalAlignment HAlign = EHorizontalAlignment::HAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Left")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Left;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Right")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Right;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown HorizontalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            HBoxSlot->SetHorizontalAlignment(HAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.HorizontalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
+            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            {
+                FMargin Padding(
+                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[3]->AsNumber())
+                );
+                HBoxSlot->SetPadding(Padding);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.Padding"));
+                return true;
+            }
+            // Try single value for uniform padding
+            double UniformPadding = 0.0;
+            if (PropertyValue->TryGetNumber(UniformPadding))
+            {
+                HBoxSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.Padding (uniform) to %f"), UniformPadding);
+                return true;
+            }
+            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
+            return false;
+        }
+    }
+    // Try VerticalBoxSlot
+    else if (UVerticalBoxSlot* VBoxSlot = Cast<UVerticalBoxSlot>(Slot))
+    {
+        if (PropertyName.Equals(TEXT("SizeRule"), ESearchCase::IgnoreCase) ||
+            PropertyName.Equals(TEXT("Size"), ESearchCase::IgnoreCase))
+        {
+            FString SizeRuleStr = PropertyValue->AsString();
+            FSlateChildSize ChildSize = VBoxSlot->GetSize();
+
+            if (SizeRuleStr.Equals(TEXT("Auto"), ESearchCase::IgnoreCase) ||
+                SizeRuleStr.Equals(TEXT("ESlateSizeRule::Auto"), ESearchCase::IgnoreCase))
+            {
+                ChildSize.SizeRule = ESlateSizeRule::Automatic;
+            }
+            else if (SizeRuleStr.Equals(TEXT("Fill"), ESearchCase::IgnoreCase) ||
+                     SizeRuleStr.Equals(TEXT("ESlateSizeRule::Fill"), ESearchCase::IgnoreCase))
+            {
+                ChildSize.SizeRule = ESlateSizeRule::Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown SizeRule value: %s"), *SizeRuleStr);
+                return false;
+            }
+
+            VBoxSlot->SetSize(ChildSize);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.SizeRule to %s"), *SizeRuleStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("FillSpanWhenLessThan"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("SizeValue"), ESearchCase::IgnoreCase))
+        {
+            double Value = 0.0;
+            if (PropertyValue->TryGetNumber(Value))
+            {
+                FSlateChildSize ChildSize = VBoxSlot->GetSize();
+                ChildSize.Value = static_cast<float>(Value);
+                VBoxSlot->SetSize(ChildSize);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.SizeValue to %f"), Value);
+                return true;
+            }
+            OutError = TEXT("SizeValue must be a number");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("VerticalAlignment"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("VAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EVerticalAlignment VAlign = EVerticalAlignment::VAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Top")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Top;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Bottom")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Bottom;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown VerticalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            VBoxSlot->SetVerticalAlignment(VAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.VerticalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("HorizontalAlignment"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("HAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EHorizontalAlignment HAlign = EHorizontalAlignment::HAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Left")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Left;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Right")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Right;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown HorizontalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            VBoxSlot->SetHorizontalAlignment(HAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.HorizontalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
+            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            {
+                FMargin Padding(
+                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[3]->AsNumber())
+                );
+                VBoxSlot->SetPadding(Padding);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.Padding"));
+                return true;
+            }
+            // Try single value for uniform padding
+            double UniformPadding = 0.0;
+            if (PropertyValue->TryGetNumber(UniformPadding))
+            {
+                VBoxSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.Padding (uniform) to %f"), UniformPadding);
+                return true;
+            }
+            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
+            return false;
+        }
+    }
+    // Try CanvasPanelSlot
+    else if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot))
+    {
+        if (PropertyName.Equals(TEXT("Anchors"), ESearchCase::IgnoreCase))
+        {
+            // Parse FAnchors from JSON: {"Minimum": {"X": 0, "Y": 0}, "Maximum": {"X": 1, "Y": 1}}
+            const TSharedPtr<FJsonObject>* AnchorsObject;
+            if (PropertyValue->TryGetObject(AnchorsObject))
+            {
+                FAnchors Anchors;
+
+                const TSharedPtr<FJsonObject>* MinObject;
+                if ((*AnchorsObject)->TryGetObjectField(TEXT("Minimum"), MinObject))
+                {
+                    (*MinObject)->TryGetNumberField(TEXT("X"), Anchors.Minimum.X);
+                    (*MinObject)->TryGetNumberField(TEXT("Y"), Anchors.Minimum.Y);
+                }
+
+                const TSharedPtr<FJsonObject>* MaxObject;
+                if ((*AnchorsObject)->TryGetObjectField(TEXT("Maximum"), MaxObject))
+                {
+                    (*MaxObject)->TryGetNumberField(TEXT("X"), Anchors.Maximum.X);
+                    (*MaxObject)->TryGetNumberField(TEXT("Y"), Anchors.Maximum.Y);
+                }
+
+                CanvasSlot->SetAnchors(Anchors);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.Anchors Min(%.2f,%.2f) Max(%.2f,%.2f)"),
+                       Anchors.Minimum.X, Anchors.Minimum.Y, Anchors.Maximum.X, Anchors.Maximum.Y);
+                return true;
+            }
+            OutError = TEXT("Anchors must be object with Minimum and Maximum fields");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("Offsets"), ESearchCase::IgnoreCase))
+        {
+            // Parse offsets: {"Left": 0, "Top": 0, "Right": 0, "Bottom": 0}
+            const TSharedPtr<FJsonObject>* OffsetsObject;
+            if (PropertyValue->TryGetObject(OffsetsObject))
+            {
+                double Left = 0, Top = 0, Right = 0, Bottom = 0;
+                (*OffsetsObject)->TryGetNumberField(TEXT("Left"), Left);
+                (*OffsetsObject)->TryGetNumberField(TEXT("Top"), Top);
+                (*OffsetsObject)->TryGetNumberField(TEXT("Right"), Right);
+                (*OffsetsObject)->TryGetNumberField(TEXT("Bottom"), Bottom);
+
+                FMargin Offsets(static_cast<float>(Left), static_cast<float>(Top),
+                               static_cast<float>(Right), static_cast<float>(Bottom));
+                CanvasSlot->SetOffsets(Offsets);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.Offsets L:%.1f T:%.1f R:%.1f B:%.1f"),
+                       Left, Top, Right, Bottom);
+                return true;
+            }
+            // Try array format [left, top, right, bottom]
+            const TArray<TSharedPtr<FJsonValue>>* OffsetsArray;
+            if (PropertyValue->TryGetArray(OffsetsArray) && OffsetsArray->Num() == 4)
+            {
+                FMargin Offsets(
+                    static_cast<float>((*OffsetsArray)[0]->AsNumber()),
+                    static_cast<float>((*OffsetsArray)[1]->AsNumber()),
+                    static_cast<float>((*OffsetsArray)[2]->AsNumber()),
+                    static_cast<float>((*OffsetsArray)[3]->AsNumber())
+                );
+                CanvasSlot->SetOffsets(Offsets);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.Offsets from array"));
+                return true;
+            }
+            OutError = TEXT("Offsets must be object {Left,Top,Right,Bottom} or array [l,t,r,b]");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("Position"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* PosArray;
+            if (PropertyValue->TryGetArray(PosArray) && PosArray->Num() == 2)
+            {
+                FVector2D Position(
+                    static_cast<float>((*PosArray)[0]->AsNumber()),
+                    static_cast<float>((*PosArray)[1]->AsNumber())
+                );
+                CanvasSlot->SetPosition(Position);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.Position to (%.1f, %.1f)"),
+                       Position.X, Position.Y);
+                return true;
+            }
+            OutError = TEXT("Position must be array [X, Y]");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("Size"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* SizeArray;
+            if (PropertyValue->TryGetArray(SizeArray) && SizeArray->Num() == 2)
+            {
+                FVector2D Size(
+                    static_cast<float>((*SizeArray)[0]->AsNumber()),
+                    static_cast<float>((*SizeArray)[1]->AsNumber())
+                );
+                CanvasSlot->SetSize(Size);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.Size to (%.1f, %.1f)"),
+                       Size.X, Size.Y);
+                return true;
+            }
+            OutError = TEXT("Size must be array [Width, Height]");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("Alignment"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* AlignArray;
+            if (PropertyValue->TryGetArray(AlignArray) && AlignArray->Num() == 2)
+            {
+                FVector2D Alignment(
+                    static_cast<float>((*AlignArray)[0]->AsNumber()),
+                    static_cast<float>((*AlignArray)[1]->AsNumber())
+                );
+                CanvasSlot->SetAlignment(Alignment);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.Alignment to (%.2f, %.2f)"),
+                       Alignment.X, Alignment.Y);
+                return true;
+            }
+            OutError = TEXT("Alignment must be array [X, Y] with values 0.0-1.0");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("AutoSize"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("bAutoSize"), ESearchCase::IgnoreCase))
+        {
+            bool bAutoSize = false;
+            if (PropertyValue->TryGetBool(bAutoSize))
+            {
+                CanvasSlot->SetAutoSize(bAutoSize);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.AutoSize to %s"),
+                       bAutoSize ? TEXT("true") : TEXT("false"));
+                return true;
+            }
+            OutError = TEXT("AutoSize must be a boolean");
+            return false;
+        }
+        else if (PropertyName.Equals(TEXT("ZOrder"), ESearchCase::IgnoreCase))
+        {
+            int32 ZOrder = 0;
+            if (PropertyValue->TryGetNumber(ZOrder))
+            {
+                CanvasSlot->SetZOrder(ZOrder);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set CanvasPanelSlot.ZOrder to %d"), ZOrder);
+                return true;
+            }
+            OutError = TEXT("ZOrder must be an integer");
+            return false;
+        }
+    }
+    // Try OverlaySlot
+    else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(Slot))
+    {
+        if (PropertyName.Equals(TEXT("HorizontalAlignment"), ESearchCase::IgnoreCase) ||
+            PropertyName.Equals(TEXT("HAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EHorizontalAlignment HAlign = EHorizontalAlignment::HAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Left")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Left;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Right")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Right;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown HorizontalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            OverlaySlot->SetHorizontalAlignment(HAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set OverlaySlot.HorizontalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("VerticalAlignment"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("VAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EVerticalAlignment VAlign = EVerticalAlignment::VAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Top")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Top;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Bottom")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Bottom;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown VerticalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            OverlaySlot->SetVerticalAlignment(VAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set OverlaySlot.VerticalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
+            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            {
+                FMargin Padding(
+                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[3]->AsNumber())
+                );
+                OverlaySlot->SetPadding(Padding);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set OverlaySlot.Padding"));
+                return true;
+            }
+            // Try single value for uniform padding
+            double UniformPadding = 0.0;
+            if (PropertyValue->TryGetNumber(UniformPadding))
+            {
+                OverlaySlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set OverlaySlot.Padding (uniform) to %f"), UniformPadding);
+                return true;
+            }
+            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
+            return false;
+        }
+    }
+    // Try SizeBoxSlot
+    else if (USizeBoxSlot* SizeBoxSlot = Cast<USizeBoxSlot>(Slot))
+    {
+        if (PropertyName.Equals(TEXT("HorizontalAlignment"), ESearchCase::IgnoreCase) ||
+            PropertyName.Equals(TEXT("HAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EHorizontalAlignment HAlign = EHorizontalAlignment::HAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Left")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Left;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Right")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Right;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown HorizontalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            SizeBoxSlot->SetHorizontalAlignment(HAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set SizeBoxSlot.HorizontalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("VerticalAlignment"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("VAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EVerticalAlignment VAlign = EVerticalAlignment::VAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Top")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Top;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Bottom")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Bottom;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown VerticalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            SizeBoxSlot->SetVerticalAlignment(VAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set SizeBoxSlot.VerticalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
+            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            {
+                FMargin Padding(
+                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[3]->AsNumber())
+                );
+                SizeBoxSlot->SetPadding(Padding);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set SizeBoxSlot.Padding"));
+                return true;
+            }
+            // Try single value for uniform padding
+            double UniformPadding = 0.0;
+            if (PropertyValue->TryGetNumber(UniformPadding))
+            {
+                SizeBoxSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set SizeBoxSlot.Padding (uniform) to %f"), UniformPadding);
+                return true;
+            }
+            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
+            return false;
+        }
+    }
+    // Try BorderSlot
+    else if (UBorderSlot* BorderSlot = Cast<UBorderSlot>(Slot))
+    {
+        if (PropertyName.Equals(TEXT("HorizontalAlignment"), ESearchCase::IgnoreCase) ||
+            PropertyName.Equals(TEXT("HAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EHorizontalAlignment HAlign = EHorizontalAlignment::HAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Left")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Left;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Right")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Right;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                HAlign = EHorizontalAlignment::HAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown HorizontalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            BorderSlot->SetHorizontalAlignment(HAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set BorderSlot.HorizontalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("VerticalAlignment"), ESearchCase::IgnoreCase) ||
+                 PropertyName.Equals(TEXT("VAlign"), ESearchCase::IgnoreCase))
+        {
+            FString AlignStr = PropertyValue->AsString();
+            EVerticalAlignment VAlign = EVerticalAlignment::VAlign_Fill;
+
+            if (AlignStr.Contains(TEXT("Top")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Top;
+            }
+            else if (AlignStr.Contains(TEXT("Center")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Center;
+            }
+            else if (AlignStr.Contains(TEXT("Bottom")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Bottom;
+            }
+            else if (AlignStr.Contains(TEXT("Fill")))
+            {
+                VAlign = EVerticalAlignment::VAlign_Fill;
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Unknown VerticalAlignment value: %s"), *AlignStr);
+                return false;
+            }
+
+            BorderSlot->SetVerticalAlignment(VAlign);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Set BorderSlot.VerticalAlignment to %s"), *AlignStr);
+            return true;
+        }
+        else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
+            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            {
+                FMargin Padding(
+                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
+                    static_cast<float>((*PaddingArray)[3]->AsNumber())
+                );
+                BorderSlot->SetPadding(Padding);
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set BorderSlot.Padding"));
+                return true;
+            }
+            // Try single value for uniform padding
+            double UniformPadding = 0.0;
+            if (PropertyValue->TryGetNumber(UniformPadding))
+            {
+                BorderSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
+                UE_LOG(LogTemp, Log, TEXT("UMGService: Set BorderSlot.Padding (uniform) to %f"), UniformPadding);
+                return true;
+            }
+            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
+            return false;
+        }
+    }
+
+    // Unknown slot type or property
+    OutError = FString::Printf(TEXT("Unsupported slot property '%s' for slot type '%s'"),
+                               *PropertyName, *Slot->GetClass()->GetName());
+    return false;
+}
 
 bool FUMGService::AddWidgetToParent(UWidget* ChildWidget, UWidget* ParentWidget) const
 {
@@ -1125,5 +1896,188 @@ bool FUMGService::ReorderWidgetChildren(const FString& WidgetName, const FString
     FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBlueprint);
 
     UE_LOG(LogTemp, Log, TEXT("FUMGService::ReorderWidgetChildren - Successfully reordered children in '%s'"), *ContainerName);
+    return true;
+}
+
+bool FUMGService::SetWidgetDesignSizeMode(
+    const FString& WidgetName,
+    const FString& DesignSizeMode,
+    int32 CustomWidth,
+    int32 CustomHeight,
+    FString& OutError)
+{
+    UWidgetBlueprint* WidgetBP = FindWidgetBlueprint(WidgetName);
+    if (!WidgetBP)
+    {
+        OutError = FString::Printf(TEXT("Widget blueprint '%s' not found"), *WidgetName);
+        return false;
+    }
+
+    // Get the widget tree
+    UWidgetTree* WidgetTree = WidgetBP->WidgetTree;
+    if (!WidgetTree)
+    {
+        OutError = TEXT("Widget tree not found");
+        return false;
+    }
+
+    // Set design time size mode
+    EDesignPreviewSizeMode SizeMode = EDesignPreviewSizeMode::FillScreen;
+    if (DesignSizeMode.Equals(TEXT("DesiredOnScreen"), ESearchCase::IgnoreCase) ||
+        DesignSizeMode.Equals(TEXT("Desired"), ESearchCase::IgnoreCase))
+    {
+        SizeMode = EDesignPreviewSizeMode::DesiredOnScreen;
+    }
+    else if (DesignSizeMode.Equals(TEXT("Custom"), ESearchCase::IgnoreCase))
+    {
+        SizeMode = EDesignPreviewSizeMode::Custom;
+    }
+    else if (DesignSizeMode.Equals(TEXT("FillScreen"), ESearchCase::IgnoreCase) ||
+             DesignSizeMode.Equals(TEXT("Fill"), ESearchCase::IgnoreCase))
+    {
+        SizeMode = EDesignPreviewSizeMode::FillScreen;
+    }
+    else if (DesignSizeMode.Equals(TEXT("CustomOnScreen"), ESearchCase::IgnoreCase))
+    {
+        SizeMode = EDesignPreviewSizeMode::CustomOnScreen;
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FUMGService::SetWidgetDesignSizeMode - Unknown design size mode '%s', defaulting to FillScreen"), *DesignSizeMode);
+    }
+
+#if WITH_EDITORONLY_DATA
+    // Apply to widget blueprint's CDO (UE 5.7 moved these properties to UUserWidget)
+    UUserWidget* WidgetCDO = Cast<UUserWidget>(WidgetBP->GeneratedClass->GetDefaultObject());
+    if (!WidgetCDO)
+    {
+        OutError = TEXT("Could not get widget CDO");
+        return false;
+    }
+
+    WidgetCDO->Modify();
+    WidgetCDO->DesignSizeMode = SizeMode;
+
+    if (SizeMode == EDesignPreviewSizeMode::Custom ||
+        SizeMode == EDesignPreviewSizeMode::CustomOnScreen)
+    {
+        WidgetCDO->DesignTimeSize = FVector2D(CustomWidth, CustomHeight);
+    }
+#else
+    OutError = TEXT("Design size mode can only be set in editor builds");
+    return false;
+#endif
+
+    // Mark dirty and save
+    WidgetBP->Modify();
+    WidgetBP->MarkPackageDirty();
+
+    UE_LOG(LogTemp, Log, TEXT("FUMGService::SetWidgetDesignSizeMode - Set design size mode to '%s' (%dx%d) for '%s'"),
+           *DesignSizeMode, CustomWidth, CustomHeight, *WidgetName);
+
+    return true;
+}
+
+bool FUMGService::SetWidgetParentClass(
+    const FString& WidgetName,
+    const FString& NewParentClass,
+    FString& OutOldParent,
+    FString& OutError)
+{
+    UWidgetBlueprint* WidgetBP = FindWidgetBlueprint(WidgetName);
+    if (!WidgetBP)
+    {
+        OutError = FString::Printf(TEXT("Widget blueprint '%s' not found"), *WidgetName);
+        return false;
+    }
+
+    // Get current parent for output
+    UClass* CurrentParent = WidgetBP->ParentClass;
+    OutOldParent = CurrentParent ? CurrentParent->GetName() : TEXT("None");
+
+    // Find the new parent class
+    UClass* ParentClass = nullptr;
+
+    // Try as full path first
+    if (NewParentClass.StartsWith(TEXT("/")))
+    {
+        ParentClass = LoadClass<UUserWidget>(nullptr, *NewParentClass);
+    }
+
+    // Try /Script/ProjectName.ClassName pattern
+    if (!ParentClass)
+    {
+        FString ProjectName = FApp::GetProjectName();
+        FString FullPath = FString::Printf(TEXT("/Script/%s.%s"), *ProjectName, *NewParentClass);
+        ParentClass = LoadClass<UUserWidget>(nullptr, *FullPath);
+    }
+
+    // Try /Script/UMG.ClassName
+    if (!ParentClass)
+    {
+        FString UMGPath = FString::Printf(TEXT("/Script/UMG.%s"), *NewParentClass);
+        ParentClass = LoadClass<UUserWidget>(nullptr, *UMGPath);
+    }
+
+    // Try adding U prefix if not present
+    if (!ParentClass && !NewParentClass.StartsWith(TEXT("U")))
+    {
+        FString WithUPrefix = FString::Printf(TEXT("U%s"), *NewParentClass);
+        FString ProjectName = FApp::GetProjectName();
+        FString FullPath = FString::Printf(TEXT("/Script/%s.%s"), *ProjectName, *WithUPrefix);
+        ParentClass = LoadClass<UUserWidget>(nullptr, *FullPath);
+    }
+
+    // Try FindObject for already-loaded classes (using nullptr instead of deprecated ANY_PACKAGE)
+    if (!ParentClass)
+    {
+        ParentClass = FindObject<UClass>(nullptr, *NewParentClass);
+    }
+
+    // Try with U prefix in FindObject
+    if (!ParentClass && !NewParentClass.StartsWith(TEXT("U")))
+    {
+        FString WithUPrefix = FString::Printf(TEXT("U%s"), *NewParentClass);
+        ParentClass = FindObject<UClass>(nullptr, *WithUPrefix);
+    }
+
+    if (!ParentClass)
+    {
+        OutError = FString::Printf(TEXT("Could not find parent class '%s'"), *NewParentClass);
+        return false;
+    }
+
+    // Verify it's a valid widget class
+    if (!ParentClass->IsChildOf(UUserWidget::StaticClass()))
+    {
+        OutError = FString::Printf(TEXT("Class '%s' is not a UUserWidget subclass"), *NewParentClass);
+        return false;
+    }
+
+    // Check if already the correct parent
+    if (CurrentParent == ParentClass)
+    {
+        UE_LOG(LogTemp, Log, TEXT("FUMGService::SetWidgetParentClass - '%s' already has parent class '%s'"),
+               *WidgetName, *ParentClass->GetName());
+        return true;
+    }
+
+    // Mark dirty before reparenting
+    WidgetBP->Modify();
+
+    // Reparent the blueprint - the compilation will update the generated class properly
+    // DO NOT call GeneratedClass->SetSuperStruct() directly - it corrupts memory
+    WidgetBP->ParentClass = ParentClass;
+
+    // Compile the blueprint to apply the reparenting changes
+    // This will properly update the generated class hierarchy
+    FKismetEditorUtilities::CompileBlueprint(WidgetBP);
+
+    // Mark package dirty after compilation
+    WidgetBP->MarkPackageDirty();
+
+    UE_LOG(LogTemp, Log, TEXT("FUMGService::SetWidgetParentClass - Reparented '%s' from '%s' to '%s'"),
+           *WidgetName, *OutOldParent, *ParentClass->GetName());
+
     return true;
 }

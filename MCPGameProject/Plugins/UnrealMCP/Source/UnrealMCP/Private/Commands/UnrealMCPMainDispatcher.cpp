@@ -11,6 +11,7 @@
 #include "Commands/MaterialCommandRegistration.h"
 #include "Commands/NiagaraCommandRegistration.h"
 #include "Commands/AnimationCommandRegistration.h"
+#include "Commands/StateTreeCommandRegistration.h"
 #include "Commands/SoundCommandRegistration.h"
 #include "Services/BlueprintActionService.h"
 // Legacy adapter removed
@@ -123,6 +124,9 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
     // Register Animation commands
     FAnimationCommandRegistration::RegisterAllAnimationCommands();
 
+    // Register StateTree commands
+    FStateTreeCommandRegistration::RegisterAllStateTreeCommands();
+  
     // Register Sound/Audio commands
     FSoundCommandRegistration::RegisterAllCommands();
 
@@ -169,6 +173,7 @@ void FUnrealMCPMainDispatcher::Shutdown()
     FMaterialCommandRegistration::UnregisterAllCommands();
     FNiagaraCommandRegistration::UnregisterAllCommands();
     FAnimationCommandRegistration::UnregisterAllAnimationCommands();
+    FStateTreeCommandRegistration::UnregisterAllStateTreeCommands();
 
     // Clear the entire registry
     FUnrealMCPCommandRegistry::Get().ClearRegistry();

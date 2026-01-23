@@ -360,6 +360,7 @@ UNREAL_PORT = 55557
 | `datatable_mcp_server.py` | DataTable creation, CRUD operations | `Commands/DataTable/` |
 | `project_mcp_server.py` | Folders, input mappings, structs, enums | `Commands/Project/` |
 | `blueprint_action_mcp_server.py` | Action discovery, node creation, pin inspection | `Commands/BlueprintAction/` |
+| `statetree_mcp_server.py` | StateTree creation, states, transitions, tasks, conditions, evaluators, bindings | `Commands/StateTree/` |
 
 **These `*_mcp_server.py` files contain the `@app.tool()` decorated functions that Claude/AI assistants actually call.**
 

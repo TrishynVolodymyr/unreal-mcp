@@ -39,6 +39,8 @@ private:
     static void RegisterCreateWidgetInputHandlerCommand();
     static void RegisterRemoveWidgetFunctionGraphCommand();
     static void RegisterReorderWidgetChildrenCommand();
+    static void RegisterSetWidgetDesignSizeCommand();
+    static void RegisterSetWidgetParentClassCommand();
 
     // Widget-specific add commands
     static void RegisterAddWidgetSwitcherCommand();

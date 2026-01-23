@@ -4,7 +4,24 @@ This document provides detailed information about the UMG (Unreal Motion Graphic
 
 ## Overview
 
-UMG tools allow you to create and manipulate UMG Widget Blueprints in Unreal Engine, including creating widget blueprints, adding components, binding events, setting properties, managing layouts, and capturing widget screenshots.
+UMG tools allow you to create and manipulate UMG Widget Blueprints in Unreal Engine, including creating widget blueprints, adding components, binding events, setting properties, managing layouts, capturing widget screenshots, and configuring widget settings.
+
+**Available Tools:**
+- `create_umg_widget_blueprint` - Create a new widget blueprint
+- `add_widget_component_to_widget` - Add any component to a widget
+- `add_child_widget_component_to_parent` - Nest components in parent containers
+- `create_parent_and_child_widget_components` - Create parent-child in one operation
+- `set_widget_component_property` - Set component properties
+- `set_widget_component_placement` - Position and size components
+- `bind_widget_component_event` - Bind events to functions
+- `set_text_block_widget_component_binding` - Set up text bindings
+- `create_widget_input_handler` - Handle mouse/key/touch input
+- `remove_widget_function_graph` - Remove function graphs
+- `reorder_widget_children` - Reorder children in containers
+- `set_widget_design_size_mode` - Configure design size mode
+- `set_widget_parent_class` - Change widget parent class
+- `get_widget_blueprint_metadata` - Get comprehensive widget info
+- `capture_widget_screenshot` - Capture widget preview
 
 ## UMG Tools
 
@@ -277,6 +294,175 @@ Get container dimensions (replaces get_widget_container_component_dimensions):
     "widget_name": "WBP_MainMenu",
     "fields": ["dimensions"],
     "container_name": "CanvasPanel_0"
+  }
+}
+```
+
+### create_parent_and_child_widget_components
+
+Create a new parent widget component with a new child component (one parent, one child) in a single operation.
+
+**Parameters:**
+- `widget_name` (string) - Name of the target Widget Blueprint
+- `parent_component_name` (string) - Name for the new parent component
+- `child_component_name` (string) - Name for the new child component
+- `parent_component_type` (string, optional) - Type of parent component to create (e.g., "Border", "VerticalBox"), defaults to "Border"
+- `child_component_type` (string, optional) - Type of child component to create (e.g., "TextBlock", "Button"), defaults to "TextBlock"
+- `parent_position` (array, optional) - [X, Y] position of the parent component, defaults to [0.0, 0.0]
+- `parent_size` (array, optional) - [Width, Height] of the parent component, defaults to [300.0, 200.0]
+- `child_attributes` (object, optional) - Additional attributes for the child component (content, colors, etc.)
+
+**Returns:**
+- Dict containing success status and component creation information
+
+**Example:**
+```json
+{
+  "command": "create_parent_and_child_widget_components",
+  "params": {
+    "widget_name": "MyWidget",
+    "parent_component_name": "HeaderBorder",
+    "child_component_name": "TitleText",
+    "parent_component_type": "Border",
+    "child_component_type": "TextBlock",
+    "parent_position": [50.0, 50.0],
+    "parent_size": [400.0, 100.0],
+    "child_attributes": {
+      "text": "Welcome to My Game",
+      "font_size": 24
+    }
+  }
+}
+```
+
+### create_widget_input_handler
+
+Create an input event handler in a Widget Blueprint for events not exposed as standard delegates. Use this for right-click context menus, keyboard shortcuts, touch gestures, drag and drop operations, etc.
+
+**Parameters:**
+- `widget_name` (string) - Name of the target Widget Blueprint
+- `input_type` (string) - Type of input: "MouseButton", "Key", "Touch", "Focus", "Drag"
+- `input_event` (string) - Specific event:
+  - MouseButton: "LeftMouseButton", "RightMouseButton", "MiddleMouseButton", "ThumbMouseButton", "ThumbMouseButton2"
+  - Key: Any key name (e.g., "Enter", "Escape", "SpaceBar", "A", "F1")
+  - Touch: "Touch", "Pinch", "Swipe"
+  - Focus: "FocusReceived", "FocusLost"
+  - Drag: "DragDetected", "DragEnter", "DragLeave", "DragOver", "Drop"
+- `trigger` (string, optional) - When to trigger: "Pressed" (default), "Released", "DoubleClick"
+- `handler_name` (string, optional) - Name for the custom event function (auto-generated if empty)
+- `component_name` (string, optional) - Optional component for component-specific handling
+
+**Returns:**
+- Dict containing success status and handler information
+
+**Example:**
+```json
+{
+  "command": "create_widget_input_handler",
+  "params": {
+    "widget_name": "WBP_InventorySlot",
+    "input_type": "MouseButton",
+    "input_event": "RightMouseButton",
+    "handler_name": "OnSlotRightClicked"
+  }
+}
+```
+
+### remove_widget_function_graph
+
+Remove a function graph from a Widget Blueprint. Use this to clean up broken/corrupt function graphs that prevent compilation, remove unwanted override functions, or reset widget event handlers.
+
+**Parameters:**
+- `widget_name` (string) - Name of the target Widget Blueprint
+- `function_name` (string) - Name of the function graph to remove (e.g., "OnMouseButtonDown")
+
+**Returns:**
+- Dict containing success status and removal information
+
+**Example:**
+```json
+{
+  "command": "remove_widget_function_graph",
+  "params": {
+    "widget_name": "WBP_InventorySlot",
+    "function_name": "OnMouseButtonDown"
+  }
+}
+```
+
+### reorder_widget_children
+
+Reorder children within a container widget (HorizontalBox, VerticalBox, etc.). Use this when components are in wrong visual order within a container.
+
+**Parameters:**
+- `widget_name` (string) - Name of the target Widget Blueprint
+- `container_name` (string) - Name of the container component (e.g., "ContentBox", "ButtonsContainer")
+- `child_order` (array) - List of child component names in desired order
+
+**Returns:**
+- Dict containing success status and updated child order
+
+**Example:**
+```json
+{
+  "command": "reorder_widget_children",
+  "params": {
+    "widget_name": "WBP_MainMenu",
+    "container_name": "ButtonsContainer",
+    "child_order": ["PlayButton", "SettingsButton", "QuitButton"]
+  }
+}
+```
+
+### set_widget_design_size_mode
+
+Set the design size mode for a Widget Blueprint. Controls how the widget preview appears in the designer and how the widget determines its size at runtime.
+
+**Parameters:**
+- `widget_name` (string) - Name of the target Widget Blueprint
+- `design_size_mode` (string) - Design size mode. Options:
+  - "DesiredOnScreen" - Widget uses its desired size based on content
+  - "Custom" - Use custom width/height values
+  - "FillScreen" - Fill entire screen (respects safe zones)
+  - "CustomOnScreen" - Custom size that responds to DPI scaling
+- `custom_width` (integer, optional) - Width when using Custom or CustomOnScreen modes, defaults to 1920
+- `custom_height` (integer, optional) - Height when using Custom or CustomOnScreen modes, defaults to 1080
+
+**Returns:**
+- Dict containing success status and applied settings
+
+**Example:**
+```json
+{
+  "command": "set_widget_design_size_mode",
+  "params": {
+    "widget_name": "WBP_MainHUD",
+    "design_size_mode": "FillScreen"
+  }
+}
+```
+
+### set_widget_parent_class
+
+Change the parent class of a Widget Blueprint. Useful for reparenting a widget to a different base class for inheritance of shared functionality.
+
+**Parameters:**
+- `widget_name` (string) - Name of the target Widget Blueprint
+- `new_parent_class` (string) - New parent class to reparent to. Can be:
+  - Simple class name: "UserWidget", "BaseUserWidget"
+  - Full path: "/Script/UMG.UserWidget"
+  - Blueprint path: "/Game/UI/Base/WBP_BaseWidget"
+
+**Returns:**
+- Dict containing success status, new parent class, and old parent class
+
+**Example:**
+```json
+{
+  "command": "set_widget_parent_class",
+  "params": {
+    "widget_name": "WBP_GameMenu",
+    "new_parent_class": "/Game/UI/Base/WBP_BaseMenuWidget"
   }
 }
 ```
