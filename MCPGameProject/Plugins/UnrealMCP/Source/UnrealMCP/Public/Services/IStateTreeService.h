@@ -266,16 +266,50 @@ struct UNREALMCP_API FBindPropertyParams
     /** Property name on the source node to bind from */
     FString SourcePropertyName;
 
-    /** Target node identifier (state name for tasks, or state:task_index format) */
+    /** Target node identifier (state name for tasks/conditions, evaluator name, etc.) */
     FString TargetNodeName;
 
     /** Property name on the target node to bind to */
     FString TargetPropertyName;
 
-    /** Optional: Index of task within state (if binding to a specific task) */
+    /** Optional: Index of task within state (if binding to a specific task, -1 to ignore) */
     int32 TaskIndex = -1;
 
+    /** Optional: Index of transition within state (if binding to a condition, -1 to ignore) */
+    int32 TransitionIndex = -1;
+
+    /** Optional: Index of condition within transition (if binding to a condition, -1 to ignore) */
+    int32 ConditionIndex = -1;
+
     FBindPropertyParams() = default;
+
+    bool IsValid(FString& OutError) const;
+};
+
+/**
+ * Parameters for removing a property binding
+ */
+struct UNREALMCP_API FRemoveBindingParams
+{
+    /** Path to the StateTree asset */
+    FString StateTreePath;
+
+    /** Target node identifier (state name or evaluator name) */
+    FString TargetNodeName;
+
+    /** Property name on the target node that has the binding to remove */
+    FString TargetPropertyName;
+
+    /** Optional: Index of task within state (if binding is on a specific task, -1 to ignore) */
+    int32 TaskIndex = -1;
+
+    /** Optional: Index of transition within state (if binding is on a condition, -1 to ignore) */
+    int32 TransitionIndex = -1;
+
+    /** Optional: Index of condition within transition (if binding is on a condition, -1 to ignore) */
+    int32 ConditionIndex = -1;
+
+    FRemoveBindingParams() = default;
 
     bool IsValid(FString& OutError) const;
 };
@@ -1015,6 +1049,14 @@ public:
      * @return true if binding was successful
      */
     virtual bool BindProperty(const FBindPropertyParams& Params, FString& OutError) = 0;
+
+    /**
+     * Remove a property binding from a target node
+     * @param Params - Binding removal parameters
+     * @param OutError - Error message if removal fails
+     * @return true if binding was removed successfully
+     */
+    virtual bool RemoveBinding(const FRemoveBindingParams& Params, FString& OutError) = 0;
 
     /**
      * Get bindable input properties for a node

@@ -63,6 +63,7 @@ public:
     // ============================================================================
 
     virtual bool BindProperty(const FBindPropertyParams& Params, FString& OutError) override;
+    virtual bool RemoveBinding(const FRemoveBindingParams& Params, FString& OutError) override;
     virtual bool GetNodeBindableInputs(const FString& StateTreePath, const FString& NodeIdentifier, int32 TaskIndex, TSharedPtr<FJsonObject>& OutInputs) override;
     virtual bool GetNodeExposedOutputs(const FString& StateTreePath, const FString& NodeIdentifier, TSharedPtr<FJsonObject>& OutOutputs) override;
 

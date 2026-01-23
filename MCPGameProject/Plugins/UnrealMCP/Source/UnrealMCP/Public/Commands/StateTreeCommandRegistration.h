@@ -50,6 +50,7 @@ private:
 
     // Section 1 - Property Binding Commands
     static void RegisterBindPropertyCommand();
+    static void RegisterRemoveBindingCommand();
     static void RegisterGetNodeBindableInputsCommand();
     static void RegisterGetNodeExposedOutputsCommand();
 

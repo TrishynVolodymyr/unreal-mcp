@@ -27,6 +27,7 @@
 
 // Section 1 - Property Binding Commands
 #include "Commands/StateTree/BindPropertyCommand.h"
+#include "Commands/StateTree/RemoveBindingCommand.h"
 #include "Commands/StateTree/GetNodeBindableInputsCommand.h"
 #include "Commands/StateTree/GetNodeExposedOutputsCommand.h"
 
@@ -128,6 +129,7 @@ void FStateTreeCommandRegistration::RegisterAllStateTreeCommands()
 
     // Section 1 - Property Binding Commands
     RegisterBindPropertyCommand();
+    RegisterRemoveBindingCommand();
     RegisterGetNodeBindableInputsCommand();
     RegisterGetNodeExposedOutputsCommand();
 
@@ -332,6 +334,12 @@ void FStateTreeCommandRegistration::RegisterGetAvailableEvaluatorsCommand()
 void FStateTreeCommandRegistration::RegisterBindPropertyCommand()
 {
     TSharedPtr<FBindPropertyCommand> Command = MakeShared<FBindPropertyCommand>(FStateTreeService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FStateTreeCommandRegistration::RegisterRemoveBindingCommand()
+{
+    TSharedPtr<FRemoveBindingCommand> Command = MakeShared<FRemoveBindingCommand>(FStateTreeService::Get());
     RegisterAndTrackCommand(Command);
 }
 

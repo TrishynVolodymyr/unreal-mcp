@@ -8,6 +8,7 @@
 #include "StateTreeConsiderationBase.h"
 #include "StateTreeSchema.h"
 #include "StateTreeCompiler.h"
+#include "StateTreeCompilerLog.h"
 #include "StateTreeTypes.h"
 #include "GameFramework/Actor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -292,6 +293,26 @@ bool FBindPropertyParams::IsValid(FString& OutError) const
     if (SourcePropertyName.IsEmpty())
     {
         OutError = TEXT("SourcePropertyName is required");
+        return false;
+    }
+    if (TargetNodeName.IsEmpty())
+    {
+        OutError = TEXT("TargetNodeName is required");
+        return false;
+    }
+    if (TargetPropertyName.IsEmpty())
+    {
+        OutError = TEXT("TargetPropertyName is required");
+        return false;
+    }
+    return true;
+}
+
+bool FRemoveBindingParams::IsValid(FString& OutError) const
+{
+    if (StateTreePath.IsEmpty())
+    {
+        OutError = TEXT("StateTreePath is required");
         return false;
     }
     if (TargetNodeName.IsEmpty())
@@ -868,32 +889,52 @@ bool FStateTreeService::CompileStateTree(UStateTree* StateTree, FString& OutErro
         return false;
     }
 
-    // Compile the StateTree using the editor subsystem or direct compilation
-    // In UE5.7, we can call the internal compilation method
-    bool bSuccess = false;
-
-    // Try using the StateTree's internal compilation
-    if (EditorData)
+    // Check for basic validity first
+    if (EditorData->SubTrees.Num() == 0)
     {
-        // Mark dirty and force recompilation
-        StateTree->Modify();
-
-        // The StateTree is compiled when saved or when explicitly validated
-        // For now, we validate the structure
-        bSuccess = true;
-
-        // Check for basic validity
-        if (EditorData->SubTrees.Num() == 0)
-        {
-            OutError = TEXT("StateTree has no subtrees defined");
-            UE_LOG(LogTemp, Warning, TEXT("FStateTreeService::CompileStateTree: StateTree has no subtrees"));
-            bSuccess = false;
-        }
+        OutError = TEXT("StateTree has no subtrees defined");
+        UE_LOG(LogTemp, Warning, TEXT("FStateTreeService::CompileStateTree: StateTree has no subtrees"));
+        return false;
     }
+
+    // Mark dirty before compilation
+    StateTree->Modify();
+
+    // Use the actual UE5 StateTree compiler for proper validation
+    FStateTreeCompilerLog Log;
+    FStateTreeCompiler Compiler(Log);
+
+    bool bSuccess = Compiler.Compile(StateTree);
 
     if (!bSuccess)
     {
-        UE_LOG(LogTemp, Error, TEXT("FStateTreeService::CompileStateTree: Compilation failed for '%s'"), *StateTree->GetName());
+        // Collect all error messages from the compiler log
+        TArray<TSharedRef<FTokenizedMessage>> Messages = Log.ToTokenizedMessages();
+
+        TArray<FString> ErrorMessages;
+        for (const TSharedRef<FTokenizedMessage>& Message : Messages)
+        {
+            if (Message->GetSeverity() == EMessageSeverity::Error || Message->GetSeverity() == EMessageSeverity::Warning)
+            {
+                ErrorMessages.Add(Message->ToText().ToString());
+            }
+        }
+
+        if (ErrorMessages.Num() > 0)
+        {
+            // Join all error messages with newlines
+            OutError = FString::Join(ErrorMessages, TEXT("\n"));
+        }
+        else
+        {
+            OutError = TEXT("Compilation failed with unknown error");
+        }
+
+        // Also log to output for debugging
+        Log.DumpToLog(LogTemp);
+
+        UE_LOG(LogTemp, Error, TEXT("FStateTreeService::CompileStateTree: Compilation failed for '%s': %s"),
+            *StateTree->GetName(), *OutError);
         return false;
     }
 
@@ -1134,8 +1175,9 @@ bool FStateTreeService::AddTransition(const FAddTransitionParams& Params, FStrin
     // Set trigger type
     NewTransition.Trigger = static_cast<EStateTreeTransitionTrigger>(ParseTransitionTrigger(Params.Trigger));
 
-    // Set target state if using GotoState
-    if (Params.TransitionType == TEXT("GotoState") && !Params.TargetStateName.IsEmpty())
+    // Set target state if TargetStateName is provided
+    // The target state should be set regardless of TransitionType - if a target is specified, link to it
+    if (!Params.TargetStateName.IsEmpty())
     {
         UStateTreeState* TargetState = FindStateByName(EditorData, Params.TargetStateName);
         if (!TargetState)
@@ -1143,8 +1185,14 @@ bool FStateTreeService::AddTransition(const FAddTransitionParams& Params, FStrin
             OutError = FString::Printf(TEXT("Target state not found: '%s'"), *Params.TargetStateName);
             return false;
         }
-        // FStateTreeStateLink holds the target state ID
+        // FStateTreeStateLink holds the target state ID, LinkType, and Name
+        // LinkType MUST be set to GotoState for the transition to properly link to the target
         NewTransition.State.ID = TargetState->ID;
+        NewTransition.State.LinkType = EStateTreeTransitionType::GotoState;
+        NewTransition.State.Name = FName(*Params.TargetStateName);
+
+        UE_LOG(LogTemp, Log, TEXT("FStateTreeService::AddTransition: Set target state '%s' (ID: %s, LinkType: GotoState)"),
+            *Params.TargetStateName, *TargetState->ID.ToString());
     }
 
     // Set required event tag if OnEvent trigger
@@ -1252,8 +1300,16 @@ bool FStateTreeService::AddConditionToTransition(const FAddConditionParams& Para
     ConditionNode.ID = FGuid::NewGuid();
     ConditionNode.Node.InitializeAs(ConditionStruct);
 
-    // Note: ConditionOperand/CombineMode is handled at the transition level in UE5.7
-    // The first condition acts as AND, subsequent conditions combine based on transition settings
+    // Check if the condition defines a separate instance data type
+    // Only initialize Instance if GetInstanceDataType() returns non-null
+    const FStateTreeNodeBase& ConditionNodeBase = ConditionNode.Node.Get<FStateTreeNodeBase>();
+    if (const UStruct* InstanceType = ConditionNodeBase.GetInstanceDataType())
+    {
+        if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
+        {
+            ConditionNode.Instance.InitializeAs(InstanceStruct);
+        }
+    }
 
     Transition.Conditions.Add(ConditionNode);
 
@@ -1309,8 +1365,15 @@ bool FStateTreeService::AddTaskToState(const FAddTaskParams& Params, FString& Ou
     TaskNode.ID = FGuid::NewGuid();
     TaskNode.Node.InitializeAs(TaskStruct);
 
-    // Note: Task name is stored via node's display name or struct metadata in UE5.7
-    // The TaskName param is used for logging purposes
+    // Check if the task defines a separate instance data type
+    const FStateTreeNodeBase& TaskNodeBase = TaskNode.Node.Get<FStateTreeNodeBase>();
+    if (const UStruct* InstanceType = TaskNodeBase.GetInstanceDataType())
+    {
+        if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
+        {
+            TaskNode.Instance.InitializeAs(InstanceStruct);
+        }
+    }
 
     // Apply task properties from JSON if provided
     if (Params.TaskProperties.IsValid())
@@ -1366,6 +1429,17 @@ bool FStateTreeService::AddEnterCondition(const FAddEnterConditionParams& Params
     ConditionNode.ID = FGuid::NewGuid();
     ConditionNode.Node.InitializeAs(ConditionStruct);
 
+    // Check if the condition defines a separate instance data type
+    // Only initialize Instance if GetInstanceDataType() returns non-null
+    const FStateTreeNodeBase& ConditionNodeBase = ConditionNode.Node.Get<FStateTreeNodeBase>();
+    if (const UStruct* InstanceType = ConditionNodeBase.GetInstanceDataType())
+    {
+        if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
+        {
+            ConditionNode.Instance.InitializeAs(InstanceStruct);
+        }
+    }
+
     // Add as enter condition
     State->EnterConditions.Add(ConditionNode);
 
@@ -1407,8 +1481,19 @@ bool FStateTreeService::AddEvaluator(const FAddEvaluatorParams& Params, FString&
     EvaluatorNode.ID = FGuid::NewGuid();
     EvaluatorNode.Node.InitializeAs(EvaluatorStruct);
 
-    // Note: Evaluator name is stored via the node instance data in UE5.7
-    // The EvaluatorName param can be used for logging purposes
+    // Check if the evaluator defines a separate instance data type
+    // Only initialize Instance if GetInstanceDataType() returns non-null
+    const FStateTreeNodeBase& NodeBase = EvaluatorNode.Node.Get<FStateTreeNodeBase>();
+    if (const UStruct* InstanceType = NodeBase.GetInstanceDataType())
+    {
+        // Node has separate instance data - use that type
+        if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
+        {
+            EvaluatorNode.Instance.InitializeAs(InstanceStruct);
+        }
+    }
+    // If GetInstanceDataType() returns nullptr, leave Instance uninitialized
+    // (the evaluator doesn't use separate instance data)
 
     // Add to editor data evaluators
     EditorData->Evaluators.Add(EvaluatorNode);
@@ -1707,6 +1792,36 @@ bool FStateTreeService::BindProperty(const FBindPropertyParams& Params, FString&
         }
     }
 
+    // Check if target is a condition on a transition
+    if (!bTargetFound && Params.TransitionIndex >= 0 && Params.ConditionIndex >= 0)
+    {
+        UStateTreeState* TargetState = FindStateByName(EditorData, Params.TargetNodeName);
+        if (TargetState)
+        {
+            if (Params.TransitionIndex < TargetState->Transitions.Num())
+            {
+                FStateTreeTransition& Transition = TargetState->Transitions[Params.TransitionIndex];
+                if (Params.ConditionIndex < Transition.Conditions.Num())
+                {
+                    TargetStructID = Transition.Conditions[Params.ConditionIndex].ID;
+                    bTargetFound = true;
+                }
+                else
+                {
+                    OutError = FString::Printf(TEXT("Condition index %d out of range (state '%s' transition %d has %d conditions)"),
+                        Params.ConditionIndex, *Params.TargetNodeName, Params.TransitionIndex, Transition.Conditions.Num());
+                    return false;
+                }
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Transition index %d out of range (state '%s' has %d transitions)"),
+                    Params.TransitionIndex, *Params.TargetNodeName, TargetState->Transitions.Num());
+                return false;
+            }
+        }
+    }
+
     // Check if target is a task in a state
     if (!bTargetFound)
     {
@@ -1728,28 +1843,123 @@ bool FStateTreeService::BindProperty(const FBindPropertyParams& Params, FString&
         return false;
     }
 
-    // Create the property binding paths
-    FPropertyBindingPath SourcePath(SourceStructID);
-    FPropertyBindingPath TargetPath(TargetStructID);
+    // Create the property binding paths using the 2-argument constructor
+    // This is how UE's own tests and editor create paths
+    FPropertyBindingPath SourcePath(SourceStructID, FName(*Params.SourcePropertyName));
+    FPropertyBindingPath TargetPath(TargetStructID, FName(*Params.TargetPropertyName));
 
-    // Parse property paths - can be simple ("Actor") or nested ("Actor.RootComponent")
-    if (!SourcePath.FromString(Params.SourcePropertyName))
-    {
-        // If FromString fails, just add as single segment
-        SourcePath.AddPathSegment(FName(*Params.SourcePropertyName));
-    }
+    // Mark both objects as modified BEFORE making changes (required for undo/redo and proper saving)
+    StateTree->Modify();
+    EditorData->Modify();
 
-    if (!TargetPath.FromString(Params.TargetPropertyName))
-    {
-        // If FromString fails, just add as single segment
-        TargetPath.AddPathSegment(FName(*Params.TargetPropertyName));
-    }
-
-    // Add the binding
+    // Add the binding using the editor bindings collection
     EditorData->EditorBindings.AddBinding(SourcePath, TargetPath);
 
-    // Mark modified and save
+    // Notify the editor data that a binding changed (this broadcasts OnStateTreePropertyBindingChanged)
+    EditorData->OnPropertyBindingChanged(SourcePath, TargetPath);
+
+    // Save the asset
+    SaveAsset(StateTree, OutError);
+
+    return true;
+}
+
+bool FStateTreeService::RemoveBinding(const FRemoveBindingParams& Params, FString& OutError)
+{
+    UStateTree* StateTree = FindStateTree(Params.StateTreePath);
+    if (!StateTree)
+    {
+        OutError = FString::Printf(TEXT("StateTree not found: '%s'"), *Params.StateTreePath);
+        return false;
+    }
+
+    UStateTreeEditorData* EditorData = Cast<UStateTreeEditorData>(StateTree->EditorData);
+    if (!EditorData)
+    {
+        OutError = TEXT("StateTree has no editor data");
+        return false;
+    }
+
+    // Find the target struct ID
+    FGuid TargetStructID;
+    bool bTargetFound = false;
+
+    // Check if target is an evaluator
+    for (const FStateTreeEditorNode& Evaluator : EditorData->Evaluators)
+    {
+        if (Evaluator.Node.GetScriptStruct())
+        {
+            FString EvalName = Evaluator.Node.GetScriptStruct()->GetName();
+            FString CompareTarget = Params.TargetNodeName;
+            if (!CompareTarget.StartsWith(TEXT("F")))
+            {
+                CompareTarget = TEXT("F") + CompareTarget;
+            }
+
+            if (EvalName.Equals(CompareTarget, ESearchCase::IgnoreCase) ||
+                EvalName.Equals(Params.TargetNodeName, ESearchCase::IgnoreCase))
+            {
+                TargetStructID = Evaluator.ID;
+                bTargetFound = true;
+                break;
+            }
+        }
+    }
+
+    // Check if target is a condition on a transition
+    if (!bTargetFound && Params.TransitionIndex >= 0 && Params.ConditionIndex >= 0)
+    {
+        UStateTreeState* TargetState = FindStateByName(EditorData, Params.TargetNodeName);
+        if (TargetState)
+        {
+            if (Params.TransitionIndex < TargetState->Transitions.Num())
+            {
+                FStateTreeTransition& Transition = TargetState->Transitions[Params.TransitionIndex];
+                if (Params.ConditionIndex < Transition.Conditions.Num())
+                {
+                    TargetStructID = Transition.Conditions[Params.ConditionIndex].ID;
+                    bTargetFound = true;
+                }
+            }
+        }
+    }
+
+    // Check if target is a task in a state
+    if (!bTargetFound)
+    {
+        UStateTreeState* TargetState = FindStateByName(EditorData, Params.TargetNodeName);
+        if (TargetState)
+        {
+            int32 TaskIdx = Params.TaskIndex >= 0 ? Params.TaskIndex : 0;
+            if (TaskIdx < TargetState->Tasks.Num())
+            {
+                TargetStructID = TargetState->Tasks[TaskIdx].ID;
+                bTargetFound = true;
+            }
+        }
+    }
+
+    if (!bTargetFound)
+    {
+        OutError = FString::Printf(TEXT("Target node not found: '%s'"), *Params.TargetNodeName);
+        return false;
+    }
+
+    // Create the target path to remove using 2-argument constructor
+    FPropertyBindingPath TargetPath(TargetStructID, FName(*Params.TargetPropertyName));
+
+    // Mark both objects as modified BEFORE making changes
     StateTree->Modify();
+    EditorData->Modify();
+
+    // Remove bindings to this target using Exact match mode
+    EditorData->EditorBindings.RemoveBindings(TargetPath, FPropertyBindingBindingCollection::ESearchMode::Exact);
+
+    // Notify that bindings changed
+    FPropertyBindingPath EmptySourcePath;
+    EditorData->OnPropertyBindingChanged(EmptySourcePath, TargetPath);
+
+    // Save the asset
     SaveAsset(StateTree, OutError);
 
     return true;
@@ -2030,8 +2240,15 @@ bool FStateTreeService::AddGlobalTask(const FAddGlobalTaskParams& Params, FStrin
     TaskNode.ID = FGuid::NewGuid();
     TaskNode.Node.InitializeAs(TaskStruct);
 
-    // Note: Task name is stored via node's display name or struct metadata in UE5.7
-    // The TaskName param is used for logging purposes
+    // Check if the task defines a separate instance data type
+    const FStateTreeNodeBase& TaskNodeBase = TaskNode.Node.Get<FStateTreeNodeBase>();
+    if (const UStruct* InstanceType = TaskNodeBase.GetInstanceDataType())
+    {
+        if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
+        {
+            TaskNode.Instance.InitializeAs(InstanceStruct);
+        }
+    }
 
     // Add to global tasks array
     EditorData->GlobalTasks.Add(TaskNode);
@@ -2461,12 +2678,17 @@ bool FStateTreeService::AddConsideration(const FAddConsiderationParams& Params, 
     ConsiderationNode.ID = FGuid::NewGuid();
     ConsiderationNode.Node.InitializeAs(ConsiderationStruct);
 
-    // Initialize instance data if the consideration requires it
+    // Check if the consideration defines a separate instance data type
+    // Only initialize Instance if GetInstanceDataType() returns non-null
     const FStateTreeNodeBase& NodeBase = ConsiderationNode.Node.Get<FStateTreeNodeBase>();
-    if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(NodeBase.GetInstanceDataType()))
+    if (const UStruct* InstanceType = NodeBase.GetInstanceDataType())
     {
-        ConsiderationNode.Instance.InitializeAs(InstanceType);
+        if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
+        {
+            ConsiderationNode.Instance.InitializeAs(InstanceStruct);
+        }
     }
+    // If GetInstanceDataType() returns nullptr, leave Instance uninitialized
 
     // Add to the state's Considerations array
     State->Considerations.Add(ConsiderationNode);
@@ -2963,6 +3185,16 @@ bool FStateTreeService::AddStateEventHandler(const FAddStateEventHandlerParams& 
     FStateTreeEditorNode HandlerNode;
     HandlerNode.ID = FGuid::NewGuid();
     HandlerNode.Node.InitializeAs(TaskStruct);
+
+    // Check if the task defines a separate instance data type
+    const FStateTreeNodeBase& TaskNodeBase = HandlerNode.Node.Get<FStateTreeNodeBase>();
+    if (const UStruct* InstanceType = TaskNodeBase.GetInstanceDataType())
+    {
+        if (const UScriptStruct* InstanceStruct = Cast<const UScriptStruct>(InstanceType))
+        {
+            HandlerNode.Instance.InitializeAs(InstanceStruct);
+        }
+    }
 
     // Add to the appropriate list based on event type
     // Note: StateTree handles events through tasks with specific lifecycle phases

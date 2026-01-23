@@ -646,7 +646,9 @@ async def bind_state_tree_property(
     source_property_name: str,
     target_node_name: str,
     target_property_name: str,
-    task_index: int = -1
+    task_index: int = -1,
+    transition_index: int = -1,
+    condition_index: int = -1
 ) -> Dict[str, Any]:
     """
     Bind a property from one node to another in a StateTree.
@@ -658,14 +660,23 @@ async def bind_state_tree_property(
         state_tree_path: Path to the StateTree asset
         source_node_name: Source node identifier (evaluator name or "Context" for schema context)
         source_property_name: Property name on the source node to bind from
-        target_node_name: Target node identifier (state name or state:task_index format)
+        target_node_name: Target node identifier (state name for conditions, or state name for tasks)
         target_property_name: Property name on the target node to bind to
-        task_index: Index of task within state if binding to a specific task (-1 for state level)
+        task_index: Index of task within state if binding to a specific task (-1 to ignore)
+        transition_index: Index of transition within state if binding to a condition (-1 to ignore)
+        condition_index: Index of condition within transition if binding to a condition (-1 to ignore)
 
     Returns:
         Dictionary containing:
         - success: Whether binding was successful
         - message: Success/error message
+
+    Examples:
+        # Bind to a task (task_index >= 0)
+        bind_state_tree_property(..., task_index=0)
+
+        # Bind to a condition on a transition (transition_index >= 0 and condition_index >= 0)
+        bind_state_tree_property(..., transition_index=0, condition_index=0)
     """
     params = {
         "state_tree_path": state_tree_path,
@@ -673,9 +684,49 @@ async def bind_state_tree_property(
         "source_property_name": source_property_name,
         "target_node_name": target_node_name,
         "target_property_name": target_property_name,
-        "task_index": task_index
+        "task_index": task_index,
+        "transition_index": transition_index,
+        "condition_index": condition_index
     }
     return await send_tcp_command("bind_state_tree_property", params)
+
+
+@app.tool()
+async def remove_state_tree_binding(
+    state_tree_path: str,
+    target_node_name: str,
+    target_property_name: str,
+    task_index: int = -1,
+    transition_index: int = -1,
+    condition_index: int = -1
+) -> Dict[str, Any]:
+    """
+    Remove a property binding from a target node in a StateTree.
+
+    Use this to clear bindings that are invalid or no longer needed.
+
+    Args:
+        state_tree_path: Path to the StateTree asset
+        target_node_name: Target node identifier (state name or evaluator name)
+        target_property_name: Property name on the target node with the binding to remove
+        task_index: Index of task within state (-1 to ignore, default)
+        transition_index: Index of transition (-1 to ignore, default)
+        condition_index: Index of condition within transition (-1 to ignore, default)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether binding was removed successfully
+        - message: Success/error message
+    """
+    params = {
+        "state_tree_path": state_tree_path,
+        "target_node_name": target_node_name,
+        "target_property_name": target_property_name,
+        "task_index": task_index,
+        "transition_index": transition_index,
+        "condition_index": condition_index
+    }
+    return await send_tcp_command("remove_state_tree_binding", params)
 
 
 @app.tool()

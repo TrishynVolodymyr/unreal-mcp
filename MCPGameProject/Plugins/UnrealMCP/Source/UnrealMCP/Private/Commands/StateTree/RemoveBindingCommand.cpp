@@ -1,14 +1,14 @@
-#include "Commands/StateTree/BindPropertyCommand.h"
+#include "Commands/StateTree/RemoveBindingCommand.h"
 #include "Services/IStateTreeService.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 
-FBindPropertyCommand::FBindPropertyCommand(IStateTreeService& InService)
+FRemoveBindingCommand::FRemoveBindingCommand(IStateTreeService& InService)
     : Service(InService)
 {
 }
 
-FString FBindPropertyCommand::Execute(const FString& Parameters)
+FString FRemoveBindingCommand::Execute(const FString& Parameters)
 {
     TSharedPtr<FJsonObject> ParamsObj;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
@@ -17,10 +17,8 @@ FString FBindPropertyCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(TEXT("Failed to parse parameters"));
     }
 
-    FBindPropertyParams Params;
+    FRemoveBindingParams Params;
     Params.StateTreePath = ParamsObj->GetStringField(TEXT("state_tree_path"));
-    Params.SourceNodeName = ParamsObj->GetStringField(TEXT("source_node_name"));
-    Params.SourcePropertyName = ParamsObj->GetStringField(TEXT("source_property_name"));
     Params.TargetNodeName = ParamsObj->GetStringField(TEXT("target_node_name"));
     Params.TargetPropertyName = ParamsObj->GetStringField(TEXT("target_property_name"));
     ParamsObj->TryGetNumberField(TEXT("task_index"), Params.TaskIndex);
@@ -34,15 +32,14 @@ FString FBindPropertyCommand::Execute(const FString& Parameters)
     }
 
     FString Error;
-    if (!Service.BindProperty(Params, Error))
+    if (!Service.RemoveBinding(Params, Error))
     {
         return CreateErrorResponse(Error);
     }
 
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
-    ResponseObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Bound %s.%s to %s.%s"),
-        *Params.SourceNodeName, *Params.SourcePropertyName,
+    ResponseObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Removed binding from %s.%s"),
         *Params.TargetNodeName, *Params.TargetPropertyName));
 
     FString OutputString;
@@ -51,12 +48,12 @@ FString FBindPropertyCommand::Execute(const FString& Parameters)
     return OutputString;
 }
 
-FString FBindPropertyCommand::GetCommandName() const
+FString FRemoveBindingCommand::GetCommandName() const
 {
-    return TEXT("bind_state_tree_property");
+    return TEXT("remove_state_tree_binding");
 }
 
-bool FBindPropertyCommand::ValidateParams(const FString& Parameters) const
+bool FRemoveBindingCommand::ValidateParams(const FString& Parameters) const
 {
     TSharedPtr<FJsonObject> ParamsObj;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
@@ -66,13 +63,11 @@ bool FBindPropertyCommand::ValidateParams(const FString& Parameters) const
     }
 
     return ParamsObj->HasField(TEXT("state_tree_path")) &&
-           ParamsObj->HasField(TEXT("source_node_name")) &&
-           ParamsObj->HasField(TEXT("source_property_name")) &&
            ParamsObj->HasField(TEXT("target_node_name")) &&
            ParamsObj->HasField(TEXT("target_property_name"));
 }
 
-FString FBindPropertyCommand::CreateErrorResponse(const FString& ErrorMessage) const
+FString FRemoveBindingCommand::CreateErrorResponse(const FString& ErrorMessage) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), false);
