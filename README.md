@@ -40,7 +40,7 @@ These videos showcase systems built entirely through AI assistants using unreal-
 For complex features requiring multiple specialized skills, you can use the **project-manager** skill to coordinate work automatically:
 
 ```
-"Use project-manager to create a fireball VFX with trail"
+"/project-manager lets a fireball VFX with trail and embers"
 ```
 
 **How it works:**
