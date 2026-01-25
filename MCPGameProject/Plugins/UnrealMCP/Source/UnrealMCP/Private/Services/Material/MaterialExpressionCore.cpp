@@ -55,6 +55,7 @@
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 #include "Toolkits/ToolkitManager.h"  // For FToolkitManager - correct API for finding Material Editor
+#include "UObject/UObjectIterator.h"  // For TObjectIterator - dynamic class discovery
 
 // Singleton instance
 TUniquePtr<FMaterialExpressionService> FMaterialExpressionService::Instance;
@@ -75,76 +76,71 @@ FMaterialExpressionService& FMaterialExpressionService::Get()
 
 UClass* FMaterialExpressionService::GetExpressionClassFromTypeName(const FString& TypeName)
 {
-    // Static map of type names to expression classes
-    static TMap<FString, UClass*> ExpressionTypeMap;
+    // Static map for ALIASES ONLY - shorthand names that don't match the UMaterialExpression{Name} pattern
+    static TMap<FString, FString> AliasMap;
 
-    // Initialize on first call
-    if (ExpressionTypeMap.Num() == 0)
+    // Cache for dynamically discovered classes
+    static TMap<FString, UClass*> ClassCache;
+
+    // Initialize alias map on first call (only for names that differ from class naming convention)
+    if (AliasMap.Num() == 0)
     {
-        // Constants
-        ExpressionTypeMap.Add(TEXT("Constant"), UMaterialExpressionConstant::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Constant2Vector"), UMaterialExpressionConstant2Vector::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Constant3Vector"), UMaterialExpressionConstant3Vector::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Constant4Vector"), UMaterialExpressionConstant4Vector::StaticClass());
-
-        // Math operations
-        ExpressionTypeMap.Add(TEXT("Add"), UMaterialExpressionAdd::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Multiply"), UMaterialExpressionMultiply::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Divide"), UMaterialExpressionDivide::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Subtract"), UMaterialExpressionSubtract::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Power"), UMaterialExpressionPower::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Abs"), UMaterialExpressionAbs::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Clamp"), UMaterialExpressionClamp::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Lerp"), UMaterialExpressionLinearInterpolate::StaticClass());
-        ExpressionTypeMap.Add(TEXT("OneMinus"), UMaterialExpressionOneMinus::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Sine"), UMaterialExpressionSine::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Frac"), UMaterialExpressionFrac::StaticClass());
-
-        // Textures
-        ExpressionTypeMap.Add(TEXT("TextureSample"), UMaterialExpressionTextureSample::StaticClass());
-        ExpressionTypeMap.Add(TEXT("TextureSampleParameter2D"), UMaterialExpressionTextureSampleParameter2D::StaticClass());
-
-        // Parameters
-        ExpressionTypeMap.Add(TEXT("ScalarParameter"), UMaterialExpressionScalarParameter::StaticClass());
-        ExpressionTypeMap.Add(TEXT("VectorParameter"), UMaterialExpressionVectorParameter::StaticClass());
-        ExpressionTypeMap.Add(TEXT("TextureParameter"), UMaterialExpressionTextureObjectParameter::StaticClass());
-
-        // Utilities
-        ExpressionTypeMap.Add(TEXT("AppendVector"), UMaterialExpressionAppendVector::StaticClass());
-        ExpressionTypeMap.Add(TEXT("ComponentMask"), UMaterialExpressionComponentMask::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Time"), UMaterialExpressionTime::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Panner"), UMaterialExpressionPanner::StaticClass());
-        ExpressionTypeMap.Add(TEXT("TexCoord"), UMaterialExpressionTextureCoordinate::StaticClass());
-        ExpressionTypeMap.Add(TEXT("TextureCoordinate"), UMaterialExpressionTextureCoordinate::StaticClass());
-
-        // Math operations (additional)
-        ExpressionTypeMap.Add(TEXT("Dot"), UMaterialExpressionDotProduct::StaticClass());
-        ExpressionTypeMap.Add(TEXT("DotProduct"), UMaterialExpressionDotProduct::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Distance"), UMaterialExpressionDistance::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Normalize"), UMaterialExpressionNormalize::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Saturate"), UMaterialExpressionSaturate::StaticClass());
-        ExpressionTypeMap.Add(TEXT("Sqrt"), UMaterialExpressionSquareRoot::StaticClass());
-        ExpressionTypeMap.Add(TEXT("SquareRoot"), UMaterialExpressionSquareRoot::StaticClass());
-
-        // Particle/VFX expressions
-        ExpressionTypeMap.Add(TEXT("ParticleColor"), UMaterialExpressionParticleColor::StaticClass());
-        ExpressionTypeMap.Add(TEXT("VertexColor"), UMaterialExpressionVertexColor::StaticClass());
-        ExpressionTypeMap.Add(TEXT("SphereMask"), UMaterialExpressionSphereMask::StaticClass());
-        ExpressionTypeMap.Add(TEXT("ParticleRandom"), UMaterialExpressionParticleRandom::StaticClass());
-        ExpressionTypeMap.Add(TEXT("ParticleSubUV"), UMaterialExpressionParticleSubUV::StaticClass());
-
-        // Noise expression - procedural noise generation
-        ExpressionTypeMap.Add(TEXT("Noise"), UMaterialExpressionNoise::StaticClass());
-
-        // Length expression - vector magnitude
-        ExpressionTypeMap.Add(TEXT("Length"), UMaterialExpressionLength::StaticClass());
-
-        // Material Function Call - allows using any Material Function by path
-        ExpressionTypeMap.Add(TEXT("MaterialFunctionCall"), UMaterialExpressionMaterialFunctionCall::StaticClass());
-        ExpressionTypeMap.Add(TEXT("FunctionCall"), UMaterialExpressionMaterialFunctionCall::StaticClass());
+        // Aliases where the shorthand differs from the class name
+        AliasMap.Add(TEXT("Lerp"), TEXT("LinearInterpolate"));
+        AliasMap.Add(TEXT("Dot"), TEXT("DotProduct"));
+        AliasMap.Add(TEXT("TexCoord"), TEXT("TextureCoordinate"));
+        AliasMap.Add(TEXT("Sqrt"), TEXT("SquareRoot"));
+        AliasMap.Add(TEXT("TextureParameter"), TEXT("TextureObjectParameter"));
+        AliasMap.Add(TEXT("FunctionCall"), TEXT("MaterialFunctionCall"));
     }
 
-    return ExpressionTypeMap.FindRef(TypeName);
+    // Check cache first
+    if (UClass** CachedClass = ClassCache.Find(TypeName))
+    {
+        return *CachedClass;
+    }
+
+    // Resolve alias if one exists
+    FString ResolvedTypeName = TypeName;
+    if (FString* Alias = AliasMap.Find(TypeName))
+    {
+        ResolvedTypeName = *Alias;
+    }
+
+    // Try to find the class dynamically using UE's reflection system
+    // UMaterialExpression classes follow the pattern: UMaterialExpression{TypeName}
+    FString ClassName = FString::Printf(TEXT("MaterialExpression%s"), *ResolvedTypeName);
+
+    // Search through all UMaterialExpression subclasses
+    UClass* FoundClass = nullptr;
+    for (TObjectIterator<UClass> It; It; ++It)
+    {
+        UClass* TestClass = *It;
+        if (TestClass->IsChildOf(UMaterialExpression::StaticClass()) && !TestClass->HasAnyClassFlags(CLASS_Abstract))
+        {
+            // Check if class name matches (without the 'U' prefix)
+            FString TestClassName = TestClass->GetName();
+            if (TestClassName.Equals(ClassName, ESearchCase::IgnoreCase))
+            {
+                FoundClass = TestClass;
+                break;
+            }
+        }
+    }
+
+    // Cache the result (even if null, to avoid repeated searches)
+    ClassCache.Add(TypeName, FoundClass);
+
+    if (FoundClass)
+    {
+        UE_LOG(LogTemp, Log, TEXT("GetExpressionClassFromTypeName: Found class %s for type '%s'"), *FoundClass->GetName(), *TypeName);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetExpressionClassFromTypeName: No class found for type '%s' (tried MaterialExpression%s)"), *TypeName, *ResolvedTypeName);
+    }
+
+    return FoundClass;
 }
 
 EMaterialProperty FMaterialExpressionService::GetMaterialPropertyFromString(const FString& PropertyName)

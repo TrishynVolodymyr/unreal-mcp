@@ -107,32 +107,146 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
             }
         }
     }
-    // Handle Constant3Vector (color)
+    // Handle Constant3Vector (color) - support both cases and string/array formats
     else if (UMaterialExpressionConstant3Vector* Const3Expr = Cast<UMaterialExpressionConstant3Vector>(Expression))
     {
-        if (Properties->HasField(TEXT("constant")))
+        bool bValueChanged = false;
+        FString FieldName;
+
+        // Check for both uppercase and lowercase property names
+        if (Properties->HasField(TEXT("Constant")))
+            FieldName = TEXT("Constant");
+        else if (Properties->HasField(TEXT("constant")))
+            FieldName = TEXT("constant");
+
+        if (!FieldName.IsEmpty())
         {
-            const TArray<TSharedPtr<FJsonValue>>* ColorArray;
-            if (Properties->TryGetArrayField(TEXT("constant"), ColorArray) && ColorArray->Num() >= 3)
+            TSharedPtr<FJsonValue> Value = Properties->TryGetField(FieldName);
+            if (Value.IsValid())
             {
-                Const3Expr->Constant.R = (*ColorArray)[0]->AsNumber();
-                Const3Expr->Constant.G = (*ColorArray)[1]->AsNumber();
-                Const3Expr->Constant.B = (*ColorArray)[2]->AsNumber();
+                // Try as array first: [R, G, B]
+                const TArray<TSharedPtr<FJsonValue>>* ColorArray;
+                if (Properties->TryGetArrayField(FieldName, ColorArray) && ColorArray->Num() >= 3)
+                {
+                    Const3Expr->Constant.R = (*ColorArray)[0]->AsNumber();
+                    Const3Expr->Constant.G = (*ColorArray)[1]->AsNumber();
+                    Const3Expr->Constant.B = (*ColorArray)[2]->AsNumber();
+                    bValueChanged = true;
+                }
+                // Try as comma-separated string: "R,G,B"
+                else if (Value->Type == EJson::String)
+                {
+                    FString ColorString = Value->AsString();
+                    TArray<FString> Components;
+                    ColorString.ParseIntoArray(Components, TEXT(","), true);
+                    if (Components.Num() >= 3)
+                    {
+                        Const3Expr->Constant.R = FCString::Atof(*Components[0].TrimStartAndEnd());
+                        Const3Expr->Constant.G = FCString::Atof(*Components[1].TrimStartAndEnd());
+                        Const3Expr->Constant.B = FCString::Atof(*Components[2].TrimStartAndEnd());
+                        bValueChanged = true;
+                        UE_LOG(LogTemp, Log, TEXT("Parsed Constant3Vector from string: R=%f, G=%f, B=%f"),
+                            Const3Expr->Constant.R, Const3Expr->Constant.G, Const3Expr->Constant.B);
+                    }
+                    else
+                    {
+                        OutError = FString::Printf(TEXT("Constant3Vector requires 3 comma-separated values (R,G,B), got: %s"), *ColorString);
+                        return false;
+                    }
+                }
+                else
+                {
+                    OutError = TEXT("Constant3Vector value must be an array [R,G,B] or string \"R,G,B\"");
+                    return false;
+                }
+            }
+        }
+
+        // Trigger PostEditChangeProperty to update UI
+        if (bValueChanged)
+        {
+            FProperty* ConstantProp = Const3Expr->GetClass()->FindPropertyByName(TEXT("Constant"));
+            if (ConstantProp)
+            {
+                FPropertyChangedEvent PropertyChangedEvent(ConstantProp, EPropertyChangeType::ValueSet);
+                Const3Expr->PostEditChangeProperty(PropertyChangedEvent);
             }
         }
     }
-    // Handle Constant4Vector
+    // Handle Constant4Vector - support both cases and string/array formats
     else if (UMaterialExpressionConstant4Vector* Const4Expr = Cast<UMaterialExpressionConstant4Vector>(Expression))
     {
-        if (Properties->HasField(TEXT("constant")))
+        bool bValueChanged = false;
+        FString FieldName;
+
+        // Check for both uppercase and lowercase property names
+        if (Properties->HasField(TEXT("Constant")))
+            FieldName = TEXT("Constant");
+        else if (Properties->HasField(TEXT("constant")))
+            FieldName = TEXT("constant");
+
+        if (!FieldName.IsEmpty())
         {
-            const TArray<TSharedPtr<FJsonValue>>* ColorArray;
-            if (Properties->TryGetArrayField(TEXT("constant"), ColorArray) && ColorArray->Num() >= 4)
+            TSharedPtr<FJsonValue> Value = Properties->TryGetField(FieldName);
+            if (Value.IsValid())
             {
-                Const4Expr->Constant.R = (*ColorArray)[0]->AsNumber();
-                Const4Expr->Constant.G = (*ColorArray)[1]->AsNumber();
-                Const4Expr->Constant.B = (*ColorArray)[2]->AsNumber();
-                Const4Expr->Constant.A = (*ColorArray)[3]->AsNumber();
+                // Try as array first: [R, G, B, A]
+                const TArray<TSharedPtr<FJsonValue>>* ColorArray;
+                if (Properties->TryGetArrayField(FieldName, ColorArray) && ColorArray->Num() >= 4)
+                {
+                    Const4Expr->Constant.R = (*ColorArray)[0]->AsNumber();
+                    Const4Expr->Constant.G = (*ColorArray)[1]->AsNumber();
+                    Const4Expr->Constant.B = (*ColorArray)[2]->AsNumber();
+                    Const4Expr->Constant.A = (*ColorArray)[3]->AsNumber();
+                    bValueChanged = true;
+                }
+                // Try as comma-separated string: "R,G,B,A"
+                else if (Value->Type == EJson::String)
+                {
+                    FString ColorString = Value->AsString();
+                    TArray<FString> Components;
+                    ColorString.ParseIntoArray(Components, TEXT(","), true);
+                    if (Components.Num() >= 4)
+                    {
+                        Const4Expr->Constant.R = FCString::Atof(*Components[0].TrimStartAndEnd());
+                        Const4Expr->Constant.G = FCString::Atof(*Components[1].TrimStartAndEnd());
+                        Const4Expr->Constant.B = FCString::Atof(*Components[2].TrimStartAndEnd());
+                        Const4Expr->Constant.A = FCString::Atof(*Components[3].TrimStartAndEnd());
+                        bValueChanged = true;
+                        UE_LOG(LogTemp, Log, TEXT("Parsed Constant4Vector from string: R=%f, G=%f, B=%f, A=%f"),
+                            Const4Expr->Constant.R, Const4Expr->Constant.G, Const4Expr->Constant.B, Const4Expr->Constant.A);
+                    }
+                    else if (Components.Num() >= 3)
+                    {
+                        // Allow 3 components with default A=1.0
+                        Const4Expr->Constant.R = FCString::Atof(*Components[0].TrimStartAndEnd());
+                        Const4Expr->Constant.G = FCString::Atof(*Components[1].TrimStartAndEnd());
+                        Const4Expr->Constant.B = FCString::Atof(*Components[2].TrimStartAndEnd());
+                        Const4Expr->Constant.A = 1.0f;
+                        bValueChanged = true;
+                    }
+                    else
+                    {
+                        OutError = FString::Printf(TEXT("Constant4Vector requires 3-4 comma-separated values (R,G,B[,A]), got: %s"), *ColorString);
+                        return false;
+                    }
+                }
+                else
+                {
+                    OutError = TEXT("Constant4Vector value must be an array [R,G,B,A] or string \"R,G,B,A\"");
+                    return false;
+                }
+            }
+        }
+
+        // Trigger PostEditChangeProperty to update UI
+        if (bValueChanged)
+        {
+            FProperty* ConstantProp = Const4Expr->GetClass()->FindPropertyByName(TEXT("Constant"));
+            if (ConstantProp)
+            {
+                FPropertyChangedEvent PropertyChangedEvent(ConstantProp, EPropertyChangeType::ValueSet);
+                Const4Expr->PostEditChangeProperty(PropertyChangedEvent);
             }
         }
     }

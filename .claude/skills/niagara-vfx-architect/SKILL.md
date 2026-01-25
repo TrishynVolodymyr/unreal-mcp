@@ -15,6 +15,19 @@ description: >
 
 Expert-level VFX creation using niagaraMCP tools. **Optimization is the top priority.**
 
+## MCP Tool Access (DO THIS FIRST)
+
+Before any implementation, load tools via ToolSearch:
+```
+ToolSearch("niagara")
+```
+
+This returns available niagaraMCP tools. Tool names in this skill are shorthand — actual MCP tools have full paths like `mcp__niagaraMCP__create_niagara_system`.
+
+**DO NOT** search Python source files or read *_mcp_server.py to find tools.
+
+---
+
 ## Core Philosophy
 
 1. **GPU simulation by default** — CPU only when necessary (collision events, complex logic)
