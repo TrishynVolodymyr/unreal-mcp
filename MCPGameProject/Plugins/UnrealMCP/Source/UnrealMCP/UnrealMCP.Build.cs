@@ -114,7 +114,11 @@ public class UnrealMCP : ModuleRules
 					"MetasoundEngine",     // UMetaSoundSource, builders
 					"MetasoundFrontend",   // FMetaSoundFrontendDocumentBuilder
 					"MetasoundGraphCore",  // Core graph types
-					"MetasoundEditor"      // Editor-specific utilities
+					"MetasoundEditor",      // Editor-specific utilities
+					// StateTree AI support
+					"StateTreeModule",         // Core StateTree runtime
+					"StateTreeEditorModule",   // StateTree editor utilities (factories, compilation)
+					"PropertyBindingUtils"     // Property binding path utilities
 				}
 			);
 		}

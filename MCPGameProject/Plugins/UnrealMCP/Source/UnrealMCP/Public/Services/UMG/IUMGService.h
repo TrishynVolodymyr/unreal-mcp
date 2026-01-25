@@ -204,4 +204,27 @@ public:
      */
     virtual bool ReorderWidgetChildren(const FString& WidgetName, const FString& ContainerName,
                                       const TArray<FString>& ChildOrder) = 0;
+
+    /**
+     * Set the design size mode for a widget blueprint
+     * @param WidgetName - Name of the widget blueprint
+     * @param DesignSizeMode - "DesiredOnScreen", "Custom", "FillScreen", "CustomOnScreen"
+     * @param CustomWidth - Custom width (when using Custom mode)
+     * @param CustomHeight - Custom height (when using Custom mode)
+     * @param OutError - Error message if failed
+     * @return true if successful
+     */
+    virtual bool SetWidgetDesignSizeMode(const FString& WidgetName, const FString& DesignSizeMode,
+                                        int32 CustomWidth, int32 CustomHeight, FString& OutError) = 0;
+
+    /**
+     * Change the parent class of a widget blueprint
+     * @param WidgetName - Name of the widget blueprint
+     * @param NewParentClass - Name or path of the new parent class
+     * @param OutOldParent - Previous parent class name (output)
+     * @param OutError - Error message if failed
+     * @return true if successful
+     */
+    virtual bool SetWidgetParentClass(const FString& WidgetName, const FString& NewParentClass,
+                                     FString& OutOldParent, FString& OutError) = 0;
 };
