@@ -33,6 +33,37 @@ These videos showcase systems built entirely through AI assistants using unreal-
 | [Lootable Extension](https://www.youtube.com/watch?v=VRl7xGooVSw) | Claude Opus 4.5 | [loot-plan](Docs/Implementation-Examples/loot-plan/) |
 | [Niagara Fire Embers VFX](https://youtu.be/oaGBUfUnzkw) | Claude Opus 4.5 | Multi-skill workflow: VFX Reference Transcriber extracted frames from reference video → Niagara VFX Architect created initial effect → Asset State Extractor captured current emitter state to readable markdown → state fed back to VFX Architect for iterative refinement |
 
+## 🎯 Project Manager Skill (Experimental)
+
+> ⚠️ **Early Stage Feature** - The project-manager skill is still in active development. Expect rough edges and evolving workflows.
+
+For complex features requiring multiple specialized skills, you can use the **project-manager** skill to coordinate work automatically:
+
+```
+"Use project-manager to create a fireball VFX with trail"
+```
+
+**How it works:**
+1. **Discovery** - Scans available skills and matches them to your request
+2. **Planning** - Specialized skills produce `SPEC_*.md` files with detailed implementation plans
+3. **Execution** - Implementation agents build from specs, creating assets in Unreal
+
+**Two Modes:**
+- **DIRECT** - If you already have a spec file: `"Execute SPEC_FireballTrail.md"`
+- **FULL** - New feature requests: discovery → plan → approval → execute
+
+**Available Specialized Skills:**
+| Category | Skills |
+|----------|--------|
+| VFX Design | vfx-technical-director, vfx-reference-transcriber, vfx-texture-generator |
+| Implementation | niagara-vfx-architect, unreal-mcp-materials, unreal-mcp-architect |
+| UI/UX | umg-widget-designer |
+| Audio | metasound-sound-designer |
+| Analysis | blueprint-linter, ue-log-analyst, crash-investigator |
+| State Capture | asset-state-extractor |
+
+Skills are defined in `.claude/skills/` and can be extended for project-specific workflows.
+
 ## 🌟 What You Can Do
 
 Control Unreal Engine using natural language across these major areas:
@@ -455,7 +486,7 @@ This is a fork and continuation of the original [unreal-mcp](https://github.com/
 **Note:** The original project indicated MIT License in its README. This fork formally adopts and continues under the MIT License with proper attribution to the original author.
 
 ### Contributors
-- **[asseti6](https://github.com/asseti6)** - Animation Blueprint support, batch actor operations, enhanced Material Instance tools, Niagara parameter helpers, DataAsset tools, runtime help system
+- **[asseti6](https://github.com/asseti6)** - Animation Blueprint support, batch actor operations, enhanced Material Instance tools, Niagara parameter helpers, DataAsset tools, runtime help system, StateTree AI system MCP module
 
 ### Built With
 - [FastMCP](https://github.com/anthropics/fastmcp) - Python MCP framework by Anthropic
