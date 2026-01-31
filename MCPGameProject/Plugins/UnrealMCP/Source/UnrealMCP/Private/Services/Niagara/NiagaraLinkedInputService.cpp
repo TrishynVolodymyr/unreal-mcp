@@ -7,6 +7,7 @@
 #include "NiagaraEmitter.h"
 #include "NiagaraScript.h"
 #include "NiagaraGraph.h"
+#include "NiagaraScriptVariable.h"
 #include "NiagaraNodeOutput.h"
 #include "NiagaraNodeFunctionCall.h"
 #include "NiagaraNodeInput.h"
@@ -308,17 +309,53 @@ bool FNiagaraService::SetModuleLinkedInput(const FNiagaraModuleLinkedInputParams
     FNiagaraTypeDefinition LinkedParamType = GetLinkedParameterType(Params.LinkedValue);
     FNiagaraVariableBase LinkedParameter(LinkedParamType, FName(*Params.LinkedValue));
 
-    // Build the set of known parameters - these must match the types in GetLinkedParameterType
+    // CRITICAL FIX: Build FULL parameter context from graph, not manual list
+    // The manual list causes particle-scope attributes to not be recognized properly.
+    // This replicates the logic from FNiagaraStackGraphUtilities::GetParametersForContext
+    Graph->ConditionalRefreshParameterReferences();
+
     TSet<FNiagaraVariableBase> KnownParameters;
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetFloatDef(), FName("Particles.NormalizedAge")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetFloatDef(), FName("Particles.Age")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetFloatDef(), FName("Particles.Lifetime")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetVec3Def(), FName("Particles.Position")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetVec3Def(), FName("Particles.Velocity")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetColorDef(), FName("Particles.Color")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetFloatDef(), FName("Particles.Mass")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetVec2Def(), FName("Particles.SpriteSize")));
-    KnownParameters.Add(FNiagaraVariableBase(FNiagaraTypeDefinition::GetFloatDef(), FName("Particles.SpriteRotation")));
+
+    // Step 1: Get all script variables from the graph's metadata (GetAllMetaData is EXPORTED)
+    // This gives us all variables defined in the graph context
+    const UNiagaraGraph::FScriptVariableMap& ScriptVariables = Graph->GetAllMetaData();
+    for (const TPair<FNiagaraVariable, TObjectPtr<UNiagaraScriptVariable>>& VarPair : ScriptVariables)
+    {
+        KnownParameters.Add(VarPair.Key);
+    }
+
+    // Step 2: Get all user parameters from the system's exposed parameter store
+    TArray<FNiagaraVariable> UserParams;
+    System->GetExposedParameters().GetUserParameters(UserParams);
+    for (FNiagaraVariable& Var : UserParams)
+    {
+        FNiagaraUserRedirectionParameterStore::MakeUserVariable(Var);
+        KnownParameters.Add(Var);
+    }
+
+    // Step 3: CRITICAL - Add ALL common particle attributes explicitly
+    // These are implicit system-level attributes NOT stored in graph metadata
+    // Without these, particle-scope linking won't work correctly
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), FName(TEXT("Particles.NormalizedAge"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), FName(TEXT("Particles.Age"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), FName(TEXT("Particles.Lifetime"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), FName(TEXT("Particles.Mass"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), FName(TEXT("Particles.SpriteRotation"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), FName(TEXT("Particles.RibbonWidth"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), FName(TEXT("Particles.RibbonTwist"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), FName(TEXT("Particles.Position"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), FName(TEXT("Particles.Velocity"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetColorDef(), FName(TEXT("Particles.Color"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec2Def(), FName(TEXT("Particles.SpriteSize"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), FName(TEXT("Particles.Scale"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), FName(TEXT("Particles.RibbonID"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), FName(TEXT("Particles.RibbonLinkOrder"))));
+    KnownParameters.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), FName(TEXT("Particles.UniqueID"))));
+
+    // Still add the linked parameter explicitly to ensure it's included
+    KnownParameters.Add(LinkedParameter);
+
+    UE_LOG(LogNiagaraService, Log, TEXT("Built KnownParameters set with %d parameters (including particle attributes) for particle-scope linking"), KnownParameters.Num());
 
     // Use the exported SetLinkedParameterValueForFunctionInput
     // This function handles all the internal node creation and linking
@@ -335,6 +372,10 @@ bool FNiagaraService::SetModuleLinkedInput(const FNiagaraModuleLinkedInputParams
 
     // Notify graph of changes
     Graph->NotifyGraphChanged();
+
+    // CRITICAL: Force system recompile for runtime to pick up graph changes
+    // Use bForce=true to ensure recompile even if system thinks nothing changed
+    System->RequestCompile(true);
 
     // Refresh editors
     RefreshEditors(System);

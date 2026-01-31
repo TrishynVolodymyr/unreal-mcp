@@ -843,13 +843,19 @@ async def add_renderer_to_emitter(
     Renderers define how particles are visually displayed. Different
     renderer types support different visual styles.
 
+    Note: Ribbon renderers are created with optimized defaults for fire/magic trails:
+    - Shape: MultiPlane (2 cross-planes for volumetric appearance)
+    - TessellationMode: Automatic with factor 16
+    - bEnableAccurateGeometry: True
+    Use set_renderer_property() to change these if needed (e.g., Shape to "Plane" or "Tube").
+
     Args:
         system: Path or name of the Niagara System
         emitter: Name of the emitter to add the renderer to
         renderer_type: Type of renderer to add:
             - "Sprite": 2D billboard particles (most common)
             - "Mesh": 3D mesh particles
-            - "Ribbon": Connected trail/ribbon particles
+            - "Ribbon": Connected trail/ribbon particles (defaults to MultiPlane for fire trails)
             - "Light": Light-emitting particles
 
     Returns:
@@ -1701,8 +1707,11 @@ async def set_renderer_property(
         renderer_name: Renderer name (e.g., "Renderer" or "Renderer_0")
         property_name: Property to set:
             - Sprite: "Material", "Alignment", "FacingMode", "SubImageSize"
-            - Mesh: "ParticleMesh", "Material"
-            - Ribbon: "Material", "RibbonWidth"
+            - Mesh: "ParticleMesh", "Material", "OverrideMaterials"
+            - Ribbon: "Material", "RibbonWidth", "Shape", "MultiPlaneCount", "WidthSegmentationCount"
+                - Shape: "Plane", "MultiPlane" (best for fire trails), "Tube", "Custom"
+                - MultiPlaneCount: 2-16 (number of cross-planes for MultiPlane shape)
+                - WidthSegmentationCount: 1-16 (UV subdivision across ribbon width)
         property_value: Value (asset path for materials/meshes, or setting value)
 
     Returns:

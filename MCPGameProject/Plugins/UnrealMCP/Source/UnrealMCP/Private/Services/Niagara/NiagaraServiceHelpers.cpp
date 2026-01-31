@@ -281,7 +281,25 @@ UNiagaraRendererProperties* FNiagaraService::CreateRendererByType(const FString&
     }
     else if (RendererType.Equals(TEXT("Ribbon"), ESearchCase::IgnoreCase))
     {
-        return NewObject<UNiagaraRibbonRendererProperties>(Outer);
+        UNiagaraRibbonRendererProperties* RibbonRenderer = NewObject<UNiagaraRibbonRendererProperties>(Outer);
+
+        // Set better defaults for fire/magic trails (industry standard)
+        // Default UE creates a flat Plane with WidthSegmentationCount=1 which
+        // appears as a solid rectangular beam. MultiPlane with 2+ planes creates
+        // the classic cross-billboard effect used in most games for fire trails.
+        RibbonRenderer->Shape = ENiagaraRibbonShapeMode::MultiPlane;
+        RibbonRenderer->MultiPlaneCount = 2;  // Cross-shape (2 planes at 90 degrees)
+
+        // Enable accurate geometry for better normals
+        RibbonRenderer->bEnableAccurateGeometry = true;
+
+        // Good tessellation defaults for smooth curves
+        RibbonRenderer->TessellationMode = ENiagaraRibbonTessellationMode::Automatic;
+        RibbonRenderer->TessellationFactor = 16;
+
+        UE_LOG(LogNiagaraService, Log, TEXT("Created Ribbon renderer with MultiPlane shape (2 planes) for better fire/trail appearance"));
+
+        return RibbonRenderer;
     }
     else if (RendererType.Equals(TEXT("Light"), ESearchCase::IgnoreCase))
     {

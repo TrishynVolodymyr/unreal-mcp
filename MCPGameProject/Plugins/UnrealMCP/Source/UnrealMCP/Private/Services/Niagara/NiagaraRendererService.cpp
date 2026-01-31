@@ -9,6 +9,7 @@
 #include "NiagaraCommon.h"
 #include "NiagaraSpriteRendererProperties.h"
 #include "NiagaraMeshRendererProperties.h"
+#include "NiagaraRibbonRendererProperties.h"
 
 // ============================================================================
 // Renderers (Feature 5)
@@ -232,6 +233,113 @@ bool FNiagaraService::SetRendererProperty(const FString& SystemPath, const FStri
         NewOverride.ExplicitMat = Material;
 
         UE_LOG(LogNiagaraService, Log, TEXT("Set mesh renderer OverrideMaterials to '%s'"), *ValueStr);
+
+        // Mark dirty and compile
+        MarkSystemDirty(System);
+        System->OnSystemPostEditChange().Broadcast(System);
+        System->RequestCompile(false);
+        System->WaitForCompilationComplete();
+        RefreshEditors(System);
+
+        return true;
+    }
+
+    // Special handling for Ribbon renderer Shape property
+    if (PropertyName.Equals(TEXT("Shape"), ESearchCase::IgnoreCase))
+    {
+        UNiagaraRibbonRendererProperties* RibbonRenderer = Cast<UNiagaraRibbonRendererProperties>(FoundRenderer);
+        if (!RibbonRenderer)
+        {
+            OutError = TEXT("Shape property is only valid for ribbon renderers");
+            return false;
+        }
+
+        // Map string values to ENiagaraRibbonShapeMode
+        ENiagaraRibbonShapeMode NewShape;
+        if (ValueStr.Equals(TEXT("Plane"), ESearchCase::IgnoreCase))
+        {
+            NewShape = ENiagaraRibbonShapeMode::Plane;
+        }
+        else if (ValueStr.Equals(TEXT("MultiPlane"), ESearchCase::IgnoreCase))
+        {
+            NewShape = ENiagaraRibbonShapeMode::MultiPlane;
+        }
+        else if (ValueStr.Equals(TEXT("Tube"), ESearchCase::IgnoreCase))
+        {
+            NewShape = ENiagaraRibbonShapeMode::Tube;
+        }
+        else if (ValueStr.Equals(TEXT("Custom"), ESearchCase::IgnoreCase))
+        {
+            NewShape = ENiagaraRibbonShapeMode::Custom;
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Invalid Shape value '%s'. Valid values: Plane, MultiPlane, Tube, Custom"), *ValueStr);
+            return false;
+        }
+
+        RibbonRenderer->Shape = NewShape;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set ribbon renderer Shape to '%s'"), *ValueStr);
+
+        // Mark dirty and compile
+        MarkSystemDirty(System);
+        System->OnSystemPostEditChange().Broadcast(System);
+        System->RequestCompile(false);
+        System->WaitForCompilationComplete();
+        RefreshEditors(System);
+
+        return true;
+    }
+
+    // Special handling for Ribbon renderer MultiPlaneCount property
+    if (PropertyName.Equals(TEXT("MultiPlaneCount"), ESearchCase::IgnoreCase))
+    {
+        UNiagaraRibbonRendererProperties* RibbonRenderer = Cast<UNiagaraRibbonRendererProperties>(FoundRenderer);
+        if (!RibbonRenderer)
+        {
+            OutError = TEXT("MultiPlaneCount property is only valid for ribbon renderers");
+            return false;
+        }
+
+        int32 Count = FCString::Atoi(*ValueStr);
+        if (Count < 2 || Count > 16)
+        {
+            OutError = FString::Printf(TEXT("MultiPlaneCount must be between 2 and 16, got %d"), Count);
+            return false;
+        }
+
+        RibbonRenderer->MultiPlaneCount = Count;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set ribbon renderer MultiPlaneCount to %d"), Count);
+
+        // Mark dirty and compile
+        MarkSystemDirty(System);
+        System->OnSystemPostEditChange().Broadcast(System);
+        System->RequestCompile(false);
+        System->WaitForCompilationComplete();
+        RefreshEditors(System);
+
+        return true;
+    }
+
+    // Special handling for Ribbon renderer WidthSegmentationCount property
+    if (PropertyName.Equals(TEXT("WidthSegmentationCount"), ESearchCase::IgnoreCase))
+    {
+        UNiagaraRibbonRendererProperties* RibbonRenderer = Cast<UNiagaraRibbonRendererProperties>(FoundRenderer);
+        if (!RibbonRenderer)
+        {
+            OutError = TEXT("WidthSegmentationCount property is only valid for ribbon renderers");
+            return false;
+        }
+
+        int32 Count = FCString::Atoi(*ValueStr);
+        if (Count < 1 || Count > 16)
+        {
+            OutError = FString::Printf(TEXT("WidthSegmentationCount must be between 1 and 16, got %d"), Count);
+            return false;
+        }
+
+        RibbonRenderer->WidthSegmentationCount = Count;
+        UE_LOG(LogNiagaraService, Log, TEXT("Set ribbon renderer WidthSegmentationCount to %d"), Count);
 
         // Mark dirty and compile
         MarkSystemDirty(System);

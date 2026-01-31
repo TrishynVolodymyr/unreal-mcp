@@ -628,6 +628,9 @@ bool FNiagaraService::SetModuleRandomInput(const FNiagaraModuleRandomInputParams
     // Notify graph of changes
     Graph->NotifyGraphChanged();
 
+    // CRITICAL: Force system recompile for runtime to pick up graph changes
+    System->RequestCompile(false);
+
     // Refresh editors
     RefreshEditors(System);
 

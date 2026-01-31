@@ -32,6 +32,20 @@ public class UnrealMCP : ModuleRules
 			PrivateIncludePaths.Add(NiagaraEditorPrivatePath);
 		}
 
+		// Add Niagara Internal includes for stateless module access (FNiagaraDistributionFloat, UNiagaraStatelessModule, etc.)
+		string NiagaraInternalPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(EngineDirectory, "Plugins", "FX", "Niagara", "Source", "Niagara", "Internal"));
+		if (System.IO.Directory.Exists(NiagaraInternalPath))
+		{
+			PrivateIncludePaths.Add(NiagaraInternalPath);
+		}
+
+		// Add NiagaraShader Internal includes for stateless simulation shader (required by NiagaraStatelessEmitter.h)
+		string NiagaraShaderInternalPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(EngineDirectory, "Plugins", "FX", "Niagara", "Source", "NiagaraShader", "Internal"));
+		if (System.IO.Directory.Exists(NiagaraShaderInternalPath))
+		{
+			PrivateIncludePaths.Add(NiagaraShaderInternalPath);
+		}
+
 		// Add MetasoundEditor private includes for FGraphBuilder access
 		string MetasoundEditorPrivatePath = System.IO.Path.GetFullPath(System.IO.Path.Combine(EngineDirectory, "Plugins", "Runtime", "Metasound", "Source", "MetasoundEditor", "Private"));
 		if (System.IO.Directory.Exists(MetasoundEditorPrivatePath))
