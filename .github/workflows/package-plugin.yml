@@ -1,0 +1,135 @@
+name: Package UnrealMCP Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_binaries:
+        description: 'Include pre-built binaries (Win64)'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      version:
+        description: 'Version tag (e.g., 1.0.0)'
+        required: false
+        default: ''
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Package plugin (source only)
+        if: github.event.inputs.include_binaries == 'false'
+        run: |
+          mkdir -p dist/UnrealMCP
+          
+          # Copy essential plugin files
+          cp -r MCPGameProject/Plugins/UnrealMCP/Source dist/UnrealMCP/
+          cp -r MCPGameProject/Plugins/UnrealMCP/Config dist/UnrealMCP/
+          cp -r MCPGameProject/Plugins/UnrealMCP/Content dist/UnrealMCP/ 2>/dev/null || true
+          cp -r MCPGameProject/Plugins/UnrealMCP/Documentation dist/UnrealMCP/ 2>/dev/null || true
+          cp MCPGameProject/Plugins/UnrealMCP/UnrealMCP.uplugin dist/UnrealMCP/
+          
+          # Copy Python MCP servers
+          mkdir -p dist/Python
+          cp -r Python/*.py dist/Python/
+          cp -r Python/servers dist/Python/ 2>/dev/null || true
+          cp Python/requirements.txt dist/Python/ 2>/dev/null || true
+          
+          # Create README for distribution
+          cat > dist/README.md << 'EOF'
+          # UnrealMCP Plugin
+          
+          ## Installation
+          
+          1. Copy `UnrealMCP` folder to your project's `Plugins` directory
+          2. Rebuild your project (plugin will compile automatically)
+          3. Set up Python MCP servers from the `Python` folder
+          
+          ## Requirements
+          
+          - Unreal Engine 5.7+
+          - Python 3.10+ (for MCP servers)
+          - uv (Python package manager)
+          
+          ## Setup Python servers
+          
+          ```bash
+          cd Python
+          uv sync
+          ```
+          
+          See Documentation folder for detailed setup instructions.
+          EOF
+          
+          cd dist && zip -r ../UnrealMCP-${{ steps.version.outputs.version }}-source.zip .
+      
+      - name: Package plugin (with binaries)
+        if: github.event.inputs.include_binaries == 'true'
+        run: |
+          mkdir -p dist/UnrealMCP
+          
+          # Copy full plugin including binaries
+          cp -r MCPGameProject/Plugins/UnrealMCP/* dist/UnrealMCP/
+          
+          # Remove intermediate build files
+          rm -rf dist/UnrealMCP/Intermediate
+          
+          # Copy Python MCP servers
+          mkdir -p dist/Python
+          cp -r Python/*.py dist/Python/
+          cp -r Python/servers dist/Python/ 2>/dev/null || true
+          cp Python/requirements.txt dist/Python/ 2>/dev/null || true
+          
+          # Create README
+          cat > dist/README.md << 'EOF'
+          # UnrealMCP Plugin (with Win64 Binaries)
+          
+          ## Installation
+          
+          1. Copy `UnrealMCP` folder to your project's `Plugins` directory
+          2. If UE version matches (5.7), binaries should work directly
+          3. If not, delete `Binaries` folder and rebuild
+          
+          ## Requirements
+          
+          - Unreal Engine 5.7 (for pre-built binaries)
+          - Python 3.10+ (for MCP servers)
+          
+          See Documentation folder for detailed setup.
+          EOF
+          
+          cd dist && zip -r ../UnrealMCP-${{ steps.version.outputs.version }}-win64.zip .
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UnrealMCP-${{ steps.version.outputs.version }}
+          path: UnrealMCP-*.zip
+          retention-days: 30
+      
+      - name: Create Release (if version provided)
+        if: github.event.inputs.version != ''
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: UnrealMCP v${{ github.event.inputs.version }}
+          files: UnrealMCP-*.zip
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
