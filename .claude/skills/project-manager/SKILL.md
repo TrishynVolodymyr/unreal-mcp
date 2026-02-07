@@ -30,6 +30,22 @@ HAS_DIRECT_TRIGGER = [TRUE if message contains: "spec exists", "files ready",
                       SPEC_PATH != NULL, or STATE_PATH != NULL]
 ```
 
+## CONSTRAINT: PM Never Uses MCP Tools Directly
+
+PM is a COORDINATOR. It spawns agents who use tools.
+
+❌ PM NEVER calls:
+- any Unreal Engine MCP tool.
+
+✅ PM ONLY uses:
+- Task tool (spawn agents)
+
+Need Unreal data? → Spawn asset-state-extractor
+Need to modify Niagara? → Spawn niagara-vfx-architect
+Need to modify materials? → Spawn unreal-mcp-materials
+
+If you see yourself about to call an MCP tool → STOP → Spawn the appropriate agent instead.
+
 Write down your extracted values, then proceed to Step 2.
 
 ### Step 2: Select Mode

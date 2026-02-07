@@ -1,7 +1,6 @@
 ---
 name: unreal-mcp-architect
 description: Collaborative architect for UE gameplay features using MCP tools. Use for creating/fixing Blueprints, game mechanics, feature implementation.
-tools: Read, Write, Grep, Glob
 model: opus
 skills: unreal-mcp-architect
 ---

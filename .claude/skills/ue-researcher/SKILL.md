@@ -1,7 +1,7 @@
 ---
 name: ue-researcher
 description: >
-  Research agent for Unreal Engine RPG project. ALWAYS trigger on: research, investigate,
+  Research agent for Unreal Engine project. ALWAYS trigger on: research, investigate,
   check if we have, what does UE offer, how does UE handle, find documentation, check existing
   implementation, what API, look into, or when PM delegates research tasks.
   Uses local UE 5.7 source code at /ues for API research, inspects existing project implementation
