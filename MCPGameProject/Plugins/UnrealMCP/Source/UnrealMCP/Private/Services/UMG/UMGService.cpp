@@ -423,12 +423,33 @@ bool FUMGService::SetWidgetProperties(const FString& BlueprintName, const FStrin
 
     // Append PropertyService results to output arrays (don't overwrite special-handled properties)
     OutSuccessProperties.Append(SuccessProps);
+    
+    // For failed properties, try slot fallback before giving up
+    // This handles common slot properties (HorizontalAlignment, VerticalAlignment, Padding)
+    // sent without the "Slot." prefix - users shouldn't need to know about slot internals
+    TArray<FString> TrulyFailedProps;
     for (const auto& FailedProp : FailedProps)
     {
-        OutFailedProperties.Add(FailedProp.Key);
-        // Log detailed error message
-        UE_LOG(LogTemp, Warning, TEXT("UMGService: Failed to set property '%s': %s"), 
-               *FailedProp.Key, *FailedProp.Value);
+        // Try setting as a slot property (fallback)
+        FString SlotError;
+        const TSharedPtr<FJsonValue>* PropValue = RemainingProperties->Values.Find(FailedProp.Key);
+        if (PropValue && Widget->Slot && SetSlotProperty(Widget, FailedProp.Key, *PropValue, SlotError))
+        {
+            // Success! It was a slot property sent without "Slot." prefix
+            OutSuccessProperties.Add(FailedProp.Key);
+            UE_LOG(LogTemp, Log, TEXT("UMGService: Property '%s' not found on widget, but successfully set on slot (auto-fallback)"), *FailedProp.Key);
+        }
+        else
+        {
+            TrulyFailedProps.Add(FailedProp.Key);
+            UE_LOG(LogTemp, Warning, TEXT("UMGService: Failed to set property '%s': %s"), 
+                   *FailedProp.Key, *FailedProp.Value);
+        }
+    }
+    
+    for (const FString& TrulyFailed : TrulyFailedProps)
+    {
+        OutFailedProperties.Add(TrulyFailed);
     }
 
     // Save the blueprint if any properties were set
@@ -1002,6 +1023,46 @@ bool FUMGService::SetCanvasSlotPlacement(UWidget* Widget, const FVector2D* Posit
     return true;
 }
 
+// Helper: parse FMargin from JSON value using PropertyService's dynamic struct coercion
+// Accepts: array [l,t,r,b], dict {Left,Top,Right,Bottom}, or single number
+static bool ParsePaddingFromJson(const TSharedPtr<FJsonValue>& PropertyValue, FMargin& OutPadding, FString& OutError)
+{
+    // Try array [left, top, right, bottom]
+    const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
+    if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+    {
+        OutPadding = FMargin(
+            static_cast<float>((*PaddingArray)[0]->AsNumber()),
+            static_cast<float>((*PaddingArray)[1]->AsNumber()),
+            static_cast<float>((*PaddingArray)[2]->AsNumber()),
+            static_cast<float>((*PaddingArray)[3]->AsNumber())
+        );
+        return true;
+    }
+
+    // Try dict {Left, Top, Right, Bottom}
+    const TSharedPtr<FJsonObject>* PaddingObject;
+    if (PropertyValue->TryGetObject(PaddingObject))
+    {
+        OutPadding.Left   = (*PaddingObject)->HasField(TEXT("Left"))   ? static_cast<float>((*PaddingObject)->GetNumberField(TEXT("Left")))   : 0.f;
+        OutPadding.Top    = (*PaddingObject)->HasField(TEXT("Top"))    ? static_cast<float>((*PaddingObject)->GetNumberField(TEXT("Top")))    : 0.f;
+        OutPadding.Right  = (*PaddingObject)->HasField(TEXT("Right"))  ? static_cast<float>((*PaddingObject)->GetNumberField(TEXT("Right")))  : 0.f;
+        OutPadding.Bottom = (*PaddingObject)->HasField(TEXT("Bottom")) ? static_cast<float>((*PaddingObject)->GetNumberField(TEXT("Bottom"))) : 0.f;
+        return true;
+    }
+
+    // Try single number for uniform padding
+    double UniformPadding = 0.0;
+    if (PropertyValue->TryGetNumber(UniformPadding))
+    {
+        OutPadding = FMargin(static_cast<float>(UniformPadding));
+        return true;
+    }
+
+    OutError = TEXT("Padding must be array [left,top,right,bottom], object {Left,Top,Right,Bottom}, or single number");
+    return false;
+}
+
 bool FUMGService::SetSlotProperty(UWidget* Widget, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutError) const
 {
     if (!Widget || !Widget->Slot)
@@ -1122,28 +1183,13 @@ bool FUMGService::SetSlotProperty(UWidget* Widget, const FString& PropertyName, 
         }
         else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
         {
-            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
-            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            FMargin Padding;
+            if (ParsePaddingFromJson(PropertyValue, Padding, OutError))
             {
-                FMargin Padding(
-                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[3]->AsNumber())
-                );
                 HBoxSlot->SetPadding(Padding);
                 UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.Padding"));
                 return true;
             }
-            // Try single value for uniform padding
-            double UniformPadding = 0.0;
-            if (PropertyValue->TryGetNumber(UniformPadding))
-            {
-                HBoxSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
-                UE_LOG(LogTemp, Log, TEXT("UMGService: Set HorizontalBoxSlot.Padding (uniform) to %f"), UniformPadding);
-                return true;
-            }
-            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
             return false;
         }
     }
@@ -1257,28 +1303,13 @@ bool FUMGService::SetSlotProperty(UWidget* Widget, const FString& PropertyName, 
         }
         else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
         {
-            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
-            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            FMargin Padding;
+            if (ParsePaddingFromJson(PropertyValue, Padding, OutError))
             {
-                FMargin Padding(
-                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[3]->AsNumber())
-                );
                 VBoxSlot->SetPadding(Padding);
                 UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.Padding"));
                 return true;
             }
-            // Try single value for uniform padding
-            double UniformPadding = 0.0;
-            if (PropertyValue->TryGetNumber(UniformPadding))
-            {
-                VBoxSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
-                UE_LOG(LogTemp, Log, TEXT("UMGService: Set VerticalBoxSlot.Padding (uniform) to %f"), UniformPadding);
-                return true;
-            }
-            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
             return false;
         }
     }
@@ -1498,28 +1529,13 @@ bool FUMGService::SetSlotProperty(UWidget* Widget, const FString& PropertyName, 
         }
         else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
         {
-            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
-            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            FMargin Padding;
+            if (ParsePaddingFromJson(PropertyValue, Padding, OutError))
             {
-                FMargin Padding(
-                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[3]->AsNumber())
-                );
                 OverlaySlot->SetPadding(Padding);
                 UE_LOG(LogTemp, Log, TEXT("UMGService: Set OverlaySlot.Padding"));
                 return true;
             }
-            // Try single value for uniform padding
-            double UniformPadding = 0.0;
-            if (PropertyValue->TryGetNumber(UniformPadding))
-            {
-                OverlaySlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
-                UE_LOG(LogTemp, Log, TEXT("UMGService: Set OverlaySlot.Padding (uniform) to %f"), UniformPadding);
-                return true;
-            }
-            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
             return false;
         }
     }
@@ -1592,28 +1608,13 @@ bool FUMGService::SetSlotProperty(UWidget* Widget, const FString& PropertyName, 
         }
         else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
         {
-            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
-            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            FMargin Padding;
+            if (ParsePaddingFromJson(PropertyValue, Padding, OutError))
             {
-                FMargin Padding(
-                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[3]->AsNumber())
-                );
                 SizeBoxSlot->SetPadding(Padding);
                 UE_LOG(LogTemp, Log, TEXT("UMGService: Set SizeBoxSlot.Padding"));
                 return true;
             }
-            // Try single value for uniform padding
-            double UniformPadding = 0.0;
-            if (PropertyValue->TryGetNumber(UniformPadding))
-            {
-                SizeBoxSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
-                UE_LOG(LogTemp, Log, TEXT("UMGService: Set SizeBoxSlot.Padding (uniform) to %f"), UniformPadding);
-                return true;
-            }
-            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
             return false;
         }
     }
@@ -1686,28 +1687,13 @@ bool FUMGService::SetSlotProperty(UWidget* Widget, const FString& PropertyName, 
         }
         else if (PropertyName.Equals(TEXT("Padding"), ESearchCase::IgnoreCase))
         {
-            const TArray<TSharedPtr<FJsonValue>>* PaddingArray;
-            if (PropertyValue->TryGetArray(PaddingArray) && PaddingArray->Num() == 4)
+            FMargin Padding;
+            if (ParsePaddingFromJson(PropertyValue, Padding, OutError))
             {
-                FMargin Padding(
-                    static_cast<float>((*PaddingArray)[0]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[1]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[2]->AsNumber()),
-                    static_cast<float>((*PaddingArray)[3]->AsNumber())
-                );
                 BorderSlot->SetPadding(Padding);
                 UE_LOG(LogTemp, Log, TEXT("UMGService: Set BorderSlot.Padding"));
                 return true;
             }
-            // Try single value for uniform padding
-            double UniformPadding = 0.0;
-            if (PropertyValue->TryGetNumber(UniformPadding))
-            {
-                BorderSlot->SetPadding(FMargin(static_cast<float>(UniformPadding)));
-                UE_LOG(LogTemp, Log, TEXT("UMGService: Set BorderSlot.Padding (uniform) to %f"), UniformPadding);
-                return true;
-            }
-            OutError = TEXT("Padding must be array [left, top, right, bottom] or single number");
             return false;
         }
     }

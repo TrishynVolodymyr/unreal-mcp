@@ -3,6 +3,8 @@
 #include "UObject/SavePackage.h"
 #include "MaterialShared.h"  // For FMaterialUpdateContext
 #include "Dom/JsonValue.h"
+#include "RHIShaderPlatform.h"  // For GMaxRHIShaderPlatform
+#include "DataDrivenShaderPlatformInfo.h"  // For FDataDrivenShaderPlatformInfo
 
 bool FMaterialExpressionService::DeleteExpression(
     const FString& MaterialPath,
@@ -232,28 +234,44 @@ bool FMaterialExpressionService::CompileMaterial(
     // Recompile the material (this triggers shader compilation)
     RecompileMaterial(Material);
 
+    // Force shader compilation to complete synchronously so we can check errors
+    // This is critical - without this, errors may not be populated yet
+    Material->ForceRecompileForRendering();
+
     // Capture shader compilation errors
     TArray<TSharedPtr<FJsonValue>> CompileErrorsArray;
     bool bHasCompileErrors = false;
 
-    // Get errors from material resources for each quality level
-    // Use current shader platform (GetFeatureLevelShaderPlatform converts feature level to shader platform)
-    EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel);
+    // Check multiple shader platforms like the Material Editor does
+    // GMaxRHIShaderPlatform is the runtime shader platform (e.g., PCD3D_SM6)
+    TArray<EShaderPlatform> ShaderPlatformsToCheck;
+    ShaderPlatformsToCheck.Add(GMaxRHIShaderPlatform);
 
-    for (int32 QualityLevel = 0; QualityLevel < EMaterialQualityLevel::Num; ++QualityLevel)
+    // Also check feature level shader platform if different
+    EShaderPlatform FeatureLevelPlatform = GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel);
+    if (FeatureLevelPlatform != GMaxRHIShaderPlatform)
     {
-        const FMaterialResource* MaterialResource = Material->GetMaterialResource(
-            ShaderPlatform,
-            (EMaterialQualityLevel::Type)QualityLevel);
+        ShaderPlatformsToCheck.Add(FeatureLevelPlatform);
+    }
 
-        if (MaterialResource)
+    for (EShaderPlatform ShaderPlatform : ShaderPlatformsToCheck)
+    {
+        if (!FDataDrivenShaderPlatformInfo::IsValid(ShaderPlatform))
         {
+            continue;
+        }
+
+        // Get the material resource for this platform (quality level 0 = High)
+        FMaterialResource* MaterialResource = Material->GetMaterialResource(ShaderPlatform);
+        if (MaterialResource && MaterialResource->GetCompileErrors().Num() > 0)
+        {
+            FString PlatformName = FDataDrivenShaderPlatformInfo::GetName(ShaderPlatform).ToString();
             const TArray<FString>& Errors = MaterialResource->GetCompileErrors();
             for (const FString& Error : Errors)
             {
                 TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
                 ErrorObj->SetStringField(TEXT("error"), Error);
-                ErrorObj->SetNumberField(TEXT("quality_level"), QualityLevel);
+                ErrorObj->SetStringField(TEXT("shader_platform"), PlatformName);
                 CompileErrorsArray.Add(MakeShared<FJsonValueObject>(ErrorObj));
                 bHasCompileErrors = true;
             }

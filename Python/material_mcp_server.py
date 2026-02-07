@@ -787,6 +787,92 @@ async def delete_material_expression(
 
 
 @app.tool()
+async def set_material_properties(
+    material_path: str,
+    material_domain: str = None,
+    blend_mode: str = None,
+    shading_model: str = None,
+    two_sided: bool = None,
+    used_with_niagara_sprites: bool = None,
+    used_with_niagara_ribbons: bool = None,
+    used_with_niagara_mesh_particles: bool = None,
+    used_with_particle_sprites: bool = None,
+    used_with_mesh_particles: bool = None,
+    used_with_skeletal_mesh: bool = None,
+    used_with_static_lighting: bool = None
+) -> Dict[str, Any]:
+    """
+    Set properties on an existing base Material (BlendMode, ShadingModel, usage flags).
+
+    This modifies the base Material asset, not Material Instances. Use this to change
+    blend modes, shading models, and usage flags on existing materials without recreating them.
+
+    Args:
+        material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
+        material_domain: Material domain - "Surface", "DeferredDecal" (or "Decal"), "LightFunction", "Volume", "PostProcess", "UserInterface" (or "UI")
+        blend_mode: Blend mode - "Opaque", "Masked", "Translucent", "Additive", "Modulate", "AlphaComposite", "AlphaHoldout"
+        shading_model: Shading model - "Unlit", "DefaultLit", "Subsurface", "ClearCoat", "SubsurfaceProfile", "TwoSidedFoliage", "Hair", "Cloth", "Eye", "SingleLayerWater", "ThinTranslucent"
+        two_sided: Whether the material renders on both sides
+        used_with_niagara_sprites: Enable for Niagara sprite particles
+        used_with_niagara_ribbons: Enable for Niagara ribbon particles
+        used_with_niagara_mesh_particles: Enable for Niagara mesh particles
+        used_with_particle_sprites: Enable for legacy Cascade sprite particles
+        used_with_mesh_particles: Enable for legacy Cascade mesh particles
+        used_with_skeletal_mesh: Enable for skeletal meshes
+        used_with_static_lighting: Enable for static lighting
+
+    Returns:
+        Dictionary containing:
+        - success: Whether properties were set successfully
+        - material_path: Path to the modified material
+        - changed_properties: List of properties that were changed
+        - message: Success/error message
+
+    Example:
+        # Fix a material for Niagara ribbon use
+        set_material_properties(
+            material_path="/Game/VFX/Fireball/M_FireballTrail_Ribbon",
+            blend_mode="Additive",
+            shading_model="Unlit",
+            used_with_niagara_ribbons=True
+        )
+
+        # Make a material translucent and two-sided
+        set_material_properties(
+            material_path="/Game/Materials/M_Foliage",
+            blend_mode="Masked",
+            two_sided=True
+        )
+    """
+    params = {"material_path": material_path}
+
+    if material_domain is not None:
+        params["material_domain"] = material_domain
+    if blend_mode is not None:
+        params["blend_mode"] = blend_mode
+    if shading_model is not None:
+        params["shading_model"] = shading_model
+    if two_sided is not None:
+        params["two_sided"] = two_sided
+    if used_with_niagara_sprites is not None:
+        params["used_with_niagara_sprites"] = used_with_niagara_sprites
+    if used_with_niagara_ribbons is not None:
+        params["used_with_niagara_ribbons"] = used_with_niagara_ribbons
+    if used_with_niagara_mesh_particles is not None:
+        params["used_with_niagara_mesh_particles"] = used_with_niagara_mesh_particles
+    if used_with_particle_sprites is not None:
+        params["used_with_particle_sprites"] = used_with_particle_sprites
+    if used_with_mesh_particles is not None:
+        params["used_with_mesh_particles"] = used_with_mesh_particles
+    if used_with_skeletal_mesh is not None:
+        params["used_with_skeletal_mesh"] = used_with_skeletal_mesh
+    if used_with_static_lighting is not None:
+        params["used_with_static_lighting"] = used_with_static_lighting
+
+    return await send_tcp_command("set_material_properties", params)
+
+
+@app.tool()
 async def search_material_palette(
     search_query: str = "",
     category_filter: str = "",
