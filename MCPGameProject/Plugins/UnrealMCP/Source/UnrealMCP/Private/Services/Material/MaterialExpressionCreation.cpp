@@ -25,6 +25,8 @@
 #include "Materials/MaterialExpressionNoise.h"
 // Particle SubUV for flipbook animations
 #include "Materials/MaterialExpressionParticleSubUV.h"
+// Custom HLSL expression support
+#include "Materials/MaterialExpressionCustom.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 
@@ -542,6 +544,81 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                 "Got properties: [%s]. Example: {\"Function\": \"/Engine/Functions/Engine_MaterialFunctions01/Gradient/RadialGradientExponential.RadialGradientExponential\"}"),
                 *FString::Join(ProvidedKeys, TEXT(", ")));
             return false;
+        }
+    }
+    // Handle Custom HLSL expression
+    else if (UMaterialExpressionCustom* CustomExpr = Cast<UMaterialExpressionCustom>(Expression))
+    {
+        if (Properties->HasField(TEXT("Code")) || Properties->HasField(TEXT("code")))
+        {
+            CustomExpr->Code = Properties->HasField(TEXT("Code"))
+                ? Properties->GetStringField(TEXT("Code"))
+                : Properties->GetStringField(TEXT("code"));
+        }
+
+        if (Properties->HasField(TEXT("OutputType")) || Properties->HasField(TEXT("output_type")))
+        {
+            int32 OutType = Properties->HasField(TEXT("OutputType"))
+                ? (int32)Properties->GetNumberField(TEXT("OutputType"))
+                : (int32)Properties->GetNumberField(TEXT("output_type"));
+            CustomExpr->OutputType = (ECustomMaterialOutputType)OutType;
+        }
+
+        if (Properties->HasField(TEXT("Description")) || Properties->HasField(TEXT("description")))
+        {
+            CustomExpr->Description = Properties->HasField(TEXT("Description"))
+                ? Properties->GetStringField(TEXT("Description"))
+                : Properties->GetStringField(TEXT("description"));
+        }
+
+        // Handle named inputs — critical for HLSL code to reference connected values
+        const TArray<TSharedPtr<FJsonValue>>* InputsArray;
+        if (Properties->TryGetArrayField(TEXT("Inputs"), InputsArray) || Properties->TryGetArrayField(TEXT("inputs"), InputsArray))
+        {
+            CustomExpr->Inputs.Empty();
+            for (const auto& InputVal : *InputsArray)
+            {
+                const TSharedPtr<FJsonObject>* InputObj;
+                if (InputVal->TryGetObject(InputObj))
+                {
+                    FCustomInput NewInput;
+                    FString InputName;
+                    if ((*InputObj)->TryGetStringField(TEXT("InputName"), InputName) ||
+                        (*InputObj)->TryGetStringField(TEXT("input_name"), InputName) ||
+                        (*InputObj)->TryGetStringField(TEXT("name"), InputName))
+                    {
+                        NewInput.InputName = FName(*InputName);
+                    }
+                    CustomExpr->Inputs.Add(NewInput);
+                }
+            }
+            UE_LOG(LogTemp, Log, TEXT("Custom expression: set %d named inputs"), CustomExpr->Inputs.Num());
+        }
+
+        // Handle additional outputs
+        const TArray<TSharedPtr<FJsonValue>>* OutputsArray;
+        if (Properties->TryGetArrayField(TEXT("AdditionalOutputs"), OutputsArray) || Properties->TryGetArrayField(TEXT("additional_outputs"), OutputsArray))
+        {
+            CustomExpr->AdditionalOutputs.Empty();
+            for (const auto& OutputVal : *OutputsArray)
+            {
+                const TSharedPtr<FJsonObject>* OutputObj;
+                if (OutputVal->TryGetObject(OutputObj))
+                {
+                    FCustomOutput NewOutput;
+                    FString OutputName;
+                    if ((*OutputObj)->TryGetStringField(TEXT("OutputName"), OutputName) ||
+                        (*OutputObj)->TryGetStringField(TEXT("name"), OutputName))
+                    {
+                        NewOutput.OutputName = FName(*OutputName);
+                    }
+                    if ((*OutputObj)->HasField(TEXT("OutputType")))
+                    {
+                        NewOutput.OutputType = (ECustomMaterialOutputType)(int32)(*OutputObj)->GetNumberField(TEXT("OutputType"));
+                    }
+                    CustomExpr->AdditionalOutputs.Add(NewOutput);
+                }
+            }
         }
     }
 

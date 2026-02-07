@@ -149,6 +149,71 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
         return false;
     }
 
+    // Special handling for object properties (UObject*, TObjectPtr<T>)
+    if (FObjectProperty* ObjectProp = CastField<FObjectProperty>(Property))
+    {
+        FString ObjectPath;
+        if (!JsonValue->TryGetString(ObjectPath))
+        {
+            // Also accept null to clear the reference
+            if (JsonValue->IsNull())
+            {
+                ObjectProp->SetObjectPropertyValue(PropertyData, nullptr);
+                return true;
+            }
+            OutError = TEXT("Expected string path or null for object property");
+            return false;
+        }
+
+        if (ObjectPath.IsEmpty())
+        {
+            ObjectProp->SetObjectPropertyValue(PropertyData, nullptr);
+            return true;
+        }
+
+        // Try loading the object from path
+        UObject* LoadedObject = StaticLoadObject(ObjectProp->PropertyClass, nullptr, *ObjectPath);
+        if (!LoadedObject)
+        {
+            // Try with _C suffix stripped or added
+            LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *ObjectPath);
+        }
+        if (!LoadedObject)
+        {
+            OutError = FString::Printf(TEXT("Could not load object from path: %s"), *ObjectPath);
+            return false;
+        }
+
+        // Validate class compatibility
+        if (!LoadedObject->IsA(ObjectProp->PropertyClass))
+        {
+            OutError = FString::Printf(TEXT("Loaded object '%s' is not a '%s'"),
+                                      *LoadedObject->GetName(), *ObjectProp->PropertyClass->GetName());
+            return false;
+        }
+
+        ObjectProp->SetObjectPropertyValue(PropertyData, LoadedObject);
+        UE_LOG(LogTemp, Log, TEXT("PropertyService: Set object property to: %s"), *LoadedObject->GetPathName());
+        return true;
+    }
+
+    // Special handling for soft object properties (TSoftObjectPtr<T>)
+    if (FSoftObjectProperty* SoftObjectProp = CastField<FSoftObjectProperty>(Property))
+    {
+        FString ObjectPath;
+        if (!JsonValue->TryGetString(ObjectPath))
+        {
+            OutError = TEXT("Expected string path for soft object property");
+            return false;
+        }
+
+        FSoftObjectPath SoftPath(ObjectPath);
+        FSoftObjectPtr SoftPtr(SoftPath);
+        *static_cast<FSoftObjectPtr*>(PropertyData) = SoftPtr;
+        UE_LOG(LogTemp, Log, TEXT("PropertyService: Set soft object property to: %s"), *ObjectPath);
+        return true;
+    }
+
     // Special handling for class properties (TSubclassOf<T>)
     if (FClassProperty* ClassProp = CastField<FClassProperty>(Property))
     {
@@ -787,48 +852,97 @@ bool FPropertyService::SetStructPropertyFromJson(FStructProperty* StructProp, vo
         
         return true;
     }
-    // Handle as JSON array for common 2D/3D structs
+    // Handle as JSON array — dynamic positional mapping via reflection
     else if (JsonValue->Type == EJson::Array)
     {
         const TArray<TSharedPtr<FJsonValue>>& ArrayValue = JsonValue->AsArray();
         
-        // FIntPoint: [X, Y]
-        if (StructName == TEXT("IntPoint") && ArrayValue.Num() >= 2)
+        // Collect struct fields in order
+        TArray<FProperty*> StructFields;
+        for (TFieldIterator<FProperty> It(Struct); It; ++It)
         {
-            FIntPoint TempValue;
-            TempValue.X = static_cast<int32>(ArrayValue[0]->AsNumber());
-            TempValue.Y = static_cast<int32>(ArrayValue[1]->AsNumber());
-            StructProp->CopyCompleteValue(PropertyData, &TempValue);
-            return true;
-        }
-        // FVector2D: [X, Y]
-        else if (StructName == TEXT("Vector2D") || StructName == TEXT("Vector2d"))
-        {
-            if (ArrayValue.Num() >= 2)
-            {
-                FVector2D TempValue;
-                TempValue.X = ArrayValue[0]->AsNumber();
-                TempValue.Y = ArrayValue[1]->AsNumber();
-                StructProp->CopyCompleteValue(PropertyData, &TempValue);
-                return true;
-            }
-        }
-        // FIntVector: [X, Y, Z]
-        else if (StructName == TEXT("IntVector") && ArrayValue.Num() >= 3)
-        {
-            FIntVector TempValue;
-            TempValue.X = static_cast<int32>(ArrayValue[0]->AsNumber());
-            TempValue.Y = static_cast<int32>(ArrayValue[1]->AsNumber());
-            TempValue.Z = static_cast<int32>(ArrayValue[2]->AsNumber());
-            StructProp->CopyCompleteValue(PropertyData, &TempValue);
-            return true;
+            StructFields.Add(*It);
         }
         
-        OutError = FString::Printf(TEXT("Struct '%s' cannot be set from array format"), *StructName);
-        return false;
+        if (ArrayValue.Num() > StructFields.Num())
+        {
+            OutError = FString::Printf(TEXT("Array has %d elements but struct '%s' only has %d fields"),
+                ArrayValue.Num(), *StructName, StructFields.Num());
+            return false;
+        }
+        
+        if (ArrayValue.Num() == 0)
+        {
+            OutError = FString::Printf(TEXT("Empty array cannot be mapped to struct '%s'"), *StructName);
+            return false;
+        }
+        
+        // Map array elements to struct fields by position
+        for (int32 i = 0; i < ArrayValue.Num(); ++i)
+        {
+            FProperty* StructField = StructFields[i];
+            void* FieldData = StructField->ContainerPtrToValuePtr<void>(PropertyData);
+            FString FieldError;
+            
+            if (!SetPropertyFromJson(StructField, FieldData, ArrayValue[i], FieldError))
+            {
+                OutError = FString::Printf(TEXT("Failed to set struct '%s' field '%s' (index %d): %s"),
+                    *StructName, *StructField->GetName(), i, *FieldError);
+                return false;
+            }
+        }
+        
+        UE_LOG(LogTemp, Log, TEXT("PropertyService: Set struct '%s' from array with %d elements (dynamic mapping)"),
+            *StructName, ArrayValue.Num());
+        return true;
+    }
+    // Handle single numeric value — fill all numeric fields with the same value
+    else if (JsonValue->Type == EJson::Number)
+    {
+        double Value = JsonValue->AsNumber();
+        
+        // Verify all fields are numeric before setting
+        bool bAllNumeric = true;
+        for (TFieldIterator<FProperty> It(Struct); It; ++It)
+        {
+            if (!CastField<FNumericProperty>(*It))
+            {
+                bAllNumeric = false;
+                break;
+            }
+        }
+        
+        if (!bAllNumeric)
+        {
+            OutError = FString::Printf(TEXT("Cannot set struct '%s' from single number — not all fields are numeric"), *StructName);
+            return false;
+        }
+        
+        // Fill all numeric fields with the same value
+        for (TFieldIterator<FProperty> It(Struct); It; ++It)
+        {
+            FProperty* StructField = *It;
+            void* FieldData = StructField->ContainerPtrToValuePtr<void>(PropertyData);
+            
+            if (FFloatProperty* FloatProp = CastField<FFloatProperty>(StructField))
+            {
+                FloatProp->SetPropertyValue(FieldData, static_cast<float>(Value));
+            }
+            else if (FDoubleProperty* DoubleProp = CastField<FDoubleProperty>(StructField))
+            {
+                DoubleProp->SetPropertyValue(FieldData, Value);
+            }
+            else if (FIntProperty* IntProp = CastField<FIntProperty>(StructField))
+            {
+                IntProp->SetPropertyValue(FieldData, static_cast<int32>(Value));
+            }
+        }
+        
+        UE_LOG(LogTemp, Log, TEXT("PropertyService: Set struct '%s' — all fields to uniform value %f"), *StructName, Value);
+        return true;
     }
     
-    OutError = FString::Printf(TEXT("Unsupported struct type '%s' or invalid JSON format (expected object or array)"), *StructName);
+    OutError = FString::Printf(TEXT("Unsupported format for struct '%s' — expected object {}, array [], or single number"), *StructName);
     return false;
 }
 

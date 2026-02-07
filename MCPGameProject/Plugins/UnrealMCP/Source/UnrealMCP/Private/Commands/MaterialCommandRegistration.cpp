@@ -28,6 +28,7 @@
 #include "Commands/Material/SetMaterialExpressionPropertyCommand.h"
 #include "Commands/Material/CompileMaterialCommand.h"
 #include "Commands/Material/SearchMaterialPaletteCommand.h"
+#include "Commands/Material/SetMaterialPropertiesCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FMaterialCommandRegistration::RegisteredCommands;
 
@@ -64,6 +65,7 @@ void FMaterialCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FSetMaterialExpressionPropertyCommand>());
     RegisterAndTrackCommand(MakeShared<FCompileMaterialCommand>());
     RegisterAndTrackCommand(MakeShared<FSearchMaterialPaletteCommand>());
+    RegisterAndTrackCommand(MakeShared<FSetMaterialPropertiesCommand>());
 
     UE_LOG(LogTemp, Log, TEXT("Registered %d Material commands"), RegisteredCommands.Num());
 }

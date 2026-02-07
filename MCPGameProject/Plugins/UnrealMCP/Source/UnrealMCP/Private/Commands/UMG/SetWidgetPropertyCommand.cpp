@@ -96,13 +96,26 @@ TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::ExecuteInternal(const TShared
     if (!bResult && SuccessProperties.Num() == 0)
     {
         UE_LOG(LogSetWidgetPropertyCommand, Warning, TEXT("Service layer failed to set any properties on widget component"));
+        
+        // Build detailed failure message
+        FString FailedList = FString::Join(FailedProperties, TEXT(", "));
         FMCPError Error = FMCPErrorHandler::CreateExecutionFailedError(
-            FString::Printf(TEXT("Failed to set any properties on widget component: %s"), *PropertyParams.ComponentName));
+            FString::Printf(TEXT("Failed to set properties on '%s': [%s]. These properties were not found on the widget or its slot."), 
+                           *PropertyParams.ComponentName, *FailedList));
         return CreateErrorResponse(Error);
     }
     
-    UE_LOG(LogSetWidgetPropertyCommand, Log, TEXT("Widget properties set successfully: %d succeeded, %d failed"), 
-           SuccessProperties.Num(), FailedProperties.Num());
+    // Log with appropriate level based on partial failures
+    if (FailedProperties.Num() > 0)
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Warning, TEXT("Widget properties partially set: %d succeeded, %d failed. Failed: [%s]"), 
+               SuccessProperties.Num(), FailedProperties.Num(), *FString::Join(FailedProperties, TEXT(", ")));
+    }
+    else
+    {
+        UE_LOG(LogSetWidgetPropertyCommand, Log, TEXT("Widget properties set successfully: %d succeeded, %d failed"), 
+               SuccessProperties.Num(), FailedProperties.Num());
+    }
     return CreateSuccessResponse(PropertyParams, SuccessProperties, FailedProperties);
 }
 
@@ -275,7 +288,17 @@ TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::CreateSuccessResponse(const F
                                                                         const TArray<FString>& FailedProperties) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShareable(new FJsonObject);
-    ResponseObj->SetBoolField(TEXT("success"), true);
+    
+    // success = true only if ALL properties were set (no failures)
+    bool bFullSuccess = FailedProperties.Num() == 0;
+    ResponseObj->SetBoolField(TEXT("success"), bFullSuccess);
+    
+    // If some succeeded and some failed, mark as partial
+    if (!bFullSuccess && SuccessProperties.Num() > 0)
+    {
+        ResponseObj->SetBoolField(TEXT("partial_success"), true);
+    }
+    
     ResponseObj->SetStringField(TEXT("component_name"), Params.ComponentName);
     
     // Add success properties array
@@ -294,9 +317,20 @@ TSharedPtr<FJsonObject> FSetWidgetPropertyCommand::CreateSuccessResponse(const F
     }
     ResponseObj->SetArrayField(TEXT("failed_properties"), FailedArray);
     
-    ResponseObj->SetStringField(TEXT("message"), 
-        FString::Printf(TEXT("Successfully set %d properties on component '%s' in widget '%s' (%d failed)"), 
-                       SuccessProperties.Num(), *Params.ComponentName, *Params.WidgetName, FailedProperties.Num()));
+    // Build informative message
+    if (bFullSuccess)
+    {
+        ResponseObj->SetStringField(TEXT("message"), 
+            FString::Printf(TEXT("Successfully set %d properties on component '%s' in widget '%s'"), 
+                           SuccessProperties.Num(), *Params.ComponentName, *Params.WidgetName));
+    }
+    else
+    {
+        FString FailedList = FString::Join(FailedProperties, TEXT(", "));
+        ResponseObj->SetStringField(TEXT("message"), 
+            FString::Printf(TEXT("Set %d properties on '%s', but %d FAILED: [%s]. Check property names and types."), 
+                           SuccessProperties.Num(), *Params.ComponentName, FailedProperties.Num(), *FailedList));
+    }
 
     return ResponseObj;
 }
