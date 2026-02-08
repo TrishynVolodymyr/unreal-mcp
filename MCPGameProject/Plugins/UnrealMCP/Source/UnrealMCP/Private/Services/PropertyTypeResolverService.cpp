@@ -55,102 +55,161 @@ FString FPropertyTypeResolverService::GetPropertyTypeString(const FProperty* Pro
 bool FPropertyTypeResolverService::ResolveBaseType(const FString& BaseType, FEdGraphPinType& OutPinType) const
 {
     // Basic types
-    if (BaseType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase))
+    if (BaseType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("Bool"), ESearchCase::IgnoreCase))
     {
         OutPinType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
         return true;
     }
-    if (BaseType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase))
+    if (BaseType.Equals(TEXT("Integer"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("Int"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("Int32"), ESearchCase::IgnoreCase))
     {
         OutPinType.PinCategory = UEdGraphSchema_K2::PC_Int;
         return true;
     }
-    if (BaseType.Equals(TEXT("Float"), ESearchCase::IgnoreCase))
+    if (BaseType.Equals(TEXT("Int64"), ESearchCase::IgnoreCase))
     {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Float;
+        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Int64;
         return true;
     }
-    if (BaseType.Equals(TEXT("String"), ESearchCase::IgnoreCase))
+    if (BaseType.Equals(TEXT("Float"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("Double"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("Real"), ESearchCase::IgnoreCase))
+    {
+        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Real;
+        OutPinType.PinSubCategory = TEXT("double");
+        return true;
+    }
+    if (BaseType.Equals(TEXT("Byte"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("uint8"), ESearchCase::IgnoreCase))
+    {
+        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Byte;
+        return true;
+    }
+    if (BaseType.Equals(TEXT("String"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("FString"), ESearchCase::IgnoreCase))
     {
         OutPinType.PinCategory = UEdGraphSchema_K2::PC_String;
         return true;
     }
-    if (BaseType.Equals(TEXT("Text"), ESearchCase::IgnoreCase))
+    if (BaseType.Equals(TEXT("Text"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("FText"), ESearchCase::IgnoreCase))
     {
         OutPinType.PinCategory = UEdGraphSchema_K2::PC_Text;
         return true;
     }
-    if (BaseType.Equals(TEXT("Name"), ESearchCase::IgnoreCase))
+    if (BaseType.Equals(TEXT("Name"), ESearchCase::IgnoreCase) ||
+        BaseType.Equals(TEXT("FName"), ESearchCase::IgnoreCase))
     {
         OutPinType.PinCategory = UEdGraphSchema_K2::PC_Name;
         return true;
     }
 
-    // Struct types
-    if (BaseType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase))
+    // Dynamic struct resolution via UE reflection — handles ALL engine structs
+    // without hardcoding (FVector, FLinearColor, FTransform, FGameplayTag, FSlateBrush, etc.)
     {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-        OutPinType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-        OutPinType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-        OutPinType.PinSubCategoryObject = TBaseStructure<FTransform>::Get();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
-        OutPinType.PinSubCategoryObject = TBaseStructure<FLinearColor>::Get();
-        return true;
+        UScriptStruct* FoundStruct = nullptr;
+
+        // Try exact name first (handles "FVector", "FLinearColor", etc.)
+        FoundStruct = FindObject<UScriptStruct>(nullptr, *BaseType);
+
+        // Try with F prefix ("Vector" → "FVector", "LinearColor" → "FLinearColor")
+        if (!FoundStruct && !BaseType.StartsWith(TEXT("F")))
+        {
+            FoundStruct = FindObject<UScriptStruct>(nullptr, *(TEXT("F") + BaseType));
+        }
+
+        // Try without F prefix ("FVector" → "Vector" — unlikely but defensive)
+        if (!FoundStruct && BaseType.StartsWith(TEXT("F")) && BaseType.Len() > 1)
+        {
+            FoundStruct = FindObject<UScriptStruct>(nullptr, *BaseType.Mid(1));
+        }
+
+        // Common alias: "Color" → FLinearColor (UE uses FLinearColor, not FColor for BP)
+        if (!FoundStruct && BaseType.Equals(TEXT("Color"), ESearchCase::IgnoreCase))
+        {
+            FoundStruct = TBaseStructure<FLinearColor>::Get();
+        }
+
+        // Fallback for core engine structs that FindObject can't locate
+        // (they exist as C++ structs via TBaseStructure, not as UObject assets)
+        if (!FoundStruct)
+        {
+            if (BaseType.Equals(TEXT("LinearColor"), ESearchCase::IgnoreCase) ||
+                BaseType.Equals(TEXT("FLinearColor"), ESearchCase::IgnoreCase))
+            {
+                FoundStruct = TBaseStructure<FLinearColor>::Get();
+            }
+            else if (BaseType.Equals(TEXT("Vector"), ESearchCase::IgnoreCase) ||
+                     BaseType.Equals(TEXT("FVector"), ESearchCase::IgnoreCase))
+            {
+                FoundStruct = TBaseStructure<FVector>::Get();
+            }
+            else if (BaseType.Equals(TEXT("Rotator"), ESearchCase::IgnoreCase) ||
+                     BaseType.Equals(TEXT("FRotator"), ESearchCase::IgnoreCase))
+            {
+                FoundStruct = TBaseStructure<FRotator>::Get();
+            }
+            else if (BaseType.Equals(TEXT("Transform"), ESearchCase::IgnoreCase) ||
+                     BaseType.Equals(TEXT("FTransform"), ESearchCase::IgnoreCase))
+            {
+                FoundStruct = TBaseStructure<FTransform>::Get();
+            }
+            else if (BaseType.Equals(TEXT("Vector2D"), ESearchCase::IgnoreCase) ||
+                     BaseType.Equals(TEXT("FVector2D"), ESearchCase::IgnoreCase))
+            {
+                FoundStruct = TBaseStructure<FVector2D>::Get();
+            }
+            else if (BaseType.Equals(TEXT("Vector4"), ESearchCase::IgnoreCase) ||
+                     BaseType.Equals(TEXT("FVector4"), ESearchCase::IgnoreCase))
+            {
+                FoundStruct = TBaseStructure<FVector4>::Get();
+            }
+        }
+
+        if (FoundStruct)
+        {
+            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Struct;
+            OutPinType.PinSubCategoryObject = FoundStruct;
+            return true;
+        }
     }
 
-    // Object reference types
-    if (BaseType.Equals(TEXT("Texture2D"), ESearchCase::IgnoreCase) ||
-        BaseType.Equals(TEXT("Texture"), ESearchCase::IgnoreCase))
+    // Dynamic UObject/UClass resolution via UE reflection — handles ALL object types
+    // (UTexture2D, UStaticMesh, UMaterialInterface, USoundBase, UNiagaraSystem, etc.)
     {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-        OutPinType.PinSubCategoryObject = UTexture2D::StaticClass();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("StaticMesh"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-        OutPinType.PinSubCategoryObject = UStaticMesh::StaticClass();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("Material"), ESearchCase::IgnoreCase) ||
-        BaseType.Equals(TEXT("MaterialInterface"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-        OutPinType.PinSubCategoryObject = UMaterialInterface::StaticClass();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("SkeletalMesh"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-        OutPinType.PinSubCategoryObject = USkeletalMesh::StaticClass();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("SoundBase"), ESearchCase::IgnoreCase) ||
-        BaseType.Equals(TEXT("Sound"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-        OutPinType.PinSubCategoryObject = USoundBase::StaticClass();
-        return true;
-    }
-    if (BaseType.Equals(TEXT("ParticleSystem"), ESearchCase::IgnoreCase))
-    {
-        OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
-        OutPinType.PinSubCategoryObject = UParticleSystem::StaticClass();
-        return true;
+        UClass* FoundClass = nullptr;
+
+        // Try with U prefix ("Texture2D" → "UTexture2D", "StaticMesh" → "UStaticMesh")
+        if (!BaseType.StartsWith(TEXT("U")))
+        {
+            FoundClass = FindObject<UClass>(nullptr, *(TEXT("U") + BaseType));
+        }
+
+        // Try exact name ("UTexture2D")
+        if (!FoundClass)
+        {
+            FoundClass = FindObject<UClass>(nullptr, *BaseType);
+        }
+
+        // Common aliases: "Texture" → UTexture2D, "Sound" → USoundBase, "Material" → UMaterialInterface
+        if (!FoundClass)
+        {
+            if (BaseType.Equals(TEXT("Texture"), ESearchCase::IgnoreCase))
+                FoundClass = UTexture2D::StaticClass();
+            else if (BaseType.Equals(TEXT("Sound"), ESearchCase::IgnoreCase))
+                FoundClass = USoundBase::StaticClass();
+            else if (BaseType.Equals(TEXT("Material"), ESearchCase::IgnoreCase))
+                FoundClass = UMaterialInterface::StaticClass();
+        }
+
+        if (FoundClass && FoundClass->IsChildOf(UObject::StaticClass()))
+        {
+            OutPinType.PinCategory = UEdGraphSchema_K2::PC_Object;
+            OutPinType.PinSubCategoryObject = FoundClass;
+            return true;
+        }
     }
 
     // Try to find a custom enum (E_ prefix convention or any user-defined enum)
@@ -223,18 +282,18 @@ bool FPropertyTypeResolverService::ResolvePropertyType(const FString& PropertyTy
         }
 
         OutPinType.PinCategory = UEdGraphSchema_K2::PC_SoftObject;
-        if (InnerType.Equals(TEXT("Texture2D"), ESearchCase::IgnoreCase))
+
+        // Dynamic class resolution for soft references
+        UClass* InnerClass = nullptr;
+        if (!InnerType.StartsWith(TEXT("U")))
         {
-            OutPinType.PinSubCategoryObject = UTexture2D::StaticClass();
+            InnerClass = FindObject<UClass>(nullptr, *(TEXT("U") + InnerType));
         }
-        else if (InnerType.Equals(TEXT("StaticMesh"), ESearchCase::IgnoreCase))
+        if (!InnerClass)
         {
-            OutPinType.PinSubCategoryObject = UStaticMesh::StaticClass();
+            InnerClass = FindObject<UClass>(nullptr, *InnerType);
         }
-        else
-        {
-            OutPinType.PinSubCategoryObject = UObject::StaticClass();
-        }
+        OutPinType.PinSubCategoryObject = InnerClass ? InnerClass : UObject::StaticClass();
         return true;
     }
 
