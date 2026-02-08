@@ -5,6 +5,7 @@
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_CustomEvent.h"
 #include "K2Node_VariableGet.h"
+#include "K2Node_VariableSet.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/Blueprint.h"
 #include "Serialization/JsonSerializer.h"
@@ -75,6 +76,30 @@ UEdGraphPin* FGraphUtils::FindPin(UEdGraphNode* Node, const FString& PinName, EE
             if (Pin->Direction == EGPD_Output && Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec)
             {
                 UE_LOG(LogTemp, Display, TEXT("  - Found fallback data output pin: '%s'"), *Pin->PinName.ToString());
+                return Pin;
+            }
+        }
+    }
+
+    // For Set Variable nodes: output pin is "Output_Get", not the variable name
+    // If looking for output by variable name, fall back to "Output_Get"
+    if (Direction == EGPD_Output && Cast<UK2Node_VariableSet>(Node) != nullptr)
+    {
+        // First try "Output_Get" directly
+        for (UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin->PinName.ToString() == TEXT("Output_Get") && Pin->Direction == EGPD_Output)
+            {
+                UE_LOG(LogTemp, Display, TEXT("  - Set node fallback: '%s' -> 'Output_Get'"), *PinName);
+                return Pin;
+            }
+        }
+        // Last resort: find any non-exec output pin
+        for (UEdGraphPin* Pin : Node->Pins)
+        {
+            if (Pin->Direction == EGPD_Output && Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Exec)
+            {
+                UE_LOG(LogTemp, Display, TEXT("  - Set node fallback data output: '%s'"), *Pin->PinName.ToString());
                 return Pin;
             }
         }
