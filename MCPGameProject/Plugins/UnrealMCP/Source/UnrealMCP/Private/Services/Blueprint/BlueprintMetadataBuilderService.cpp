@@ -822,21 +822,32 @@ TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildGraphNodesInfo(UB
                         }
                         PinsObj->SetArrayField(PinName, ConnectionsList);
                     }
-                    else if (Pin->Direction == EGPD_Input && Filter.DetailLevel == EGraphNodesDetailLevel::Full)
+                    else if (Filter.DetailLevel == EGraphNodesDetailLevel::Full)
                     {
-                        FString DefaultValue = Pin->DefaultValue;
-                        if (DefaultValue.IsEmpty() && Pin->DefaultObject)
+                        // Show ALL unconnected pins in full mode with direction and type info
+                        TSharedPtr<FJsonObject> PinInfo = MakeShared<FJsonObject>();
+                        PinInfo->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Input ? TEXT("input") : TEXT("output"));
+                        PinInfo->SetStringField(TEXT("type"), GetPinTypeAsString(Pin->PinType));
+
+                        // Include default value for input pins if present
+                        if (Pin->Direction == EGPD_Input)
                         {
-                            DefaultValue = Pin->DefaultObject->GetName();
+                            FString DefaultValue = Pin->DefaultValue;
+                            if (DefaultValue.IsEmpty() && Pin->DefaultObject)
+                            {
+                                DefaultValue = Pin->DefaultObject->GetName();
+                            }
+                            if (DefaultValue.IsEmpty() && !Pin->DefaultTextValue.IsEmpty())
+                            {
+                                DefaultValue = Pin->DefaultTextValue.ToString();
+                            }
+                            if (!DefaultValue.IsEmpty())
+                            {
+                                PinInfo->SetStringField(TEXT("default"), DefaultValue);
+                            }
                         }
-                        if (DefaultValue.IsEmpty() && !Pin->DefaultTextValue.IsEmpty())
-                        {
-                            DefaultValue = Pin->DefaultTextValue.ToString();
-                        }
-                        if (!DefaultValue.IsEmpty())
-                        {
-                            PinsObj->SetStringField(PinName, DefaultValue);
-                        }
+
+                        PinsObj->SetObjectField(PinName, PinInfo);
                     }
                 }
 

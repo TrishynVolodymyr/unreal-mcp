@@ -295,10 +295,18 @@ def register_umg_tools(mcp: FastMCP):
         component_name: str,
         position: List[float] = None,
         size: List[float] = None,
-        alignment: List[float] = None
+        alignment: List[float] = None,
+        horizontal_alignment: str = None,
+        vertical_alignment: str = None,
+        size_rule: str = None,
+        padding: List[float] = None
     ) -> Dict[str, object]:
         """
         Change the placement (position/size) of a widget component.
+        
+        Works with ALL container types:
+        - CanvasPanel: use position, size, alignment
+        - Overlay/HBox/VBox/SizeBox/Border: use horizontal_alignment, vertical_alignment, size_rule, padding
         
         Args:
             widget_name: Name of the target Widget Blueprint
@@ -306,19 +314,16 @@ def register_umg_tools(mcp: FastMCP):
             position: Optional [X, Y] new position in the canvas panel
             size: Optional [Width, Height] new size for the component
             alignment: Optional [X, Y] alignment values (0.0 to 1.0)
+            horizontal_alignment: Optional slot alignment - "Left", "Center", "Right", "Fill"
+            vertical_alignment: Optional slot alignment - "Top", "Center", "Bottom", "Fill"
+            size_rule: Optional slot size rule - "Auto" or "Fill" (for HBox/VBox slots)
+            padding: Optional [Left, Top, Right, Bottom] or single value for uniform padding
             
         Returns:
             Dict containing success status and updated placement information
             
         Examples:
-            # Change just the position of a component
-            set_widget_component_placement(
-                widget_name="MainMenu",
-                component_name="TitleText",
-                position=[350.0, 75.0]
-            )
-            
-            # Change both position and size
+            # CanvasPanel: Change position and size
             set_widget_component_placement(
                 widget_name="HUD",
                 component_name="HealthBar",
@@ -326,15 +331,67 @@ def register_umg_tools(mcp: FastMCP):
                 size=[250.0, 30.0]
             )
             
-            # Change alignment (center-align)
+            # Overlay: Fill entire parent
             set_widget_component_placement(
-                widget_name="Inventory",
-                component_name="ItemName",
-                alignment=[0.5, 0.5]
+                widget_name="HUD",
+                component_name="BackgroundImage",
+                horizontal_alignment="Fill",
+                vertical_alignment="Fill"
+            )
+            
+            # HBox/VBox: Fill with padding
+            set_widget_component_placement(
+                widget_name="HUD",
+                component_name="BarFill",
+                size_rule="Fill",
+                vertical_alignment="Fill",
+                padding=[4.0, 2.0, 4.0, 2.0]
             )
         """
-        # Call aliased implementation
-        return set_widget_component_placement_impl(ctx, widget_name, component_name, position, size, alignment)
+        # Handle slot properties (works for Overlay, HBox, VBox, SizeBox, Border slots)
+        slot_kwargs = {}
+        if horizontal_alignment is not None:
+            slot_kwargs["HorizontalAlignment"] = horizontal_alignment
+        if vertical_alignment is not None:
+            slot_kwargs["VerticalAlignment"] = vertical_alignment
+        if size_rule is not None:
+            slot_kwargs["SizeRule"] = size_rule
+        if padding is not None:
+            if isinstance(padding, (int, float)):
+                slot_kwargs["Padding"] = {"Left": padding, "Top": padding, "Right": padding, "Bottom": padding}
+            elif isinstance(padding, list) and len(padding) == 4:
+                slot_kwargs["Padding"] = {"Left": padding[0], "Top": padding[1], "Right": padding[2], "Bottom": padding[3]}
+            elif isinstance(padding, list) and len(padding) == 1:
+                slot_kwargs["Padding"] = {"Left": padding[0], "Top": padding[0], "Right": padding[0], "Bottom": padding[0]}
+        
+        results = {}
+        
+        # Set slot properties via set_widget_component_property (routes through C++ slot fallback)
+        if slot_kwargs:
+            slot_result = set_widget_component_property_impl(ctx, widget_name, component_name, **slot_kwargs)
+            results["slot_properties"] = slot_result
+        
+        # Set CanvasPanel placement properties (position/size/alignment)
+        if position is not None or size is not None or alignment is not None:
+            placement_result = set_widget_component_placement_impl(ctx, widget_name, component_name, position, size, alignment)
+            results["canvas_placement"] = placement_result
+        
+        # If only slot properties were set, return that result directly
+        if not (position is not None or size is not None or alignment is not None) and slot_kwargs:
+            return results.get("slot_properties", {"success": False, "error": "No properties set"})
+        
+        # If only canvas placement was set, return that result directly
+        if (position is not None or size is not None or alignment is not None) and not slot_kwargs:
+            return results.get("canvas_placement", {"success": False, "error": "No properties set"})
+        
+        # Both were set — merge results
+        return {
+            "success": True,
+            "widget_name": widget_name,
+            "component_name": component_name,
+            "results": results,
+            "message": f"Set placement for '{component_name}' in '{widget_name}'"
+        }
 
     @mcp.tool()
     def add_widget_component_to_widget(
