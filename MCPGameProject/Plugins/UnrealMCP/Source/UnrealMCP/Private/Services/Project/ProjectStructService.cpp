@@ -235,19 +235,51 @@ bool FProjectStructService::UpdateStruct(const FString& StructName, const FStrin
         FStructureEditorUtils::ChangeTooltip(ExistingStruct, Description);
     }
 
-    // Build a map of existing variables by name (extract base name without GUID)
+    // Build a map of existing variables by name (extract base name without GUID suffix)
+    // UE UserDefinedStruct variable names follow the pattern: OriginalName_Index_GUID32HEX
+    // e.g., "ColorFull_Start_2_C98BA1A740565E70FB78CE8E7AAD5266"
+    // We need to strip the trailing "_Index_GUID" to recover "ColorFull_Start"
     TMap<FString, FStructVariableDescription> ExistingVarsByName;
     auto InitialVarDescArray = FStructureEditorUtils::GetVarDesc(ExistingStruct);
     for (const FStructVariableDescription& Desc : InitialVarDescArray)
     {
         FString VarName = Desc.VarName.ToString();
-        // Extract base name (everything before the first underscore and number)
-        FString BaseName = VarName;
-        int32 UnderscoreIndex;
-        if (VarName.FindChar('_', UnderscoreIndex))
+        // Use the FriendlyName which preserves the original display name
+        FString BaseName = Desc.FriendlyName;
+        if (BaseName.IsEmpty())
         {
-            BaseName = VarName.Left(UnderscoreIndex);
+            // Fallback: strip trailing _Number_GUID32HEX pattern
+            // Find the GUID suffix: last 32 hex chars after underscore
+            int32 LastUnderscore;
+            if (VarName.FindLastChar('_', LastUnderscore) && (VarName.Len() - LastUnderscore - 1) == 32)
+            {
+                // Found GUID suffix, now strip the _Index before it too
+                FString WithoutGuid = VarName.Left(LastUnderscore);
+                int32 SecondLastUnderscore;
+                if (WithoutGuid.FindLastChar('_', SecondLastUnderscore))
+                {
+                    // Check if the part between underscores is a number (the index)
+                    FString PossibleIndex = WithoutGuid.Mid(SecondLastUnderscore + 1);
+                    if (PossibleIndex.IsNumeric())
+                    {
+                        BaseName = WithoutGuid.Left(SecondLastUnderscore);
+                    }
+                    else
+                    {
+                        BaseName = WithoutGuid;
+                    }
+                }
+                else
+                {
+                    BaseName = WithoutGuid;
+                }
+            }
+            else
+            {
+                BaseName = VarName;
+            }
         }
+        UE_LOG(LogTemp, Display, TEXT("MCP UpdateStruct: Mapped variable '%s' → BaseName '%s'"), *VarName, *BaseName);
         ExistingVarsByName.Add(BaseName, Desc);
     }
 
@@ -322,11 +354,36 @@ bool FProjectStructService::UpdateStruct(const FString& StructName, const FStrin
     for (const FStructVariableDescription& Desc : FStructureEditorUtils::GetVarDesc(ExistingStruct))
     {
         FString VarName = Desc.VarName.ToString();
-        FString BaseName = VarName;
-        int32 UnderscoreIndex;
-        if (VarName.FindChar('_', UnderscoreIndex))
+        // Use FriendlyName for matching (same logic as building the map above)
+        FString BaseName = Desc.FriendlyName;
+        if (BaseName.IsEmpty())
         {
-            BaseName = VarName.Left(UnderscoreIndex);
+            int32 LastUnderscore;
+            if (VarName.FindLastChar('_', LastUnderscore) && (VarName.Len() - LastUnderscore - 1) == 32)
+            {
+                FString WithoutGuid = VarName.Left(LastUnderscore);
+                int32 SecondLastUnderscore;
+                if (WithoutGuid.FindLastChar('_', SecondLastUnderscore))
+                {
+                    FString PossibleIndex = WithoutGuid.Mid(SecondLastUnderscore + 1);
+                    if (PossibleIndex.IsNumeric())
+                    {
+                        BaseName = WithoutGuid.Left(SecondLastUnderscore);
+                    }
+                    else
+                    {
+                        BaseName = WithoutGuid;
+                    }
+                }
+                else
+                {
+                    BaseName = WithoutGuid;
+                }
+            }
+            else
+            {
+                BaseName = VarName;
+            }
         }
 
         if (!UpdatedOrAddedNames.Contains(BaseName) && !VarName.StartsWith(TEXT("MemberVar_")))
