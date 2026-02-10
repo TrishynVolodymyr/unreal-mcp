@@ -25,5 +25,5 @@ public:
      */
     static FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, 
                                          const FString& ClassName, const FString& NodePosition, 
-                                         const FString& JsonParams);
+                                         const FString& JsonParams, const FString& TargetGraph = TEXT("EventGraph"));
 }; 

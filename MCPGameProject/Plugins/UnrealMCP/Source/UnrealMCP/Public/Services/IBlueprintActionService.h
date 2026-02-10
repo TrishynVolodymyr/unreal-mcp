@@ -70,7 +70,8 @@ public:
      * @param ClassName - Optional class name
      * @param NodePosition - Optional position in the graph
      * @param JsonParams - Additional parameters for special nodes
+     * @param TargetGraph - Target graph name (defaults to "EventGraph"). Allows placing nodes in function graphs.
      * @return JSON string containing the result
      */
-    virtual FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams) = 0;
+    virtual FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams, const FString& TargetGraph = TEXT("EventGraph")) = 0;
 };

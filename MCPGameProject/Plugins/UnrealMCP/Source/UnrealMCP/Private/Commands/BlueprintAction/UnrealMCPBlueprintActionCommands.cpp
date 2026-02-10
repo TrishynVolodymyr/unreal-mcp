@@ -114,10 +114,10 @@ FString UUnrealMCPBlueprintActionCommands::SearchBlueprintActions(const FString&
     return Service.SearchBlueprintActions(SearchQuery, Category, MaxResults, BlueprintName);
 }
 
-FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams)
+FString UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams, const FString& TargetGraph)
 {
     // Delegate to the extracted function in UnrealMCPNodeCreators
-    return UnrealMCPNodeCreators::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams);
+    return UnrealMCPNodeCreators::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams, TargetGraph);
 }
 
 

@@ -23,11 +23,12 @@ public:
      * @param ClassName - Optional class name for the function
      * @param NodePosition - Position in the graph
      * @param JsonParams - Additional parameters as JSON string
+     * @param TargetGraph - Target graph name (defaults to "EventGraph"). Allows placing nodes in function graphs.
      * @return JSON string result
      */
     FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, 
                                   const FString& ClassName, const FString& NodePosition, 
-                                  const FString& JsonParams);
+                                  const FString& JsonParams, const FString& TargetGraph = TEXT("EventGraph"));
 
 private:
     // JSON and parameter handling

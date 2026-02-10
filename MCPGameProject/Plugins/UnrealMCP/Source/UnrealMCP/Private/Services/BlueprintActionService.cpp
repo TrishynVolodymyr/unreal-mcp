@@ -26,17 +26,11 @@ FString FBlueprintActionService::GetNodePinInfo(const FString& NodeName, const F
     return UUnrealMCPBlueprintActionCommands::GetNodePinInfo(NodeName, PinName, ClassName);
 }
 
-FString FBlueprintActionService::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams)
+FString FBlueprintActionService::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams, const FString& TargetGraph)
 {
-    UE_LOG(LogTemp, Warning, TEXT("*** SERVICE LAYER PROOF ***"));
-    UE_LOG(LogTemp, Warning, TEXT("FBlueprintActionService::CreateNodeByActionName called!"));
-    UE_LOG(LogTemp, Warning, TEXT("This proves the NEW ARCHITECTURE service layer is being used!"));
-    UE_LOG(LogTemp, Warning, TEXT("Parameters: Blueprint=%s, Function=%s, Class=%s"), *BlueprintName, *FunctionName, *ClassName);
+    UE_LOG(LogTemp, Log, TEXT("FBlueprintActionService::CreateNodeByActionName: Blueprint=%s, Function=%s, Class=%s, TargetGraph=%s"), *BlueprintName, *FunctionName, *ClassName, *TargetGraph);
     
-    FString Result = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams);
-    
-    UE_LOG(LogTemp, Warning, TEXT("Service layer call completed, returning to command layer"));
-    UE_LOG(LogTemp, Warning, TEXT("*** END SERVICE LAYER PROOF ***"));
+    FString Result = UUnrealMCPBlueprintActionCommands::CreateNodeByActionName(BlueprintName, FunctionName, ClassName, NodePosition, JsonParams, TargetGraph);
     
     return Result;
 }
