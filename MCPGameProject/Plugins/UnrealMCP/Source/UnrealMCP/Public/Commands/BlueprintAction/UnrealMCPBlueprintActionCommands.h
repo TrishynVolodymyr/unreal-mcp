@@ -75,6 +75,6 @@ public:
      * @return JSON string containing node creation result
      */
     UFUNCTION(BlueprintCallable, Category = "Unreal MCP Blueprint Actions")
-    static FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName = TEXT(""), const FString& NodePosition = TEXT(""), const FString& JsonParams = TEXT(""));
+    static FString CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName = TEXT(""), const FString& NodePosition = TEXT(""), const FString& JsonParams = TEXT(""), const FString& TargetGraph = TEXT("EventGraph"));
 
 }; 

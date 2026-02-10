@@ -14,18 +14,12 @@ FCreateNodeByActionNameCommand::FCreateNodeByActionNameCommand(TSharedPtr<IBluep
 
 FString FCreateNodeByActionNameCommand::Execute(const FString& Parameters)
 {
-    UE_LOG(LogTemp, Warning, TEXT("=== NEW ARCHITECTURE PROOF ==="));
-    UE_LOG(LogTemp, Warning, TEXT("FCreateNodeByActionNameCommand::Execute: NEW ARCHITECTURE COMMAND CALLED!"));
-    UE_LOG(LogTemp, Warning, TEXT("Using service layer delegation instead of direct legacy calls"));
-    
     if (!BlueprintActionService.IsValid())
     {
-        UE_LOG(LogTemp, Error, TEXT("NEW ARCHITECTURE: BlueprintActionService is not valid!"));
+        UE_LOG(LogTemp, Error, TEXT("CreateNodeByActionNameCommand: BlueprintActionService is not valid!"));
         FMCPError Error = FMCPErrorHandler::CreateInternalError(TEXT("Blueprint action service is not available"));
         return FMCPErrorHandler::CreateStructuredErrorResponse(Error);
     }
-    
-    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: BlueprintActionService is valid, proceeding with service call"));
 
     // Parse JSON parameters
     TSharedPtr<FJsonObject> JsonObject;
@@ -58,18 +52,13 @@ FString FCreateNodeByActionNameCommand::Execute(const FString& Parameters)
     FString TargetGraph = JsonObject->GetStringField(TEXT("target_graph"));
     FString JsonParams = JsonObject->GetStringField(TEXT("json_params"));
 
-    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: About to call BlueprintActionService->CreateNodeByActionName()"));
-    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: Parameters - BlueprintName=%s, FunctionName=%s, ClassName=%s"), 
-           *BlueprintName, *FunctionName, *ClassName);
+    UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionNameCommand: BlueprintName=%s, FunctionName=%s, ClassName=%s, TargetGraph=%s"), 
+           *BlueprintName, *FunctionName, *ClassName, *TargetGraph);
 
-    // Use the service layer to create the node - THIS IS THE NEW ARCHITECTURE!
-    // The service handles all validation including Blueprint existence check
+    // Pass TargetGraph explicitly through the entire service chain
     FString Result = BlueprintActionService->CreateNodeByActionName(
-        BlueprintName, FunctionName, ClassName, NodePosition, JsonParams
+        BlueprintName, FunctionName, ClassName, NodePosition, JsonParams, TargetGraph
     );
-    
-    UE_LOG(LogTemp, Warning, TEXT("NEW ARCHITECTURE: Service call completed, returning result"));
-    UE_LOG(LogTemp, Warning, TEXT("=== END NEW ARCHITECTURE PROOF ==="));
     
     // The service already returns a properly formatted JSON response
     return Result;

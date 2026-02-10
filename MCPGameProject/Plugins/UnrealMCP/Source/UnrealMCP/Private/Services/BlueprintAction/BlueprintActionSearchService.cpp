@@ -479,32 +479,32 @@ FString FBlueprintActionSearchService::SearchBlueprintActions(
             if (bMatchesSearch)
             {
                 UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: MATCHED operator '%s' for search '%s'"), *OpNameString, *SearchLower);
-                // Get the spawner for this operator
-                UBlueprintFunctionNodeSpawner* OperatorSpawner = FTypePromotion::GetOperatorSpawner(OpName);
-                if (OperatorSpawner)
+                // Get additional information about the operator
+                // NOTE: GetOperatorSpawner may return null if TypePromotion spawner map isn't populated
+                // (happens when no Blueprint Editor context menu has been built yet).
+                // We still add the operator to results because ArithmeticNodeCreator has its own
+                // fallback that creates UK2Node_PromotableOperator directly without a spawner.
+                FText UserFacingName = FTypePromotion::GetUserFacingOperatorName(OpName);
+                
+                TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+                ActionObj->SetStringField(TEXT("title"), UserFacingName.IsEmpty() ? OpNameString : UserFacingName.ToString());
+                // Determine if this is a comparison operator
+                bool bIsComparisonOp = FTypePromotion::IsComparisonOpName(OpName);
+                FString OperatorType = bIsComparisonOp ? TEXT("Comparison operator") : TEXT("Mathematical operator");
+                ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("%s: %s (wildcard — accepts any numeric type)"), *OperatorType, UserFacingName.IsEmpty() ? *OpNameString : *UserFacingName.ToString()));
+                ActionObj->SetStringField(TEXT("category"), TEXT("Utilities|Operators"));
+                // function_name is what create_node_by_action_name expects — ArithmeticNodeCreator handles the rest
+                ActionObj->SetStringField(TEXT("function_name"), OpNameString);
+                ActionObj->SetBoolField(TEXT("is_promotable_operator"), true);
+                
+                ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
+                
+                UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Added %s operator: %s"), bIsComparisonOp ? TEXT("comparison") : TEXT("mathematical"), *OpNameString);
+                
+                // Limit results
+                if (ActionsArray.Num() >= MaxResults)
                 {
-                    // Get additional information about the operator
-                    FText UserFacingName = FTypePromotion::GetUserFacingOperatorName(OpName);
-                    
-                    TSharedPtr<FJsonObject> ActionObj = MakeShared<FJsonObject>();
-                    ActionObj->SetStringField(TEXT("title"), UserFacingName.IsEmpty() ? OpNameString : UserFacingName.ToString());
-                    // Determine if this is a comparison operator
-                    bool bIsComparisonOp = FTypePromotion::IsComparisonOpName(OpName);
-                    FString OperatorType = bIsComparisonOp ? TEXT("Comparison operator") : TEXT("Mathematical operator");
-                    ActionObj->SetStringField(TEXT("tooltip"), FString::Printf(TEXT("%s: %s"), *OperatorType, UserFacingName.IsEmpty() ? *OpNameString : *UserFacingName.ToString()));
-                    ActionObj->SetStringField(TEXT("category"), TEXT("Utilities|Operators"));
-                    // ADD FUNCTION_NAME for operators - this is what create_node_by_action_name expects!
-                    ActionObj->SetStringField(TEXT("function_name"), OpNameString);
-                    
-                    ActionsArray.Add(MakeShared<FJsonValueObject>(ActionObj));
-                    
-                    UE_LOG(LogTemp, Warning, TEXT("SearchBlueprintActions: Prioritized %s operator: %s"), bIsComparisonOp ? TEXT("comparison") : TEXT("mathematical"), *OpNameString);
-                    
-                    // Limit results
-                    if (ActionsArray.Num() >= MaxResults)
-                    {
-                        goto EndSearch;
-                    }
+                    goto EndSearch;
                 }
             }
         }

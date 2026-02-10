@@ -26,9 +26,9 @@ FBlueprintNodeCreationService::FBlueprintNodeCreationService()
 {
 }
 
-FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams)
+FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& BlueprintName, const FString& FunctionName, const FString& ClassName, const FString& NodePosition, const FString& JsonParams, const FString& TargetGraph)
 {
-    UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService::CreateNodeByActionName ENTRY: Blueprint='%s', Function='%s', ClassName='%s'"), *BlueprintName, *FunctionName, *ClassName);
+    UE_LOG(LogTemp, Warning, TEXT("FBlueprintNodeCreationService::CreateNodeByActionName ENTRY: Blueprint='%s', Function='%s', ClassName='%s', TargetGraph='%s'"), *BlueprintName, *FunctionName, *ClassName, *TargetGraph);
     
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     
@@ -74,18 +74,20 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
         return FNodeResultBuilder::BuildNodeResult(false, FString::Printf(TEXT("Blueprint '%s' not found"), *BlueprintName));
     }
     
-    // Get the event graph
-    // Determine which graph we should place the node in. By default we still use the main
-    // EventGraph, but callers can specify a custom graph name (e.g., a function graph)
-    // through the optional "target_graph" field either in the top-level parameters or
-    // inside the JsonParams object.  This lets external tools create nodes inside
-    // Blueprint functions like "GetLine" / "GetSpeaker" rather than being limited to
-    // the EventGraph.
+    // Get the target graph
+    // Priority: 1) Explicit TargetGraph parameter (from command layer)
+    //           2) "target_graph" inside JsonParams (legacy/fallback)
+    //           3) Default "EventGraph"
 
     FString TargetGraphName = TEXT("EventGraph");
 
-    // Check if the parameter was provided at the top level (maintaining backward compat)
-    if (ParamsObject.IsValid())
+    // Priority 1: Explicit parameter from command layer
+    if (!TargetGraph.IsEmpty() && !TargetGraph.Equals(TEXT("EventGraph"), ESearchCase::IgnoreCase))
+    {
+        TargetGraphName = TargetGraph;
+    }
+    // Priority 2: Fallback to json_params (backward compatibility)
+    else if (ParamsObject.IsValid())
     {
         FString TempGraphName;
         if (ParamsObject->TryGetStringField(TEXT("target_graph"), TempGraphName) && !TempGraphName.IsEmpty())
