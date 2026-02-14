@@ -13,6 +13,7 @@
 #include "Commands/AnimationCommandRegistration.h"
 #include "Commands/StateTreeCommandRegistration.h"
 #include "Commands/SoundCommandRegistration.h"
+#include "Commands/PCGCommandRegistration.h"
 #include "Services/BlueprintActionService.h"
 // Legacy adapter removed
 #include "Services/BlueprintService.h"
@@ -129,6 +130,9 @@ void FUnrealMCPMainDispatcher::RegisterAllCommands()
   
     // Register Sound/Audio commands
     FSoundCommandRegistration::RegisterAllCommands();
+
+    // Register PCG (Procedural Content Generation) commands
+    FPCGCommandRegistration::RegisterAllCommands();
 
     UE_LOG(LogTemp, Log, TEXT("FUnrealMCPMainDispatcher::RegisterAllCommands: All command types registered"));
 }

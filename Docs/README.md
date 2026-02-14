@@ -101,6 +101,16 @@ Manage structured game data, create tables, and perform CRUD operations
 - Map properties using GUID automation
 - List row names and struct fields
 
+### 🌿 [PCG Tools](PCG-Tools.md)
+Create and execute Procedural Content Generation graphs for procedural world-building
+- Create PCG Graph assets with optional templates
+- Add, connect, and configure PCG nodes (195+ node types)
+- Search the PCG palette for available node types
+- Set node properties using UE reflection
+- Spawn actors with PCG components and assigned graphs
+- Execute PCG generation on demand
+- Inspect full graph structure: nodes, pins, connections, settings
+
 ### 📁 [Project Tools](Project-Tools.md)
 Organize projects, manage input systems, create structs, and handle project structure
 - Create and organize content folders
@@ -137,6 +147,12 @@ Organize projects, manage input systems, create structs, and handle project stru
 1. Learn [Material Tools](Material-Tools.md) for material instances and parameters
 2. Master [Niagara Tools](Niagara-Tools.md) for particle effects
 3. Combine materials with Niagara for polished VFX
+
+### For Procedural Content
+1. Start with [PCG Tools](PCG-Tools.md) for graph creation
+2. Search node types to discover available PCG building blocks
+3. Build procedural pipelines (sample → filter → spawn)
+4. Execute graphs in-editor for rapid iteration
 
 ### For Animation
 1. Start with [Animation Tools](Animation-Tools.md) for Animation Blueprints
