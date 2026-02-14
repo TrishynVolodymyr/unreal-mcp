@@ -60,6 +60,7 @@ For complex features requiring multiple specialized skills, you can use the **pr
 | UI/UX | umg-widget-designer |
 | Audio | metasound-sound-designer |
 | Procedural | pcg-graph-architect |
+| AI Behavior | statetree-ai-architect |
 | Analysis | blueprint-linter, ue-log-analyst, crash-investigator |
 | State Capture | asset-state-extractor |
 
