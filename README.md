@@ -96,6 +96,49 @@ Design user interfaces with Widget Blueprints:
 - Capture widget screenshots for AI visual inspection
 - Export enhanced JSON metadata for widget layouts
 
+### 🎨 Material Creation
+Create and edit materials with node-based graphs:
+- Create materials with configurable domains and blend modes
+- Add and connect material expressions (textures, math, parameters)
+- Create Material Instances with parameter overrides
+- Configure PBR properties (base color, roughness, metallic, normal maps)
+- Custom HLSL expression support
+
+### ✨ Niagara VFX
+Build particle effects and visual systems:
+- Create Niagara Systems and Emitters
+- Add and configure modules (spawn, update, render)
+- Set module parameters (floats, vectors, curves, enums)
+- GPU and CPU particle simulation
+- Sprite, mesh, and ribbon renderers
+
+### 🔊 Sound Design (MetaSounds)
+Create procedural audio with MetaSound graphs:
+- Create MetaSound sources and patches
+- Add and connect audio nodes (oscillators, filters, envelopes)
+- Configure audio parameters and triggers
+- Procedural sound effects and ambient audio
+
+### 🎭 Animation
+Work with animation assets and Blueprints:
+- Create and manage Animation Blueprints
+- Configure state machines and blend spaces
+- Set up animation montages and notifies
+- Animation layer and pose blending
+
+### 🔤 Font Tools
+Generate and manage fonts for UI:
+- Create runtime font assets
+- Configure font families and styles
+- Import and manage typefaces
+
+### 🌳 StateTree AI
+Design AI behavior with StateTree system:
+- Create StateTree assets with custom schemas
+- Add states, transitions, and evaluators
+- Configure tasks and conditions
+- Property bindings and target bindings
+
 ### 📊 Data Management
 Structure and manage game data efficiently:
 - Create DataTables with custom row structs
@@ -139,6 +182,12 @@ Comprehensive guides for all tool categories:
 - **[UMG Tools](Docs/UMG-Tools.md)** - Creating user interfaces and interactive UI elements
 - **[DataTable Tools](Docs/DataTable-Tools.md)** - Managing structured game data and tables
 - **[Project Tools](Docs/Project-Tools.md)** - Organizing projects, input systems, and structs
+- **[Material Tools](Docs/Material-Tools.md)** - Creating materials, expressions, and Material Instances
+- **[Niagara Tools](Docs/Niagara-Tools.md)** - Building particle effects and VFX systems
+- **[Sound Tools](Docs/Sound-Tools.md)** - MetaSound procedural audio design
+- **[Animation Tools](Docs/Animation-Tools.md)** - Animation Blueprints, state machines, and montages
+- **[Font Tools](Docs/Font-Tools.md)** - Font generation and management
+- **[StateTree Tools](Docs/StateTree-Tools.md)** - AI behavior design with StateTree
 
 Each guide includes natural language usage examples, advanced patterns, and real-world workflows.
 
@@ -149,7 +198,7 @@ The project uses a **dual-component synchronized architecture** enabling natural
 ```
 AI Assistant (Claude/Cursor/Windsurf)
     ↓ [MCP Protocol]
-Python MCP Servers (7 specialized FastMCP servers)
+Python MCP Servers (13 specialized FastMCP servers)
     ↓ [TCP/JSON on localhost:55557]
 C++ Plugin (UnrealMCP EditorSubsystem)
     ↓ [Direct Unreal Engine API]
@@ -166,7 +215,7 @@ Unreal Engine 5.7 Editor
 - **Modular Architecture** with strict 1000-line file size limit for maintainability
 
 **Python MCP Servers** ([Python/](Python/))
-- **7 Specialized Servers**: blueprint, editor, umg, node, datatable, project, blueprint_action
+- **13 Specialized Servers**: blueprint, editor, umg, node, datatable, project, blueprint_action, material, niagara, sound, animation, font, statetree
 - Each server has dedicated tool implementations in `*_tools/` folders
 - Shared utilities for TCP communication, Blueprint operations, UMG, and more
 - FastMCP-based implementation of Model Context Protocol
@@ -201,6 +250,12 @@ unreal-mcp/
 │   ├── datatable_mcp_server.py       # DataTable tools server
 │   ├── project_mcp_server.py         # Project tools server
 │   ├── blueprint_action_mcp_server.py # Blueprint action discovery server
+│   ├── material_mcp_server.py        # Material creation server
+│   ├── niagara_mcp_server.py         # Niagara VFX server
+│   ├── sound_mcp_server.py           # MetaSound audio server
+│   ├── animation_mcp_server.py       # Animation Blueprint server
+│   ├── font_mcp_server.py            # Font tools server
+│   ├── statetree_mcp_server.py       # StateTree AI server
 │   ├── *_tools/                      # Tool implementations
 │   ├── utils/                        # Shared utilities
 │   └── scripts/                      # Test scripts
@@ -318,7 +373,7 @@ For more details, see [Python/README.md](Python/README.md).
 
 ### Configure Your MCP Client
 
-The 7 MCP servers need to be configured in your AI assistant. Below is the configuration template - **adjust the path** to match your installation directory.
+The 13 MCP servers need to be configured in your AI assistant. Below is the configuration template - **adjust the path** to match your installation directory.
 
 #### Configuration Template
 
@@ -352,6 +407,30 @@ The 7 MCP servers need to be configured in your AI assistant. Below is the confi
     "blueprintActionMCP": {
       "command": "uv",
       "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "blueprint_action_mcp_server.py"]
+    },
+    "materialMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "material_mcp_server.py"]
+    },
+    "niagaraMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "niagara_mcp_server.py"]
+    },
+    "soundMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "sound_mcp_server.py"]
+    },
+    "animationMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "animation_mcp_server.py"]
+    },
+    "fontMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "font_mcp_server.py"]
+    },
+    "statetreeMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "statetree_mcp_server.py"]
     }
   }
 }
@@ -424,14 +503,19 @@ See the [Documentation](Docs/README.md) for comprehensive examples and advanced 
 
 ## 🆕 Recent Improvements
 
-The project has undergone significant refactoring for improved maintainability and performance:
+The project has undergone significant expansion and refactoring:
 
-- **Service Layer Modularization**: Large service files split into focused, specialized classes (Blueprint, UMG, Node services)
-- **Node Creation Strategy Pattern**: Separate creator classes for different node types with intelligent action database integration
-- **Enhanced UMG Features**: Widget screenshot capture for AI visual inspection, enhanced JSON metadata export for layouts
-- **Graph Manipulation**: Smart node replacement with automatic connection preservation and type casting
+- **13 MCP Servers**: Expanded from 7 to 13 specialized servers covering Blueprint, Editor, UMG, Node, DataTable, Project, Blueprint Action, Material, Niagara, Sound, Animation, Font, and StateTree
+- **Material System**: Full material graph creation, expression connections, Material Instances, custom HLSL, configurable domains and blend modes
+- **Niagara VFX**: Complete particle system creation with emitters, modules, GPU/CPU sim, and parameter configuration
+- **MetaSound Audio**: Procedural audio graph creation with oscillators, filters, envelopes, and triggers
+- **Animation Blueprints**: State machines, blend spaces, montages, and animation layers
+- **StateTree AI**: Full StateTree asset creation with states, transitions, evaluators, tasks, and property bindings (contributed by [asseti6](https://github.com/asseti6))
+- **Service Layer Modularization**: Large service files split into focused, specialized classes
+- **Node Creation Strategy Pattern**: Separate creator classes with intelligent action database integration
+- **Connection Validation**: Schema-based connection validation replacing low-level MakeLinkTo (prevents phantom connections)
+- **Override Event Detection**: Automatic routing of standard events (ReceiveTick, BeginPlay, etc.) to proper UK2Node_Event nodes
 - **Strict File Size Limits**: Maximum 1000 lines per C++ file for better code organization
-- **Blueprint Action Discovery**: Dynamic action database querying for intelligent node creation
 
 ## 🤝 Contributing
 
@@ -486,7 +570,7 @@ This is a fork and continuation of the original [unreal-mcp](https://github.com/
 **Note:** The original project indicated MIT License in its README. This fork formally adopts and continues under the MIT License with proper attribution to the original author.
 
 ### Contributors
-- **[asseti6](https://github.com/asseti6)** - Animation Blueprint support, batch actor operations, enhanced Material Instance tools, Niagara parameter helpers, DataAsset tools, runtime help system, StateTree AI system MCP module
+- **[asseti6](https://github.com/asseti6)** - Animation Blueprint MCP module, batch actor operations, enhanced Material Instance tools, Niagara parameter helpers, DataAsset tools, runtime help system, StateTree AI system MCP module
 
 ### Built With
 - [FastMCP](https://github.com/anthropics/fastmcp) - Python MCP framework by Anthropic
