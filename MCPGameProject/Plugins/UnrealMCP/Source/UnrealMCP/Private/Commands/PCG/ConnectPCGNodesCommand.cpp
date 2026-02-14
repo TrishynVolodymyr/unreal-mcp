@@ -9,29 +9,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "UObject/SavePackage.h"
 #include "Utils/PCGEditorRefreshUtils.h"
-
-namespace
-{
-    UPCGNode* FindNodeByName(UPCGGraph* Graph, const FString& NodeName)
-    {
-        if (Graph->GetInputNode() && Graph->GetInputNode()->GetName() == NodeName)
-        {
-            return Graph->GetInputNode();
-        }
-        if (Graph->GetOutputNode() && Graph->GetOutputNode()->GetName() == NodeName)
-        {
-            return Graph->GetOutputNode();
-        }
-        for (UPCGNode* Node : Graph->GetNodes())
-        {
-            if (Node && Node->GetName() == NodeName)
-            {
-                return Node;
-            }
-        }
-        return nullptr;
-    }
-}
+#include "Utils/PCGNodeUtils.h"
 
 FConnectPCGNodesCommand::FConnectPCGNodesCommand()
 {
@@ -81,14 +59,14 @@ FString FConnectPCGNodesCommand::Execute(const FString& Parameters)
     }
 
     // Find source node
-    UPCGNode* SourceNode = FindNodeByName(Graph, SourceNodeId);
+    UPCGNode* SourceNode = PCGNodeUtils::FindNodeByName(Graph, SourceNodeId);
     if (!SourceNode)
     {
         return CreateErrorResponse(FString::Printf(TEXT("Source node not found: %s"), *SourceNodeId));
     }
 
     // Find target node
-    UPCGNode* TargetNode = FindNodeByName(Graph, TargetNodeId);
+    UPCGNode* TargetNode = PCGNodeUtils::FindNodeByName(Graph, TargetNodeId);
     if (!TargetNode)
     {
         return CreateErrorResponse(FString::Printf(TEXT("Target node not found: %s"), *TargetNodeId));

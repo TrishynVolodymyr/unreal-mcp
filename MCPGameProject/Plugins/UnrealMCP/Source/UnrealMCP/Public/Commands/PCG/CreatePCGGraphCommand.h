@@ -16,7 +16,7 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
-    bool ParseParameters(const FString& JsonString, FString& OutName, FString& OutPath, FString& OutError) const;
-    FString CreateSuccessResponse(const FString& GraphPath) const;
+    bool ParseParameters(const FString& JsonString, FString& OutName, FString& OutPath, FString& OutTemplateName, FString& OutError) const;
+    FString CreateSuccessResponse(const FString& GraphPath, const FString& TemplateName = TEXT("")) const;
     FString CreateErrorResponse(const FString& ErrorMessage) const;
 };

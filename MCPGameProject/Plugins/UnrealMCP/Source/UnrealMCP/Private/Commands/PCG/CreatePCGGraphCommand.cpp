@@ -10,9 +10,10 @@ FString FCreatePCGGraphCommand::Execute(const FString& Parameters)
 {
     FString Name;
     FString Path;
+    FString TemplateName;
     FString Error;
 
-    if (!ParseParameters(Parameters, Name, Path, Error))
+    if (!ParseParameters(Parameters, Name, Path, TemplateName, Error))
     {
         return CreateErrorResponse(Error);
     }
@@ -28,8 +29,48 @@ FString FCreatePCGGraphCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(FString::Printf(TEXT("Failed to create package at %s"), *PackagePath));
     }
 
-    // Create the PCG Graph - constructor auto-creates InputNode and OutputNode
-    UPCGGraph* Graph = NewObject<UPCGGraph>(Package, UPCGGraph::StaticClass(), FName(*Name), RF_Public | RF_Standalone);
+    UPCGGraph* Graph = nullptr;
+
+    if (!TemplateName.IsEmpty())
+    {
+        // Find the template graph by name in the asset registry
+        FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+        IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+        UPCGGraph* TemplateGraph = nullptr;
+
+        // Search all PCG Graph assets for one matching the template name
+        TArray<FAssetData> AllPCGGraphs;
+        AssetRegistry.GetAssetsByClass(UPCGGraph::StaticClass()->GetClassPathName(), AllPCGGraphs, /*bSearchSubClasses=*/true);
+
+        for (const FAssetData& AssetData : AllPCGGraphs)
+        {
+            FString AssetName = AssetData.AssetName.ToString();
+            if (AssetName.Equals(TemplateName, ESearchCase::IgnoreCase))
+            {
+                TemplateGraph = Cast<UPCGGraph>(AssetData.GetAsset());
+                break;
+            }
+        }
+
+        if (!TemplateGraph)
+        {
+            return CreateErrorResponse(FString::Printf(TEXT("Template not found: %s"), *TemplateName));
+        }
+
+        // Duplicate the template graph (same as UE's PCGGraphFactory)
+        Graph = Cast<UPCGGraph>(StaticDuplicateObject(TemplateGraph, Package, FName(*Name), RF_Public | RF_Standalone));
+        if (Graph)
+        {
+            Graph->bIsTemplate = false;
+        }
+    }
+    else
+    {
+        // Create empty PCG Graph - constructor auto-creates InputNode and OutputNode
+        Graph = NewObject<UPCGGraph>(Package, UPCGGraph::StaticClass(), FName(*Name), RF_Public | RF_Standalone);
+    }
+
     if (!Graph)
     {
         return CreateErrorResponse(TEXT("Failed to create PCG Graph object"));
@@ -50,7 +91,7 @@ FString FCreatePCGGraphCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(FString::Printf(TEXT("Failed to save package at %s"), *PackageFileName));
     }
 
-    return CreateSuccessResponse(FullPath);
+    return CreateSuccessResponse(FullPath, TemplateName);
 }
 
 FString FCreatePCGGraphCommand::GetCommandName() const
@@ -60,13 +101,12 @@ FString FCreatePCGGraphCommand::GetCommandName() const
 
 bool FCreatePCGGraphCommand::ValidateParams(const FString& Parameters) const
 {
-    FString Name;
-    FString Path;
+    FString Name, Path, Template;
     FString Error;
-    return ParseParameters(Parameters, Name, Path, Error);
+    return ParseParameters(Parameters, Name, Path, Template, Error);
 }
 
-bool FCreatePCGGraphCommand::ParseParameters(const FString& JsonString, FString& OutName, FString& OutPath, FString& OutError) const
+bool FCreatePCGGraphCommand::ParseParameters(const FString& JsonString, FString& OutName, FString& OutPath, FString& OutTemplateName, FString& OutError) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -89,15 +129,27 @@ bool FCreatePCGGraphCommand::ParseParameters(const FString& JsonString, FString&
         OutPath = TEXT("/Game/PCG");
     }
 
+    // Optional template name (e.g. "TPL_Showcase_SimpleForest", "_Default_Loop")
+    JsonObject->TryGetStringField(TEXT("template"), OutTemplateName);
+
     return true;
 }
 
-FString FCreatePCGGraphCommand::CreateSuccessResponse(const FString& GraphPath) const
+FString FCreatePCGGraphCommand::CreateSuccessResponse(const FString& GraphPath, const FString& TemplateName) const
 {
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
     ResponseObj->SetStringField(TEXT("graph_path"), GraphPath);
-    ResponseObj->SetStringField(TEXT("message"), TEXT("Created PCG Graph with Input and Output nodes"));
+
+    if (TemplateName.IsEmpty())
+    {
+        ResponseObj->SetStringField(TEXT("message"), TEXT("Created PCG Graph with Input and Output nodes"));
+    }
+    else
+    {
+        ResponseObj->SetStringField(TEXT("message"), FString::Printf(TEXT("Created PCG Graph from template '%s'"), *TemplateName));
+        ResponseObj->SetStringField(TEXT("template"), TemplateName);
+    }
 
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

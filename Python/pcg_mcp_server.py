@@ -61,23 +61,33 @@ async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[st
 @app.tool()
 async def create_pcg_graph(
     name: str,
-    path: str = "/Game/PCG"
+    path: str = "/Game/PCG",
+    template: str = ""
 ) -> dict:
-    """Create a new PCG Graph asset.
+    """Create a new PCG Graph asset, optionally from a template.
 
-    Creates a PCG Graph with default Input and Output nodes.
+    Without template: creates an empty graph with Input and Output nodes.
+    With template: duplicates a built-in or custom template graph.
+
+    Built-in templates include:
+    - _Default_EmptyGraph, _Default_Loop, _Default_LoopFeedback
+    - TPL_Sampler_Volume, TPL_Sampler_Spline, TPL_Sampler_Texture
+    - TPL_Showcase_SimpleForest, TPL_Showcase_HierarchicalGenerationForest
+    - TPL_Showcase_RuntimeGrassGPU, TPL_Showcase_ShapeGrammar
+    Use search_pcg_palette() with templates or check Content Browser for full list.
 
     Args:
         name: Name of the PCG Graph asset (e.g., "PCG_ForestScatter")
         path: Content Browser folder path (default: "/Game/PCG")
+        template: Optional template name (e.g., "TPL_Showcase_SimpleForest")
 
     Returns:
         Dict with graph_path and success status
     """
-    return await send_tcp_command("create_pcg_graph", {
-        "name": name,
-        "path": path
-    })
+    params = {"name": name, "path": path}
+    if template:
+        params["template"] = template
+    return await send_tcp_command("create_pcg_graph", params)
 
 
 @app.tool()

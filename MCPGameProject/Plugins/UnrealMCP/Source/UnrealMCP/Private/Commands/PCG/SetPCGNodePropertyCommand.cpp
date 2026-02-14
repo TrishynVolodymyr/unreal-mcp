@@ -8,29 +8,7 @@
 #include "Serialization/JsonWriter.h"
 #include "UObject/SavePackage.h"
 #include "Utils/PCGEditorRefreshUtils.h"
-
-namespace
-{
-    UPCGNode* FindNodeByName(UPCGGraph* Graph, const FString& NodeName)
-    {
-        if (Graph->GetInputNode() && Graph->GetInputNode()->GetName() == NodeName)
-        {
-            return Graph->GetInputNode();
-        }
-        if (Graph->GetOutputNode() && Graph->GetOutputNode()->GetName() == NodeName)
-        {
-            return Graph->GetOutputNode();
-        }
-        for (UPCGNode* Node : Graph->GetNodes())
-        {
-            if (Node && Node->GetName() == NodeName)
-            {
-                return Node;
-            }
-        }
-        return nullptr;
-    }
-}
+#include "Utils/PCGNodeUtils.h"
 
 FSetPCGNodePropertyCommand::FSetPCGNodePropertyCommand()
 {
@@ -79,7 +57,7 @@ FString FSetPCGNodePropertyCommand::Execute(const FString& Parameters)
     }
 
     // Find the node
-    UPCGNode* Node = FindNodeByName(Graph, NodeId);
+    UPCGNode* Node = PCGNodeUtils::FindNodeByName(Graph, NodeId);
     if (!Node)
     {
         return CreateErrorResponse(FString::Printf(TEXT("Node not found: %s"), *NodeId));
