@@ -59,7 +59,6 @@ For complex features requiring multiple specialized skills, you can use the **pr
 | Implementation | niagara-vfx-architect, unreal-mcp-materials, unreal-mcp-architect |
 | UI/UX | umg-widget-designer |
 | Audio | metasound-sound-designer |
-| Procedural | pcg-graph-architect |
 | Analysis | blueprint-linter, ue-log-analyst, crash-investigator |
 | State Capture | asset-state-extractor |
 
