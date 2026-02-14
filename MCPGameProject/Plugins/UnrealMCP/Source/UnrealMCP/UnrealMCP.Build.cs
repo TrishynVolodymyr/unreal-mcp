@@ -52,6 +52,9 @@ public class UnrealMCP : ModuleRules
 		{
 			PrivateIncludePaths.Add(MetasoundEditorPrivatePath);
 		}
+
+		// PCGEditor private headers not included — ReconstructGraph() is not exported.
+		// Instead using close+reopen approach via UAssetEditorSubsystem.
 		
 		PublicDependencyModuleNames.AddRange(
 			new string[]
@@ -132,7 +135,9 @@ public class UnrealMCP : ModuleRules
 					// StateTree AI support
 					"StateTreeModule",         // Core StateTree runtime
 					"StateTreeEditorModule",   // StateTree editor utilities (factories, compilation)
-					"PropertyBindingUtils"     // Property binding path utilities
+					"PropertyBindingUtils",    // Property binding path utilities
+					// PCG (Procedural Content Generation) support
+					"PCG"                      // Core PCG runtime (graphs, nodes, elements)
 				}
 			);
 		}
