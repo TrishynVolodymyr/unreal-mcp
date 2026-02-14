@@ -51,6 +51,9 @@ public:
      */
     bool ConvertStringToPinType(const FString& TypeString, FEdGraphPinType& OutPinType) const;
 
+    /** Invalidate the internal metadata cache for a specific blueprint */
+    void InvalidateBlueprintCache(const FString& BlueprintName);
+
 private:
     /** Private constructor for singleton pattern */
     FBlueprintService();

@@ -102,62 +102,42 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
         return CreateErrorResponse(TEXT("Failed to create function graph"));
     }
     
-    // Use the proper method to add a user-defined function (like the Blueprint editor does)
-    Blueprint->FunctionGraphs.Add(FuncGraph);
+    // Use the proper UE API to add the function graph — handles pure/impure setup,
+    // graph flags, and creates the Entry node automatically.
+    FBlueprintEditorUtils::AddFunctionGraph<UClass>(Blueprint, FuncGraph, bIsPure, nullptr);
     
-    // CRITICAL: Set the graph as user-defined to make it editable
-    FuncGraph->bEditable = true;
+    // Graph editability flags (AddFunctionGraph sets some, but ensure all are set)
     FuncGraph->bAllowDeletion = true;
     FuncGraph->bAllowRenaming = true;
     
-    // Mark the graph as a user-defined function graph (this is key for editability)
-    FuncGraph->GraphGuid = FGuid::NewGuid();
-    
-    // Create function entry node manually (like Blueprint editor does)
-    UK2Node_FunctionEntry* EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
-    FuncGraph->AddNode(EntryNode, true, true);
-    
-    // Create function result node for non-pure functions
-    UK2Node_FunctionResult* ResultNode = nullptr;
-    if (!bIsPure)
+    // Find the Entry node created by AddFunctionGraph
+    UK2Node_FunctionEntry* EntryNode = nullptr;
+    for (UEdGraphNode* Node : FuncGraph->Nodes)
     {
-        ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
-        FuncGraph->AddNode(ResultNode, true, true);
-        ResultNode->NodePosX = 400;
-        ResultNode->NodePosY = 0;
+        if (UK2Node_FunctionEntry* Entry = Cast<UK2Node_FunctionEntry>(Node))
+        {
+            EntryNode = Entry;
+            break;
+        }
     }
     
-    // Position the entry node
-    EntryNode->NodePosX = 0;
-    EntryNode->NodePosY = 0;
-    
-    // Set up the function signature properly
-    EntryNode->CustomGeneratedFunctionName = FName(*FunctionName);
-    EntryNode->bIsEditable = true;
-    
-    // Set function flags
-    uint32 FunctionFlags = FUNC_BlueprintCallable;
-    if (bIsPure)
+    if (!EntryNode)
     {
-        FunctionFlags |= FUNC_BlueprintPure;
+        return CreateErrorResponse(FString::Printf(TEXT("AddFunctionGraph did not create Entry node for '%s'"), *FunctionName));
     }
-    EntryNode->SetExtraFlags(FunctionFlags);
     
-    // Set metadata to ensure the function is properly editable
-    EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_CallInEditor, FString(TEXT("true")));
-    EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_BlueprintInternalUseOnly, FString(TEXT("false")));
+    // ALWAYS create a function result node — even for pure functions.
+    // Pure functions still need internal exec flow (Entry→Return) for member variable access.
+    UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
+    FuncGraph->AddNode(ResultNode, false, false);
+    ResultNode->NodePosX = 400;
+    ResultNode->NodePosY = 0;
     
     // Set category metadata if provided
     if (!Category.IsEmpty() && Category != TEXT("Default"))
     {
         EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_FunctionCategory, Category);
     }
-    
-    // CRITICAL: Mark the entry node as user-defined
-    EntryNode->bCanRenameNode = true;
-    
-    // Ensure the function entry node is properly configured
-    // Note: Function entry nodes are automatically configured by the Blueprint system
     
     // Clear any existing user defined pins to avoid duplicates
     EntryNode->UserDefinedPins.Empty();
@@ -199,25 +179,13 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
     const TArray<TSharedPtr<FJsonValue>>* OutputsArray = nullptr;
     if (JsonObject->TryGetArrayField(TEXT("outputs"), OutputsArray))
     {
-        // Use the result node we created earlier, or create one if pure function has outputs
-        if (!ResultNode && OutputsArray->Num() > 0)
-        {
-            ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
-            FuncGraph->AddNode(ResultNode, true, true);
-            ResultNode->NodePosX = 400;
-            ResultNode->NodePosY = 0;
-        }
-        
-        if (ResultNode)
-        {
-            // Clear any existing user defined pins to avoid duplicates
-            ResultNode->UserDefinedPins.Empty();
-        }
+        // Clear any existing user defined pins to avoid duplicates
+        ResultNode->UserDefinedPins.Empty();
         
         for (const auto& OutputValue : *OutputsArray)
         {
             const TSharedPtr<FJsonObject>& OutputObj = OutputValue->AsObject();
-            if (OutputObj.IsValid() && ResultNode)
+            if (OutputObj.IsValid())
             {
                 FString ParamName;
                 FString ParamType;
@@ -243,12 +211,14 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
         }
         
         // Allocate pins for result node after adding all outputs
-        if (ResultNode)
-        {
-            ResultNode->AllocateDefaultPins();
-            // Reconstruct the result node to immediately update the visual representation
-            ResultNode->ReconstructNode();
-        }
+        ResultNode->AllocateDefaultPins();
+        ResultNode->ReconstructNode();
+    }
+    else
+    {
+        // No outputs specified — still need to allocate default pins for exec flow
+        ResultNode->AllocateDefaultPins();
+        ResultNode->ReconstructNode();
     }
     
     // Allocate pins for entry node AFTER setting up user defined pins
@@ -260,14 +230,55 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
     // Force refresh the graph
     FuncGraph->NotifyGraphChanged();
     
-    // CRITICAL: Reconstruct and refresh the function to ensure proper setup
-    EntryNode->ReconstructNode();
-    
     // Force the Blueprint to recognize this as a user-defined function
     FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
     
     // Refresh the Blueprint to ensure the function is properly integrated
     FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
+    
+    // Invalidate MCP's internal blueprint metadata cache
+    FBlueprintService::Get().InvalidateBlueprintCache(Blueprint->GetName());
+    
+    // CRITICAL FIX: Connect internal execution flow between Entry and Return nodes.
+    // This MUST happen AFTER all ReconstructNode/RefreshAllNodes calls, because those
+    // recreate pins and destroy any existing connections.
+    // Without this, pure functions that read member variables get default values (0,0,0,0).
+    // Even though pure functions have no EXTERNAL exec pins on the call node,
+    // they still need INTERNAL exec flow for member variable access to work.
+    {
+        UEdGraphPin* EntryExecPin = nullptr;
+        for (UEdGraphPin* Pin : EntryNode->Pins)
+        {
+            if (Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && Pin->Direction == EGPD_Output)
+            {
+                EntryExecPin = Pin;
+                break;
+            }
+        }
+
+        UEdGraphPin* ResultExecPin = nullptr;
+        for (UEdGraphPin* Pin : ResultNode->Pins)
+        {
+            if (Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && Pin->Direction == EGPD_Input)
+            {
+                ResultExecPin = Pin;
+                break;
+            }
+        }
+
+        if (EntryExecPin && ResultExecPin)
+        {
+            EntryExecPin->MakeLinkTo(ResultExecPin);
+            UE_LOG(LogTemp, Log, TEXT("CreateCustomBlueprintFunction: Connected internal exec flow Entry->Return for '%s' (pure=%d)"), *FunctionName, (int)bIsPure);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CreateCustomBlueprintFunction: Could not find exec pins for '%s' (Entry: %s, Result: %s)"),
+                *FunctionName,
+                EntryExecPin ? TEXT("Found") : TEXT("Missing"),
+                ResultExecPin ? TEXT("Found") : TEXT("Missing"));
+        }
+    }
     
     return CreateSuccessResponse(BlueprintName, FunctionName);
 }
