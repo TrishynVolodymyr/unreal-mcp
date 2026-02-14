@@ -117,15 +117,13 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
     UK2Node_FunctionEntry* EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
     FuncGraph->AddNode(EntryNode, true, true);
     
-    // Create function result node for non-pure functions
-    UK2Node_FunctionResult* ResultNode = nullptr;
-    if (!bIsPure)
-    {
-        ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
-        FuncGraph->AddNode(ResultNode, true, true);
-        ResultNode->NodePosX = 400;
-        ResultNode->NodePosY = 0;
-    }
+    // ALWAYS create a function result node — even for pure functions.
+    // Pure functions still need internal exec flow (Entry→Return) for member variable access.
+    // Without a Return node, there's nothing to connect the exec flow to.
+    UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
+    FuncGraph->AddNode(ResultNode, true, true);
+    ResultNode->NodePosX = 400;
+    ResultNode->NodePosY = 0;
     
     // Position the entry node
     EntryNode->NodePosX = 0;
@@ -199,25 +197,13 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
     const TArray<TSharedPtr<FJsonValue>>* OutputsArray = nullptr;
     if (JsonObject->TryGetArrayField(TEXT("outputs"), OutputsArray))
     {
-        // Use the result node we created earlier, or create one if pure function has outputs
-        if (!ResultNode && OutputsArray->Num() > 0)
-        {
-            ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
-            FuncGraph->AddNode(ResultNode, true, true);
-            ResultNode->NodePosX = 400;
-            ResultNode->NodePosY = 0;
-        }
-        
-        if (ResultNode)
-        {
-            // Clear any existing user defined pins to avoid duplicates
-            ResultNode->UserDefinedPins.Empty();
-        }
+        // Clear any existing user defined pins to avoid duplicates
+        ResultNode->UserDefinedPins.Empty();
         
         for (const auto& OutputValue : *OutputsArray)
         {
             const TSharedPtr<FJsonObject>& OutputObj = OutputValue->AsObject();
-            if (OutputObj.IsValid() && ResultNode)
+            if (OutputObj.IsValid())
             {
                 FString ParamName;
                 FString ParamType;
@@ -243,12 +229,14 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
         }
         
         // Allocate pins for result node after adding all outputs
-        if (ResultNode)
-        {
-            ResultNode->AllocateDefaultPins();
-            // Reconstruct the result node to immediately update the visual representation
-            ResultNode->ReconstructNode();
-        }
+        ResultNode->AllocateDefaultPins();
+        ResultNode->ReconstructNode();
+    }
+    else
+    {
+        // No outputs specified — still need to allocate default pins for exec flow
+        ResultNode->AllocateDefaultPins();
+        ResultNode->ReconstructNode();
     }
     
     // Allocate pins for entry node AFTER setting up user defined pins
@@ -260,14 +248,52 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
     // Force refresh the graph
     FuncGraph->NotifyGraphChanged();
     
-    // CRITICAL: Reconstruct and refresh the function to ensure proper setup
-    EntryNode->ReconstructNode();
-    
     // Force the Blueprint to recognize this as a user-defined function
     FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
     
     // Refresh the Blueprint to ensure the function is properly integrated
     FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
+    
+    // CRITICAL FIX: Connect internal execution flow between Entry and Return nodes.
+    // This MUST happen AFTER all ReconstructNode/RefreshAllNodes calls, because those
+    // recreate pins and destroy any existing connections.
+    // Without this, pure functions that read member variables get default values (0,0,0,0).
+    // Even though pure functions have no EXTERNAL exec pins on the call node,
+    // they still need INTERNAL exec flow for member variable access to work.
+    {
+        UEdGraphPin* EntryExecPin = nullptr;
+        for (UEdGraphPin* Pin : EntryNode->Pins)
+        {
+            if (Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && Pin->Direction == EGPD_Output)
+            {
+                EntryExecPin = Pin;
+                break;
+            }
+        }
+
+        UEdGraphPin* ResultExecPin = nullptr;
+        for (UEdGraphPin* Pin : ResultNode->Pins)
+        {
+            if (Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Exec && Pin->Direction == EGPD_Input)
+            {
+                ResultExecPin = Pin;
+                break;
+            }
+        }
+
+        if (EntryExecPin && ResultExecPin)
+        {
+            EntryExecPin->MakeLinkTo(ResultExecPin);
+            UE_LOG(LogTemp, Log, TEXT("CreateCustomBlueprintFunction: Connected internal exec flow Entry->Return for '%s' (pure=%d)"), *FunctionName, (int)bIsPure);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CreateCustomBlueprintFunction: Could not find exec pins for '%s' (Entry: %s, Result: %s)"),
+                *FunctionName,
+                EntryExecPin ? TEXT("Found") : TEXT("Missing"),
+                ResultExecPin ? TEXT("Found") : TEXT("Missing"));
+        }
+    }
     
     return CreateSuccessResponse(BlueprintName, FunctionName);
 }
