@@ -59,6 +59,7 @@ For complex features requiring multiple specialized skills, you can use the **pr
 | Implementation | niagara-vfx-architect, unreal-mcp-materials, unreal-mcp-architect |
 | UI/UX | umg-widget-designer |
 | Audio | metasound-sound-designer |
+| Procedural | pcg-graph-architect |
 | Analysis | blueprint-linter, ue-log-analyst, crash-investigator |
 | State Capture | asset-state-extractor |
 
@@ -139,6 +140,16 @@ Design AI behavior with StateTree system:
 - Configure tasks and conditions
 - Property bindings and target bindings
 
+### 🌿 Procedural Content Generation (PCG)
+Build and execute PCG graphs for procedural world-building:
+- Create PCG Graph assets with optional templates
+- Add, connect, and configure PCG nodes (195+ node types)
+- Search the PCG palette for available node types
+- Set node properties using UE reflection
+- Spawn actors with PCG components and assigned graphs
+- Execute PCG generation on demand
+- Inspect full graph structure: nodes, pins, connections, settings
+
 ### 📊 Data Management
 Structure and manage game data efficiently:
 - Create DataTables with custom row structs
@@ -188,6 +199,7 @@ Comprehensive guides for all tool categories:
 - **[Animation Tools](Docs/Animation-Tools.md)** - Animation Blueprints, state machines, and montages
 - **[Font Tools](Docs/Font-Tools.md)** - Font generation and management
 - **[StateTree Tools](Docs/StateTree-Tools.md)** - AI behavior design with StateTree
+- **[PCG Tools](Docs/PCG-Tools.md)** - Procedural Content Generation graph creation and execution
 
 Each guide includes natural language usage examples, advanced patterns, and real-world workflows.
 
@@ -198,7 +210,7 @@ The project uses a **dual-component synchronized architecture** enabling natural
 ```
 AI Assistant (Claude/Cursor/Windsurf)
     ↓ [MCP Protocol]
-Python MCP Servers (13 specialized FastMCP servers)
+Python MCP Servers (14 specialized FastMCP servers)
     ↓ [TCP/JSON on localhost:55557]
 C++ Plugin (UnrealMCP EditorSubsystem)
     ↓ [Direct Unreal Engine API]
@@ -215,7 +227,7 @@ Unreal Engine 5.7 Editor
 - **Modular Architecture** with strict 1000-line file size limit for maintainability
 
 **Python MCP Servers** ([Python/](Python/))
-- **13 Specialized Servers**: blueprint, editor, umg, node, datatable, project, blueprint_action, material, niagara, sound, animation, font, statetree
+- **14 Specialized Servers**: blueprint, editor, umg, node, datatable, project, blueprint_action, material, niagara, sound, animation, font, statetree, pcg
 - Each server has dedicated tool implementations in `*_tools/` folders
 - Shared utilities for TCP communication, Blueprint operations, UMG, and more
 - FastMCP-based implementation of Model Context Protocol
@@ -256,6 +268,7 @@ unreal-mcp/
 │   ├── animation_mcp_server.py       # Animation Blueprint server
 │   ├── font_mcp_server.py            # Font tools server
 │   ├── statetree_mcp_server.py       # StateTree AI server
+│   ├── pcg_mcp_server.py            # PCG procedural generation server
 │   ├── *_tools/                      # Tool implementations
 │   ├── utils/                        # Shared utilities
 │   └── scripts/                      # Test scripts
@@ -373,7 +386,7 @@ For more details, see [Python/README.md](Python/README.md).
 
 ### Configure Your MCP Client
 
-The 13 MCP servers need to be configured in your AI assistant. Below is the configuration template - **adjust the path** to match your installation directory.
+The 14 MCP servers need to be configured in your AI assistant. Below is the configuration template - **adjust the path** to match your installation directory.
 
 #### Configuration Template
 
@@ -431,6 +444,10 @@ The 13 MCP servers need to be configured in your AI assistant. Below is the conf
     "statetreeMCP": {
       "command": "uv",
       "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "statetree_mcp_server.py"]
+    },
+    "pcgMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "pcg_mcp_server.py"]
     }
   }
 }
@@ -505,12 +522,13 @@ See the [Documentation](Docs/README.md) for comprehensive examples and advanced 
 
 The project has undergone significant expansion and refactoring:
 
-- **13 MCP Servers**: Expanded from 7 to 13 specialized servers covering Blueprint, Editor, UMG, Node, DataTable, Project, Blueprint Action, Material, Niagara, Sound, Animation, Font, and StateTree
+- **14 MCP Servers**: Expanded from 7 to 14 specialized servers covering Blueprint, Editor, UMG, Node, DataTable, Project, Blueprint Action, Material, Niagara, Sound, Animation, Font, StateTree, and PCG
 - **Material System**: Full material graph creation, expression connections, Material Instances, custom HLSL, configurable domains and blend modes
 - **Niagara VFX**: Complete particle system creation with emitters, modules, GPU/CPU sim, and parameter configuration
 - **MetaSound Audio**: Procedural audio graph creation with oscillators, filters, envelopes, and triggers
 - **Animation Blueprints**: State machines, blend spaces, montages, and animation layers
 - **StateTree AI**: Full StateTree asset creation with states, transitions, evaluators, tasks, and property bindings (contributed by [asseti6](https://github.com/asseti6))
+- **PCG (Procedural Content Generation)**: Complete PCG graph creation and execution — add/connect/configure nodes, search 195+ node types, spawn PCG actors, and execute generation on demand
 - **Service Layer Modularization**: Large service files split into focused, specialized classes
 - **Node Creation Strategy Pattern**: Separate creator classes with intelligent action database integration
 - **Connection Validation**: Schema-based connection validation replacing low-level MakeLinkTo (prevents phantom connections)
