@@ -102,60 +102,42 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
         return CreateErrorResponse(TEXT("Failed to create function graph"));
     }
     
-    // Use the proper method to add a user-defined function (like the Blueprint editor does)
-    Blueprint->FunctionGraphs.Add(FuncGraph);
+    // Use the proper UE API to add the function graph — handles pure/impure setup,
+    // graph flags, and creates the Entry node automatically.
+    FBlueprintEditorUtils::AddFunctionGraph<UClass>(Blueprint, FuncGraph, bIsPure, nullptr);
     
-    // CRITICAL: Set the graph as user-defined to make it editable
-    FuncGraph->bEditable = true;
+    // Graph editability flags (AddFunctionGraph sets some, but ensure all are set)
     FuncGraph->bAllowDeletion = true;
     FuncGraph->bAllowRenaming = true;
     
-    // Mark the graph as a user-defined function graph (this is key for editability)
-    FuncGraph->GraphGuid = FGuid::NewGuid();
+    // Find the Entry node created by AddFunctionGraph
+    UK2Node_FunctionEntry* EntryNode = nullptr;
+    for (UEdGraphNode* Node : FuncGraph->Nodes)
+    {
+        if (UK2Node_FunctionEntry* Entry = Cast<UK2Node_FunctionEntry>(Node))
+        {
+            EntryNode = Entry;
+            break;
+        }
+    }
     
-    // Create function entry node manually (like Blueprint editor does)
-    UK2Node_FunctionEntry* EntryNode = NewObject<UK2Node_FunctionEntry>(FuncGraph);
-    FuncGraph->AddNode(EntryNode, true, true);
+    if (!EntryNode)
+    {
+        return CreateErrorResponse(FString::Printf(TEXT("AddFunctionGraph did not create Entry node for '%s'"), *FunctionName));
+    }
     
     // ALWAYS create a function result node — even for pure functions.
     // Pure functions still need internal exec flow (Entry→Return) for member variable access.
-    // Without a Return node, there's nothing to connect the exec flow to.
     UK2Node_FunctionResult* ResultNode = NewObject<UK2Node_FunctionResult>(FuncGraph);
-    FuncGraph->AddNode(ResultNode, true, true);
+    FuncGraph->AddNode(ResultNode, false, false);
     ResultNode->NodePosX = 400;
     ResultNode->NodePosY = 0;
-    
-    // Position the entry node
-    EntryNode->NodePosX = 0;
-    EntryNode->NodePosY = 0;
-    
-    // Set up the function signature properly
-    EntryNode->CustomGeneratedFunctionName = FName(*FunctionName);
-    EntryNode->bIsEditable = true;
-    
-    // Set function flags
-    uint32 FunctionFlags = FUNC_BlueprintCallable;
-    if (bIsPure)
-    {
-        FunctionFlags |= FUNC_BlueprintPure;
-    }
-    EntryNode->SetExtraFlags(FunctionFlags);
-    
-    // Set metadata to ensure the function is properly editable
-    EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_CallInEditor, FString(TEXT("true")));
-    EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_BlueprintInternalUseOnly, FString(TEXT("false")));
     
     // Set category metadata if provided
     if (!Category.IsEmpty() && Category != TEXT("Default"))
     {
         EntryNode->MetaData.SetMetaData(FBlueprintMetadata::MD_FunctionCategory, Category);
     }
-    
-    // CRITICAL: Mark the entry node as user-defined
-    EntryNode->bCanRenameNode = true;
-    
-    // Ensure the function entry node is properly configured
-    // Note: Function entry nodes are automatically configured by the Blueprint system
     
     // Clear any existing user defined pins to avoid duplicates
     EntryNode->UserDefinedPins.Empty();
@@ -253,6 +235,9 @@ FString FCreateCustomBlueprintFunctionCommand::Execute(const FString& Parameters
     
     // Refresh the Blueprint to ensure the function is properly integrated
     FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
+    
+    // Invalidate MCP's internal blueprint metadata cache
+    FBlueprintService::Get().InvalidateBlueprintCache(Blueprint->GetName());
     
     // CRITICAL FIX: Connect internal execution flow between Entry and Return nodes.
     // This MUST happen AFTER all ReconstructNode/RefreshAllNodes calls, because those

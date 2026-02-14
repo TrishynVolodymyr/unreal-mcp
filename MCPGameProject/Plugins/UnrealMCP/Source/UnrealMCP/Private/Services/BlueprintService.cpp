@@ -522,3 +522,8 @@ bool FBlueprintService::ConvertStringToPinType(const FString& TypeString, FEdGra
     UE_LOG(LogTemp, Warning, TEXT("FBlueprintService::ConvertStringToPinType: Unknown type '%s'"), *TypeString);
     return false;
 }
+
+void FBlueprintService::InvalidateBlueprintCache(const FString& BlueprintName)
+{
+    BlueprintCache.InvalidateBlueprint(BlueprintName);
+}
