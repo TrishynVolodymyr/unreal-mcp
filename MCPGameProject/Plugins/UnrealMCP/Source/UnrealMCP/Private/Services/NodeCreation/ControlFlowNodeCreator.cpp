@@ -152,14 +152,11 @@ bool FControlFlowNodeCreator::TryCreateCustomEventNode(const FString& FunctionNa
 	UEdGraph* EventGraph, int32 PositionX, int32 PositionY,
 	UEdGraphNode*& OutNode, FString& OutNodeTitle, FString& OutNodeType)
 {
-	// EXACT COPY from BlueprintNodeCreationService.cpp lines 306-333
 	if (FunctionName.Equals(TEXT("CustomEvent"), ESearchCase::IgnoreCase) ||
 		 FunctionName.Equals(TEXT("Custom Event"), ESearchCase::IgnoreCase) ||
 		 FunctionName.Equals(TEXT("UK2Node_CustomEvent"), ESearchCase::IgnoreCase))
 	{
-		UK2Node_CustomEvent* CustomEventNode = NewObject<UK2Node_CustomEvent>(EventGraph);
-
-		// Set custom event name from parameters if provided
+		// Extract event name from parameters
 		FString EventName = TEXT("CustomEvent"); // Default name
 		if (ParamsObject.IsValid())
 		{
@@ -170,6 +167,30 @@ bool FControlFlowNodeCreator::TryCreateCustomEventNode(const FString& FunctionNa
 			}
 		}
 
+		// GUARD: If the event_name is a standard override event (ReceiveTick, ReceiveBeginPlay, etc.),
+		// do NOT create a CustomEvent — return false so TryCreateStandardEventNode handles it properly.
+		// This prevents creating a useless CustomEvent named "ReceiveTick" that UE will never call.
+		static const TArray<FString> StandardOverrideEvents = {
+			TEXT("ReceiveTick"), TEXT("Tick"),
+			TEXT("ReceiveBeginPlay"), TEXT("BeginPlay"),
+			TEXT("ReceiveEndPlay"), TEXT("EndPlay"),
+			TEXT("ReceiveActorBeginOverlap"), TEXT("ActorBeginOverlap"),
+			TEXT("ReceiveActorEndOverlap"), TEXT("ActorEndOverlap"),
+			TEXT("ReceiveHit"), TEXT("Hit"),
+			TEXT("ReceiveDestroyed"), TEXT("Destroyed"),
+			TEXT("ReceiveBeginDestroy"), TEXT("BeginDestroy")
+		};
+
+		for (const FString& OverrideEvent : StandardOverrideEvents)
+		{
+			if (EventName.Equals(OverrideEvent, ESearchCase::IgnoreCase))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("TryCreateCustomEventNode: '%s' is a standard override event — skipping CustomEvent creation, delegating to TryCreateStandardEventNode"), *EventName);
+				return false;
+			}
+		}
+
+		UK2Node_CustomEvent* CustomEventNode = NewObject<UK2Node_CustomEvent>(EventGraph);
 		CustomEventNode->CustomFunctionName = FName(*EventName);
 		CustomEventNode->NodePosX = PositionX;
 		CustomEventNode->NodePosY = PositionY;

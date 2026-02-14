@@ -197,7 +197,11 @@ bool FBlueprintNodeConnectionService::ConnectBlueprintNodes(UBlueprint* Blueprin
         }
     }
 
-    if (bAllSucceeded)
+    // Mark modified if ANY connection succeeded (not just all).
+    // Otherwise partial successes get silently dropped on next compile.
+    int32 SuccessCount = 0;
+    for (bool Result : OutResults) { if (Result) SuccessCount++; }
+    if (SuccessCount > 0)
     {
         FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     }
@@ -314,7 +318,11 @@ bool FBlueprintNodeConnectionService::ConnectBlueprintNodesEnhanced(UBlueprint* 
         OutResults.Add(Result);
     }
 
-    if (bAllSucceeded)
+    // Mark modified if ANY connection succeeded (not just all).
+    // Otherwise partial successes get silently dropped on next compile.
+    int32 EnhancedSuccessCount = 0;
+    for (const FConnectionResultInfo& R : OutResults) { if (R.bSuccess) EnhancedSuccessCount++; }
+    if (EnhancedSuccessCount > 0)
     {
         FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     }
@@ -508,14 +516,39 @@ bool FBlueprintNodeConnectionService::ConnectNodesWithAutoCast(UEdGraph* Graph, 
         }
     }
 
-    // Make the connection
-    SourcePin->MakeLinkTo(TargetPin);
+    // Use Schema->TryCreateConnection for proper validation instead of raw MakeLinkTo.
+    // MakeLinkTo is low-level and bypasses schema constraints — it can create connections
+    // that appear valid in LinkedTo but get silently dropped on compile/reconstruct (phantom success).
+    bool bConnectionExists = false;
+    if (Schema)
+    {
+        bConnectionExists = Schema->TryCreateConnection(SourcePin, TargetPin);
+        if (!bConnectionExists)
+        {
+            FString ErrorMsg = FString::Printf(TEXT("Schema->TryCreateConnection failed for '%s'.%s -> '%s'.%s (types: %s -> %s)"),
+                *SourceNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *SourcePinName,
+                *TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString(), *TargetPinName,
+                *SourcePin->PinType.PinCategory.ToString(), *TargetPin->PinType.PinCategory.ToString());
+            UE_LOG(LogTemp, Error, TEXT("ConnectNodesWithAutoCast: %s"), *ErrorMsg);
+            if (OutErrorMessage)
+            {
+                *OutErrorMessage = ErrorMsg;
+            }
+        }
+    }
+    else
+    {
+        // Fallback to raw MakeLinkTo only when no schema is available
+        SourcePin->MakeLinkTo(TargetPin);
+        bConnectionExists = SourcePin->LinkedTo.Contains(TargetPin);
+    }
 
     // Notify nodes about pin connection changes
-    SourceNode->PinConnectionListChanged(SourcePin);
-    TargetNode->PinConnectionListChanged(TargetPin);
-
-    bool bConnectionExists = SourcePin->LinkedTo.Contains(TargetPin);
+    if (bConnectionExists)
+    {
+        SourceNode->PinConnectionListChanged(SourcePin);
+        TargetNode->PinConnectionListChanged(TargetPin);
+    }
 
     // If direct connection failed and we didn't try cast yet, try now
     if (!bConnectionExists && !bNeedsCast)

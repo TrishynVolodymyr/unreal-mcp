@@ -234,6 +234,28 @@ bool FBlueprintNodeService::AddCustomEventNode(UBlueprint* Blueprint, const FStr
         return false;
     }
     
+    // GUARD: If EventName is a standard override event, delegate to AddEventNode instead.
+    // This prevents creating a useless CustomEvent named "ReceiveTick" when the user meant the built-in event.
+    static const TArray<FString> StandardOverrideEvents = {
+        TEXT("ReceiveTick"), TEXT("Tick"),
+        TEXT("ReceiveBeginPlay"), TEXT("BeginPlay"),
+        TEXT("ReceiveEndPlay"), TEXT("EndPlay"),
+        TEXT("ReceiveActorBeginOverlap"), TEXT("ActorBeginOverlap"),
+        TEXT("ReceiveActorEndOverlap"), TEXT("ActorEndOverlap"),
+        TEXT("ReceiveHit"), TEXT("Hit"),
+        TEXT("ReceiveDestroyed"), TEXT("Destroyed"),
+        TEXT("ReceiveBeginDestroy"), TEXT("BeginDestroy")
+    };
+
+    for (const FString& OverrideEvent : StandardOverrideEvents)
+    {
+        if (EventName.Equals(OverrideEvent, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("AddCustomEventNode: '%s' is a standard override event — redirecting to AddEventNode"), *EventName);
+            return AddEventNode(Blueprint, EventName, Position, OutNodeId);
+        }
+    }
+    
     // Use the existing BlueprintNodeCreationService as a dependency
     FBlueprintNodeCreationService CreationService;
     
