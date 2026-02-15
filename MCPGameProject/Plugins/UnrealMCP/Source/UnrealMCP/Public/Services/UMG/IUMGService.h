@@ -95,17 +95,21 @@ public:
     virtual bool DoesWidgetComponentExist(const FString& BlueprintName, const FString& ComponentName) = 0;
 
     /**
-     * Set the placement (position/size) of a widget component
+     * Set the placement (position/size/alignment/anchors) of a widget component
      * @param BlueprintName - Name of the target widget blueprint
      * @param ComponentName - Name of the component to modify
      * @param Position - New position (optional)
      * @param Size - New size (optional)
      * @param Alignment - New alignment (optional)
+     * @param AnchorMin - Anchor minimum [X, Y] (optional)
+     * @param AnchorMax - Anchor maximum [X, Y] (optional)
+     * @param bAutoSize - Size to content (optional)
      * @return true if the placement was set successfully
      */
     virtual bool SetWidgetPlacement(const FString& BlueprintName, const FString& ComponentName, 
                                    const FVector2D* Position = nullptr, const FVector2D* Size = nullptr, 
-                                   const FVector2D* Alignment = nullptr) = 0;
+                                   const FVector2D* Alignment = nullptr, const FVector2D* AnchorMin = nullptr,
+                                   const FVector2D* AnchorMax = nullptr, const bool* bAutoSize = nullptr) = 0;
 
     /**
      * Get the dimensions of a container widget

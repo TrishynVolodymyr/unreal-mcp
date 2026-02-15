@@ -308,7 +308,48 @@ FWidgetValidationResult FWidgetValidationService::ValidateWidgetType(const FStri
 
     if (!ValidWidgetTypes.Contains(ComponentType))
     {
-        return FWidgetValidationResult::Error(FString::Printf(TEXT("Invalid widget component type: %s"), *ComponentType));
+        // Check if it's a User Widget Blueprint path (e.g., "WBP_HUD_ResourceBar" or "/Game/UI/HUD/WBP_HUD_ResourceBar")
+        FString BlueprintPath = ComponentType;
+        if (!BlueprintPath.StartsWith(TEXT("/")))
+        {
+            // Try to find it as an asset by name — search common UI paths
+            TArray<FString> SearchPaths = {
+                FString::Printf(TEXT("/Game/UI/HUD/%s.%s"), *ComponentType, *ComponentType),
+                FString::Printf(TEXT("/Game/UI/%s.%s"), *ComponentType, *ComponentType),
+                FString::Printf(TEXT("/Game/UI/Widgets/%s.%s"), *ComponentType, *ComponentType),
+                FString::Printf(TEXT("/Game/%s.%s"), *ComponentType, *ComponentType)
+            };
+            
+            bool bFound = false;
+            for (const FString& Path : SearchPaths)
+            {
+                if (UObject* Asset = StaticLoadObject(UObject::StaticClass(), nullptr, *Path))
+                {
+                    bFound = true;
+                    break;
+                }
+            }
+            
+            if (!bFound)
+            {
+                return FWidgetValidationResult::Error(FString::Printf(TEXT("Invalid widget component type: %s"), *ComponentType));
+            }
+        }
+        else
+        {
+            // Full path provided — verify it exists
+            FString FullPath = BlueprintPath;
+            if (!FullPath.Contains(TEXT(".")))
+            {
+                // Add asset name: "/Game/UI/HUD/WBP_Foo" -> "/Game/UI/HUD/WBP_Foo.WBP_Foo"
+                FString AssetName = FPaths::GetCleanFilename(FullPath);
+                FullPath = FString::Printf(TEXT("%s.%s"), *BlueprintPath, *AssetName);
+            }
+            if (!StaticLoadObject(UObject::StaticClass(), nullptr, *FullPath))
+            {
+                return FWidgetValidationResult::Error(FString::Printf(TEXT("Widget Blueprint not found: %s"), *ComponentType));
+            }
+        }
     }
 
     return FWidgetValidationResult::Success();
@@ -688,7 +729,36 @@ UClass* FWidgetValidationService::GetWidgetClass(const FString& ComponentType) c
     };
 
     UClass* const* FoundClass = WidgetClassMap.Find(ComponentType);
-    return FoundClass ? *FoundClass : nullptr;
+    if (FoundClass)
+    {
+        return *FoundClass;
+    }
+    
+    // Try loading as a User Widget Blueprint
+    TArray<FString> SearchPaths = {
+        FString::Printf(TEXT("/Game/UI/HUD/%s.%s_C"), *ComponentType, *ComponentType),
+        FString::Printf(TEXT("/Game/UI/%s.%s_C"), *ComponentType, *ComponentType),
+        FString::Printf(TEXT("/Game/UI/Widgets/%s.%s_C"), *ComponentType, *ComponentType),
+        FString::Printf(TEXT("/Game/%s.%s_C"), *ComponentType, *ComponentType)
+    };
+    
+    // If it's already a full path
+    if (ComponentType.StartsWith(TEXT("/")))
+    {
+        FString AssetName = FPaths::GetCleanFilename(ComponentType);
+        SearchPaths.Insert(FString::Printf(TEXT("%s.%s_C"), *ComponentType, *AssetName), 0);
+    }
+    
+    for (const FString& Path : SearchPaths)
+    {
+        UClass* BlueprintClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, *Path);
+        if (BlueprintClass)
+        {
+            return BlueprintClass;
+        }
+    }
+    
+    return nullptr;
 }
 
 bool FWidgetValidationService::DoesPropertyExist(UClass* WidgetClass, const FString& PropertyName) const

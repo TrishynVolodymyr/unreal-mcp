@@ -132,9 +132,13 @@ def set_widget_component_placement(
     component_name: str,
     position: List[float] = None,
     size: List[float] = None,
-    alignment: List[float] = None
+    alignment: List[float] = None,
+    anchors: List[float] = None,
+    anchor_min: List[float] = None,
+    anchor_max: List[float] = None,
+    auto_size: bool = None
 ) -> Dict[str, Any]:
-    """Implementation for changing the placement (position/size) of a widget component.
+    """Implementation for changing the placement (position/size/anchors) of a widget component.
     
     Args:
         ctx: The current context
@@ -143,6 +147,13 @@ def set_widget_component_placement(
         position: Optional [X, Y] new position in the canvas panel
         size: Optional [Width, Height] new size for the component
         alignment: Optional [X, Y] alignment values (0.0 to 1.0)
+        anchors: Optional [X, Y] shorthand - sets both anchor_min and anchor_max to same value
+                 Common presets: [0,0]=TopLeft, [0.5,0]=TopCenter, [1,0]=TopRight,
+                 [0,0.5]=MiddleLeft, [0.5,0.5]=Center, [1,0.5]=MiddleRight,
+                 [0,1]=BottomLeft, [0.5,1]=BottomCenter, [1,1]=BottomRight
+        anchor_min: Optional [X, Y] anchor minimum (overrides anchors shorthand)
+        anchor_max: Optional [X, Y] anchor maximum (overrides anchors shorthand)
+        auto_size: Optional bool - Size to Content (bAutoSize on CanvasPanelSlot)
         
     Returns:
         Dict containing success status and updated placement information
@@ -161,8 +172,20 @@ def set_widget_component_placement(
         
     if alignment is not None:
         params["alignment"] = alignment
+
+    if anchors is not None:
+        params["anchors"] = anchors
+
+    if anchor_min is not None:
+        params["anchor_min"] = anchor_min
+
+    if anchor_max is not None:
+        params["anchor_max"] = anchor_max
+
+    if auto_size is not None:
+        params["auto_size"] = auto_size
     
-    logger.info(f"Setting placement for component '{component_name}' in widget '{widget_name}': Pos={position}, Size={size}, Align={alignment}")
+    logger.info(f"Setting placement for component '{component_name}' in widget '{widget_name}': Pos={position}, Size={size}, Align={alignment}, Anchors={anchors}, AutoSize={auto_size}")
     return send_unreal_command("set_widget_component_placement", params)
 
 def add_widget_component_to_widget(
@@ -556,3 +579,35 @@ def set_widget_parent_class(
 
     logger.info(f"Reparenting widget '{widget_name}' to new parent class: {new_parent_class}")
     return send_unreal_command("set_widget_parent_class", params)
+
+
+def get_widget_component_details_impl(
+    ctx: Context,
+    widget_name: str,
+    component_name: str,
+    widget_path: str = ""
+) -> Dict[str, Any]:
+    """Get detailed properties of a specific widget component.
+
+    Returns type-specific properties like Brush (material, ImageSize, DrawAs, Tinting),
+    SizeBox overrides, ProgressBar percent, TextBlock font, slot details, etc.
+
+    Args:
+        ctx: The current context
+        widget_name: Name of the target Widget Blueprint
+        component_name: Name of the component to inspect
+        widget_path: Optional content browser path
+
+    Returns:
+        Dict containing all relevant properties for the component based on its type
+    """
+    params = {
+        "widget_name": widget_name,
+        "component_name": component_name
+    }
+
+    if widget_path:
+        params["widget_path"] = widget_path
+
+    logger.info(f"Getting component details for '{component_name}' in widget '{widget_name}'")
+    return send_unreal_command("get_widget_component_details", params)

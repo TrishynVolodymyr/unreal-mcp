@@ -308,5 +308,35 @@ async def execute_pcg_graph(
     })
 
 
+@app.tool()
+async def configure_pcg_mesh_spawner(
+    graph_path: str,
+    node_id: str,
+    mesh_entries: list[dict],
+    append: bool = False
+) -> dict:
+    """Configure mesh entries on a PCG Static Mesh Spawner node.
+
+    Sets the weighted mesh list on a Static Mesh Spawner's MeshSelectorWeighted.
+    This reaches into nested sub-objects that set_pcg_node_property cannot access.
+
+    Args:
+        graph_path: Path to the PCG Graph asset (e.g., "/Game/PCG/PCG_Forest")
+        node_id: Node name/ID in the graph
+        mesh_entries: List of mesh entries, each a dict with "mesh" (asset path) and optional "weight" (int, default 1).
+                      Example: [{"mesh": "/Game/Meshes/SM_Tree", "weight": 1}, {"mesh": "/Game/Meshes/SM_Bush", "weight": 3}]
+        append: If True, append to existing entries; if False (default), replace all
+
+    Returns:
+        Dict with success status, entries count, and node_id
+    """
+    return await send_tcp_command("configure_pcg_mesh_spawner", {
+        "graph_path": graph_path,
+        "node_id": node_id,
+        "mesh_entries": mesh_entries,
+        "append": append
+    })
+
+
 if __name__ == "__main__":
     app.run(transport="stdio")

@@ -19,6 +19,10 @@ struct FWidgetPlacementParams
     FVector2D* Position = nullptr;
     FVector2D* Size = nullptr;
     FVector2D* Alignment = nullptr;
+    FVector2D* AnchorMin = nullptr;
+    FVector2D* AnchorMax = nullptr;
+    bool bAutoSize = false;
+    bool bHasAutoSize = false;
 };
 
 /**
@@ -123,4 +127,7 @@ private:
      * @return true if parsing was successful
      */
     bool ParseVector2DFromJson(const TArray<TSharedPtr<FJsonValue>>& JsonArray, FVector2D& OutVector) const;
+
+    /** Storage for extracted vectors (avoids static variable reuse bug) */
+    mutable TArray<FVector2D> ExtractedVectorStorage;
 };

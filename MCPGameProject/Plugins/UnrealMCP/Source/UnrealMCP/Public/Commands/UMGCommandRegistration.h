@@ -41,6 +41,7 @@ private:
     static void RegisterReorderWidgetChildrenCommand();
     static void RegisterSetWidgetDesignSizeCommand();
     static void RegisterSetWidgetParentClassCommand();
+    static void RegisterGetWidgetComponentDetailsCommand();
 
     // Widget-specific add commands
     static void RegisterAddWidgetSwitcherCommand();

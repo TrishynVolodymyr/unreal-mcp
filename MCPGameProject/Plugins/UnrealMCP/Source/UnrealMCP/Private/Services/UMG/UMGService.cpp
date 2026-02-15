@@ -635,7 +635,8 @@ bool FUMGService::DoesWidgetComponentExist(const FString& BlueprintName, const F
 }
 
 bool FUMGService::SetWidgetPlacement(const FString& BlueprintName, const FString& ComponentName, 
-                                    const FVector2D* Position, const FVector2D* Size, const FVector2D* Alignment)
+                                    const FVector2D* Position, const FVector2D* Size, const FVector2D* Alignment,
+                                    const FVector2D* AnchorMin, const FVector2D* AnchorMax, const bool* bAutoSize)
 {
     UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(BlueprintName);
     if (!WidgetBlueprint)
@@ -652,6 +653,36 @@ bool FUMGService::SetWidgetPlacement(const FString& BlueprintName, const FString
     }
 
     bool bResult = SetCanvasSlotPlacement(Widget, Position, Size, Alignment);
+
+    // Set anchors if provided
+    UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Widget->Slot);
+    if (CanvasSlot)
+    {
+        if (AnchorMin || AnchorMax)
+        {
+            FAnchors CurrentAnchors = CanvasSlot->GetAnchors();
+            if (AnchorMin)
+            {
+                CurrentAnchors.Minimum = *AnchorMin;
+            }
+            if (AnchorMax)
+            {
+                CurrentAnchors.Maximum = *AnchorMax;
+            }
+            CanvasSlot->SetAnchors(CurrentAnchors);
+            bResult = true;
+        }
+
+        if (bAutoSize)
+        {
+            CanvasSlot->SetAutoSize(*bAutoSize);
+            bResult = true;
+        }
+    }
+    else if (AnchorMin || AnchorMax || bAutoSize)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UMGService: Anchors/AutoSize only supported for CanvasPanel slots"));
+    }
     
     if (bResult)
     {

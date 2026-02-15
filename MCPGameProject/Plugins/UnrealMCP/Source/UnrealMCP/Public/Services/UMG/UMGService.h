@@ -43,7 +43,8 @@ public:
     virtual bool DoesWidgetComponentExist(const FString& BlueprintName, const FString& ComponentName) override;
     virtual bool SetWidgetPlacement(const FString& BlueprintName, const FString& ComponentName, 
                                    const FVector2D* Position = nullptr, const FVector2D* Size = nullptr, 
-                                   const FVector2D* Alignment = nullptr) override;
+                                   const FVector2D* Alignment = nullptr, const FVector2D* AnchorMin = nullptr,
+                                   const FVector2D* AnchorMax = nullptr, const bool* bAutoSize = nullptr) override;
     virtual bool GetWidgetContainerDimensions(const FString& BlueprintName, const FString& ContainerName, 
                                              FVector2D& OutDimensions) override;
 

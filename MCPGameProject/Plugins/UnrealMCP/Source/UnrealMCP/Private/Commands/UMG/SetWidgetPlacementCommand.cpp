@@ -18,6 +18,10 @@ FString FSetWidgetPlacementCommand::Execute(const FString& Parameters)
     UE_LOG(LogSetWidgetPlacementCommand, Log, TEXT("SetWidgetPlacementCommand::Execute - Command execution started"));
     UE_LOG(LogSetWidgetPlacementCommand, Verbose, TEXT("Parameters: %s"), *Parameters);
     
+    // Clear vector storage from previous call and reserve for max params
+    ExtractedVectorStorage.Empty();
+    ExtractedVectorStorage.Reserve(8); // position, size, alignment, anchors, anchor_min, anchor_max + spare
+    
     // Parse JSON parameters using centralized JSON utilities
     TSharedPtr<FJsonObject> JsonObject = ParseJsonParameters(Parameters);
     if (!JsonObject.IsValid())
@@ -68,7 +72,10 @@ TSharedPtr<FJsonObject> FSetWidgetPlacementCommand::ExecuteInternal(const TShare
         PlacementParams.ComponentName, 
         PlacementParams.Position, 
         PlacementParams.Size, 
-        PlacementParams.Alignment
+        PlacementParams.Alignment,
+        PlacementParams.AnchorMin,
+        PlacementParams.AnchorMax,
+        PlacementParams.bHasAutoSize ? &PlacementParams.bAutoSize : nullptr
     );
     
     if (!bSuccess)
@@ -150,9 +157,11 @@ bool FSetWidgetPlacementCommand::ValidateParamsInternal(const TSharedPtr<FJsonOb
     }
 
     // At least one placement parameter must be provided
-    if (!Params->HasField(TEXT("position")) && !Params->HasField(TEXT("size")) && !Params->HasField(TEXT("alignment")))
+    if (!Params->HasField(TEXT("position")) && !Params->HasField(TEXT("size")) && !Params->HasField(TEXT("alignment"))
+        && !Params->HasField(TEXT("anchors")) && !Params->HasField(TEXT("anchor_min")) && !Params->HasField(TEXT("anchor_max"))
+        && !Params->HasField(TEXT("auto_size")))
     {
-        OutError = TEXT("At least one placement parameter (position, size, or alignment) must be provided");
+        OutError = TEXT("At least one placement parameter (position, size, alignment, anchors, anchor_min, anchor_max, or auto_size) must be provided");
         return false;
     }
 
@@ -185,6 +194,39 @@ bool FSetWidgetPlacementCommand::ValidateParamsInternal(const TSharedPtr<FJsonOb
         if (!Params->TryGetArrayField(TEXT("alignment"), AlignmentArray) || AlignmentArray->Num() != 2)
         {
             OutError = TEXT("alignment must be an array with exactly 2 elements [X, Y]");
+            return false;
+        }
+    }
+
+    // Validate anchors shorthand (sets both min and max to same value)
+    if (Params->HasField(TEXT("anchors")))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* AnchorsArray;
+        if (!Params->TryGetArrayField(TEXT("anchors"), AnchorsArray) || AnchorsArray->Num() != 2)
+        {
+            OutError = TEXT("anchors must be an array with exactly 2 elements [X, Y] (sets both min and max)");
+            return false;
+        }
+    }
+
+    // Validate anchor_min array if provided
+    if (Params->HasField(TEXT("anchor_min")))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* AnchorMinArray;
+        if (!Params->TryGetArrayField(TEXT("anchor_min"), AnchorMinArray) || AnchorMinArray->Num() != 2)
+        {
+            OutError = TEXT("anchor_min must be an array with exactly 2 elements [X, Y]");
+            return false;
+        }
+    }
+
+    // Validate anchor_max array if provided
+    if (Params->HasField(TEXT("anchor_max")))
+    {
+        const TArray<TSharedPtr<FJsonValue>>* AnchorMaxArray;
+        if (!Params->TryGetArrayField(TEXT("anchor_max"), AnchorMaxArray) || AnchorMaxArray->Num() != 2)
+        {
+            OutError = TEXT("anchor_max must be an array with exactly 2 elements [X, Y]");
             return false;
         }
     }
@@ -294,10 +336,31 @@ bool FSetWidgetPlacementCommand::ExtractPlacementParameters(const TSharedPtr<FJs
     OutParams.Size = ExtractVector2DParameter(Params, TEXT("size"));
     OutParams.Alignment = ExtractVector2DParameter(Params, TEXT("alignment"));
 
-    // Validate that at least one placement parameter is provided
-    if (!OutParams.Position && !OutParams.Size && !OutParams.Alignment)
+    // Extract anchor parameters
+    // "anchors" is shorthand that sets both min and max to the same value (e.g. [0,1] for bottom-left)
+    FVector2D* AnchorsShorthand = ExtractVector2DParameter(Params, TEXT("anchors"));
+    if (AnchorsShorthand)
     {
-        UE_LOG(LogSetWidgetPlacementCommand, Error, TEXT("At least one placement parameter (position, size, or alignment) must be provided"));
+        OutParams.AnchorMin = AnchorsShorthand;
+        OutParams.AnchorMax = ExtractVector2DParameter(Params, TEXT("anchors")); // re-extract for separate pointer
+    }
+    // Explicit anchor_min/anchor_max override shorthand
+    FVector2D* ExplicitMin = ExtractVector2DParameter(Params, TEXT("anchor_min"));
+    FVector2D* ExplicitMax = ExtractVector2DParameter(Params, TEXT("anchor_max"));
+    if (ExplicitMin) OutParams.AnchorMin = ExplicitMin;
+    if (ExplicitMax) OutParams.AnchorMax = ExplicitMax;
+
+    // Extract auto_size parameter
+    if (Params->HasField(TEXT("auto_size")))
+    {
+        OutParams.bAutoSize = Params->GetBoolField(TEXT("auto_size"));
+        OutParams.bHasAutoSize = true;
+    }
+
+    // Validate that at least one placement parameter is provided
+    if (!OutParams.Position && !OutParams.Size && !OutParams.Alignment && !OutParams.AnchorMin && !OutParams.AnchorMax && !OutParams.bHasAutoSize)
+    {
+        UE_LOG(LogSetWidgetPlacementCommand, Error, TEXT("At least one placement parameter must be provided"));
         return false;
     }
 
@@ -318,16 +381,12 @@ FVector2D* FSetWidgetPlacementCommand::ExtractVector2DParameter(const TSharedPtr
         return nullptr;
     }
 
-    // Use static storage for the extracted vectors (lifetime managed by command instance)
-    static FVector2D ExtractedVectors[3]; // Position, Size, Alignment
-    static int32 VectorIndex = 0;
-    
-    FVector2D& Vector = ExtractedVectors[VectorIndex % 3];
-    VectorIndex++;
-
-    if (ParseVector2DFromJson(*Array, Vector))
+    // Store each vector separately to avoid reuse/overwrite bugs
+    FVector2D NewVector;
+    if (ParseVector2DFromJson(*Array, NewVector))
     {
-        return &Vector;
+        int32 Index = ExtractedVectorStorage.Add(NewVector);
+        return &ExtractedVectorStorage[Index];
     }
 
     UE_LOG(LogSetWidgetPlacementCommand, Warning, TEXT("Failed to parse %s parameter values"), *ParameterName);
@@ -367,6 +426,27 @@ TSharedPtr<FJsonObject> FSetWidgetPlacementCommand::CreateSuccessResponse(const 
         AlignmentArray.Add(MakeShareable(new FJsonValueNumber(Params.Alignment->X)));
         AlignmentArray.Add(MakeShareable(new FJsonValueNumber(Params.Alignment->Y)));
         PlacementObj->SetArrayField(TEXT("alignment"), AlignmentArray);
+    }
+
+    if (Params.AnchorMin)
+    {
+        TArray<TSharedPtr<FJsonValue>> AnchorMinArray;
+        AnchorMinArray.Add(MakeShareable(new FJsonValueNumber(Params.AnchorMin->X)));
+        AnchorMinArray.Add(MakeShareable(new FJsonValueNumber(Params.AnchorMin->Y)));
+        PlacementObj->SetArrayField(TEXT("anchor_min"), AnchorMinArray);
+    }
+
+    if (Params.AnchorMax)
+    {
+        TArray<TSharedPtr<FJsonValue>> AnchorMaxArray;
+        AnchorMaxArray.Add(MakeShareable(new FJsonValueNumber(Params.AnchorMax->X)));
+        AnchorMaxArray.Add(MakeShareable(new FJsonValueNumber(Params.AnchorMax->Y)));
+        PlacementObj->SetArrayField(TEXT("anchor_max"), AnchorMaxArray);
+    }
+
+    if (Params.bHasAutoSize)
+    {
+        PlacementObj->SetBoolField(TEXT("auto_size"), Params.bAutoSize);
     }
     
     ResponseObj->SetObjectField(TEXT("placement"), PlacementObj);
