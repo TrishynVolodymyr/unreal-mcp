@@ -11,6 +11,7 @@ from utils.editor.editor_operations import (
     spawn_actor as spawn_actor_impl,
     delete_actor as delete_actor_impl,
     delete_asset as delete_asset_impl,
+    create_render_target as create_render_target_impl,
     set_actor_transform as set_actor_transform_impl,
     get_actor_properties as get_actor_properties_impl,
     set_actor_property as set_actor_property_impl,
@@ -657,10 +658,42 @@ def register_editor_tools(mcp: FastMCP):
         """
         return delete_asset_impl(ctx, asset_path)
 
+    @mcp.tool()
+    def create_render_target(
+        ctx: Context,
+        name: str,
+        folder_path: str = "/Game",
+        width: int = 256,
+        height: int = 256
+    ) -> Dict[str, Any]:
+        """
+        Create a TextureRenderTarget2D asset in the Content Browser.
+
+        Used for Scene Capture, runtime rendering to texture, minimap cameras, portrait captures, etc.
+
+        Args:
+            name: Name of the render target asset (e.g., "RT_Portrait")
+            folder_path: Folder path in Content Browser (default: "/Game")
+            width: Texture width in pixels (1-4096, default: 256)
+            height: Texture height in pixels (1-4096, default: 256)
+
+        Returns:
+            Dict containing:
+            - success: Whether creation was successful
+            - asset_path: Full path to the created asset
+            - width/height: Dimensions
+
+        Examples:
+            create_render_target(name="RT_Portrait", folder_path="/Game/Rendering", width=256, height=256)
+            create_render_target(name="RT_Minimap", folder_path="/Game/Rendering", width=512, height=512)
+        """
+        return create_render_target_impl(ctx, name, folder_path, width, height)
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
     _help_registry.register(delete_asset, category="assets")
+    _help_registry.register(create_render_target, category="assets")
     _help_registry.register(set_actor_transform, category="actors")
     _help_registry.register(get_actor_properties, category="actors")
     _help_registry.register(set_actor_property, category="actors")

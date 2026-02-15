@@ -221,6 +221,11 @@ def delete_asset(ctx: Context, asset_path: str) -> Dict[str, Any]:
     params = {"asset_path": asset_path}
     return send_unreal_command("delete_asset", params)
 
+def create_render_target(ctx: Context, name: str, folder_path: str = "/Game", width: int = 256, height: int = 256) -> Dict[str, Any]:
+    """Implementation for creating a TextureRenderTarget2D asset."""
+    params = {"name": name, "folder_path": folder_path, "width": width, "height": height}
+    return send_unreal_command("create_render_target", params)
+
 def create_folder(ctx: Context, folder_path: str) -> Dict[str, Any]:
     """Implementation for creating a new folder in the Content Browser."""
     params = {"folder_path": folder_path}
