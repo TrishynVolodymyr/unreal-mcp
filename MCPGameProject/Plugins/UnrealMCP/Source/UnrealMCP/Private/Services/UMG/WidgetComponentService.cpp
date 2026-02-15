@@ -1,6 +1,7 @@
 #include "Services/UMG/WidgetComponentService.h"
 #include "Editor/UMGEditor/Public/WidgetBlueprint.h"
 #include "Blueprint/WidgetTree.h"
+#include "Blueprint/UserWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
@@ -45,6 +46,60 @@
 
 FWidgetComponentService::FWidgetComponentService()
 {
+}
+
+UWidget* FWidgetComponentService::CreateUserWidgetChild(UWidgetBlueprint* WidgetBlueprint,
+                                                        const FString& ComponentName,
+                                                        const FString& ComponentType,
+                                                        const TSharedPtr<FJsonObject>& KwargsObject,
+                                                        FString& OutError)
+{
+    if (!WidgetBlueprint || !WidgetBlueprint->WidgetTree)
+    {
+        OutError = TEXT("WidgetBlueprint or WidgetTree is null");
+        return nullptr;
+    }
+
+    // Try to find the Widget Blueprint asset by name or path
+    TArray<FString> SearchPaths;
+    if (ComponentType.StartsWith(TEXT("/")))
+    {
+        FString AssetName = FPaths::GetCleanFilename(ComponentType);
+        SearchPaths.Add(FString::Printf(TEXT("%s.%s_C"), *ComponentType, *AssetName));
+    }
+    else
+    {
+        SearchPaths.Add(FString::Printf(TEXT("/Game/UI/HUD/%s.%s_C"), *ComponentType, *ComponentType));
+        SearchPaths.Add(FString::Printf(TEXT("/Game/UI/%s.%s_C"), *ComponentType, *ComponentType));
+        SearchPaths.Add(FString::Printf(TEXT("/Game/UI/Widgets/%s.%s_C"), *ComponentType, *ComponentType));
+        SearchPaths.Add(FString::Printf(TEXT("/Game/%s.%s_C"), *ComponentType, *ComponentType));
+    }
+
+    UClass* WidgetClass = nullptr;
+    for (const FString& Path : SearchPaths)
+    {
+        WidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, *Path);
+        if (WidgetClass)
+        {
+            break;
+        }
+    }
+
+    if (!WidgetClass)
+    {
+        // Not a user widget — return nullptr with empty error so caller falls through to default error
+        return nullptr;
+    }
+
+    UWidget* CreatedWidget = WidgetBlueprint->WidgetTree->ConstructWidget<UUserWidget>(WidgetClass, *ComponentName);
+    if (!CreatedWidget)
+    {
+        OutError = FString::Printf(TEXT("Failed to construct User Widget of type '%s'"), *ComponentType);
+        return nullptr;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Created User Widget child '%s' of type '%s'"), *ComponentName, *ComponentType);
+    return CreatedWidget;
 }
 
 TArray<FString> FWidgetComponentService::GetSupportedComponentTypes()
@@ -275,18 +330,22 @@ UWidget* FWidgetComponentService::CreateWidgetComponent(
     {
         CreatedWidget = CreateUniformGridPanel(WidgetBlueprint, ComponentName, KwargsObject);
     }
-    // Default case for unsupported types
+    // Try loading as a User Widget Blueprint
     else
     {
-        // Build a helpful error message listing supported types
-        TArray<FString> SupportedTypes = GetSupportedComponentTypes();
-        FString SupportedTypesStr = FString::Join(SupportedTypes, TEXT(", "));
+        CreatedWidget = CreateUserWidgetChild(WidgetBlueprint, ComponentName, ComponentType, KwargsObject, OutError);
+        if (!CreatedWidget && OutError.IsEmpty())
+        {
+            // Build a helpful error message listing supported types
+            TArray<FString> SupportedTypes = GetSupportedComponentTypes();
+            FString SupportedTypesStr = FString::Join(SupportedTypes, TEXT(", "));
 
-        OutError = FString::Printf(
-            TEXT("Unsupported component type '%s'. Note: To embed another Widget Blueprint, use 'NamedSlot' as a placeholder or create the widget at runtime in Construct. Supported types: %s"),
-            *ComponentType, *SupportedTypesStr);
-        UE_LOG(LogTemp, Error, TEXT("%s"), *OutError);
-        return nullptr;
+            OutError = FString::Printf(
+                TEXT("Unsupported component type '%s'. You can also use a Widget Blueprint name (e.g., 'WBP_MyWidget'). Supported built-in types: %s"),
+                *ComponentType, *SupportedTypesStr);
+            UE_LOG(LogTemp, Error, TEXT("%s"), *OutError);
+            return nullptr;
+        }
     }
 
     // If widget creation failed, return nullptr

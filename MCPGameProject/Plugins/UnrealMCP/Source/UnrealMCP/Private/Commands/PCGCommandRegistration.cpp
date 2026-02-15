@@ -11,6 +11,7 @@
 #include "Commands/PCG/RemovePCGNodeCommand.h"
 #include "Commands/PCG/SpawnPCGActorCommand.h"
 #include "Commands/PCG/ExecutePCGGraphCommand.h"
+#include "Commands/PCG/ConfigurePCGMeshSpawnerCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FPCGCommandRegistration::RegisteredCommands;
 
@@ -27,6 +28,7 @@ void FPCGCommandRegistration::RegisterAllCommands()
 	RegisterAndTrackCommand(MakeShared<FRemovePCGNodeCommand>());
 	RegisterAndTrackCommand(MakeShared<FSpawnPCGActorCommand>());
 	RegisterAndTrackCommand(MakeShared<FExecutePCGGraphCommand>());
+	RegisterAndTrackCommand(MakeShared<FConfigurePCGMeshSpawnerCommand>());
 
 	UE_LOG(LogTemp, Log, TEXT("Registered %d PCG commands"), RegisteredCommands.Num());
 }

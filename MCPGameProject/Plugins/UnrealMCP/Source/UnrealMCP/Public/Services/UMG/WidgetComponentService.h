@@ -46,6 +46,14 @@ public:
      */
     static TArray<FString> GetSupportedComponentTypes();
 
+  /**
+   * Create a User Widget Blueprint instance as a child widget.
+   * Supports both name (e.g., "WBP_HUD_ResourceBar") and full path (e.g., "/Game/UI/HUD/WBP_HUD_ResourceBar").
+   */
+  UWidget* CreateUserWidgetChild(UWidgetBlueprint* WidgetBlueprint, const FString& ComponentName,
+                                  const FString& ComponentType, const TSharedPtr<FJsonObject>& KwargsObject,
+                                  FString& OutError);
+
 private:
     // Component creation methods for each type
     UWidget* CreateTextBlock(UWidgetBlueprint* WidgetBlueprint, const FString& ComponentName, const TSharedPtr<FJsonObject>& KwargsObject);

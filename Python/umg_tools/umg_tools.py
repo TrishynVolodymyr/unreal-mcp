@@ -22,7 +22,8 @@ from utils.widgets.widget_components import (
     reorder_widget_children as reorder_widget_children_impl,
     # Widget configuration functions
     set_widget_design_size_mode as set_widget_design_size_mode_impl,
-    set_widget_parent_class as set_widget_parent_class_impl
+    set_widget_parent_class as set_widget_parent_class_impl,
+    get_widget_component_details_impl
 )
 from utils.widgets.widget_screenshot import (
     capture_widget_screenshot_impl
@@ -296,6 +297,10 @@ def register_umg_tools(mcp: FastMCP):
         position: List[float] = None,
         size: List[float] = None,
         alignment: List[float] = None,
+        anchors: List[float] = None,
+        anchor_min: List[float] = None,
+        anchor_max: List[float] = None,
+        auto_size: bool = None,
         horizontal_alignment: str = None,
         vertical_alignment: str = None,
         size_rule: str = None,
@@ -305,7 +310,7 @@ def register_umg_tools(mcp: FastMCP):
         Change the placement (position/size) of a widget component.
         
         Works with ALL container types:
-        - CanvasPanel: use position, size, alignment
+        - CanvasPanel: use position, size, alignment, anchors, auto_size
         - Overlay/HBox/VBox/SizeBox/Border: use horizontal_alignment, vertical_alignment, size_rule, padding
         
         Args:
@@ -314,6 +319,13 @@ def register_umg_tools(mcp: FastMCP):
             position: Optional [X, Y] new position in the canvas panel
             size: Optional [Width, Height] new size for the component
             alignment: Optional [X, Y] alignment values (0.0 to 1.0)
+            anchors: Optional [X, Y] shorthand - sets both anchor_min and anchor_max to same value.
+                     Common presets: [0,0]=TopLeft, [0.5,0]=TopCenter, [1,0]=TopRight,
+                     [0,0.5]=MiddleLeft, [0.5,0.5]=Center, [1,0.5]=MiddleRight,
+                     [0,1]=BottomLeft, [0.5,1]=BottomCenter, [1,1]=BottomRight
+            anchor_min: Optional [X, Y] anchor minimum (overrides anchors shorthand)
+            anchor_max: Optional [X, Y] anchor maximum (overrides anchors shorthand)
+            auto_size: Optional bool - Size to Content (bAutoSize on CanvasPanelSlot)
             horizontal_alignment: Optional slot alignment - "Left", "Center", "Right", "Fill"
             vertical_alignment: Optional slot alignment - "Top", "Center", "Bottom", "Fill"
             size_rule: Optional slot size rule - "Auto" or "Fill" (for HBox/VBox slots)
@@ -371,17 +383,22 @@ def register_umg_tools(mcp: FastMCP):
             slot_result = set_widget_component_property_impl(ctx, widget_name, component_name, **slot_kwargs)
             results["slot_properties"] = slot_result
         
-        # Set CanvasPanel placement properties (position/size/alignment)
-        if position is not None or size is not None or alignment is not None:
-            placement_result = set_widget_component_placement_impl(ctx, widget_name, component_name, position, size, alignment)
+        # Set CanvasPanel placement properties (position/size/alignment/anchors/auto_size)
+        canvas_params = [position, size, alignment, anchors, anchor_min, anchor_max, auto_size]
+        has_canvas_params = any(p is not None for p in canvas_params)
+        if has_canvas_params:
+            placement_result = set_widget_component_placement_impl(
+                ctx, widget_name, component_name, position, size, alignment,
+                anchors, anchor_min, anchor_max, auto_size
+            )
             results["canvas_placement"] = placement_result
         
         # If only slot properties were set, return that result directly
-        if not (position is not None or size is not None or alignment is not None) and slot_kwargs:
+        if not has_canvas_params and slot_kwargs:
             return results.get("slot_properties", {"success": False, "error": "No properties set"})
         
         # If only canvas placement was set, return that result directly
-        if (position is not None or size is not None or alignment is not None) and not slot_kwargs:
+        if has_canvas_params and not slot_kwargs:
             return results.get("canvas_placement", {"success": False, "error": "No properties set"})
         
         # Both were set — merge results
@@ -935,6 +952,41 @@ def register_umg_tools(mcp: FastMCP):
             )
         """
         return set_widget_parent_class_impl(ctx, widget_name, new_parent_class)
+
+    @mcp.tool()
+    def get_widget_component_details(
+        ctx: Context,
+        widget_name: str,
+        component_name: str,
+        widget_path: str = ""
+    ) -> Dict[str, object]:
+        """
+        Get detailed properties of a specific widget component (Brush, SizeBox overrides, colors, etc.).
+
+        Returns type-specific properties that get_widget_blueprint_metadata doesn't show:
+        - For Image: brush (resource_object, image_size, draw_as, tint), color_and_opacity
+        - For SizeBox: width/height overrides, min/max desired sizes
+        - For ProgressBar: percent, fill_color, bar_fill_type/style
+        - For TextBlock: text, font (family, size), color, justification
+        - For Border: brush_color, content_color_and_opacity, padding
+        - For all widgets: visibility, is_enabled, render_opacity, clipping, slot details
+
+        Args:
+            widget_name: Name of the target Widget Blueprint (e.g. "WBP_HUD_PortraitGroup")
+            component_name: Name of the component to inspect (e.g. "Image_PortraitFrame")
+            widget_path: Optional content browser path (e.g. "/Game/UI/HUD")
+
+        Returns:
+            Dict containing all relevant properties for the component based on its type
+
+        Examples:
+            # Get Image brush details
+            get_widget_component_details(widget_name="WBP_HUD", component_name="Image_Portrait")
+
+            # Get SizeBox override values
+            get_widget_component_details(widget_name="WBP_HUD", component_name="SizeBox_Portrait")
+        """
+        return get_widget_component_details_impl(ctx, widget_name, component_name, widget_path)
 
     logger.info("UMG tools registered successfully")
 
