@@ -13,6 +13,7 @@
 #include "Commands/Editor/GetLevelMetadataCommand.h"
 #include "Commands/Editor/BatchDeleteActorsCommand.h"
 #include "Commands/Editor/BatchSpawnActorsCommand.h"
+#include "Commands/Editor/CreateRenderTargetCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -38,6 +39,9 @@ void FEditorCommandRegistration::RegisterAllCommands()
     // Register batch operations
     RegisterAndTrackCommand(MakeShared<FBatchDeleteActorsCommand>(EditorService));
     RegisterAndTrackCommand(MakeShared<FBatchSpawnActorsCommand>(EditorService));
+
+    // Register asset creation commands
+    RegisterAndTrackCommand(MakeShared<FCreateRenderTargetCommand>(EditorService));
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:
