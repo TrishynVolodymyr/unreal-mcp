@@ -14,6 +14,7 @@
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
 #include "Components/Border.h"
+#include "Components/Button.h"
 #include "Components/Widget.h"
 #include "Blueprint/UserWidget.h"
 
@@ -159,6 +160,10 @@ TSharedPtr<FJsonObject> FGetWidgetComponentDetailsCommand::ExecuteInternal(const
 	else if (UTextBlock* TextBlock = Cast<UTextBlock>(Widget))
 	{
 		BuildTextBlockProperties(TextBlock, ResultObj);
+	}
+	else if (UButton* Button = Cast<UButton>(Widget))
+	{
+		BuildButtonProperties(Button, ResultObj);
 	}
 	else if (UBorder* Border = Cast<UBorder>(Widget))
 	{
@@ -554,6 +559,45 @@ void FGetWidgetComponentDetailsCommand::BuildBorderProperties(UBorder* Border, T
 	OutObj->SetObjectField(TEXT("border"), BObj);
 }
 
+void FGetWidgetComponentDetailsCommand::BuildButtonProperties(UButton* Button, TSharedPtr<FJsonObject>& OutObj) const
+{
+	const FButtonStyle& Style = Button->GetStyle();
+	TSharedPtr<FJsonObject> StyleObj = MakeShared<FJsonObject>();
+
+	// State brushes
+	StyleObj->SetObjectField(TEXT("Normal"), BrushToJson(Style.Normal));
+	StyleObj->SetObjectField(TEXT("Hovered"), BrushToJson(Style.Hovered));
+	StyleObj->SetObjectField(TEXT("Pressed"), BrushToJson(Style.Pressed));
+	StyleObj->SetObjectField(TEXT("Disabled"), BrushToJson(Style.Disabled));
+
+	// Foreground colors
+	StyleObj->SetObjectField(TEXT("NormalForeground"), ColorToJson(Style.NormalForeground.GetSpecifiedColor()));
+	StyleObj->SetObjectField(TEXT("HoveredForeground"), ColorToJson(Style.HoveredForeground.GetSpecifiedColor()));
+	StyleObj->SetObjectField(TEXT("PressedForeground"), ColorToJson(Style.PressedForeground.GetSpecifiedColor()));
+	StyleObj->SetObjectField(TEXT("DisabledForeground"), ColorToJson(Style.DisabledForeground.GetSpecifiedColor()));
+
+	// Padding
+	TSharedPtr<FJsonObject> PadObj = MakeShared<FJsonObject>();
+	PadObj->SetNumberField(TEXT("Left"), Style.NormalPadding.Left);
+	PadObj->SetNumberField(TEXT("Top"), Style.NormalPadding.Top);
+	PadObj->SetNumberField(TEXT("Right"), Style.NormalPadding.Right);
+	PadObj->SetNumberField(TEXT("Bottom"), Style.NormalPadding.Bottom);
+	StyleObj->SetObjectField(TEXT("NormalPadding"), PadObj);
+
+	TSharedPtr<FJsonObject> PadObj2 = MakeShared<FJsonObject>();
+	PadObj2->SetNumberField(TEXT("Left"), Style.PressedPadding.Left);
+	PadObj2->SetNumberField(TEXT("Top"), Style.PressedPadding.Top);
+	PadObj2->SetNumberField(TEXT("Right"), Style.PressedPadding.Right);
+	PadObj2->SetNumberField(TEXT("Bottom"), Style.PressedPadding.Bottom);
+	StyleObj->SetObjectField(TEXT("PressedPadding"), PadObj2);
+
+	OutObj->SetObjectField(TEXT("WidgetStyle"), StyleObj);
+
+	// Top-level button properties
+	OutObj->SetObjectField(TEXT("BackgroundColor"), ColorToJson(Button->BackgroundColor));
+	OutObj->SetObjectField(TEXT("ColorAndOpacity"), ColorToJson(Button->GetColorAndOpacity()));
+}
+
 TSharedPtr<FJsonObject> FGetWidgetComponentDetailsCommand::ColorToJson(const FLinearColor& Color) const
 {
 	TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
@@ -621,6 +665,33 @@ TSharedPtr<FJsonObject> FGetWidgetComponentDetailsCommand::BrushToJson(const FSl
 	MarginObj->SetNumberField(TEXT("right"), Brush.Margin.Right);
 	MarginObj->SetNumberField(TEXT("bottom"), Brush.Margin.Bottom);
 	Obj->SetObjectField(TEXT("margin"), MarginObj);
+
+	// Outline settings (CornerRadii, RoundingType, Width, Color)
+	TSharedPtr<FJsonObject> OutlineObj = MakeShared<FJsonObject>();
+	const FSlateBrushOutlineSettings& Outline = Brush.OutlineSettings;
+	
+	// Corner radii
+	TSharedPtr<FJsonObject> RadiiObj = MakeShared<FJsonObject>();
+	RadiiObj->SetNumberField(TEXT("TopLeft"), Outline.CornerRadii.X);
+	RadiiObj->SetNumberField(TEXT("TopRight"), Outline.CornerRadii.Y);
+	RadiiObj->SetNumberField(TEXT("BottomRight"), Outline.CornerRadii.Z);
+	RadiiObj->SetNumberField(TEXT("BottomLeft"), Outline.CornerRadii.W);
+	OutlineObj->SetObjectField(TEXT("CornerRadii"), RadiiObj);
+	
+	// Rounding type
+	FString RoundingStr;
+	switch (Outline.RoundingType)
+	{
+		case ESlateBrushRoundingType::FixedRadius: RoundingStr = TEXT("FixedRadius"); break;
+		case ESlateBrushRoundingType::HalfHeightRadius: RoundingStr = TEXT("HalfHeightRadius"); break;
+		default: RoundingStr = TEXT("FixedRadius"); break;
+	}
+	OutlineObj->SetStringField(TEXT("RoundingType"), RoundingStr);
+	
+	OutlineObj->SetNumberField(TEXT("Width"), Outline.Width);
+	OutlineObj->SetObjectField(TEXT("Color"), ColorToJson(Outline.Color.GetSpecifiedColor()));
+	
+	Obj->SetObjectField(TEXT("outline_settings"), OutlineObj);
 
 	return Obj;
 }

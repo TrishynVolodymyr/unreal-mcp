@@ -32,7 +32,76 @@ bool FPropertyService::SetObjectProperty(UObject* Object, const FString& Propert
         return true;
     }
     
-    // Find the property
+    // Support dot-notation for nested struct properties (e.g., "WidgetStyle.Normal.TintColor")
+    if (PropertyName.Contains(TEXT(".")))
+    {
+        TArray<FString> PathSegments;
+        PropertyName.ParseIntoArray(PathSegments, TEXT("."), true);
+        
+        if (PathSegments.Num() < 2)
+        {
+            OutError = FString::Printf(TEXT("Invalid dot-notation path: '%s'"), *PropertyName);
+            return false;
+        }
+        
+        // Find the root property on the object
+        FProperty* CurrentProp = FindFProperty<FProperty>(Object->GetClass(), *PathSegments[0]);
+        if (!CurrentProp)
+        {
+            OutError = FString::Printf(TEXT("Root property '%s' not found on object '%s' (Class: %s)"), 
+                                      *PathSegments[0], *Object->GetName(), *Object->GetClass()->GetName());
+            return false;
+        }
+        
+        void* CurrentData = CurrentProp->ContainerPtrToValuePtr<void>(Object);
+        
+        // Navigate through intermediate struct fields
+        for (int32 i = 1; i < PathSegments.Num() - 1; ++i)
+        {
+            FStructProperty* StructProp = CastField<FStructProperty>(CurrentProp);
+            if (!StructProp)
+            {
+                OutError = FString::Printf(TEXT("Property '%s' in path '%s' is not a struct (cannot navigate deeper)"),
+                                          *PathSegments[i-1], *PropertyName);
+                return false;
+            }
+            
+            FProperty* NextProp = FindFProperty<FProperty>(StructProp->Struct, *PathSegments[i]);
+            if (!NextProp)
+            {
+                OutError = FString::Printf(TEXT("Field '%s' not found in struct '%s' (path: '%s')"),
+                                          *PathSegments[i], *StructProp->Struct->GetName(), *PropertyName);
+                return false;
+            }
+            
+            CurrentData = NextProp->ContainerPtrToValuePtr<void>(CurrentData);
+            CurrentProp = NextProp;
+        }
+        
+        // Final segment — find the leaf property and set it
+        FStructProperty* ParentStruct = CastField<FStructProperty>(CurrentProp);
+        if (!ParentStruct)
+        {
+            OutError = FString::Printf(TEXT("Property '%s' in path '%s' is not a struct"),
+                                      *PathSegments[PathSegments.Num()-2], *PropertyName);
+            return false;
+        }
+        
+        const FString& LeafName = PathSegments.Last();
+        FProperty* LeafProp = FindFProperty<FProperty>(ParentStruct->Struct, *LeafName);
+        if (!LeafProp)
+        {
+            OutError = FString::Printf(TEXT("Field '%s' not found in struct '%s' (path: '%s')"),
+                                      *LeafName, *ParentStruct->Struct->GetName(), *PropertyName);
+            return false;
+        }
+        
+        void* LeafData = LeafProp->ContainerPtrToValuePtr<void>(CurrentData);
+        UE_LOG(LogTemp, Log, TEXT("PropertyService: Setting nested property via dot-notation: %s"), *PropertyName);
+        return SetPropertyFromJson(LeafProp, LeafData, PropertyValue, OutError, Object);
+    }
+    
+    // Find the property (simple, non-dotted name)
     FProperty* Property = FindFProperty<FProperty>(Object->GetClass(), *PropertyName);
     if (!Property)
     {
@@ -90,7 +159,49 @@ bool FPropertyService::GetObjectProperty(UObject* Object, const FString& Propert
         return false;
     }
     
-    // Find the property
+    // Support dot-notation for nested struct properties (e.g., "WidgetStyle.Normal.TintColor")
+    if (PropertyName.Contains(TEXT(".")))
+    {
+        TArray<FString> PathSegments;
+        PropertyName.ParseIntoArray(PathSegments, TEXT("."), true);
+        
+        FProperty* CurrentProp = FindFProperty<FProperty>(Object->GetClass(), *PathSegments[0]);
+        if (!CurrentProp)
+        {
+            OutError = FString::Printf(TEXT("Root property '%s' not found on object '%s'"), 
+                                      *PathSegments[0], *Object->GetName());
+            return false;
+        }
+        
+        const void* CurrentData = CurrentProp->ContainerPtrToValuePtr<void>(Object);
+        
+        // Navigate to the target field
+        for (int32 i = 1; i < PathSegments.Num(); ++i)
+        {
+            FStructProperty* StructProp = CastField<FStructProperty>(CurrentProp);
+            if (!StructProp)
+            {
+                OutError = FString::Printf(TEXT("Property '%s' in path '%s' is not a struct"),
+                                          *PathSegments[i-1], *PropertyName);
+                return false;
+            }
+            
+            FProperty* NextProp = FindFProperty<FProperty>(StructProp->Struct, *PathSegments[i]);
+            if (!NextProp)
+            {
+                OutError = FString::Printf(TEXT("Field '%s' not found in struct '%s' (path: '%s')"),
+                                          *PathSegments[i], *StructProp->Struct->GetName(), *PropertyName);
+                return false;
+            }
+            
+            CurrentData = NextProp->ContainerPtrToValuePtr<void>(CurrentData);
+            CurrentProp = NextProp;
+        }
+        
+        return GetPropertyAsJson(CurrentProp, CurrentData, OutValue, OutError);
+    }
+    
+    // Find the property (simple name)
     FProperty* Property = FindFProperty<FProperty>(Object->GetClass(), *PropertyName);
     if (!Property)
     {

@@ -49,6 +49,7 @@ private:
 	void BuildProgressBarProperties(class UProgressBar* ProgressBar, TSharedPtr<FJsonObject>& OutObj) const;
 	void BuildTextBlockProperties(class UTextBlock* TextBlock, TSharedPtr<FJsonObject>& OutObj) const;
 	void BuildBorderProperties(class UBorder* Border, TSharedPtr<FJsonObject>& OutObj) const;
+	void BuildButtonProperties(class UButton* Button, TSharedPtr<FJsonObject>& OutObj) const;
 
 	/** Helper to serialize a linear color */
 	TSharedPtr<FJsonObject> ColorToJson(const FLinearColor& Color) const;
