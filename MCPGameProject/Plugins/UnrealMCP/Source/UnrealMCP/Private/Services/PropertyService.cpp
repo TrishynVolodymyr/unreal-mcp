@@ -942,6 +942,35 @@ bool FPropertyService::SetStructPropertyFromJson(FStructProperty* StructProp, vo
     {
         TSharedPtr<FJsonObject> StructJson = JsonValue->AsObject();
         
+        // Apply field name aliases for common UE structs
+        // FVector4 CornerRadii shows as TopLeft/TopRight/BottomRight/BottomLeft in Details panel
+        // but the actual FVector4 fields are X/Y/Z/W
+        static const TMap<FString, FString> Vector4Aliases = {
+            {TEXT("TopLeft"), TEXT("X")},
+            {TEXT("TopRight"), TEXT("Y")},
+            {TEXT("BottomRight"), TEXT("Z")},
+            {TEXT("BottomLeft"), TEXT("W")}
+        };
+        
+        if (Struct == TBaseStructure<FVector4>::Get() || StructName == TEXT("Vector4"))
+        {
+            TSharedPtr<FJsonObject> NormalizedJson = MakeShareable(new FJsonObject);
+            for (const auto& FieldPair : StructJson->Values)
+            {
+                const FString* Alias = Vector4Aliases.Find(FieldPair.Key);
+                if (Alias)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("PropertyService: Mapping FVector4 alias '%s' -> '%s'"), *FieldPair.Key, **Alias);
+                    NormalizedJson->SetField(*Alias, FieldPair.Value);
+                }
+                else
+                {
+                    NormalizedJson->SetField(FieldPair.Key, FieldPair.Value);
+                }
+            }
+            StructJson = NormalizedJson;
+        }
+        
         // Iterate through all fields of the struct and set them
         for (TFieldIterator<FProperty> It(Struct); It; ++It)
         {
