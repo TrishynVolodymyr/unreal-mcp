@@ -418,7 +418,7 @@ def register_umg_tools(mcp: FastMCP):
         component_type: str,
         position: List[float] = None,
         size: List[float] = None,
-        **kwargs
+        properties: Dict[str, Any] = None
     ) -> Dict[str, object]:
         """
         Unified function to add any type of widget component to a UMG Widget Blueprint.
@@ -429,15 +429,13 @@ def register_umg_tools(mcp: FastMCP):
             component_type: Type of component to add (e.g., "TextBlock", "Button", etc.)
             position: Optional [X, Y] position in the canvas panel
             size: Optional [Width, Height] of the component
-            **kwargs: Additional parameters specific to the component type
+            properties: Optional dict of additional parameters specific to the component type
                 For Border components:
                 - background_color/brush_color: [R, G, B, A] color values (0.0-1.0)
-                  Note: To achieve transparent backgrounds, set the Alpha value (A) in the color array
-                - opacity: Value between 0.0-1.0 setting the render opacity of the entire border
-                  and its contents. This is separate from the brush color's alpha.
-                - use_brush_transparency: Boolean (True/False) to enable the "Use Brush Transparency" option
-                  Required for alpha transparency to work properly with rounded corners or other complex brushes
+                - opacity: Value between 0.0-1.0
+                - use_brush_transparency: Boolean
                 - padding: [Left, Top, Right, Bottom] values
+                For TextBlock: text, font_size, etc.
             
         Returns:
             Dict containing success status and component properties
@@ -450,8 +448,7 @@ def register_umg_tools(mcp: FastMCP):
                 component_type="TextBlock",
                 position=[100, 50],
                 size=[200, 50],
-                text="Hello World",
-                font_size=24
+                properties={"text": "Hello World", "font_size": 24}
             )
             
             # Add a button
@@ -461,19 +458,18 @@ def register_umg_tools(mcp: FastMCP):
                 component_type="Button",
                 position=[100, 100],
                 size=[200, 50],
-                text="Submit",
-                background_color=[0.2, 0.4, 0.8, 1.0]
+                properties={"text": "Submit", "background_color": [0.2, 0.4, 0.8, 1.0]}
             )
         """
-        # Call aliased implementation
-        return add_widget_component_to_widget_impl(ctx, widget_name, component_name, component_type, position, size, **kwargs)
+        props = properties or {}
+        return add_widget_component_to_widget_impl(ctx, widget_name, component_name, component_type, position, size, **props)
 
     @mcp.tool()
     def set_widget_component_property(
         ctx: Context,
         widget_name: str,
         component_name: str,
-        **kwargs
+        properties: Dict[str, Any] = None
     ) -> Dict[str, object]:
         """
         Set one or more properties on a specific component within a UMG Widget Blueprint.
@@ -481,44 +477,47 @@ def register_umg_tools(mcp: FastMCP):
         Parameters:
             widget_name: Name of the target Widget Blueprint
             component_name: Name of the component to modify
-            kwargs: Properties to set (as keyword arguments or a dict)
+            properties: Dict of properties to set. Keys are UE property names, values are the values to set.
+                For simple properties: {"Text": "Hello World", "FontSize": 24}
+                For struct properties (FSlateColor, FLinearColor, etc.): use nested dicts matching UE JSON structure.
+                For slot properties: use "Slot." prefix keys.
 
         Examples:
-            
-            # Set the text and color of a TextBlock, including a struct property (ColorAndOpacity)
+            # Set text and color of a TextBlock
             set_widget_component_property(
-                ctx,
-                "MyWidget",
-                "MyTextBlock",
-                Text="Red Text",
-                ColorAndOpacity={
-                    "SpecifiedColor": {
-                        "R": 1.0,
-                        "G": 0.0,
-                        "B": 0.0,
-                        "A": 1.0
+                widget_name="MyWidget",
+                component_name="MyTextBlock",
+                properties={
+                    "Text": "Red Text",
+                    "ColorAndOpacity": {
+                        "SpecifiedColor": {"R": 1.0, "G": 0.0, "B": 0.0, "A": 1.0}
                     }
                 }
             )
-            # Simple properties can be passed directly; struct properties (like ColorAndOpacity) as dicts.
 
-            # Set the brush color (including opacity) of a Border using a flat RGBA dictionary
+            # Set brush color of a Border
             set_widget_component_property(
-                ctx,
-                "MyWidget",
-                "MyBorder",
-                BrushColor={
-                    "R": 1.0,
-                    "G": 1.0,
-                    "B": 1.0,
-                    "A": 0.3
+                widget_name="MyWidget",
+                component_name="MyBorder",
+                properties={
+                    "BrushColor": {"R": 1.0, "G": 1.0, "B": 1.0, "A": 0.3}
                 }
             )
-        """ 
-        logger.info(f"[DEBUG] TOOL ENTRY: set_widget_component_property called with widget_name={widget_name}, component_name={component_name}, kwargs={kwargs}")
+
+            # Set slot properties (padding, alignment, size rule)
+            set_widget_component_property(
+                widget_name="MyWidget",
+                component_name="MyText",
+                properties={
+                    "Slot.HAlign": "Center",
+                    "Slot.Padding": [0, 20, 0, 10]
+                }
+            )
+        """
+        props = properties or {}
+        logger.info(f"[DEBUG] TOOL ENTRY: set_widget_component_property called with widget_name={widget_name}, component_name={component_name}, properties={props}")
         try:
-            # Call aliased implementation
-            return set_widget_component_property_impl(ctx, widget_name, component_name, **(kwargs if isinstance(kwargs, dict) else {"Text": kwargs}))
+            return set_widget_component_property_impl(ctx, widget_name, component_name, **props)
         except Exception as e:
             logger.error(f"[ERROR] Exception in set_widget_component_property: {e}")
             raise
