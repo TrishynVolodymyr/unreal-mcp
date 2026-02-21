@@ -45,15 +45,42 @@ bool FPropertyService::SetObjectProperty(UObject* Object, const FString& Propert
         }
         
         // Find the root property on the object
-        FProperty* CurrentProp = FindFProperty<FProperty>(Object->GetClass(), *PathSegments[0]);
-        if (!CurrentProp)
+        FProperty* RootProp = FindFProperty<FProperty>(Object->GetClass(), *PathSegments[0]);
+        if (!RootProp)
         {
             OutError = FString::Printf(TEXT("Root property '%s' not found on object '%s' (Class: %s)"), 
                                       *PathSegments[0], *Object->GetName(), *Object->GetClass()->GetName());
             return false;
         }
         
-        void* CurrentData = CurrentProp->ContainerPtrToValuePtr<void>(Object);
+        // UE 5.1+ Getter/Setter support: if root property has a getter, we must work on a local copy
+        // then push the whole struct back via CallSetter. Direct memory writes are invisible to
+        // properties declared with UPROPERTY(Getter, Setter) because the backing field is private
+        // and the widget's Slate representation caches the old value.
+        const bool bRootHasSetter = RootProp->HasSetter();
+        const bool bRootHasGetter = RootProp->HasGetter();
+        
+        // Allocate a temp buffer for the root struct if we need getter/setter path
+        TArray<uint8> TempBuffer;
+        void* RootData = nullptr;
+        
+        if (bRootHasGetter && bRootHasSetter)
+        {
+            // Work on a local copy: read via getter, modify, write back via setter
+            TempBuffer.SetNumZeroed(RootProp->GetSize());
+            RootProp->InitializeValue(TempBuffer.GetData());
+            RootProp->CallGetter(Object, TempBuffer.GetData());
+            RootData = TempBuffer.GetData();
+            UE_LOG(LogTemp, Log, TEXT("PropertyService: Root property '%s' has Getter/Setter — using copy-modify-setter path"), *PathSegments[0]);
+        }
+        else
+        {
+            // Direct memory access (legacy path)
+            RootData = RootProp->ContainerPtrToValuePtr<void>(Object);
+        }
+        
+        FProperty* CurrentProp = RootProp;
+        void* CurrentData = RootData;
         
         // Navigate through intermediate struct fields
         for (int32 i = 1; i < PathSegments.Num() - 1; ++i)
@@ -63,6 +90,7 @@ bool FPropertyService::SetObjectProperty(UObject* Object, const FString& Propert
             {
                 OutError = FString::Printf(TEXT("Property '%s' in path '%s' is not a struct (cannot navigate deeper)"),
                                           *PathSegments[i-1], *PropertyName);
+                if (TempBuffer.Num() > 0) { RootProp->DestroyValue(TempBuffer.GetData()); }
                 return false;
             }
             
@@ -71,6 +99,7 @@ bool FPropertyService::SetObjectProperty(UObject* Object, const FString& Propert
             {
                 OutError = FString::Printf(TEXT("Field '%s' not found in struct '%s' (path: '%s')"),
                                           *PathSegments[i], *StructProp->Struct->GetName(), *PropertyName);
+                if (TempBuffer.Num() > 0) { RootProp->DestroyValue(TempBuffer.GetData()); }
                 return false;
             }
             
@@ -84,6 +113,7 @@ bool FPropertyService::SetObjectProperty(UObject* Object, const FString& Propert
         {
             OutError = FString::Printf(TEXT("Property '%s' in path '%s' is not a struct"),
                                       *PathSegments[PathSegments.Num()-2], *PropertyName);
+            if (TempBuffer.Num() > 0) { RootProp->DestroyValue(TempBuffer.GetData()); }
             return false;
         }
         
@@ -93,12 +123,28 @@ bool FPropertyService::SetObjectProperty(UObject* Object, const FString& Propert
         {
             OutError = FString::Printf(TEXT("Field '%s' not found in struct '%s' (path: '%s')"),
                                       *LeafName, *ParentStruct->Struct->GetName(), *PropertyName);
+            if (TempBuffer.Num() > 0) { RootProp->DestroyValue(TempBuffer.GetData()); }
             return false;
         }
         
         void* LeafData = LeafProp->ContainerPtrToValuePtr<void>(CurrentData);
         UE_LOG(LogTemp, Log, TEXT("PropertyService: Setting nested property via dot-notation: %s"), *PropertyName);
-        return SetPropertyFromJson(LeafProp, LeafData, PropertyValue, OutError, Object);
+        bool bResult = SetPropertyFromJson(LeafProp, LeafData, PropertyValue, OutError, Object);
+        
+        // Push modified struct back via setter if root property has one
+        if (bResult && bRootHasSetter && TempBuffer.Num() > 0)
+        {
+            RootProp->CallSetter(Object, TempBuffer.GetData());
+            UE_LOG(LogTemp, Log, TEXT("PropertyService: Called setter for root property '%s' after dot-notation modification"), *PathSegments[0]);
+        }
+        
+        // Cleanup temp buffer
+        if (TempBuffer.Num() > 0)
+        {
+            RootProp->DestroyValue(TempBuffer.GetData());
+        }
+        
+        return bResult;
     }
     
     // Find the property (simple, non-dotted name)
@@ -110,7 +156,31 @@ bool FPropertyService::SetObjectProperty(UObject* Object, const FString& Propert
         return false;
     }
     
-    // Get property data pointer
+    // UE 5.1+ Getter/Setter support for simple properties
+    const bool bHasSetter = Property->HasSetter();
+    const bool bHasGetter = Property->HasGetter();
+    
+    if (bHasGetter && bHasSetter)
+    {
+        // Copy-modify-setter path: read current value via getter, modify in temp, push via setter
+        TArray<uint8> TempBuffer;
+        TempBuffer.SetNumZeroed(Property->GetSize());
+        Property->InitializeValue(TempBuffer.GetData());
+        Property->CallGetter(Object, TempBuffer.GetData());
+        
+        bool bResult = SetPropertyFromJson(Property, TempBuffer.GetData(), PropertyValue, OutError, Object);
+        
+        if (bResult)
+        {
+            Property->CallSetter(Object, TempBuffer.GetData());
+            UE_LOG(LogTemp, Log, TEXT("PropertyService: Set property '%s' via Getter/Setter path"), *PropertyName);
+        }
+        
+        Property->DestroyValue(TempBuffer.GetData());
+        return bResult;
+    }
+    
+    // Legacy direct memory path
     void* PropertyData = Property->ContainerPtrToValuePtr<void>(Object);
 
     // Set the property value, passing Object as the outer for instanced subobjects
