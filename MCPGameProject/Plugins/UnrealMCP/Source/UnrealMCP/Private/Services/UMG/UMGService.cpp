@@ -455,6 +455,9 @@ bool FUMGService::SetWidgetProperties(const FString& BlueprintName, const FStrin
     // Save the blueprint if any properties were set
     if (OutSuccessProperties.Num() > 0)
     {
+        // Ensure widget picks up property changes (especially for UE5.1+ getter/setter properties)
+        Widget->SynchronizeProperties();
+        
         WidgetBlueprint->MarkPackageDirty();
         FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
         UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
