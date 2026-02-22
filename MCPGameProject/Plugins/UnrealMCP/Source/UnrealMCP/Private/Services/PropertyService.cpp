@@ -501,6 +501,52 @@ bool FPropertyService::SetPropertyFromJson(FProperty* Property, void* PropertyDa
         {
             return SetArrayPropertyFromJson(ArrayProp, PropertyData, *ArrayValue, OutError, Outer);
         }
+        
+        // Fallback: comma-separated string → array
+        // Lets callers pass "a,b,c" instead of ["a","b","c"] for any supported inner type
+        FString StringValue;
+        if (JsonValue->TryGetString(StringValue))
+        {
+            FProperty* InnerProp = ArrayProp->Inner;
+            if (InnerProp)
+            {
+                TArray<FString> Parts;
+                StringValue.ParseIntoArray(Parts, TEXT(","), true);
+                
+                TArray<TSharedPtr<FJsonValue>> SplitArray;
+                bool bIsNumericInner = InnerProp->IsA<FIntProperty>() || InnerProp->IsA<FInt64Property>()
+                    || InnerProp->IsA<FFloatProperty>() || InnerProp->IsA<FDoubleProperty>()
+                    || InnerProp->IsA<FByteProperty>();
+                bool bIsStringInner = InnerProp->IsA<FStrProperty>() || InnerProp->IsA<FNameProperty>() || InnerProp->IsA<FTextProperty>();
+                
+                if (bIsStringInner || bIsNumericInner)
+                {
+                    for (const FString& Part : Parts)
+                    {
+                        FString Trimmed = Part.TrimStartAndEnd();
+                        if (bIsNumericInner)
+                        {
+                            if (!Trimmed.IsNumeric())
+                            {
+                                OutError = FString::Printf(TEXT("Cannot convert '%s' to number for numeric array property '%s'"),
+                                    *Trimmed, *Property->GetName());
+                                return false;
+                            }
+                            SplitArray.Add(MakeShared<FJsonValueNumber>(FCString::Atod(*Trimmed)));
+                        }
+                        else
+                        {
+                            SplitArray.Add(MakeShared<FJsonValueString>(Trimmed));
+                        }
+                    }
+                    
+                    UE_LOG(LogTemp, Log, TEXT("PropertyService: Auto-converted comma-separated string to %s array (%d elements) for property '%s'"),
+                           bIsNumericInner ? TEXT("numeric") : TEXT("string"), SplitArray.Num(), *Property->GetName());
+                    return SetArrayPropertyFromJson(ArrayProp, PropertyData, SplitArray, OutError, Outer);
+                }
+            }
+        }
+        
         OutError = TEXT("Expected array value for array property");
         return false;
     }

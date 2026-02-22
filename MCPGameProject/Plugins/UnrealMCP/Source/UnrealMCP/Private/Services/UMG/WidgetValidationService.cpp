@@ -425,6 +425,7 @@ void FWidgetValidationService::InitializeValidationData()
         TEXT("EditableText"),
         TEXT("EditableTextBox"),
         TEXT("ComboBoxString"),
+        TEXT("ComboBox"),
         TEXT("MultiLineEditableText"),
         TEXT("RichTextBlock"),
         TEXT("WidgetSwitcher"),
