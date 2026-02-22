@@ -348,11 +348,23 @@ FString FSetNodePinValueCommand::Execute(const FString& Parameters)
             }
         }
     }
+    else if (TargetPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Text)
+    {
+        // Text pins use DefaultTextValue (FText), not DefaultValue (FString).
+        // This is critical for nodes like K2Node_FormatText which parse
+        // DefaultTextValue to create dynamic argument pins (e.g. "{Value}{Suffix}").
+        TargetPin->DefaultTextValue = FText::FromString(Value);
+    }
     else
     {
         // For other types (int, float, bool, string), just set the default value directly
         TargetPin->DefaultValue = Value;
     }
+
+    // Notify the node that a pin default value changed (before reconstruction).
+    // Nodes like K2Node_FormatText use this callback to parse the format string
+    // and create/remove dynamic argument pins.
+    TargetNode->PinDefaultValueChanged(TargetPin);
 
     // Reconstruct the node to apply changes
     TargetNode->ReconstructNode();

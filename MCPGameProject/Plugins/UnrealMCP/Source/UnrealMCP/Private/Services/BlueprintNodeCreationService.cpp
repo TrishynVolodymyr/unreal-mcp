@@ -294,14 +294,15 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                     WarningMessage = DatabaseWarningMessage;
                 }
             }
-            else if (!DatabaseErrorMessage.IsEmpty())
+            else if (!DatabaseErrorMessage.IsEmpty() && DatabaseErrorMessage.Contains(TEXT("Multiple")))
             {
-                // If we got a specific error message (e.g., duplicate functions), return it immediately
-                // Don't try other methods as this is a user error that needs to be fixed
+                // If we got a duplicate/ambiguity error, return it immediately — user needs to specify class_name
                 return FNodeResultBuilder::BuildNodeResult(false, DatabaseErrorMessage);
             }
             else
             {
+                // Action database didn't find it — fall through to manual function lookup
+                // This handles self-functions (custom Blueprint functions), mapped names, etc.
                 // Try to find the function and create a function call node
                 UFunction* TargetFunction = nullptr;
                 TargetClass = nullptr;
@@ -348,6 +349,26 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                     }
                 }
                 
+                // Try Blueprint's own generated class for self-functions (custom user-defined functions)
+                if (!TargetFunction && Blueprint->SkeletonGeneratedClass)
+                {
+                    TargetFunction = Blueprint->SkeletonGeneratedClass->FindFunctionByName(*ActualFunctionName);
+                    if (TargetFunction)
+                    {
+                        TargetClass = Blueprint->SkeletonGeneratedClass;
+                        UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found self-function '%s' in Blueprint's SkeletonGeneratedClass"), *ActualFunctionName);
+                    }
+                }
+                if (!TargetFunction && Blueprint->GeneratedClass)
+                {
+                    TargetFunction = Blueprint->GeneratedClass->FindFunctionByName(*ActualFunctionName);
+                    if (TargetFunction)
+                    {
+                        TargetClass = Blueprint->GeneratedClass;
+                        UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found self-function '%s' in Blueprint's GeneratedClass"), *ActualFunctionName);
+                    }
+                }
+
                 if (!TargetFunction)
                 {
                     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Function '%s' not found"), *EffectiveFunctionName);
@@ -358,7 +379,15 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                 
                 // Create the function call node
                 UK2Node_CallFunction* FunctionNode = NewObject<UK2Node_CallFunction>(EventGraph);
-                FunctionNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), TargetClass);
+                // For self-functions, use SetSelfMember instead of SetExternalMember
+                if (TargetClass == Blueprint->SkeletonGeneratedClass || TargetClass == Blueprint->GeneratedClass)
+                {
+                    FunctionNode->FunctionReference.SetSelfMember(TargetFunction->GetFName());
+                }
+                else
+                {
+                    FunctionNode->FunctionReference.SetExternalMember(TargetFunction->GetFName(), TargetClass);
+                }
                 FunctionNode->NodePosX = PositionX;
                 FunctionNode->NodePosY = PositionY;
                 FunctionNode->CreateNewGuid();
