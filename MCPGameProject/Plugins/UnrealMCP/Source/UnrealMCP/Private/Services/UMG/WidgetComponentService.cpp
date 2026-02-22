@@ -109,7 +109,7 @@ TArray<FString> FWidgetComponentService::GetSupportedComponentTypes()
         TEXT("ProgressBar"), TEXT("Border"), TEXT("ScrollBox"), TEXT("Spacer"), TEXT("WidgetSwitcher"),
         TEXT("Throbber"), TEXT("ExpandableArea"), TEXT("RichTextBlock"), TEXT("MultiLineEditableText"),
         TEXT("VerticalBox"), TEXT("HorizontalBox"), TEXT("Overlay"), TEXT("GridPanel"), TEXT("SizeBox"),
-        TEXT("CanvasPanel"), TEXT("ComboBox"), TEXT("EditableText"), TEXT("EditableTextBox"),
+        TEXT("CanvasPanel"), TEXT("ComboBox"), TEXT("ComboBoxString"), TEXT("EditableText"), TEXT("EditableTextBox"),
         TEXT("CircularThrobber"), TEXT("SpinBox"), TEXT("WrapBox"), TEXT("ScaleBox"), TEXT("NamedSlot"),
         TEXT("RadialSlider"), TEXT("ListView"), TEXT("TileView"), TEXT("TreeView"), TEXT("SafeZone"),
         TEXT("MenuAnchor"), TEXT("NativeWidgetHost"), TEXT("BackgroundBlur"), TEXT("UniformGridPanel")

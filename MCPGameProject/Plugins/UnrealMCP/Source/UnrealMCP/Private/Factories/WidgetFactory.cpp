@@ -163,6 +163,7 @@ void FWidgetFactory::InitializeDefaultWidgetTypes()
     RegisterWidgetType(TEXT("RadialSlider"), URadialSlider::StaticClass());
     RegisterWidgetType(TEXT("SpinBox"), USpinBox::StaticClass());
     RegisterWidgetType(TEXT("ComboBoxString"), UComboBoxString::StaticClass());
+    RegisterWidgetType(TEXT("ComboBox"), UComboBoxString::StaticClass());  // Alias for convenience
     RegisterWidgetType(TEXT("EditableText"), UEditableText::StaticClass());
     RegisterWidgetType(TEXT("EditableTextBox"), UEditableTextBox::StaticClass());
     RegisterWidgetType(TEXT("MultiLineEditableText"), UMultiLineEditableText::StaticClass());

@@ -25,11 +25,39 @@ bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, co
     UE_LOG(LogTemp, Log, TEXT("FBlueprintService::AddVariableToBlueprint: Adding variable '%s' of type '%s' to blueprint '%s'"),
         *VariableName, *VariableType, *Blueprint->GetName());
 
-    // Resolve variable type
-    UObject* TypeObject = ResolveVariableType(VariableType);
+    // Check for container types: Array<X>, Set<X>, Map<K,V>
+    bool bIsArray = false;
+    bool bIsSet = false;
+    FString InnerTypeName = VariableType;
+    
+    if (VariableType.StartsWith(TEXT("Array<")) || VariableType.StartsWith(TEXT("TArray<")))
+    {
+        bIsArray = true;
+        int32 OpenBracket = VariableType.Find(TEXT("<"));
+        int32 CloseBracket = VariableType.Find(TEXT(">"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+        if (OpenBracket != INDEX_NONE && CloseBracket != INDEX_NONE)
+        {
+            InnerTypeName = VariableType.Mid(OpenBracket + 1, CloseBracket - OpenBracket - 1).TrimStartAndEnd();
+        }
+        UE_LOG(LogTemp, Log, TEXT("AddVariableToBlueprint: Detected Array container, inner type: '%s'"), *InnerTypeName);
+    }
+    else if (VariableType.StartsWith(TEXT("Set<")) || VariableType.StartsWith(TEXT("TSet<")))
+    {
+        bIsSet = true;
+        int32 OpenBracket = VariableType.Find(TEXT("<"));
+        int32 CloseBracket = VariableType.Find(TEXT(">"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+        if (OpenBracket != INDEX_NONE && CloseBracket != INDEX_NONE)
+        {
+            InnerTypeName = VariableType.Mid(OpenBracket + 1, CloseBracket - OpenBracket - 1).TrimStartAndEnd();
+        }
+        UE_LOG(LogTemp, Log, TEXT("AddVariableToBlueprint: Detected Set container, inner type: '%s'"), *InnerTypeName);
+    }
+
+    // Resolve variable type (using inner type for containers)
+    UObject* TypeObject = ResolveVariableType(InnerTypeName);
     if (!TypeObject)
     {
-        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddVariableToBlueprint: Unknown variable type '%s'"), *VariableType);
+        UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddVariableToBlueprint: Unknown variable type '%s'"), *InnerTypeName);
         return false;
     }
 
@@ -37,20 +65,30 @@ bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, co
     FBPVariableDescription NewVar;
     NewVar.VarName = *VariableName;
     NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Object; // Default, will be adjusted based on type
+    
+    // Set container type
+    if (bIsArray)
+    {
+        NewVar.VarType.ContainerType = EPinContainerType::Array;
+    }
+    else if (bIsSet)
+    {
+        NewVar.VarType.ContainerType = EPinContainerType::Set;
+    }
 
     // Set type based on resolved type object
     // Check if this is a Class reference type (TSubclassOf)
-    if (VariableType.StartsWith(TEXT("Class")) || VariableType.StartsWith(TEXT("TSubclassOf")))
+    if (InnerTypeName.StartsWith(TEXT("Class")) || InnerTypeName.StartsWith(TEXT("TSubclassOf")))
     {
         NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Class;
 
         // Extract the inner class type if specified: "Class<UserWidget>" -> "UserWidget"
         FString InnerClassName;
-        int32 OpenBracket = VariableType.Find(TEXT("<"));
-        int32 CloseBracket = VariableType.Find(TEXT(">"));
+        int32 OpenBracket = InnerTypeName.Find(TEXT("<"));
+        int32 CloseBracket = InnerTypeName.Find(TEXT(">"));
         if (OpenBracket != INDEX_NONE && CloseBracket != INDEX_NONE && CloseBracket > OpenBracket)
         {
-            InnerClassName = VariableType.Mid(OpenBracket + 1, CloseBracket - OpenBracket - 1);
+            InnerClassName = InnerTypeName.Mid(OpenBracket + 1, CloseBracket - OpenBracket - 1);
         }
 
         // Default to UObject if no inner class specified
@@ -79,45 +117,45 @@ bool FBlueprintPropertyService::AddVariableToBlueprint(UBlueprint* Blueprint, co
     }
     else
     {
-        // Handle basic types
-        if (VariableType == TEXT("Boolean") || VariableType == TEXT("bool"))
+        // Handle basic types (use InnerTypeName for container support)
+        if (InnerTypeName == TEXT("Boolean") || InnerTypeName == TEXT("bool"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Boolean;
         }
-        else if (VariableType == TEXT("Integer") || VariableType == TEXT("int") || VariableType == TEXT("int32"))
+        else if (InnerTypeName == TEXT("Integer") || InnerTypeName == TEXT("int") || InnerTypeName == TEXT("int32"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Int;
         }
-        else if (VariableType == TEXT("Float") || VariableType == TEXT("float"))
+        else if (InnerTypeName == TEXT("Float") || InnerTypeName == TEXT("float"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Real;
             NewVar.VarType.PinSubCategory = UEdGraphSchema_K2::PC_Float;
         }
-        else if (VariableType == TEXT("String") || VariableType == TEXT("FString"))
+        else if (InnerTypeName == TEXT("String") || InnerTypeName == TEXT("FString"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_String;
         }
-        else if (VariableType == TEXT("Vector") || VariableType == TEXT("FVector"))
+        else if (InnerTypeName == TEXT("Vector") || InnerTypeName == TEXT("FVector"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Struct;
             NewVar.VarType.PinSubCategoryObject = TBaseStructure<FVector>::Get();
         }
-        else if (VariableType == TEXT("Rotator") || VariableType == TEXT("FRotator"))
+        else if (InnerTypeName == TEXT("Rotator") || InnerTypeName == TEXT("FRotator"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Struct;
             NewVar.VarType.PinSubCategoryObject = TBaseStructure<FRotator>::Get();
         }
-        else if (VariableType == TEXT("Name") || VariableType == TEXT("FName"))
+        else if (InnerTypeName == TEXT("Name") || InnerTypeName == TEXT("FName"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Name;
         }
-        else if (VariableType == TEXT("Text") || VariableType == TEXT("FText"))
+        else if (InnerTypeName == TEXT("Text") || InnerTypeName == TEXT("FText"))
         {
             NewVar.VarType.PinCategory = UEdGraphSchema_K2::PC_Text;
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddVariableToBlueprint: Unsupported basic type '%s'"), *VariableType);
+            UE_LOG(LogTemp, Error, TEXT("FBlueprintService::AddVariableToBlueprint: Unsupported basic type '%s'"), *InnerTypeName);
             return false;
         }
     }
