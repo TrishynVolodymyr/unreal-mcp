@@ -303,6 +303,10 @@ FString FBlueprintActionSearchService::SearchBlueprintActions(
     // Use title case version for searching if it's different from original
     FString EffectiveSearchQuery = TitleCaseQuery.Equals(SearchQuery, ESearchCase::IgnoreCase) ? SearchQuery : TitleCaseQuery;
     
+    // Keep original query for searching internal function names (e.g. "Conv_IntToText")
+    // since CamelCase conversion can mangle underscore-separated names
+    FString OriginalSearchLower = SearchQuery.ToLower();
+    
     // Declare variables that might be used across different sections (to avoid goto issues)
     FString SearchLower = EffectiveSearchQuery.ToLower();
     const TSet<FName>& OperatorNames = FTypePromotion::GetAllOpNames();
@@ -557,6 +561,7 @@ FString FBlueprintActionSearchService::SearchBlueprintActions(
         
             // Get the display name and properties - handle function spawners differently
             FString ActionName;
+            FString InternalFunctionName; // The C++ function name (e.g. "Conv_IntToText") - used for search
             FString NodeType;
             FString ActionCategory = TEXT("Unknown");
             FString Tooltip;
@@ -572,9 +577,10 @@ FString FBlueprintActionSearchService::SearchBlueprintActions(
                 if (Function)
                 {
                     ActionName = Function->GetDisplayNameText().ToString();
+                    InternalFunctionName = Function->GetName();
                     if (ActionName.IsEmpty())
                     {
-                        ActionName = Function->GetName();
+                        ActionName = InternalFunctionName;
                     }
                     NodeType = TEXT("Function");
                     
@@ -650,6 +656,10 @@ FString FBlueprintActionSearchService::SearchBlueprintActions(
                 {
                     ActionName = FunctionNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
                     NodeType = TEXT("Function");
+                    if (UFunction* Func = FunctionNode->GetTargetFunction())
+                    {
+                        InternalFunctionName = Func->GetName();
+                    }
                 }
                 else
                 {
@@ -663,11 +673,19 @@ FString FBlueprintActionSearchService::SearchBlueprintActions(
         
         // Apply search and category filters (SearchLower already declared at function start)
         FString ActionNameLower = ActionName.ToLower();
+        FString InternalFunctionNameLower = InternalFunctionName.ToLower();
         FString ActionCategoryLower = ActionCategory.ToLower();
         FString TooltipLower = Tooltip.ToLower();
         FString KeywordsLower = Keywords.ToLower();
         
+        // Search across display name, internal function name (e.g. Conv_IntToText),
+        // category, tooltip, and keywords.
+        // For internal function names, also match against the original (non-CamelCase-converted) query
+        // because CamelCase conversion mangles underscore names like "Conv_IntToText".
         bool bMatchesSearch = ActionNameLower.Contains(SearchLower) ||
+                             (!InternalFunctionNameLower.IsEmpty() && (
+                                 InternalFunctionNameLower.Contains(SearchLower) ||
+                                 InternalFunctionNameLower.Contains(OriginalSearchLower))) ||
                              ActionCategoryLower.Contains(SearchLower) ||
                              TooltipLower.Contains(SearchLower) ||
                              KeywordsLower.Contains(SearchLower);
