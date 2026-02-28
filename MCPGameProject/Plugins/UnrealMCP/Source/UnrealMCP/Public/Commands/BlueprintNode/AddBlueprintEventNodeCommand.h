@@ -16,7 +16,7 @@ public:
 private:
     IBlueprintNodeService& BlueprintNodeService;
     
-    bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutEventType, FVector2D& OutPosition, FString& OutError) const;
+    bool ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutEventType, FVector2D& OutPosition, FString& OutError, FString& OutGraphName) const;
     FString CreateSuccessResponse(const FString& NodeId) const;
     FString CreateErrorResponse(const FString& ErrorMessage) const;
 };

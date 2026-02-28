@@ -122,7 +122,7 @@ bool FBlueprintNodeService::GetBlueprintGraphs(UBlueprint* Blueprint, TArray<FSt
     return FBlueprintNodeQueryService::Get().GetBlueprintGraphs(Blueprint, OutGraphNames);
 }
 
-bool FBlueprintNodeService::AddVariableNode(UBlueprint* Blueprint, const FString& VariableName, bool bIsGetter, const FVector2D& Position, FString& OutNodeId)
+bool FBlueprintNodeService::AddVariableNode(UBlueprint* Blueprint, const FString& VariableName, bool bIsGetter, const FVector2D& Position, FString& OutNodeId, const FString& TargetGraph)
 {
     if (!Blueprint || VariableName.IsEmpty())
     {
@@ -137,7 +137,7 @@ bool FBlueprintNodeService::AddVariableNode(UBlueprint* Blueprint, const FString
     FString JsonParams = FString::Printf(TEXT("{\"variable_name\": \"%s\"}"), *VariableName);
     
     // Call the creation service with the correct parameters for variable nodes
-    FString Result = CreationService.CreateNodeByActionName(Blueprint->GetName(), FunctionName, TEXT(""), PositionStr, JsonParams);
+    FString Result = CreationService.CreateNodeByActionName(Blueprint->GetName(), FunctionName, TEXT(""), PositionStr, JsonParams, TargetGraph);
     
     // Parse the result to extract node ID
     TSharedPtr<FJsonObject> ResultObj;
@@ -161,7 +161,7 @@ bool FBlueprintNodeService::GetVariableInfo(UBlueprint* Blueprint, const FString
     return FBlueprintNodeQueryService::Get().GetVariableInfo(Blueprint, VariableName, OutVariableType, OutAdditionalInfo);
 }
 
-bool FBlueprintNodeService::AddEventNode(UBlueprint* Blueprint, const FString& EventType, const FVector2D& Position, FString& OutNodeId)
+bool FBlueprintNodeService::AddEventNode(UBlueprint* Blueprint, const FString& EventType, const FVector2D& Position, FString& OutNodeId, const FString& TargetGraph)
 {
     if (!Blueprint || EventType.IsEmpty())
     {
@@ -175,7 +175,7 @@ bool FBlueprintNodeService::AddEventNode(UBlueprint* Blueprint, const FString& E
     FString JsonParams = FString::Printf(TEXT("{\"event_type\": \"%s\"}"), *EventType);
     
     // Call the creation service with the event type as the function name
-    FString Result = CreationService.CreateNodeByActionName(Blueprint->GetName(), EventType, TEXT(""), PositionStr, JsonParams);
+    FString Result = CreationService.CreateNodeByActionName(Blueprint->GetName(), EventType, TEXT(""), PositionStr, JsonParams, TargetGraph);
     
     // Parse the result to extract node ID
     TSharedPtr<FJsonObject> ResultObj;
@@ -194,7 +194,7 @@ bool FBlueprintNodeService::AddEventNode(UBlueprint* Blueprint, const FString& E
     return false;
 }
 
-bool FBlueprintNodeService::AddFunctionCallNode(UBlueprint* Blueprint, const FString& FunctionName, const FString& ClassName, const FVector2D& Position, FString& OutNodeId)
+bool FBlueprintNodeService::AddFunctionCallNode(UBlueprint* Blueprint, const FString& FunctionName, const FString& ClassName, const FVector2D& Position, FString& OutNodeId, const FString& TargetGraph)
 {
     if (!Blueprint || FunctionName.IsEmpty())
     {
@@ -208,7 +208,7 @@ bool FBlueprintNodeService::AddFunctionCallNode(UBlueprint* Blueprint, const FSt
     FString JsonParams = FString::Printf(TEXT("{\"function_name\": \"%s\"}"), *FunctionName);
     
     // Call the creation service with the function name and class name
-    FString Result = CreationService.CreateNodeByActionName(Blueprint->GetName(), FunctionName, ClassName, PositionStr, JsonParams);
+    FString Result = CreationService.CreateNodeByActionName(Blueprint->GetName(), FunctionName, ClassName, PositionStr, JsonParams, TargetGraph);
     
     // Parse the result to extract node ID
     TSharedPtr<FJsonObject> ResultObj;

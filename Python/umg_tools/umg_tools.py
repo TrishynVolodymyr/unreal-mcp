@@ -23,7 +23,8 @@ from utils.widgets.widget_components import (
     # Widget configuration functions
     set_widget_design_size_mode as set_widget_design_size_mode_impl,
     set_widget_parent_class as set_widget_parent_class_impl,
-    get_widget_component_details_impl
+    get_widget_component_details_impl,
+    wrap_widget_component as wrap_widget_component_impl
 )
 from utils.widgets.widget_screenshot import (
     capture_widget_screenshot_impl
@@ -986,6 +987,62 @@ def register_umg_tools(mcp: FastMCP):
             get_widget_component_details(widget_name="WBP_HUD", component_name="SizeBox_Portrait")
         """
         return get_widget_component_details_impl(ctx, widget_name, component_name, widget_path)
+
+    @mcp.tool()
+    def wrap_widget_component(
+        ctx: Context,
+        widget_name: str,
+        component_name: str,
+        wrapper_type: str,
+        wrapper_name: str = "",
+        wrapper_properties: Dict[str, Any] = None
+    ) -> Dict[str, object]:
+        """
+        Wrap an existing widget component with a container widget.
+        Creates a new container, places it where the original widget was in the hierarchy,
+        and moves the original widget inside the container. Equivalent to UE Editor's "Wrap With..." action.
+
+        Args:
+            widget_name: Name of the target Widget Blueprint (e.g. "WBP_Settings_Controls")
+            component_name: Name of the component to wrap (e.g. "Ctrl_MouseSensitivity")
+            wrapper_type: Type of container to wrap with. Valid types:
+                SizeBox, Border, VerticalBox, HorizontalBox, Overlay, ScaleBox,
+                CanvasPanel, WrapBox, GridPanel, UniformGridPanel, ScrollBox,
+                WidgetSwitcher, SafeZone, BackgroundBlur
+            wrapper_name: Optional name for the wrapper (default: "Wrap_<component_name>")
+            wrapper_properties: Optional dict of properties to set on the wrapper after creation.
+                For SizeBox: {"bOverride_HeightOverride": true, "HeightOverride": 48.0}
+                For Border: {"BrushColor": "(R=0.1,G=0.1,B=0.1,A=1.0)"}
+
+        Returns:
+            Dict containing success status, wrapper name, and wrapper type
+
+        Examples:
+            # Wrap a slider with a SizeBox to constrain its height
+            wrap_widget_component(
+                widget_name="WBP_Settings_Controls",
+                component_name="Ctrl_MouseSensitivity",
+                wrapper_type="SizeBox",
+                wrapper_name="SizeBox_MouseSensitivity",
+                wrapper_properties={"bOverride_HeightOverride": True, "HeightOverride": 48.0}
+            )
+
+            # Wrap a text block with a Border for background styling
+            wrap_widget_component(
+                widget_name="WBP_HUD",
+                component_name="Txt_PlayerName",
+                wrapper_type="Border"
+            )
+
+            # Wrap multiple items' parent with a ScrollBox
+            wrap_widget_component(
+                widget_name="WBP_Inventory",
+                component_name="VBox_Items",
+                wrapper_type="ScrollBox",
+                wrapper_name="Scroll_Items"
+            )
+        """
+        return wrap_widget_component_impl(ctx, widget_name, component_name, wrapper_type, wrapper_name, wrapper_properties)
 
     logger.info("UMG tools registered successfully")
 

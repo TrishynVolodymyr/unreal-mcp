@@ -15,8 +15,9 @@ FString FAddBlueprintEventNodeCommand::Execute(const FString& Parameters)
     FString BlueprintName, EventType;
     FVector2D Position;
     FString ParseError;
+    FString GraphName;
     
-    if (!ParseParameters(Parameters, BlueprintName, EventType, Position, ParseError))
+    if (!ParseParameters(Parameters, BlueprintName, EventType, Position, ParseError, GraphName))
     {
         return CreateErrorResponse(ParseError);
     }
@@ -28,7 +29,7 @@ FString FAddBlueprintEventNodeCommand::Execute(const FString& Parameters)
     }
     
     FString NodeId;
-    if (BlueprintNodeService.AddEventNode(Blueprint, EventType, Position, NodeId))
+    if (BlueprintNodeService.AddEventNode(Blueprint, EventType, Position, NodeId, GraphName))
     {
         return CreateSuccessResponse(NodeId);
     }
@@ -48,11 +49,12 @@ bool FAddBlueprintEventNodeCommand::ValidateParams(const FString& Parameters) co
     FString BlueprintName, EventType;
     FVector2D Position;
     FString ParseError;
+    FString GraphName;
     
-    return ParseParameters(Parameters, BlueprintName, EventType, Position, ParseError);
+    return ParseParameters(Parameters, BlueprintName, EventType, Position, ParseError, GraphName);
 }
 
-bool FAddBlueprintEventNodeCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutEventType, FVector2D& OutPosition, FString& OutError) const
+bool FAddBlueprintEventNodeCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutEventType, FVector2D& OutPosition, FString& OutError, FString& OutGraphName) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -84,6 +86,12 @@ bool FAddBlueprintEventNodeCommand::ParseParameters(const FString& JsonString, F
     else
     {
         OutPosition = FVector2D(0.0f, 0.0f);
+    }
+    
+    // Parse optional graph_name (defaults to EventGraph)
+    if (!JsonObject->TryGetStringField(TEXT("graph_name"), OutGraphName) || OutGraphName.IsEmpty())
+    {
+        OutGraphName = TEXT("EventGraph");
     }
     
     return true;

@@ -65,6 +65,9 @@ private:
     // Parent-child widget commands
     static void RegisterAddChildWidgetCommand();
     
+    // Wrap widget command
+    static void RegisterWrapWidgetComponentCommand();
+    
     /**
      * Helper to register a command and track it for cleanup
      * @param Command - Command to register

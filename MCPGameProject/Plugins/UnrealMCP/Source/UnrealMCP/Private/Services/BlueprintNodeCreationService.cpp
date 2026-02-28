@@ -535,6 +535,24 @@ UClass* FBlueprintNodeCreationService::FindTargetClass(const FString& ClassName)
         if (TargetClass) return TargetClass;
     }
     
+    // Try with _C suffix (Blueprint generated class names)
+    if (!ClassName.EndsWith(TEXT("_C")))
+    {
+        TestClassName = ClassName + TEXT("_C");
+        TargetClass = UClass::TryFindTypeSlow<UClass>(TestClassName);
+        if (TargetClass) return TargetClass;
+    }
+    
+    // Try finding as a Blueprint asset and returning its GeneratedClass
+    {
+        UBlueprint* FoundBP = FindBlueprintByName(ClassName);
+        if (FoundBP && FoundBP->GeneratedClass)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FindTargetClass: Found Blueprint '%s' -> GeneratedClass '%s'"), *ClassName, *FoundBP->GeneratedClass->GetName());
+            return FoundBP->GeneratedClass;
+        }
+    }
+    
     // Try with full path for common Unreal classes
     if (ClassName.Equals(TEXT("KismetMathLibrary"), ESearchCase::IgnoreCase))
     {
@@ -557,7 +575,7 @@ UBlueprint* FBlueprintNodeCreationService::FindBlueprintByName(const FString& Bl
     // Find blueprint by searching for it in the asset registry
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
     TArray<FAssetData> BlueprintAssets;
-    AssetRegistryModule.Get().GetAssetsByClass(UBlueprint::StaticClass()->GetClassPathName(), BlueprintAssets);
+    AssetRegistryModule.Get().GetAssetsByClass(UBlueprint::StaticClass()->GetClassPathName(), BlueprintAssets, /*bSearchSubClasses=*/true);
     
     for (const FAssetData& AssetData : BlueprintAssets)
     {

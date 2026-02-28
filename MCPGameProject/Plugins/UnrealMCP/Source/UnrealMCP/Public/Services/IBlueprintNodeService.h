@@ -201,7 +201,7 @@ public:
      * @param OutNodeId - ID of the created node
      * @return true if node was created successfully
      */
-    virtual bool AddVariableNode(UBlueprint* Blueprint, const FString& VariableName, bool bIsGetter, const FVector2D& Position, FString& OutNodeId) = 0;
+    virtual bool AddVariableNode(UBlueprint* Blueprint, const FString& VariableName, bool bIsGetter, const FVector2D& Position, FString& OutNodeId, const FString& TargetGraph = TEXT("EventGraph")) = 0;
     
     /**
      * Get variable information from a Blueprint
@@ -221,7 +221,7 @@ public:
      * @param OutNodeId - ID of the created node
      * @return true if node was created successfully
      */
-    virtual bool AddEventNode(UBlueprint* Blueprint, const FString& EventType, const FVector2D& Position, FString& OutNodeId) = 0;
+    virtual bool AddEventNode(UBlueprint* Blueprint, const FString& EventType, const FVector2D& Position, FString& OutNodeId, const FString& TargetGraph = TEXT("EventGraph")) = 0;
     
     /**
      * Add a function call node to a Blueprint
@@ -232,7 +232,7 @@ public:
      * @param OutNodeId - ID of the created node
      * @return true if node was created successfully
      */
-    virtual bool AddFunctionCallNode(UBlueprint* Blueprint, const FString& FunctionName, const FString& ClassName, const FVector2D& Position, FString& OutNodeId) = 0;
+    virtual bool AddFunctionCallNode(UBlueprint* Blueprint, const FString& FunctionName, const FString& ClassName, const FVector2D& Position, FString& OutNodeId, const FString& TargetGraph = TEXT("EventGraph")) = 0;
     
     /**
      * Add a custom event node to a Blueprint
