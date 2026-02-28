@@ -43,6 +43,7 @@
 #include "Components/NativeWidgetHost.h"
 #include "Components/BackgroundBlur.h"
 #include "Components/UniformGridPanel.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 FWidgetComponentService::FWidgetComponentService()
 {
@@ -61,27 +62,40 @@ UWidget* FWidgetComponentService::CreateUserWidgetChild(UWidgetBlueprint* Widget
     }
 
     // Try to find the Widget Blueprint asset by name or path
-    TArray<FString> SearchPaths;
+    UClass* WidgetClass = nullptr;
     if (ComponentType.StartsWith(TEXT("/")))
     {
+        // Full asset path provided - load directly
         FString AssetName = FPaths::GetCleanFilename(ComponentType);
-        SearchPaths.Add(FString::Printf(TEXT("%s.%s_C"), *ComponentType, *AssetName));
+        FString ClassPath = FString::Printf(TEXT("%s.%s_C"), *ComponentType, *AssetName);
+        WidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, *ClassPath);
     }
     else
     {
-        SearchPaths.Add(FString::Printf(TEXT("/Game/UI/HUD/%s.%s_C"), *ComponentType, *ComponentType));
-        SearchPaths.Add(FString::Printf(TEXT("/Game/UI/%s.%s_C"), *ComponentType, *ComponentType));
-        SearchPaths.Add(FString::Printf(TEXT("/Game/UI/Widgets/%s.%s_C"), *ComponentType, *ComponentType));
-        SearchPaths.Add(FString::Printf(TEXT("/Game/%s.%s_C"), *ComponentType, *ComponentType));
-    }
-
-    UClass* WidgetClass = nullptr;
-    for (const FString& Path : SearchPaths)
-    {
-        WidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, *Path);
-        if (WidgetClass)
+        // Name only - use Asset Registry to find the Widget Blueprint anywhere in /Game/
+        FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+        IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+        
+        FARFilter Filter;
+        Filter.ClassPaths.Add(UWidgetBlueprint::StaticClass()->GetClassPathName());
+        Filter.PackagePaths.Add(TEXT("/Game"));
+        Filter.bRecursivePaths = true;
+        
+        TArray<FAssetData> FoundAssets;
+        AssetRegistry.GetAssets(Filter, FoundAssets);
+        
+        for (const FAssetData& Asset : FoundAssets)
         {
-            break;
+            if (Asset.AssetName.ToString() == ComponentType)
+            {
+                FString ClassPath = Asset.GetSoftObjectPath().ToString() + TEXT("_C");
+                WidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, *ClassPath);
+                if (WidgetClass)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Found Widget Blueprint '%s' at '%s' via Asset Registry"), *ComponentType, *Asset.GetSoftObjectPath().ToString());
+                    break;
+                }
+            }
         }
     }
 
