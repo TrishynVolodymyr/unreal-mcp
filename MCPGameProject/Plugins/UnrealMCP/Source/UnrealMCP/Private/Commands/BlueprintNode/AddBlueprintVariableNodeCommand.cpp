@@ -16,8 +16,9 @@ FString FAddBlueprintVariableNodeCommand::Execute(const FString& Parameters)
     bool bIsGetter = true;
     FVector2D Position;
     FString ParseError;
+    FString GraphName;
     
-    if (!ParseParameters(Parameters, BlueprintName, VariableName, bIsGetter, Position, ParseError))
+    if (!ParseParameters(Parameters, BlueprintName, VariableName, bIsGetter, Position, ParseError, GraphName))
     {
         return CreateErrorResponse(ParseError);
     }
@@ -29,7 +30,7 @@ FString FAddBlueprintVariableNodeCommand::Execute(const FString& Parameters)
     }
     
     FString NodeId;
-    if (BlueprintNodeService.AddVariableNode(Blueprint, VariableName, bIsGetter, Position, NodeId))
+    if (BlueprintNodeService.AddVariableNode(Blueprint, VariableName, bIsGetter, Position, NodeId, GraphName))
     {
         return CreateSuccessResponse(NodeId);
     }
@@ -50,11 +51,12 @@ bool FAddBlueprintVariableNodeCommand::ValidateParams(const FString& Parameters)
     bool bIsGetter;
     FVector2D Position;
     FString ParseError;
+    FString GraphName;
     
-    return ParseParameters(Parameters, BlueprintName, VariableName, bIsGetter, Position, ParseError);
+    return ParseParameters(Parameters, BlueprintName, VariableName, bIsGetter, Position, ParseError, GraphName);
 }
 
-bool FAddBlueprintVariableNodeCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutVariableName, bool& OutIsGetter, FVector2D& OutPosition, FString& OutError) const
+bool FAddBlueprintVariableNodeCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutVariableName, bool& OutIsGetter, FVector2D& OutPosition, FString& OutError, FString& OutGraphName) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -92,6 +94,12 @@ bool FAddBlueprintVariableNodeCommand::ParseParameters(const FString& JsonString
     else
     {
         OutPosition = FVector2D(0.0f, 0.0f);
+    }
+    
+    // Parse optional graph_name (defaults to EventGraph)
+    if (!JsonObject->TryGetStringField(TEXT("graph_name"), OutGraphName) || OutGraphName.IsEmpty())
+    {
+        OutGraphName = TEXT("EventGraph");
     }
     
     return true;

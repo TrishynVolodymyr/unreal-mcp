@@ -15,6 +15,7 @@
 #include "Commands/UMG/SetWidgetDesignSizeCommand.h"
 #include "Commands/UMG/SetWidgetParentClassCommand.h"
 #include "Commands/UMG/GetWidgetComponentDetailsCommand.h"
+#include "Commands/UMG/WrapWidgetComponentCommand.h"
 #include "Services/UMG/UMGService.h"
 
 // Static member definition
@@ -43,6 +44,7 @@ void FUMGCommandRegistration::RegisterAllUMGCommands()
     RegisterSetWidgetDesignSizeCommand();
     RegisterSetWidgetParentClassCommand();
     RegisterGetWidgetComponentDetailsCommand();
+    RegisterWrapWidgetComponentCommand();
 
     // TODO: Register remaining 22 UMG commands when their classes are implemented
     // For now, we'll register the core commands that exist
@@ -289,6 +291,13 @@ void FUMGCommandRegistration::RegisterGetWidgetComponentDetailsCommand()
 {
     TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
     TSharedPtr<FGetWidgetComponentDetailsCommand> Command = MakeShared<FGetWidgetComponentDetailsCommand>(UMGServicePtr);
+    RegisterAndTrackCommand(Command);
+}
+
+void FUMGCommandRegistration::RegisterWrapWidgetComponentCommand()
+{
+    TSharedPtr<IUMGService> UMGServicePtr(&FUMGService::Get(), [](IUMGService*){});
+    TSharedPtr<FWrapWidgetComponentCommand> Command = MakeShared<FWrapWidgetComponentCommand>(UMGServicePtr);
     RegisterAndTrackCommand(Command);
 }
 

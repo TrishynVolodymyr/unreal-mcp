@@ -312,32 +312,24 @@ FWidgetValidationResult FWidgetValidationService::ValidateWidgetType(const FStri
         FString BlueprintPath = ComponentType;
         if (!BlueprintPath.StartsWith(TEXT("/")))
         {
-            // Try to find it as an asset by name — search common UI paths
-            TArray<FString> SearchPaths = {
-                FString::Printf(TEXT("/Game/UI/HUD/%s.%s"), *ComponentType, *ComponentType),
-                FString::Printf(TEXT("/Game/UI/%s.%s"), *ComponentType, *ComponentType),
-                FString::Printf(TEXT("/Game/UI/Widgets/%s.%s"), *ComponentType, *ComponentType),
-                FString::Printf(TEXT("/Game/%s.%s"), *ComponentType, *ComponentType)
-            };
-            
-            bool bFound = false;
-            for (const FString& Path : SearchPaths)
-            {
-                if (UObject* Asset = StaticLoadObject(UObject::StaticClass(), nullptr, *Path))
-                {
-                    bFound = true;
-                    break;
-                }
-            }
+            // Try to find it as an asset by name â€” search common UI paths
+            // Use FindWidgetBlueprint utility - searches Asset Registry universally
+            bool bFound = (FUnrealMCPCommonUtils::FindWidgetBlueprint(ComponentType) != nullptr);
             
             if (!bFound)
             {
-                return FWidgetValidationResult::Error(FString::Printf(TEXT("Invalid widget component type: %s"), *ComponentType));
+                FString SupportedTypes;
+                for (const FString& Type : ValidWidgetTypes)
+                {
+                    if (!SupportedTypes.IsEmpty()) SupportedTypes += TEXT(", ");
+                    SupportedTypes += Type;
+                }
+                return FWidgetValidationResult::Error(FString::Printf(TEXT("Unsupported component type '%s'. You can also use a Widget Blueprint name (e.g., 'WBP_MyWidget'). Supported built-in types: %s"), *ComponentType, *SupportedTypes));
             }
         }
         else
         {
-            // Full path provided — verify it exists
+            // Full path provided â€” verify it exists
             FString FullPath = BlueprintPath;
             if (!FullPath.Contains(TEXT(".")))
             {

@@ -795,6 +795,136 @@ bool FUMGService::AddChildWidgetComponentToParent(const FString& BlueprintName, 
     return true;
 }
 
+bool FUMGService::WrapWidgetComponent(const FString& WidgetName, const FString& ComponentName,
+                                      const FString& WrapperType, const FString& WrapperName,
+                                      const TSharedPtr<FJsonObject>& WrapperProperties,
+                                      FString& OutError)
+{
+    UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprint(WidgetName);
+    if (!WidgetBlueprint)
+    {
+        OutError = FString::Printf(TEXT("Widget blueprint '%s' not found"), *WidgetName);
+        return false;
+    }
+
+    if (!WidgetBlueprint->WidgetTree)
+    {
+        OutError = FString::Printf(TEXT("Widget blueprint '%s' has no WidgetTree"), *WidgetName);
+        return false;
+    }
+
+    // Find the target widget to wrap
+    UWidget* TargetWidget = WidgetBlueprint->WidgetTree->FindWidget(FName(*ComponentName));
+    if (!TargetWidget)
+    {
+        OutError = FString::Printf(TEXT("Widget component '%s' not found in '%s'"), *ComponentName, *WidgetName);
+        return false;
+    }
+
+    // Cannot wrap the root widget
+    UWidget* RootWidget = WidgetBlueprint->WidgetTree->RootWidget;
+    if (TargetWidget == RootWidget)
+    {
+        OutError = TEXT("Cannot wrap the root widget. Consider adding a container as root first.");
+        return false;
+    }
+
+    // Remember the current parent
+    UPanelWidget* ParentPanel = Cast<UPanelWidget>(TargetWidget->GetParent());
+    UContentWidget* ParentContent = Cast<UContentWidget>(TargetWidget->GetParent());
+    
+    if (!ParentPanel && !ParentContent)
+    {
+        OutError = FString::Printf(TEXT("Widget '%s' has no valid parent to perform wrapping"), *ComponentName);
+        return false;
+    }
+
+    // Find the index of the target in the parent (for panel widgets, to preserve order)
+    int32 ChildIndex = -1;
+    if (ParentPanel)
+    {
+        for (int32 i = 0; i < ParentPanel->GetChildrenCount(); i++)
+        {
+            if (ParentPanel->GetChildAt(i) == TargetWidget)
+            {
+                ChildIndex = i;
+                break;
+            }
+        }
+    }
+
+    // Create the wrapper widget using the WidgetComponentService
+    TSharedPtr<FJsonObject> EmptyKwargs = MakeShared<FJsonObject>();
+    FString CreateError;
+    UWidget* WrapperWidget = WidgetComponentService->CreateWidgetComponent(
+        WidgetBlueprint, WrapperName, WrapperType, FVector2D(0, 0), FVector2D(0, 0), EmptyKwargs, CreateError);
+    
+    if (!WrapperWidget)
+    {
+        OutError = FString::Printf(TEXT("Failed to create wrapper widget '%s' of type '%s': %s"), *WrapperName, *WrapperType, *CreateError);
+        return false;
+    }
+
+    // Step 1: Remove target from its current parent
+    if (ParentPanel)
+    {
+        ParentPanel->RemoveChild(TargetWidget);
+    }
+    else if (ParentContent)
+    {
+        ParentContent->SetContent(nullptr);
+    }
+
+    // Step 2: Put wrapper where the target was
+    if (ParentPanel)
+    {
+        // Insert at the same index to preserve sibling order
+        UPanelSlot* WrapperSlot = (ChildIndex >= 0)
+            ? ParentPanel->InsertChildAt(ChildIndex, WrapperWidget)
+            : ParentPanel->AddChild(WrapperWidget);
+        if (!WrapperSlot)
+        {
+            // Rollback: put target back
+            ParentPanel->AddChild(TargetWidget);
+            OutError = TEXT("Failed to add wrapper widget to parent panel");
+            return false;
+        }
+    }
+    else if (ParentContent)
+    {
+        ParentContent->SetContent(WrapperWidget);
+    }
+
+    // Step 3: Put target inside wrapper
+    if (!AddWidgetToParent(TargetWidget, WrapperWidget))
+    {
+        // Rollback is complex here, log the error
+        OutError = FString::Printf(TEXT("Failed to add widget '%s' inside wrapper '%s'"), *ComponentName, *WrapperName);
+        return false;
+    }
+
+    // Step 4: Apply wrapper properties if provided
+    if (WrapperProperties.IsValid())
+    {
+        TArray<FString> SuccessProps, FailedProps;
+        SetWidgetProperties(WidgetName, WrapperName, WrapperProperties, SuccessProps, FailedProps);
+        if (FailedProps.Num() > 0)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("WrapWidgetComponent: Some wrapper properties failed to set: %s"),
+                   *FString::Join(FailedProps, TEXT(", ")));
+        }
+    }
+
+    // Save
+    WidgetBlueprint->MarkPackageDirty();
+    FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+    UEditorAssetLibrary::SaveAsset(WidgetBlueprint->GetPathName(), false);
+
+    UE_LOG(LogTemp, Log, TEXT("WrapWidgetComponent: Successfully wrapped '%s' with %s '%s' in '%s'"),
+           *ComponentName, *WrapperType, *WrapperName, *WidgetName);
+    return true;
+}
+
 UWidgetBlueprint* FUMGService::FindWidgetBlueprint(const FString& BlueprintNameOrPath) const
 {
     // Check if we already have a full path

@@ -611,3 +611,28 @@ def get_widget_component_details_impl(
 
     logger.info(f"Getting component details for '{component_name}' in widget '{widget_name}'")
     return send_unreal_command("get_widget_component_details", params)
+
+
+def wrap_widget_component(
+    ctx: Context,
+    widget_name: str,
+    component_name: str,
+    wrapper_type: str,
+    wrapper_name: str = "",
+    wrapper_properties: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """Implementation for wrapping a widget component with a container."""
+    params = {
+        "widget_name": widget_name,
+        "component_name": component_name,
+        "wrapper_type": wrapper_type
+    }
+    
+    if wrapper_name:
+        params["wrapper_name"] = wrapper_name
+    
+    if wrapper_properties:
+        params["wrapper_properties"] = wrapper_properties
+    
+    logger.info(f"Wrapping '{component_name}' with {wrapper_type} in widget '{widget_name}'")
+    return send_unreal_command("wrap_widget_component", params)

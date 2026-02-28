@@ -69,6 +69,11 @@ public:
     virtual bool ReorderWidgetChildren(const FString& WidgetName, const FString& ContainerName,
                                       const TArray<FString>& ChildOrder) override;
 
+    virtual bool WrapWidgetComponent(const FString& WidgetName, const FString& ComponentName,
+                                     const FString& WrapperType, const FString& WrapperName,
+                                     const TSharedPtr<FJsonObject>& WrapperProperties,
+                                     FString& OutError) override;
+
     /**
      * Set the design size mode for a widget blueprint
      * @param WidgetName - Name of the widget blueprint

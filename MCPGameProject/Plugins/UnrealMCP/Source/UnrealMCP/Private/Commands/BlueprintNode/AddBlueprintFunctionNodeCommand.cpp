@@ -15,8 +15,9 @@ FString FAddBlueprintFunctionNodeCommand::Execute(const FString& Parameters)
     FString BlueprintName, FunctionName, ClassName;
     FVector2D Position;
     FString ParseError;
+    FString GraphName;
     
-    if (!ParseParameters(Parameters, BlueprintName, FunctionName, ClassName, Position, ParseError))
+    if (!ParseParameters(Parameters, BlueprintName, FunctionName, ClassName, Position, ParseError, GraphName))
     {
         return CreateErrorResponse(ParseError);
     }
@@ -28,7 +29,7 @@ FString FAddBlueprintFunctionNodeCommand::Execute(const FString& Parameters)
     }
     
     FString NodeId;
-    if (BlueprintNodeService.AddFunctionCallNode(Blueprint, FunctionName, ClassName, Position, NodeId))
+    if (BlueprintNodeService.AddFunctionCallNode(Blueprint, FunctionName, ClassName, Position, NodeId, GraphName))
     {
         return CreateSuccessResponse(NodeId);
     }
@@ -48,11 +49,12 @@ bool FAddBlueprintFunctionNodeCommand::ValidateParams(const FString& Parameters)
     FString BlueprintName, FunctionName, ClassName;
     FVector2D Position;
     FString ParseError;
+    FString GraphName;
     
-    return ParseParameters(Parameters, BlueprintName, FunctionName, ClassName, Position, ParseError);
+    return ParseParameters(Parameters, BlueprintName, FunctionName, ClassName, Position, ParseError, GraphName);
 }
 
-bool FAddBlueprintFunctionNodeCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutFunctionName, FString& OutClassName, FVector2D& OutPosition, FString& OutError) const
+bool FAddBlueprintFunctionNodeCommand::ParseParameters(const FString& JsonString, FString& OutBlueprintName, FString& OutFunctionName, FString& OutClassName, FVector2D& OutPosition, FString& OutError, FString& OutGraphName) const
 {
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonString);
@@ -87,6 +89,12 @@ bool FAddBlueprintFunctionNodeCommand::ParseParameters(const FString& JsonString
     else
     {
         OutPosition = FVector2D(0.0f, 0.0f);
+    }
+    
+    // Parse optional graph_name (defaults to EventGraph)
+    if (!JsonObject->TryGetStringField(TEXT("graph_name"), OutGraphName) || OutGraphName.IsEmpty())
+    {
+        OutGraphName = TEXT("EventGraph");
     }
     
     return true;

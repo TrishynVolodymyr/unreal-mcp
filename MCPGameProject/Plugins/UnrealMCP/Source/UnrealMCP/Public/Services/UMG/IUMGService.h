@@ -222,6 +222,25 @@ public:
                                         int32 CustomWidth, int32 CustomHeight, FString& OutError) = 0;
 
     /**
+     * Wrap an existing widget component with a container widget.
+     * Creates a new container, places it where the original widget was,
+     * and moves the original widget inside the container.
+     * Equivalent to UE Editor's "Wrap With..." context menu.
+     * 
+     * @param WidgetName - Name of the target Widget Blueprint
+     * @param ComponentName - Name of the component to wrap
+     * @param WrapperType - Type of container to wrap with (SizeBox, Border, VerticalBox, etc.)
+     * @param WrapperName - Name for the new wrapper component
+     * @param WrapperProperties - Optional properties to set on the wrapper after creation
+     * @param OutError - Error message if failed
+     * @return true if successful
+     */
+    virtual bool WrapWidgetComponent(const FString& WidgetName, const FString& ComponentName,
+                                     const FString& WrapperType, const FString& WrapperName,
+                                     const TSharedPtr<FJsonObject>& WrapperProperties,
+                                     FString& OutError) = 0;
+
+    /**
      * Change the parent class of a widget blueprint
      * @param WidgetName - Name of the widget blueprint
      * @param NewParentClass - Name or path of the new parent class
