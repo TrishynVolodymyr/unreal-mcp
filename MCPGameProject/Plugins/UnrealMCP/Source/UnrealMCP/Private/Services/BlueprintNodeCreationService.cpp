@@ -372,7 +372,12 @@ FString FBlueprintNodeCreationService::CreateNodeByActionName(const FString& Blu
                 if (!TargetFunction)
                 {
                     UE_LOG(LogTemp, Warning, TEXT("CreateNodeByActionName: Function '%s' not found"), *EffectiveFunctionName);
-                    return FNodeResultBuilder::BuildNodeResult(false, FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node"), *EffectiveFunctionName));
+                    FString Hint;
+                    if (EffectiveFunctionName.StartsWith(TEXT("IA_")) || EffectiveFunctionName.Contains(TEXT("EnhancedInput")))
+                    {
+                        Hint = TEXT(" HINT: For Enhanced Input Actions, use class_name='EnhancedInputAction' and function_name='IA_YourActionName'.");
+                    }
+                    return FNodeResultBuilder::BuildNodeResult(false, FString::Printf(TEXT("Function '%s' not found and not a recognized control flow node.%s"), *EffectiveFunctionName, *Hint));
                 }
                 
                 UE_LOG(LogTemp, Log, TEXT("CreateNodeByActionName: Found function '%s' in class '%s'"), *EffectiveFunctionName, TargetClass ? *TargetClass->GetName() : TEXT("Unknown"));
