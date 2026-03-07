@@ -431,3 +431,17 @@ def batch_spawn_actors(ctx: Context, actors: List[Dict[str, Any]]) -> Dict[str, 
     params = {"actors": actors}
     logger.info(f"Batch spawning {len(actors)} actors")
     return send_unreal_command("batch_spawn_actors", params)
+
+
+def import_static_mesh(ctx: Context, source_file_path: str, asset_name: str,
+                       folder_path: str = "/Game/Meshes",
+                       import_materials: bool = False) -> Dict[str, Any]:
+    """Import a static mesh (FBX, OBJ) from disk into the Unreal project."""
+    params = {
+        "source_file_path": source_file_path,
+        "asset_name": asset_name,
+        "folder_path": folder_path,
+        "import_materials": import_materials
+    }
+    logger.info(f"Importing static mesh '{asset_name}' from '{source_file_path}'")
+    return send_unreal_command("import_static_mesh", params)

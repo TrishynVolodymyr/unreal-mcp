@@ -20,7 +20,8 @@ from utils.editor.editor_operations import (
     spawn_blueprint_actor as spawn_blueprint_actor_impl,
     get_level_metadata as get_level_metadata_impl,
     batch_delete_actors as batch_delete_actors_impl,
-    batch_spawn_actors as batch_spawn_actors_impl
+    batch_spawn_actors as batch_spawn_actors_impl,
+    import_static_mesh as import_static_mesh_impl
 )
 from utils.mcp_help import get_help_registry, get_mcp_help as get_mcp_help_impl
 
@@ -689,6 +690,44 @@ def register_editor_tools(mcp: FastMCP):
         """
         return create_render_target_impl(ctx, name, folder_path, width, height)
 
+    @mcp.tool()
+    def import_static_mesh(
+        ctx: Context,
+        source_file_path: str,
+        asset_name: str,
+        folder_path: str = "/Game/Meshes",
+        import_materials: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Import a static mesh from disk into the Unreal Engine project.
+
+        Supports FBX, OBJ, GLTF, GLB formats.
+
+        Args:
+            source_file_path: Absolute path to the mesh file on disk
+                (e.g., "E:/meshes/SM_Rock_Boulder_01.fbx")
+            asset_name: Name for the imported Static Mesh asset (e.g., "SM_Rock_Boulder_01")
+            folder_path: Content folder path for the imported asset (default: "/Game/Meshes")
+            import_materials: Whether to import materials from the source file (default: False)
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the import was successful
+            - path: Full asset path of the imported mesh
+            - name: Name of the imported asset
+            - vertex_count: Number of vertices in LOD0
+            - triangle_count: Number of triangles in LOD0
+            - message: Success/error message
+
+        Example:
+            import_static_mesh(
+                source_file_path="E:/project/Content/Environment/Rocks/SM_Rock_01.fbx",
+                asset_name="SM_Rock_01",
+                folder_path="/Game/Environment/Rocks"
+            )
+        """
+        return import_static_mesh_impl(ctx, source_file_path, asset_name, folder_path, import_materials)
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -703,5 +742,6 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(get_mcp_help, category="help")
     _help_registry.register(delete_actors, category="actors")
     _help_registry.register(spawn_actors, category="actors")
+    _help_registry.register(import_static_mesh, category="assets")
 
     logger.info("Editor tools registered successfully")
