@@ -107,6 +107,27 @@ async def add_blueprint_variable(
 
 
 @app.tool()
+async def add_event_dispatcher(
+    blueprint_name: str,
+    dispatcher_name: str
+) -> Dict[str, Any]:
+    """
+    Add an Event Dispatcher (multicast delegate) to a Blueprint.
+    Event Dispatchers allow Blueprints to broadcast events that other Blueprints can listen to.
+    Common use: custom button widgets exposing OnClicked, components broadcasting state changes.
+
+    Args:
+        blueprint_name: Name of the target Blueprint
+        dispatcher_name: Name of the event dispatcher (e.g., "OnClicked", "OnItemSelected")
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "dispatcher_name": dispatcher_name
+    }
+    return await send_tcp_command("add_event_dispatcher", params)
+
+
+@app.tool()
 async def delete_blueprint_variable(
     blueprint_name: str,
     variable_name: str

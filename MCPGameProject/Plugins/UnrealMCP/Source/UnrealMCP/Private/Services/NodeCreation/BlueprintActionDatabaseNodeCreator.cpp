@@ -32,7 +32,7 @@ bool FBlueprintActionDatabaseNodeCreator::TryCreateNodeUsingBlueprintActionDatab
     UE_LOG(LogTemp, Warning, TEXT("TryCreateNodeUsingBlueprintActionDatabase: Attempting dynamic creation for '%s' with class '%s'"), *FunctionName, *ClassName);
 
     // Special handling for Enhanced Input Actions
-    if (ClassName.Equals(TEXT("EnhancedInputAction"), ESearchCase::IgnoreCase))
+    if (ClassName.Equals(TEXT("EnhancedInputAction"), ESearchCase::IgnoreCase) || ClassName.Equals(TEXT("K2Node_EnhancedInputAction"), ESearchCase::IgnoreCase))
     {
         return FEnhancedInputActionNodeCreator::TryCreateEnhancedInputActionNode(
             FunctionName,

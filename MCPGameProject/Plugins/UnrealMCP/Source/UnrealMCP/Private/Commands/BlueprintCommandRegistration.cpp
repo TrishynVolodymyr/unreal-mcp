@@ -16,6 +16,7 @@
 #include "Commands/Blueprint/GetBlueprintMetadataCommand.h"
 #include "Commands/Blueprint/ModifyBlueprintFunctionPropertiesCommand.h"
 #include "Commands/Blueprint/DeleteBlueprintVariableCommand.h"
+#include "Commands/Blueprint/AddEventDispatcherCommand.h"
 #include "Services/BlueprintService.h"
 
 // Static member definition
@@ -45,6 +46,7 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     RegisterGetBlueprintMetadataCommand();
     RegisterModifyBlueprintFunctionPropertiesCommand();
     RegisterDeleteBlueprintVariableCommand();
+    RegisterAddEventDispatcherCommand();
 
     UE_LOG(LogTemp, Log, TEXT("FBlueprintCommandRegistration::RegisterAllBlueprintCommands: Registered %d Blueprint commands"),
         RegisteredCommandNames.Num());
@@ -164,6 +166,12 @@ void FBlueprintCommandRegistration::RegisterModifyBlueprintFunctionPropertiesCom
 void FBlueprintCommandRegistration::RegisterDeleteBlueprintVariableCommand()
 {
     TSharedPtr<FDeleteBlueprintVariableCommand> Command = MakeShared<FDeleteBlueprintVariableCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterAddEventDispatcherCommand()
+{
+    TSharedPtr<FAddEventDispatcherCommand> Command = MakeShared<FAddEventDispatcherCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 

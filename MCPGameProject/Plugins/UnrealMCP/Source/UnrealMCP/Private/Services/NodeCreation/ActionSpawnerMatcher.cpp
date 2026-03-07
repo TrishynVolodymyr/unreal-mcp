@@ -4,10 +4,12 @@
 #include "BlueprintActionDatabase.h"
 #include "BlueprintNodeSpawner.h"
 #include "K2Node_CallFunction.h"
+#include "K2Node_BaseMCDelegate.h"
 #include "NodeCreationHelpers.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Engine/Blueprint.h"
 #include "Animation/AnimBlueprint.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 
 const TMap<FString, TArray<FString>>& FActionSpawnerMatcher::GetOperationAliases()
 {
@@ -151,6 +153,10 @@ void FActionSpawnerMatcher::FindMatchingSpawners(
 
     for (const auto& ActionPair : ActionRegistry)
     {
+        // The ActionPair.Key is typically the UClass that owns the actions (e.g., BP generated class)
+        UClass* ActionKeyClass = Cast<UClass>(ActionPair.Key.ResolveObjectPtr());
+        FString ActionKeyClassName = ActionKeyClass ? ActionKeyClass->GetName() : TEXT("");
+
         for (const UBlueprintNodeSpawner* NodeSpawner : ActionPair.Value)
         {
             ProcessedSpawners++;
@@ -199,6 +205,28 @@ void FActionSpawnerMatcher::FindMatchingSpawners(
                         {
                             DetectedClassName = OwnerClass->GetName();
                         }
+                    }
+                }
+
+                // For delegate nodes (Call/Assign/Bind Event Dispatcher),
+                // detect owning class from delegate reference or action registry key
+                if (DetectedClassName == TEXT("Unknown") || DetectedClassName.IsEmpty())
+                {
+                    if (UK2Node_BaseMCDelegate* DelegateNode = Cast<UK2Node_BaseMCDelegate>(K2Node))
+                    {
+                        // Try GetMemberParentClass first (works for non-self-context delegates)
+                        UClass* DelegateClass = DelegateNode->DelegateReference.GetMemberParentClass();
+                        if (DelegateClass)
+                        {
+                            DetectedClassName = DelegateClass->GetName();
+                        }
+                        // Fallback: use the ActionPair key class (the BP generated class that owns this action)
+                        else if (!ActionKeyClassName.IsEmpty())
+                        {
+                            DetectedClassName = ActionKeyClassName;
+                        }
+                        UE_LOG(LogTemp, Warning, TEXT("FindMatchingSpawners: Delegate node '%s' -> DetectedClass='%s' (ActionKey='%s')"),
+                            *NodeName, *DetectedClassName, *ActionKeyClassName);
                     }
                 }
             }
@@ -283,6 +311,11 @@ void FActionSpawnerMatcher::FindMatchingSpawners(
                             bClassMatches = ClassNameMatches(OwnerClass->GetName(), ClassName);
                         }
                     }
+                }
+                // For delegate nodes, check via detected class (from spawner outer)
+                else if (!DetectedClassName.IsEmpty() && DetectedClassName != TEXT("Unknown"))
+                {
+                    bClassMatches = ClassNameMatches(DetectedClassName, ClassName);
                 }
             }
 
@@ -491,6 +524,32 @@ const UBlueprintNodeSpawner* FActionSpawnerMatcher::SelectCompatibleSpawner(
 {
     bool bIsAnimBlueprint = TargetBlueprint && TargetBlueprint->IsA<UAnimBlueprint>();
 
+    // First pass: prefer spawners from the target Blueprint's own generated class
+    // This ensures that when WBP_UI_Button_Dark creates "Call OnButtonClicked",
+    // it picks its own dispatcher instead of WBP_UI_Button's
+    if (TargetBlueprint && TargetBlueprint->GeneratedClass)
+    {
+        FString TargetClassName = TargetBlueprint->GeneratedClass->GetName();
+        for (const FMatchedSpawnerInfo& Info : MatchedSpawners)
+        {
+            if (!Info.Spawner)
+            {
+                continue;
+            }
+            if (RequiresAnimBlueprint(Info.Spawner) && !bIsAnimBlueprint)
+            {
+                continue;
+            }
+            // Check if this spawner's owning class matches the target Blueprint
+            if (Info.DetectedClassName.Equals(TargetClassName, ESearchCase::IgnoreCase))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("SelectCompatibleSpawner: Preferring spawner from own class '%s'"), *TargetClassName);
+                return Info.Spawner;
+            }
+        }
+    }
+
+    // Second pass: fall back to first compatible spawner
     for (const FMatchedSpawnerInfo& Info : MatchedSpawners)
     {
         if (!Info.Spawner)

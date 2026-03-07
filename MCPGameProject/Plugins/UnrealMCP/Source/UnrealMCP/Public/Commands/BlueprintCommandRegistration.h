@@ -44,6 +44,7 @@ private:
     static void RegisterGetBlueprintMetadataCommand();
     static void RegisterModifyBlueprintFunctionPropertiesCommand();
     static void RegisterDeleteBlueprintVariableCommand();
+    static void RegisterAddEventDispatcherCommand();
 
     /**
      * Helper to register a command and track it for cleanup

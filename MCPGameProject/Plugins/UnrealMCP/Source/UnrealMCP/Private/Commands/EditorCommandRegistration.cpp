@@ -14,6 +14,7 @@
 #include "Commands/Editor/BatchDeleteActorsCommand.h"
 #include "Commands/Editor/BatchSpawnActorsCommand.h"
 #include "Commands/Editor/CreateRenderTargetCommand.h"
+#include "Commands/Editor/ImportStaticMeshCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -42,6 +43,9 @@ void FEditorCommandRegistration::RegisterAllCommands()
 
     // Register asset creation commands
     RegisterAndTrackCommand(MakeShared<FCreateRenderTargetCommand>(EditorService));
+
+    // Register asset import commands
+    RegisterAndTrackCommand(MakeShared<FImportStaticMeshCommand>());
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:
