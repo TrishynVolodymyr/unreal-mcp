@@ -17,6 +17,14 @@
 #include "Commands/Sound/RemoveSoundCueNodeCommand.h"
 #include "Commands/Sound/CompileSoundCueCommand.h"
 
+// Include Phase 1 Sound Wave property command
+#include "Commands/Sound/SetSoundWavePropertiesCommand.h"
+
+// Include Phase 4 Sound Class and Sound Mix command headers
+#include "Commands/Sound/CreateSoundClassCommand.h"
+#include "Commands/Sound/CreateSoundMixCommand.h"
+#include "Commands/Sound/AddSoundMixModifierCommand.h"
+
 // Include Phase 3 MetaSound command headers
 #include "Commands/Sound/CreateMetaSoundSourceCommand.h"
 #include "Commands/Sound/GetMetaSoundMetadataCommand.h"
@@ -42,6 +50,7 @@ void FSoundCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FGetSoundWaveMetadataCommand>(SoundService));
     RegisterAndTrackCommand(MakeShared<FSpawnAmbientSoundCommand>(SoundService));
     RegisterAndTrackCommand(MakeShared<FCreateSoundAttenuationCommand>(SoundService));
+    RegisterAndTrackCommand(MakeShared<FSetSoundWavePropertiesCommand>(SoundService));
 
     // Register Phase 2: Sound Cue commands
     RegisterAndTrackCommand(MakeShared<FCreateSoundCueCommand>(SoundService));
@@ -63,7 +72,10 @@ void FSoundCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FCompileMetaSoundCommand>(SoundService));
     RegisterAndTrackCommand(MakeShared<FSearchMetaSoundPaletteCommand>(SoundService));
 
-    // TODO: Register Phase 4 Music System commands
+    // Register Phase 4: Sound Class and Sound Mix commands
+    RegisterAndTrackCommand(MakeShared<FCreateSoundClassCommand>(SoundService));
+    RegisterAndTrackCommand(MakeShared<FCreateSoundMixCommand>(SoundService));
+    RegisterAndTrackCommand(MakeShared<FAddSoundMixModifierCommand>(SoundService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered %d Sound commands"), RegisteredCommands.Num());
 }

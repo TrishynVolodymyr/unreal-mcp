@@ -31,7 +31,7 @@ public:
 
     virtual bool ImportSoundFile(const FSoundWaveImportParams& Params, FString& OutAssetPath, FString& OutError) override;
     virtual bool GetSoundWaveMetadata(const FString& SoundWavePath, TSharedPtr<FJsonObject>& OutMetadata, FString& OutError) override;
-    virtual bool SetSoundWaveProperties(const FString& SoundWavePath, bool bLooping, float Volume, float Pitch, FString& OutError) override;
+    virtual bool SetSoundWaveProperties(const FString& SoundWavePath, bool bLooping, float Volume, float Pitch, const FString& SoundClassPath, FString& OutError) override;
 
     // ========================================================================
     // ISoundService interface implementation - Audio Component Operations

@@ -22,6 +22,7 @@
 #include "Engine/Selection.h"
 #include "Kismet/GameplayStatics.h"
 #include "Async/Async.h"
+#include "Containers/Ticker.h"
 // Add Blueprint related includes
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
@@ -217,13 +218,21 @@ void UUnrealMCPBridge::StopServer()
 FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params)
 {
     UE_LOG(LogTemp, Display, TEXT("UnrealMCPBridge: Executing command: %s"), *CommandType);
-    
-    // Create a promise to wait for the result
-    TPromise<FString> Promise;
-    TFuture<FString> Future = Promise.GetFuture();
-    
-    // Queue execution on Game Thread
-    AsyncTask(ENamedThreads::GameThread, [this, CommandType, Params, Promise = MoveTemp(Promise)]() mutable
+
+    // Commands that use FBX import internally must run via Ticker (not AsyncTask)
+    // to avoid TaskGraph recursion. AsyncTask(GameThread) runs inside TaskGraph,
+    // but FBX ImportObject queues more tasks on GameThread → recursion crash.
+    // FTSTicker runs on game thread tick, OUTSIDE TaskGraph.
+    static const TArray<FString> TickerCommands = {
+        TEXT("import_static_mesh")
+    };
+    const bool bUseTicker = TickerCommands.Contains(CommandType);
+
+    // Use TSharedPtr<TPromise> so lambda is copyable (required by FTickerDelegate)
+    TSharedPtr<TPromise<FString>> PromisePtr = MakeShared<TPromise<FString>>();
+    TFuture<FString> Future = PromisePtr->GetFuture();
+
+    auto ExecuteLambda = [this, CommandType, Params, PromisePtr]() mutable
     {
         TSharedPtr<FJsonObject> ResponseJson = MakeShareable(new FJsonObject);
         
@@ -374,7 +383,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     FString ResultString;
                     TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&ResultString);
                     FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer.Get());
-                    Promise.SetValue(ResultString);
+                    PromisePtr->SetValue(ResultString);
                     return;
                 }
             }
@@ -425,8 +434,26 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
         FString ResultString;
         TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&ResultString);
         FJsonSerializer::Serialize(ResponseJson.ToSharedRef(), Writer.Get());
-        Promise.SetValue(ResultString);
-    });
-    
+        PromisePtr->SetValue(ResultString);
+    };
+
+    if (bUseTicker)
+    {
+        // Dispatch via Ticker — runs on game thread tick, outside TaskGraph
+        FTSTicker::GetCoreTicker().AddTicker(
+            FTickerDelegate::CreateLambda([ExecuteLambda = MoveTemp(ExecuteLambda)](float) mutable
+            {
+                ExecuteLambda();
+                return false; // one-shot, don't repeat
+            }),
+            0.0f // next tick
+        );
+    }
+    else
+    {
+        // Standard dispatch via AsyncTask on GameThread
+        AsyncTask(ENamedThreads::GameThread, MoveTemp(ExecuteLambda));
+    }
+
     return Future.Get();
 }

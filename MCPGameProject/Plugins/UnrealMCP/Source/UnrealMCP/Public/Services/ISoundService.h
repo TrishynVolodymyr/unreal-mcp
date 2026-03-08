@@ -429,7 +429,7 @@ public:
      * @param OutError - Error message if operation fails
      * @return true if successful
      */
-    virtual bool SetSoundWaveProperties(const FString& SoundWavePath, bool bLooping, float Volume, float Pitch, FString& OutError) = 0;
+    virtual bool SetSoundWaveProperties(const FString& SoundWavePath, bool bLooping, float Volume, float Pitch, const FString& SoundClassPath, FString& OutError) = 0;
 
     // ========================================================================
     // Audio Component Operations (Phase 1)

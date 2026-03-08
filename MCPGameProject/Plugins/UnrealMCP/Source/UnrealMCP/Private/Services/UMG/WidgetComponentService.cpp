@@ -126,7 +126,8 @@ TArray<FString> FWidgetComponentService::GetSupportedComponentTypes()
         TEXT("CanvasPanel"), TEXT("ComboBox"), TEXT("ComboBoxString"), TEXT("EditableText"), TEXT("EditableTextBox"),
         TEXT("CircularThrobber"), TEXT("SpinBox"), TEXT("WrapBox"), TEXT("ScaleBox"), TEXT("NamedSlot"),
         TEXT("RadialSlider"), TEXT("ListView"), TEXT("TileView"), TEXT("TreeView"), TEXT("SafeZone"),
-        TEXT("MenuAnchor"), TEXT("NativeWidgetHost"), TEXT("BackgroundBlur"), TEXT("UniformGridPanel")
+        TEXT("MenuAnchor"), TEXT("NativeWidgetHost"), TEXT("BackgroundBlur"), TEXT("UniformGridPanel"),
+        TEXT("InputKeySelector")
     };
 }
 
@@ -343,6 +344,11 @@ UWidget* FWidgetComponentService::CreateWidgetComponent(
     else if (ComponentType.Equals(TEXT("UniformGridPanel"), ESearchCase::IgnoreCase))
     {
         CreatedWidget = CreateUniformGridPanel(WidgetBlueprint, ComponentName, KwargsObject);
+    }
+    // InputKeySelector
+    else if (ComponentType.Equals(TEXT("InputKeySelector"), ESearchCase::IgnoreCase))
+    {
+        CreatedWidget = CreateInputKeySelector(WidgetBlueprint, ComponentName, KwargsObject);
     }
     // Try loading as a User Widget Blueprint
     else
@@ -645,6 +651,11 @@ UWidget* FWidgetComponentService::CreateBackgroundBlur(UWidgetBlueprint* WidgetB
 UWidget* FWidgetComponentService::CreateUniformGridPanel(UWidgetBlueprint* WidgetBlueprint, const FString& ComponentName, const TSharedPtr<FJsonObject>& KwargsObject)
 {
     return LayoutWidgetFactory.CreateUniformGridPanel(WidgetBlueprint, ComponentName, KwargsObject);
+}
+
+UWidget* FWidgetComponentService::CreateInputKeySelector(UWidgetBlueprint* WidgetBlueprint, const FString& ComponentName, const TSharedPtr<FJsonObject>& KwargsObject)
+{
+    return AdvancedWidgetFactory.CreateInputKeySelector(WidgetBlueprint, ComponentName, KwargsObject);
 }
 
 bool FWidgetComponentService::AddWidgetToTree(UWidgetBlueprint* WidgetBlueprint, UWidget* Widget, const FVector2D& Position, const FVector2D& Size)

@@ -17,6 +17,7 @@
 #include "AssetImportTask.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
+#include "AudioDeviceManager.h"
 
 DEFINE_LOG_CATEGORY(LogSoundService);
 
@@ -150,7 +151,7 @@ bool FSoundService::GetSoundWaveMetadata(const FString& SoundWavePath, TSharedPt
     return true;
 }
 
-bool FSoundService::SetSoundWaveProperties(const FString& SoundWavePath, bool bLooping, float Volume, float Pitch, FString& OutError)
+bool FSoundService::SetSoundWaveProperties(const FString& SoundWavePath, bool bLooping, float Volume, float Pitch, const FString& SoundClassPath, FString& OutError)
 {
     USoundWave* SoundWave = FindSoundWave(SoundWavePath);
     if (!SoundWave)
@@ -163,6 +164,23 @@ bool FSoundService::SetSoundWaveProperties(const FString& SoundWavePath, bool bL
     SoundWave->bLooping = bLooping;
     SoundWave->Volume = FMath::Clamp(Volume, 0.0f, 4.0f);
     SoundWave->Pitch = FMath::Clamp(Pitch, 0.1f, 4.0f);
+
+    // Set SoundClass if provided
+    if (!SoundClassPath.IsEmpty())
+    {
+        USoundClass* SoundClass = Cast<USoundClass>(
+            StaticLoadObject(USoundClass::StaticClass(), nullptr, *SoundClassPath));
+        if (SoundClass)
+        {
+            SoundWave->SoundClassObject = SoundClass;
+            UE_LOG(LogSoundService, Log, TEXT("Set SoundClass on %s: %s"), *SoundWavePath, *SoundClassPath);
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Sound Class not found: %s"), *SoundClassPath);
+            return false;
+        }
+    }
 
     if (!SaveAsset(SoundWave, OutError))
     {
@@ -374,23 +392,138 @@ bool FSoundService::SetAttenuationProperty(const FString& AttenuationPath, const
 
 USoundClass* FSoundService::CreateSoundClass(const FSoundClassParams& Params, FString& OutAssetPath, FString& OutError)
 {
-    // TODO: Implement in Phase 4
-    OutError = TEXT("Sound Class creation not yet implemented");
-    return nullptr;
+    UPackage* Package = nullptr;
+    if (!CreateAssetPackage(Params.FolderPath, Params.AssetName, Package, OutError))
+    {
+        return nullptr;
+    }
+
+    USoundClass* SoundClass = NewObject<USoundClass>(Package, FName(*Params.AssetName), RF_Public | RF_Standalone);
+    if (!SoundClass)
+    {
+        OutError = TEXT("Failed to create Sound Class object");
+        return nullptr;
+    }
+
+    // Set default volume
+    SoundClass->Properties.Volume = Params.DefaultVolume;
+
+    // Set parent class if specified
+    if (!Params.ParentClassPath.IsEmpty())
+    {
+        USoundClass* ParentClass = Cast<USoundClass>(
+            StaticLoadObject(USoundClass::StaticClass(), nullptr, *Params.ParentClassPath));
+        if (ParentClass)
+        {
+            SoundClass->SetParentClass(ParentClass);
+            ParentClass->ChildClasses.AddUnique(SoundClass);
+        }
+        else
+        {
+            UE_LOG(LogSoundService, Warning, TEXT("Parent Sound Class not found: %s"), *Params.ParentClassPath);
+        }
+    }
+
+    // Register with audio system
+    FAudioDeviceManager* AudioDeviceManager = GEngine ? GEngine->GetAudioDeviceManager() : nullptr;
+    if (AudioDeviceManager)
+    {
+        AudioDeviceManager->InitSoundClasses();
+    }
+
+    if (!SaveAsset(SoundClass, OutError))
+    {
+        return nullptr;
+    }
+
+    OutAssetPath = Package->GetPathName();
+    UE_LOG(LogSoundService, Log, TEXT("Created Sound Class: %s"), *OutAssetPath);
+
+    return SoundClass;
 }
 
 USoundMix* FSoundService::CreateSoundMix(const FSoundMixParams& Params, FString& OutAssetPath, FString& OutError)
 {
-    // TODO: Implement in Phase 4
-    OutError = TEXT("Sound Mix creation not yet implemented");
-    return nullptr;
+    UPackage* Package = nullptr;
+    if (!CreateAssetPackage(Params.FolderPath, Params.AssetName, Package, OutError))
+    {
+        return nullptr;
+    }
+
+    USoundMix* SoundMix = NewObject<USoundMix>(Package, FName(*Params.AssetName), RF_Public | RF_Standalone);
+    if (!SoundMix)
+    {
+        OutError = TEXT("Failed to create Sound Mix object");
+        return nullptr;
+    }
+
+    if (!SaveAsset(SoundMix, OutError))
+    {
+        return nullptr;
+    }
+
+    OutAssetPath = Package->GetPathName();
+    UE_LOG(LogSoundService, Log, TEXT("Created Sound Mix: %s"), *OutAssetPath);
+
+    return SoundMix;
 }
 
 bool FSoundService::AddSoundMixModifier(const FString& SoundMixPath, const FString& SoundClassPath, float VolumeAdjust, float PitchAdjust, FString& OutError)
 {
-    // TODO: Implement in Phase 4
-    OutError = TEXT("Sound Mix modifier not yet implemented");
-    return false;
+    USoundMix* SoundMix = Cast<USoundMix>(
+        StaticLoadObject(USoundMix::StaticClass(), nullptr, *SoundMixPath));
+    if (!SoundMix)
+    {
+        OutError = FString::Printf(TEXT("Sound Mix not found: %s"), *SoundMixPath);
+        return false;
+    }
+
+    USoundClass* SoundClass = Cast<USoundClass>(
+        StaticLoadObject(USoundClass::StaticClass(), nullptr, *SoundClassPath));
+    if (!SoundClass)
+    {
+        OutError = FString::Printf(TEXT("Sound Class not found: %s"), *SoundClassPath);
+        return false;
+    }
+
+    SoundMix->Modify();
+
+    // Check if this Sound Class already has an entry, update it
+    for (FSoundClassAdjuster& Adjuster : SoundMix->SoundClassEffects)
+    {
+        if (Adjuster.SoundClassObject == SoundClass)
+        {
+            Adjuster.VolumeAdjuster = VolumeAdjust;
+            Adjuster.PitchAdjuster = PitchAdjust;
+
+            if (!SaveAsset(SoundMix, OutError))
+            {
+                return false;
+            }
+
+            UE_LOG(LogSoundService, Log, TEXT("Updated Sound Mix modifier: %s -> %s (Vol=%.2f, Pitch=%.2f)"),
+                *SoundMixPath, *SoundClassPath, VolumeAdjust, PitchAdjust);
+            return true;
+        }
+    }
+
+    // Add new entry
+    FSoundClassAdjuster NewAdjuster;
+    NewAdjuster.SoundClassObject = SoundClass;
+    NewAdjuster.VolumeAdjuster = VolumeAdjust;
+    NewAdjuster.PitchAdjuster = PitchAdjust;
+    NewAdjuster.bApplyToChildren = true;
+
+    SoundMix->SoundClassEffects.Add(NewAdjuster);
+
+    if (!SaveAsset(SoundMix, OutError))
+    {
+        return false;
+    }
+
+    UE_LOG(LogSoundService, Log, TEXT("Added Sound Mix modifier: %s -> %s (Vol=%.2f, Pitch=%.2f)"),
+        *SoundMixPath, *SoundClassPath, VolumeAdjust, PitchAdjust);
+    return true;
 }
 
 // ============================================================================

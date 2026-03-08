@@ -1527,4 +1527,59 @@ def register_project_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
+    @mcp.tool()
+    def set_input_action_mappable_settings(
+        ctx: Context,
+        action_path: str,
+        mapping_name: str,
+        display_name: str = "",
+        display_category: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Set PlayerMappableKeySettings on an InputAction asset.
+
+        This marks the InputAction as rebindable by the player via UEnhancedInputUserSettings.
+        Required for the Enhanced Input key rebinding system.
+
+        Args:
+            action_path: Full path to the InputAction (e.g., "/Game/ThirdPerson/Input/Actions/IA_Jump")
+            mapping_name: Unique mapping identifier (e.g., "Jump", "MoveForward")
+            display_name: Localized name shown in UI (defaults to mapping_name)
+            display_category: Grouping category (e.g., "Movement", "Actions")
+
+        Example:
+            set_input_action_mappable_settings(
+                action_path="/Game/ThirdPerson/Input/Actions/IA_Jump",
+                mapping_name="Jump",
+                display_name="Jump",
+                display_category="Movement"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "action_path": action_path,
+                "mapping_name": mapping_name,
+            }
+            if display_name:
+                params["display_name"] = display_name
+            if display_category:
+                params["display_category"] = display_category
+
+            logger.info(f"Setting mappable key settings on '{action_path}': name={mapping_name}")
+            response = unreal.send_command("set_input_action_mappable_settings", params)
+
+            if not response:
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            return response
+
+        except Exception as e:
+            return {"success": False, "message": f"Error: {e}"}
+
     logger.info("Project tools registered successfully")

@@ -116,12 +116,9 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 
 	if (ImportedMesh)
 	{
-		// Build static mesh if needed
-		if (!ImportedMesh->GetRenderData() || ImportedMesh->GetRenderData()->LODResources.Num() == 0)
-		{
-			ImportedMesh->Build();
-		}
-
+		// Don't call Build() here — it triggers TaskGraph recursion when called from MCP thread.
+		// UE will build the mesh lazily when needed (e.g., on save or viewport display).
+		// Try to read stats if render data already exists.
 		if (ImportedMesh->GetRenderData() && ImportedMesh->GetRenderData()->LODResources.Num() > 0)
 		{
 			const FStaticMeshLODResources& LOD0 = ImportedMesh->GetRenderData()->LODResources[0];

@@ -1,5 +1,5 @@
-"""Generate 3 fern atlas texture variants using Barnsley Fern IFS fractal.
-Each variant has slightly different proportions for visual variety."""
+"""Generate 4 distinct fern atlas textures using different IFS coefficient sets.
+Each produces a genuinely different fern shape."""
 from PIL import Image, ImageFilter
 import random
 import numpy as np
@@ -9,38 +9,50 @@ WIDTH = 1024
 HEIGHT = 1024
 ITERATIONS = 3_000_000
 
+# 4 distinct fern shapes via different IFS coefficients
 VARIANTS = [
     {
         "name": "T_Fern_Atlas_01",
-        "seed": 42,
-        # Classic Barnsley - tall, slightly curved
-        "transforms": [
-            (0.0, 0.0, 0.0, 0.16, 0.0, 0.0, 0.01),
-            (0.85, 0.04, -0.04, 0.85, 0.0, 1.6, 0.85),
-            (0.20, -0.26, 0.23, 0.22, 0.0, 1.6, 0.07),
-            (-0.15, 0.28, 0.26, 0.24, 0.0, 0.44, 0.07),
-        ],
-    },
-    {
-        "name": "T_Fern_Atlas_02",
-        "seed": 77,
-        # Wider pinnae, more spread out
-        "transforms": [
-            (0.0, 0.0, 0.0, 0.16, 0.0, 0.0, 0.01),
-            (0.84, 0.04, -0.04, 0.84, 0.0, 1.6, 0.85),
-            (0.22, -0.29, 0.25, 0.24, 0.0, 1.6, 0.07),
-            (-0.17, 0.31, 0.28, 0.26, 0.0, 0.44, 0.07),
-        ],
-    },
-    {
-        "name": "T_Fern_Atlas_03",
         "seed": 123,
-        # Tighter, more upright pinnae
+        # Tight upright fern (same as old 03 which user liked)
         "transforms": [
             (0.0, 0.0, 0.0, 0.16, 0.0, 0.0, 0.01),
             (0.86, 0.035, -0.035, 0.86, 0.0, 1.6, 0.85),
             (0.18, -0.24, 0.21, 0.20, 0.0, 1.6, 0.07),
             (-0.13, 0.26, 0.24, 0.22, 0.0, 0.44, 0.07),
+        ],
+    },
+    {
+        "name": "T_Fern_Atlas_02",
+        "seed": 55,
+        # Cyclosorus — wider, symmetric, shorter pinnae spread more evenly
+        "transforms": [
+            (0.0, 0.0, 0.0, 0.25, 0.0, -0.14, 0.02),
+            (0.95, 0.005, -0.005, 0.93, -0.002, 0.5, 0.84),
+            (0.035, -0.20, 0.16, 0.04, -0.09, 0.02, 0.07),
+            (-0.04, 0.20, 0.16, 0.04, 0.083, 0.12, 0.07),
+        ],
+    },
+    {
+        "name": "T_Fern_Atlas_03",
+        "seed": 88,
+        # Fishbone — long thin pinnae, narrow overall silhouette
+        "transforms": [
+            (0.0, 0.0, 0.0, 0.16, 0.0, 0.0, 0.01),
+            (0.85, 0.02, -0.02, 0.87, 0.0, 1.6, 0.85),
+            (0.30, -0.34, 0.30, 0.34, 0.0, 1.0, 0.07),
+            (-0.30, 0.34, 0.30, 0.37, 0.0, 0.7, 0.07),
+        ],
+    },
+    {
+        "name": "T_Fern_Atlas_04",
+        "seed": 200,
+        # Thelypteroid — broad triangular, pinnae get much longer at base
+        "transforms": [
+            (0.0, 0.0, 0.0, 0.16, 0.0, 0.0, 0.01),
+            (0.82, 0.05, -0.05, 0.82, 0.0, 1.6, 0.85),
+            (0.24, -0.32, 0.28, 0.26, 0.0, 1.6, 0.07),
+            (-0.18, 0.34, 0.30, 0.28, 0.0, 0.44, 0.07),
         ],
     },
 ]
@@ -131,6 +143,6 @@ for v in VARIANTS:
     img = generate_fern(v)
     path = f"E:/code/unreal-mcp/MCPGameProject/Content/Environment/GroundCover/{v['name']}.png"
     img.save(path)
-    print(f"  Saved: {path} ({WIDTH}x{HEIGHT})")
+    print(f"  Saved: {path}")
 
-print("Done! All 3 fern variants generated.")
+print("Done! 4 distinct fern variants generated.")

@@ -11,6 +11,7 @@
 #include "Components/CircularThrobber.h"
 #include "Components/SpinBox.h"
 #include "Components/RadialSlider.h"
+#include "Components/InputKeySelector.h"
 #include "Components/ListView.h"
 #include "Components/TileView.h"
 #include "Components/TreeView.h"
@@ -451,4 +452,38 @@ UWidget* FAdvancedWidgetFactory::CreateComboBox(UWidgetBlueprint* WidgetBlueprin
     }
     
     return ComboBox;
+}
+
+UWidget* FAdvancedWidgetFactory::CreateInputKeySelector(UWidgetBlueprint* WidgetBlueprint,
+                                                       const FString& ComponentName,
+                                                       const TSharedPtr<FJsonObject>& KwargsObject)
+{
+    UInputKeySelector* KeySelector = WidgetBlueprint->WidgetTree->ConstructWidget<UInputKeySelector>(
+        UInputKeySelector::StaticClass(), *ComponentName);
+
+    FString KeySelectionText;
+    if (KwargsObject->TryGetStringField(TEXT("key_selection_text"), KeySelectionText))
+    {
+        KeySelector->KeySelectionText = FText::FromString(KeySelectionText);
+    }
+
+    FString NoKeySpecifiedText;
+    if (KwargsObject->TryGetStringField(TEXT("no_key_specified_text"), NoKeySpecifiedText))
+    {
+        KeySelector->NoKeySpecifiedText = FText::FromString(NoKeySpecifiedText);
+    }
+
+    bool bAllowModifierKeys = false;
+    if (KwargsObject->TryGetBoolField(TEXT("allow_modifier_keys"), bAllowModifierKeys))
+    {
+        KeySelector->bAllowModifierKeys = bAllowModifierKeys;
+    }
+
+    bool bAllowGamepadKeys = false;
+    if (KwargsObject->TryGetBoolField(TEXT("allow_gamepad_keys"), bAllowGamepadKeys))
+    {
+        KeySelector->bAllowGamepadKeys = bAllowGamepadKeys;
+    }
+
+    return KeySelector;
 }

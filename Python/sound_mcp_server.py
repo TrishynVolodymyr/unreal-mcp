@@ -141,7 +141,8 @@ async def set_sound_wave_properties(
     sound_wave_path: str,
     looping: bool = False,
     volume: float = 1.0,
-    pitch: float = 1.0
+    pitch: float = 1.0,
+    sound_class_path: str = ""
 ) -> Dict[str, Any]:
     """
     Set properties on a sound wave asset.
@@ -151,6 +152,7 @@ async def set_sound_wave_properties(
         looping: Whether the sound should loop (default: False)
         volume: Base volume multiplier 0.0-4.0 (default: 1.0)
         pitch: Base pitch multiplier 0.1-4.0 (default: 1.0)
+        sound_class_path: Full path to a Sound Class asset to assign (e.g. "/Game/Audio/Classes/SC_Ambient")
 
     Returns:
         Dictionary containing:
@@ -161,7 +163,8 @@ async def set_sound_wave_properties(
         set_sound_wave_properties(
             sound_wave_path="/Game/Audio/Music/BGM_MainTheme",
             looping=True,
-            volume=0.8
+            volume=0.8,
+            sound_class_path="/Game/Audio/Classes/SC_Music"
         )
     """
     params = {
@@ -170,6 +173,8 @@ async def set_sound_wave_properties(
         "volume": volume,
         "pitch": pitch
     }
+    if sound_class_path:
+        params["sound_class_path"] = sound_class_path
     return await send_tcp_command("set_sound_wave_properties", params)
 
 
