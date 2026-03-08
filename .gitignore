@@ -145,6 +145,7 @@ Content/Audio/
 *.exr
 *.hdr
 *.fbx
+*.png
 
 # Exception for .gitkeep files
 !**/[Bb]inaries/**/.gitkeep

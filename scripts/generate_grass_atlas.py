@@ -1,101 +1,118 @@
-"""Generate grass atlas texture - grayscale + alpha PNG for stylized grass."""
+"""Generate dense grass CLUMP textures for cross-plane meshes.
+Each texture = a dense cluster of overlapping grass blades filling most of the card.
+Stylized/Ghibli approach: wide graphic blades, dense bottom, airy tips at top."""
 from PIL import Image, ImageDraw, ImageFilter
 import random
 import math
 
-WIDTH = 512
-HEIGHT = 512
-NUM_BLADES = 12  # enough blades to cover any UV subdivision (4-6 per mesh)
+W, H = 512, 512
 
-random.seed(42)
+def generate_clump(seed, num_blades=30, style="short"):
+    """Generate a single dense grass clump texture."""
+    random.seed(seed)
+    img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
 
-img = Image.new('RGBA', (WIDTH, HEIGHT), (0, 0, 0, 0))
-draw = ImageDraw.Draw(img)
+    # Style presets
+    if style == "short":
+        h_range = (0.45, 0.75)
+        base_w_range = (12, 22)
+        lean_range = (-25, 25)
+        curve_range = (-0.25, 0.25)
+    else:  # tall
+        h_range = (0.65, 0.95)
+        base_w_range = (10, 18)
+        lean_range = (-30, 30)
+        curve_range = (-0.35, 0.35)
 
-blade_width = WIDTH // NUM_BLADES
+    # Spread blades across the width with some overlap
+    spread = W * 0.85  # use 85% of width
+    x_start = (W - spread) / 2
 
-for i in range(NUM_BLADES):
-    cx = int((i + 0.5) * blade_width)
+    for i in range(num_blades):
+        # Random X position across the spread — clustered toward center
+        cx = x_start + random.gauss(spread / 2, spread / 4)
+        cx = max(10, min(W - 10, cx))
 
-    # Randomize blade properties
-    blade_h = random.randint(int(HEIGHT * 0.6), int(HEIGHT * 0.95))
-    base_w = random.randint(blade_width // 3, blade_width // 2)
-    tip_w = max(1, base_w // 6)
+        blade_h = int(H * random.uniform(*h_range))
+        base_w = random.randint(*base_w_range)
+        tip_w = max(1, random.randint(1, 3))
 
-    # Slight lean
-    lean = random.randint(-blade_width // 6, blade_width // 6)
+        lean = random.randint(*lean_range)
+        curve = random.uniform(*curve_range)
 
-    # Slight curve (quadratic)
-    curve = random.uniform(-0.3, 0.3)
+        # Draw blade as filled polygon with gradient
+        steps = 16
+        for s in range(steps):
+            t_low = s / steps
+            t_high = (s + 1) / steps
+            y_low = H - int(t_low * blade_h)
+            y_high = H - int(t_high * blade_h)
 
-    # Draw blade as filled polygon - bottom to top
-    points = []
-    steps = 20
-    for s in range(steps + 1):
-        t = s / steps  # 0 = bottom, 1 = top
-        y = HEIGHT - int(t * blade_h)
+            # Width tapers
+            w_low = base_w * (1 - t_low ** 0.7) + tip_w * t_low ** 0.7
+            w_high = base_w * (1 - t_high ** 0.7) + tip_w * t_high ** 0.7
 
-        # Width tapers from base to tip
-        w = base_w * (1 - t) + tip_w * t
+            # Lean + curve offset
+            off_low = lean * t_low + curve * blade_h * t_low * t_low
+            off_high = lean * t_high + curve * blade_h * t_high * t_high
 
-        # Apply lean and curve
-        offset = lean * t + curve * blade_h * t * t
+            # Brightness: darker at base (130), lighter at tip (245)
+            t_mid = (t_low + t_high) / 2
+            bri = int(130 + 115 * t_mid)
+            bri = min(250, max(120, bri))
 
-        x_left = cx + offset - w / 2
-        x_right = cx + offset + w / 2
+            seg = [
+                (cx + off_low - w_low / 2, y_low),
+                (cx + off_high - w_high / 2, y_high),
+                (cx + off_high + w_high / 2, y_high),
+                (cx + off_low + w_low / 2, y_low),
+            ]
+            draw.polygon(seg, fill=(bri, bri, bri, 255))
 
-        points.append((x_left, y))
+    # Soft blur for anti-aliasing
+    img = img.filter(ImageFilter.GaussianBlur(radius=0.6))
 
-    # Go back down the right side
-    for s in range(steps, -1, -1):
-        t = s / steps
-        y = HEIGHT - int(t * blade_h)
-        w = base_w * (1 - t) + tip_w * t
-        offset = lean * t + curve * blade_h * t * t
-        x_right = cx + offset + w / 2
-        points.append((x_right, y))
+    # Clean alpha
+    px = img.load()
+    for y in range(H):
+        for x in range(W):
+            r, g, b, a = px[x, y]
+            if a < 15:
+                px[x, y] = (0, 0, 0, 0)
+            else:
+                px[x, y] = (r, g, b, 255)
 
-    # Vertical gradient: darker at bottom (100), lighter at top (240)
-    # Draw blade in segments for gradient effect
-    for s in range(steps):
-        t_low = s / steps
-        t_high = (s + 1) / steps
-        y_low = HEIGHT - int(t_low * blade_h)
-        y_high = HEIGHT - int(t_high * blade_h)
+    return img
 
-        # Brightness gradient
-        brightness = int(140 + 100 * ((t_low + t_high) / 2))
-        brightness = min(255, brightness)
 
-        # Width at this segment
-        w_low = base_w * (1 - t_low) + tip_w * t_low
-        w_high = base_w * (1 - t_high) + tip_w * t_high
+OUT = "E:/code/unreal-mcp/MCPGameProject/Content/Environment/GroundCover"
 
-        offset_low = lean * t_low + curve * blade_h * t_low * t_low
-        offset_high = lean * t_high + curve * blade_h * t_high * t_high
+# Generate 3 short clump variants + 2 tall clump variants
+variants = [
+    ("T_Grass_Short_01", 100, 28, "short"),
+    ("T_Grass_Short_02", 101, 32, "short"),
+    ("T_Grass_Short_03", 102, 25, "short"),
+    ("T_Grass_Tall_01", 200, 22, "tall"),
+    ("T_Grass_Tall_02", 201, 26, "tall"),
+]
 
-        seg_points = [
-            (cx + offset_low - w_low / 2, y_low),
-            (cx + offset_high - w_high / 2, y_high),
-            (cx + offset_high + w_high / 2, y_high),
-            (cx + offset_low + w_low / 2, y_low),
-        ]
+for name, seed, num_blades, style in variants:
+    print(f"Generating {name} (seed={seed}, {num_blades} blades, {style})...")
+    img = generate_clump(seed, num_blades, style)
 
-        draw.polygon(seg_points, fill=(brightness, brightness, brightness, 255))
+    # Quick fill check
+    import numpy as np
+    alpha = np.array(img.split()[3])
+    fill = np.mean(alpha > 0)
+    print(f"  Fill: {fill:.1%}")
 
-# Slight blur for smoother alpha edges
-img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
+    path = f"{OUT}/{name}.png"
+    img.save(path)
+    print(f"  Saved: {path}")
 
-# Ensure clean alpha - threshold
-pixels = img.load()
-for y in range(HEIGHT):
-    for x in range(WIDTH):
-        r, g, b, a = pixels[x, y]
-        if a < 20:
-            pixels[x, y] = (0, 0, 0, 0)
-        else:
-            pixels[x, y] = (r, g, b, 255)
-
-output_path = "E:/code/unreal-mcp/MCPGameProject/Content/Environment/GroundCover/T_Grass_Atlas.png"
-img.save(output_path)
-print(f"Saved grass atlas: {output_path} ({WIDTH}x{HEIGHT})")
+# Also save a combined atlas for backward compat (just use Short_01)
+import shutil
+shutil.copy(f"{OUT}/T_Grass_Short_01.png", f"{OUT}/T_Grass_Atlas.png")
+print(f"\nT_Grass_Atlas.png updated (copy of Short_01)")
+print("Done! 5 dense grass clump textures.")
