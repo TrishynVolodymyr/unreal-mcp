@@ -1,7 +1,9 @@
 #include "Services/MaterialExpressionService.h"
+#include "MaterialEditingLibrary.h"
 #include "MaterialGraph/MaterialGraph.h"
 #include "MaterialGraph/MaterialGraphSchema.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Materials/MaterialFunction.h"
 #include "Misc/PackageName.h"
 #include "UObject/SavePackage.h"
 
@@ -13,6 +15,70 @@ bool FMaterialExpressionService::ConnectExpressions(
     if (!Params.IsValid(OutError))
     {
         return false;
+    }
+
+    // ---- MaterialFunction branch ----
+    if (Params.IsForMaterialFunction())
+    {
+        UMaterialFunction* MatFunc = LoadObject<UMaterialFunction>(nullptr, *Params.MaterialFunctionPath);
+        if (!MatFunc)
+        {
+            OutError = FString::Printf(TEXT("MaterialFunction not found: %s"), *Params.MaterialFunctionPath);
+            return false;
+        }
+
+        UMaterialExpression* SourceExpr = FindExpressionInFunction(MatFunc, Params.SourceExpressionId);
+        UMaterialExpression* TargetExpr = FindExpressionInFunction(MatFunc, Params.TargetExpressionId);
+
+        if (!SourceExpr) { OutError = FString::Printf(TEXT("Source expression not found: %s"), *Params.SourceExpressionId.ToString()); return false; }
+        if (!TargetExpr) { OutError = FString::Printf(TEXT("Target expression not found: %s"), *Params.TargetExpressionId.ToString()); return false; }
+
+        if (Params.SourceOutputIndex < 0 || Params.SourceOutputIndex >= SourceExpr->GetOutputs().Num())
+        {
+            OutError = FString::Printf(TEXT("Invalid source output index: %d"), Params.SourceOutputIndex);
+            return false;
+        }
+
+        // Find target input by name
+        int32 TargetInputIndex = -1;
+        int32 NumInputs = TargetExpr->GetInputsView().Num();
+        for (int32 i = 0; i < NumInputs; ++i)
+        {
+            if (TargetExpr->GetInputName(i).ToString().Equals(Params.TargetInputName, ESearchCase::IgnoreCase))
+            {
+                TargetInputIndex = i;
+                break;
+            }
+        }
+
+        if (TargetInputIndex < 0)
+        {
+            TArray<FString> AvailableInputs;
+            for (int32 i = 0; i < NumInputs; ++i)
+                AvailableInputs.Add(TargetExpr->GetInputName(i).ToString());
+            OutError = FString::Printf(TEXT("Input '%s' not found. Available: %s"),
+                *Params.TargetInputName, *FString::Join(AvailableInputs, TEXT(", ")));
+            return false;
+        }
+
+        FExpressionInput* TargetInput = TargetExpr->GetInput(TargetInputIndex);
+        SourceExpr->Modify();
+        TargetExpr->Modify();
+        SourceExpr->ConnectExpression(TargetInput, Params.SourceOutputIndex);
+
+        UMaterialEditingLibrary::UpdateMaterialFunction(MatFunc, nullptr);
+        MatFunc->MarkPackageDirty();
+
+        // Save
+        UPackage* Package = MatFunc->GetOutermost();
+        FString PackageFilename = FPackageName::LongPackageNameToFilename(
+            Package->GetName(), FPackageName::GetAssetPackageExtension());
+        FSavePackageArgs SaveArgs;
+        SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+        UPackage::SavePackage(Package, MatFunc, *PackageFilename, SaveArgs);
+
+        UE_LOG(LogTemp, Log, TEXT("Connected expressions in MaterialFunction %s"), *Params.MaterialFunctionPath);
+        return true;
     }
 
     // Find the working material (editor's transient copy if editor is open)

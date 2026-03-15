@@ -5,85 +5,131 @@ Source: Ghislain Girardot — "My workflow to create grass assets for realtime a
 - ArtStation: https://www.artstation.com/artwork/a0RYBR
 - 80.lv interview: https://80.lv/articles/technical-challenges-of-game-environment-production
 
+Transcript extracted via `youtube-transcript-api` Python package (pip install youtube-transcript-api).
+
 ## Core Concept
 
-Instead of drawing grass textures procedurally (PIL/Photoshop), **model 3D grass blades in Blender and render/bake them into a 2D texture**. This gives natural shadows, volume, soft edges — impossible with flat polygon drawing.
+Model 3D grass blades in Blender, arrange into **small clumps** (3-5 blades each), render via orthographic camera to get a texture with multiple separated clumps. Then trace low-poly cards over each clump and arrange cards into the final game asset.
 
-## Workflow Steps
+**CRITICAL: The texture and cards are PAIRED. Each card is traced from a specific clump in the texture. The texture must have small separated clumps with gaps — NOT one continuous wall of grass.**
 
-### 1. Model Individual Grass Blades (Blender)
-- Create a single blade as extruded curve or thin mesh strip
-- Taper from wide base to thin tip
-- Add slight curve/bend for natural look
-- Vary: height, width, curve direction, lean angle
+## Complete Workflow (from video transcript)
 
-### 2. Arrange into Clump
-- Duplicate blade 15-25 times
-- Randomize: rotation, scale, lean, position within a small radius
-- Front-facing arrangement (like a bouquet viewed from the side)
-- Denser at base, sparser at top
-
-### 3. Setup Render
-- Orthographic camera, front-facing
-- Transparent background (RGBA)
-- Simple lighting: key light from above/front for subtle shadows
+### Phase 1: Setup
+- Delete everything, create orthographic camera pointing down
+- Set render resolution (e.g., 1024×512)
+- Color management: View Transform = Raw (no color correction)
 - Film > Transparent = ON
-- Resolution matches target texture (512x512 or 1024x1024)
+- Background color = pure black (no ambient light)
+- Create a canvas plane matching ortho width + aspect ratio (for reference)
 
-### 4. Material on Blades
-- Simple diffuse/emission (grayscale for our pipeline)
-- Gradient: darker at root, lighter at tips
-- No complex PBR needed — we tint in UE material
+### Phase 2: Model High-Poly Blades
+- Create a plane, scale X to make a thin strip
+- Add vertical edge loop (bevel weight = 1.0), add horizontal edge loops
+- Proportional editing to taper tip, adjust curvature
+- Add Bevel modifier (limit by weight, 1 segment)
+- Add Subdivision modifier (2 viewport, 3 render)
+- Add Solidify modifier (slight thickness)
+- Shade smooth
+- Result: one high-poly grass blade base model
 
-### 5. Render to PNG
-- Render with alpha channel
-- Result: natural-looking grass clump texture with real shadows and depth
+### Phase 3: Create PBR Passes via Shader AOVs
+- Create Shader AOVs: albedo, roughness, specular, opacity, normal, random, height, transmission
+- In compositor: file output node with inputs matching each AOV
+- In material: AOV Output nodes for each pass
+- Use UV-based gradients for roughness/specular (center highlight, edge variation)
+- Albedo: color gradients + per-object random value for tint variation
+- Normal: remap world-space normals to 0-1 range, flip green channel
+- Height: use a reference cube with object coordinates for vertical gradient
+- Opacity: constant 1.0
+- Transmission: top-down UV gradient
 
-### 6. Repeat for Variants
-- Rearrange blades, change seed, different blade counts
-- Short grass: shorter blades, more compact
-- Tall grass: taller, more dramatic curves
+### Phase 4: Arrange Clumps on Canvas
+**THIS IS THE KEY STEP WE GOT WRONG**
+- Duplicate blade, enter edit mode, use proportional editing to create variants
+- Arrange blades into **small clumps of 3-5 blades** each
+- **Leave enough room between clumps** — prevents bleeding, allows individual card tracing
+- Multiple small clumps spread across the canvas, NOT one dense wall
+- Render → saves all PBR pass PNGs to disk
 
-## UE Material Principles (from Girardot)
+### Phase 5: Mip-Flood Dilation
+- Problem: alpha-masked textures bleed black background color at distance (mip chain)
+- Solution: mip-flooding (GDC 2019 technique) — dilate textures
+- Alternative: GIMP value propagate filter, or duplicate+blur+merge layers
+- Reapply original alpha channel after flooding
+- Important for all passes, not just albedo
 
-### Normals
-- **Custom normals on grass blades** matching ground normals
-- Seamless integration with terrain
+### Phase 6: Create Low-Poly Cards
+- New scene, import opacity map as Image Mesh Plane
+- Set material to use alpha clip, emission for visualization
+- **In vertex mode, manually trace vertices around each clump silhouette**
+- Create quads (F key) to surface the cards
+- Check face orientation (normals), flip if red
+- Add edge loops for WPO deformation
+- Vertex placement considerations:
+  - Never outside canvas bounds
+  - Leave inner margin within clump
+  - Leave outer margin between clumps
+  - Minimize overdraw (transparent pixels)
+  - Think about vertex animation deformability
+  - Think about volume/bending potential
 
-### Texturing
-- **World projected textures** on both terrain AND grass blades
-- Same albedo/roughness where they clip → no visible seam at ground intersection
+### Phase 7: LODs
+- Create LOD0 (full detail), LOD1 (half verts), LOD2 (single quad or triangle)
+- Use material slots (lod0, lod1, lod2) to tag cards for easy selection later
+- Keep all LODs in same object (important for per-card random value consistency)
 
-### Shading
-- **Gradient root→tip** on albedo (push value at tips)
-- Grass blades **don't cast shadows** (reduces visual noise)
-- Two Sided Foliage shading model
-- Blend Mode: Masked
+### Phase 8: Separate, Rotate, Curve
+- Copy to new scene, separate cards into individual objects
+- Recenter origins, apply location
+- **Rotate 90° on X** (R X 90) — cards stand upright
+- Apply rotation
+- Use proportional editing to apply curvature:
+  - Side view: bend tips slightly (sharp falloff)
+  - Top view: gentle lateral bend
+- Goal: each card has slight 3D volume, not perfectly flat
 
-### WPO Animation
-- Bend, clump, tilt, wind effects via World Position Offset
-- Vertex color R channel = root-to-tip gradient for WPO intensity
-- Vertex color G channel = per-blade/per-clump phase offset
+### Phase 9: Arrange Final Asset
+- Create linked duplicate of collection
+- Duplicate cards (Alt+D) 1-2 times per card
+- Randomize transform to spread apart
+- Manually fine-tune spacing, silhouette from all angles
+- Ensure decent coverage and volume from any viewing direction
+- This is the final game asset
 
-### Performance
-- LODs (at least 2)
-- Instanced rendering
-- Landscape masking (hide grass under dirt blend via WPO push below ground)
+### Phase 10: Bake & Export
+- Bake pivot data (for shader tricks)
+- Bake per-card random value in UVs (for wind phase offset, tint variation)
+- Use material selection to isolate LODs
+- Export each LOD separately as FBX
+- Import to UE, set up LOD distances
+
+## UE Material (from video)
+- Albedo × top-down projected noise × per-instance/per-card random for color variation
+- Roughness/specular lerped towards constants at distance (mip map tricks)
+- Opacity with shadow pass switch, tip desaturation, fake light bleed
+- Normal map: tangent-space normals used AS world-space (hack but effective)
+- Subsurface scattering
+- Wind animation via spherical reprojection material function
+- Pixel depth offset at close distance (disabled at far distance)
+- LOD2 (far distance): much cheaper shader — constant roughness/specular/normals, no WPO, no PDO
 
 ## Our Pipeline Adaptation
 
 Since we use grayscale + alpha textures (colorized in UE material):
 1. Blender blades use simple white/gray material with root-to-tip gradient
-2. Render to grayscale + alpha PNG
-3. Each grass mesh variant gets its own baked texture
-4. UE material: tint with Wabi-Kawa palette (Sage #8BA888 / Green #86B97E)
+2. Arrange into **small separated clumps** (3-5 blades each) on canvas
+3. Render to grayscale + alpha PNG — multiple clumps visible with gaps
+4. Trace individual cards per clump
+5. Arrange cards into final grass asset
+6. UE material: tint with Wabi-Kawa palette (Sage #8BA888 / Green #86B97E)
 
-## Key Differences from Our Old Approach
+## Lessons Learned (2026-03-14)
 
-| Old (PIL drawing) | New (Blender bake) |
-|---|---|
-| Flat polygon shapes | 3D rendered with real shadows |
-| Sharp geometric edges | Soft natural edges from AA |
-| No depth/volume | Subtle self-shadowing |
-| Uniform brightness | Natural light variation |
-| Looks "procedural" | Looks "artistic" |
+| What went wrong | Why | Correct approach |
+|---|---|---|
+| 75 blades packed edge-to-edge as one wall | Misunderstood "arrange into clump" as one big mass | Small clumps of 3-5 blades with gaps between them |
+| One card covering entire texture | No distinct groups to trace | Individual cards per small clump |
+| 1,440 tris per grass asset (37×5 grid) | Over-tessellated to match silhouette | ~160 tris target (8×3 grid per card, 5 cards) |
+| Cross-plane meshes (SM_Grass_*) unrelated to textures | Created meshes and textures independently | Texture and card are paired — card traced FROM texture |
+| FBX scale issues | global_scale=100 + apply_unit_scale=True = double scale | Use global_scale=1.0 with apply_unit_scale=True |

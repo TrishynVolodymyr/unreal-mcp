@@ -129,6 +129,117 @@ async def create_material(
 
 
 # ============================================================================
+# Material Function Creation
+# ============================================================================
+
+@app.tool()
+async def create_material_function(
+    name: str,
+    path: str = "/Game/Materials/Functions",
+    description: str = "",
+    expose_to_library: bool = True,
+    library_categories: list = None
+) -> Dict[str, Any]:
+    """
+    Create a new MaterialFunction asset.
+
+    MaterialFunctions are reusable node graphs that can be called from multiple materials.
+    Use add_material_expression with material_function_path to add nodes to it.
+
+    Args:
+        name: Name of the function (e.g., "MF_GrassWind")
+        path: Folder path (default: "/Game/Materials/Functions")
+        description: Description text for the function
+        expose_to_library: Whether to show in material editor palette (default: True)
+        library_categories: List of category strings for palette organization (default: ["Custom"])
+
+    Returns:
+        Dictionary containing:
+        - success: Whether creation was successful
+        - function_path: Full path to the created MaterialFunction
+        - message: Success/error message
+
+    Example:
+        create_material_function(
+            name="MF_GrassWind",
+            path="/Game/Environment/Materials/Functions",
+            description="Wind animation for grass cards",
+            library_categories=["Vegetation", "Wind"]
+        )
+    """
+    params = {
+        "name": name,
+        "path": path,
+        "description": description,
+        "expose_to_library": expose_to_library,
+    }
+    if library_categories:
+        params["library_categories"] = library_categories
+
+    return await send_tcp_command("create_material_function", params)
+
+
+# ============================================================================
+# Material Parameter Collection Creation
+# ============================================================================
+
+@app.tool()
+async def create_material_parameter_collection(
+    name: str,
+    path: str = "/Game/Materials",
+    scalar_params: list = None,
+    vector_params: list = None
+) -> Dict[str, Any]:
+    """
+    Create a Material Parameter Collection (MPC) asset.
+
+    MPCs provide global material parameters shared across ALL materials that reference them.
+    Change a value once → every material using this MPC updates instantly.
+    Ideal for: wind, weather, time of day, global tint, interaction systems.
+
+    Args:
+        name: Name of the MPC (e.g., "MPC_Wind")
+        path: Folder path (default: "/Game/Materials")
+        scalar_params: List of scalar parameters, each a dict with:
+            - name: Parameter name (e.g., "WindSpeed")
+            - default_value: Default float value (default: 0.0)
+        vector_params: List of vector parameters, each a dict with:
+            - name: Parameter name (e.g., "WindDirection")
+            - r, g, b, a: Default color/vector components (default: 0,0,0,1)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether creation was successful
+        - mpc_path: Full path to the created MPC
+        - scalar_count: Number of scalar parameters
+        - vector_count: Number of vector parameters
+
+    Example:
+        create_material_parameter_collection(
+            name="MPC_Wind",
+            path="/Game/Environment/Materials",
+            scalar_params=[
+                {"name": "WindSpeed", "default_value": 0.3},
+                {"name": "WindStrength", "default_value": 3.0}
+            ],
+            vector_params=[
+                {"name": "WindDirection", "r": 0.7, "g": 0.7, "b": 0.0, "a": 0.0}
+            ]
+        )
+    """
+    params = {
+        "name": name,
+        "path": path,
+    }
+    if scalar_params:
+        params["scalar_params"] = scalar_params
+    if vector_params:
+        params["vector_params"] = vector_params
+
+    return await send_tcp_command("create_material_parameter_collection", params)
+
+
+# ============================================================================
 # Material Instance Creation
 # ============================================================================
 
@@ -607,35 +718,56 @@ async def set_material_expression_property(
 
 @app.tool()
 async def add_material_expression(
-    material_path: str,
-    expression_type: str,
+    material_path: str = None,
+    expression_type: str = "",
     position: List[int] = None,
-    properties: dict = None
+    properties: dict = None,
+    material_function_path: str = None
 ) -> Dict[str, Any]:
     """
-    Add a material expression node to a material graph.
+    Add a material expression node to a material or material function graph.
+
+    Provide either material_path OR material_function_path (not both).
+    For MaterialFunctions, use FunctionInput/FunctionOutput expression types
+    to define the function's interface.
 
     Args:
         material_path: Path to the material (e.g., "/Game/Materials/M_MyMaterial")
-        expression_type: Type of expression (e.g., "Constant", "Multiply", "ParticleColor",
-                        "RadialGradientExponential", "VertexColor", "TextureCoordinate")
+        expression_type: Type of expression (e.g., "Constant", "Multiply", "FunctionInput",
+                        "FunctionOutput", "VertexColor", "TextureCoordinate")
         position: [X, Y] position in the graph (optional)
-        properties: Dictionary of expression properties (optional)
+        properties: Dictionary of expression properties (optional).
+            For FunctionInput: {"InputName": "UV", "InputType": "Vector2", "SortPriority": 0}
+            For FunctionOutput: {"OutputName": "Result", "SortPriority": 0}
+            InputType options: "Scalar", "Vector2", "Vector3", "Vector4", "Texture2D", "Bool"
+        material_function_path: Path to MaterialFunction instead of material
+            (e.g., "/Game/Materials/Functions/MF_GrassWind")
 
     Returns:
         Dictionary with expression_id, name, and other info
 
-    Example:
+    Examples:
+        # Add to a material
         add_material_expression(
             material_path="/Game/Materials/M_Ember",
             expression_type="Constant",
             properties={"R": 1.0}
         )
+
+        # Add input to a MaterialFunction
+        add_material_expression(
+            material_function_path="/Game/Materials/Functions/MF_Wind",
+            expression_type="FunctionInput",
+            properties={"InputName": "WindSpeed", "InputType": "Scalar"}
+        )
     """
     params = {
-        "material_path": material_path,
         "expression_type": expression_type
     }
+    if material_path:
+        params["material_path"] = material_path
+    if material_function_path:
+        params["material_function_path"] = material_function_path
     if position:
         params["position"] = position
     if properties:
@@ -646,32 +778,39 @@ async def add_material_expression(
 
 @app.tool()
 async def connect_material_expressions(
-    material_path: str,
-    source_expression_id: str,
-    target_expression_id: str,
-    target_input_name: str,
-    source_output_index: int = 0
+    source_expression_id: str = "",
+    target_expression_id: str = "",
+    target_input_name: str = "",
+    source_output_index: int = 0,
+    material_path: str = None,
+    material_function_path: str = None
 ) -> Dict[str, Any]:
     """
-    Connect two material expressions.
+    Connect two material expressions in a material or material function.
+
+    Provide either material_path OR material_function_path (not both).
 
     Args:
-        material_path: Path to the material
         source_expression_id: GUID of the source expression
         target_expression_id: GUID of the target expression
         target_input_name: Name of the input on the target (e.g., "A", "B", "Base")
         source_output_index: Output index on source (default 0)
+        material_path: Path to the material
+        material_function_path: Path to the MaterialFunction
 
     Returns:
         Success/error message
     """
     params = {
-        "material_path": material_path,
         "source_expression_id": source_expression_id,
         "target_expression_id": target_expression_id,
         "target_input_name": target_input_name,
         "source_output_index": source_output_index
     }
+    if material_path:
+        params["material_path"] = material_path
+    if material_function_path:
+        params["material_function_path"] = material_function_path
 
     return await send_tcp_command("connect_material_expressions", params)
 

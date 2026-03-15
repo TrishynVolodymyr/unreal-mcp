@@ -14,7 +14,8 @@ public class MCPGameProject : ModuleRules
 			"Engine", 
 			"InputCore", 
 			"EnhancedInput",
-			"UMG"  // Add UMG for Widget Blueprints
+			"UMG",  // Add UMG for Widget Blueprints
+			"CommonInput"  // Input device detection (keyboard/gamepad switching)
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {

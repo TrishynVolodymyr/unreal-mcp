@@ -19,9 +19,13 @@ FString FConnectMaterialExpressionsCommand::Execute(const FString& Parameters)
     }
 
     FString MaterialPath;
-    if (!JsonObject->TryGetStringField(TEXT("material_path"), MaterialPath))
+    FString MaterialFunctionPath;
+    JsonObject->TryGetStringField(TEXT("material_path"), MaterialPath);
+    JsonObject->TryGetStringField(TEXT("material_function_path"), MaterialFunctionPath);
+
+    if (MaterialPath.IsEmpty() && MaterialFunctionPath.IsEmpty())
     {
-        return CreateErrorResponse(TEXT("Missing 'material_path' parameter"));
+        return CreateErrorResponse(TEXT("Missing 'material_path' or 'material_function_path' parameter"));
     }
 
     // Check for batch mode (connections array)
@@ -40,6 +44,7 @@ FString FConnectMaterialExpressionsCommand::Execute(const FString& Parameters)
 
             FMaterialExpressionConnectionParams Params;
             Params.MaterialPath = MaterialPath;
+            Params.MaterialFunctionPath = MaterialFunctionPath;
 
             FString SourceIdStr;
             if (!(*ConnObj)->TryGetStringField(TEXT("source_expression_id"), SourceIdStr))
@@ -112,9 +117,11 @@ bool FConnectMaterialExpressionsCommand::ValidateParams(const FString& Parameter
         return false;
     }
 
-    // Must have material_path
-    FString MaterialPath;
-    if (!JsonObject->TryGetStringField(TEXT("material_path"), MaterialPath))
+    // Must have material_path or material_function_path
+    FString MaterialPath, MaterialFunctionPath;
+    JsonObject->TryGetStringField(TEXT("material_path"), MaterialPath);
+    JsonObject->TryGetStringField(TEXT("material_function_path"), MaterialFunctionPath);
+    if (MaterialPath.IsEmpty() && MaterialFunctionPath.IsEmpty())
     {
         return false;
     }
@@ -143,9 +150,13 @@ bool FConnectMaterialExpressionsCommand::ParseParameters(const FString& JsonStri
         return false;
     }
 
-    if (!JsonObject->TryGetStringField(TEXT("material_path"), OutParams.MaterialPath))
+    // Accept either material_path or material_function_path
+    JsonObject->TryGetStringField(TEXT("material_path"), OutParams.MaterialPath);
+    JsonObject->TryGetStringField(TEXT("material_function_path"), OutParams.MaterialFunctionPath);
+
+    if (OutParams.MaterialPath.IsEmpty() && OutParams.MaterialFunctionPath.IsEmpty())
     {
-        OutError = TEXT("Missing 'material_path' parameter");
+        OutError = TEXT("Missing 'material_path' or 'material_function_path' parameter");
         return false;
     }
 

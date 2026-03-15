@@ -10,8 +10,11 @@
  */
 struct UNREALMCP_API FMaterialExpressionCreationParams
 {
-    /** Path to the material to modify */
+    /** Path to the material to modify (mutually exclusive with MaterialFunctionPath) */
     FString MaterialPath;
+
+    /** Path to the material function to modify (mutually exclusive with MaterialPath) */
+    FString MaterialFunctionPath;
 
     /** Type of expression to create (e.g., "Constant3Vector", "Add", "TextureSample") */
     FString ExpressionType;
@@ -25,6 +28,9 @@ struct UNREALMCP_API FMaterialExpressionCreationParams
     /** Default constructor */
     FMaterialExpressionCreationParams() = default;
 
+    /** Returns true if targeting a MaterialFunction rather than a Material */
+    bool IsForMaterialFunction() const { return !MaterialFunctionPath.IsEmpty(); }
+
     /**
      * Validate the parameters
      * @param OutError - Error message if validation fails
@@ -32,9 +38,9 @@ struct UNREALMCP_API FMaterialExpressionCreationParams
      */
     bool IsValid(FString& OutError) const
     {
-        if (MaterialPath.IsEmpty())
+        if (MaterialPath.IsEmpty() && MaterialFunctionPath.IsEmpty())
         {
-            OutError = TEXT("Material path cannot be empty");
+            OutError = TEXT("Either 'material_path' or 'material_function_path' must be provided");
             return false;
         }
         if (ExpressionType.IsEmpty())
@@ -51,8 +57,11 @@ struct UNREALMCP_API FMaterialExpressionCreationParams
  */
 struct UNREALMCP_API FMaterialExpressionConnectionParams
 {
-    /** Path to the material containing the expressions */
+    /** Path to the material containing the expressions (mutually exclusive with MaterialFunctionPath) */
     FString MaterialPath;
+
+    /** Path to the material function containing the expressions (mutually exclusive with MaterialPath) */
+    FString MaterialFunctionPath;
 
     /** GUID of the source expression */
     FGuid SourceExpressionId;
@@ -69,6 +78,9 @@ struct UNREALMCP_API FMaterialExpressionConnectionParams
     /** Default constructor */
     FMaterialExpressionConnectionParams() = default;
 
+    /** Returns true if targeting a MaterialFunction rather than a Material */
+    bool IsForMaterialFunction() const { return !MaterialFunctionPath.IsEmpty(); }
+
     /**
      * Validate the parameters
      * @param OutError - Error message if validation fails
@@ -76,9 +88,9 @@ struct UNREALMCP_API FMaterialExpressionConnectionParams
      */
     bool IsValid(FString& OutError) const
     {
-        if (MaterialPath.IsEmpty())
+        if (MaterialPath.IsEmpty() && MaterialFunctionPath.IsEmpty())
         {
-            OutError = TEXT("Material path cannot be empty");
+            OutError = TEXT("Either 'material_path' or 'material_function_path' must be provided");
             return false;
         }
         if (!SourceExpressionId.IsValid())
@@ -222,6 +234,23 @@ public:
         const FString& MaterialPath,
         TSharedPtr<FJsonObject>& OutResult,
         FString& OutError);
+
+    /**
+     * Add an expression to a MaterialFunction
+     * @param Params - Expression creation parameters (must have MaterialFunctionPath set)
+     * @param OutExpressionInfo - Output JSON with expression details
+     * @param OutError - Error message if creation fails
+     * @return Created expression or nullptr if failed
+     */
+    UMaterialExpression* AddExpressionToFunction(
+        const FMaterialExpressionCreationParams& Params,
+        TSharedPtr<FJsonObject>& OutExpressionInfo,
+        FString& OutError);
+
+    /**
+     * Find an expression by GUID within a MaterialFunction
+     */
+    UMaterialExpression* FindExpressionInFunction(UMaterialFunction* Function, const FGuid& ExpressionId);
 
 private:
     /** Singleton instance */

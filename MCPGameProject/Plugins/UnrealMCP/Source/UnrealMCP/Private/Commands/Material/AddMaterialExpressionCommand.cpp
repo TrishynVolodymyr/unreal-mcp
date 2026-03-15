@@ -56,9 +56,13 @@ bool FAddMaterialExpressionCommand::ParseParameters(const FString& JsonString, F
         return false;
     }
 
-    if (!JsonObject->TryGetStringField(TEXT("material_path"), OutParams.MaterialPath))
+    // Accept either material_path or material_function_path
+    JsonObject->TryGetStringField(TEXT("material_path"), OutParams.MaterialPath);
+    JsonObject->TryGetStringField(TEXT("material_function_path"), OutParams.MaterialFunctionPath);
+
+    if (OutParams.MaterialPath.IsEmpty() && OutParams.MaterialFunctionPath.IsEmpty())
     {
-        OutError = TEXT("Missing 'material_path' parameter");
+        OutError = TEXT("Missing 'material_path' or 'material_function_path' parameter");
         return false;
     }
 
