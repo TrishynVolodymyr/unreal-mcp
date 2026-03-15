@@ -1582,4 +1582,68 @@ def register_project_tools(mcp: FastMCP):
         except Exception as e:
             return {"success": False, "message": f"Error: {e}"}
 
+    @mcp.tool()
+    def set_imc_mapping_settings(
+        ctx: Context,
+        imc_path: str,
+        action_name: str,
+        key: str,
+        mapping_name: str,
+        display_name: str = "",
+        display_category: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Set per-mapping PlayerMappableKeySettings on an IMC key mapping.
+
+        Sets SettingBehavior=OverrideSettings and creates unique PlayerMappableKeySettings
+        per mapping. This enables per-key rebinding for multi-key actions like WASD movement,
+        where each key within the same InputAction needs its own MappingName.
+
+        Args:
+            imc_path: Full path to the InputMappingContext (e.g., "/Game/ThirdPerson/Input/IMC_Default")
+            action_name: Name of the InputAction (e.g., "IA_Move")
+            key: The key bound to this mapping (e.g., "W", "S", "A", "D")
+            mapping_name: Unique mapping identifier (e.g., "MoveForward", "MoveBackward")
+            display_name: Localized name shown in UI (defaults to mapping_name)
+            display_category: Grouping category (e.g., "Movement", "Actions")
+
+        Example:
+            set_imc_mapping_settings(
+                imc_path="/Game/ThirdPerson/Input/IMC_Default",
+                action_name="IA_Move",
+                key="W",
+                mapping_name="MoveForward",
+                display_name="Move Forward",
+                display_category="Movement"
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "imc_path": imc_path,
+                "action_name": action_name,
+                "key": key,
+                "mapping_name": mapping_name,
+            }
+            if display_name:
+                params["display_name"] = display_name
+            if display_category:
+                params["display_category"] = display_category
+
+            logger.info(f"Setting per-mapping settings on '{imc_path}' [{action_name}/{key}]: name={mapping_name}")
+            response = unreal.send_command("set_imc_mapping_settings", params)
+
+            if not response:
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            return response
+
+        except Exception as e:
+            return {"success": False, "message": f"Error: {e}"}
+
     logger.info("Project tools registered successfully")

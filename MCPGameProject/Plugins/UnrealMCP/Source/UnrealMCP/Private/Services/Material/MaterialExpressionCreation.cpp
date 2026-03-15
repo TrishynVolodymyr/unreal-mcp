@@ -21,6 +21,9 @@
 // Material Function support
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
+#include "Materials/MaterialFunction.h"
+#include "Materials/MaterialExpressionFunctionInput.h"
+#include "Materials/MaterialExpressionFunctionOutput.h"
 // Noise expression
 #include "Materials/MaterialExpressionNoise.h"
 // Particle SubUV for flipbook animations
@@ -634,6 +637,12 @@ UMaterialExpression* FMaterialExpressionService::AddExpression(
     if (!Params.IsValid(OutError))
     {
         return nullptr;
+    }
+
+    // ---- MaterialFunction branch ----
+    if (Params.IsForMaterialFunction())
+    {
+        return AddExpressionToFunction(Params, OutExpressionInfo, OutError);
     }
 
     // Find the working material (editor's transient copy if editor is open)

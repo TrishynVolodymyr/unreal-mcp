@@ -28,6 +28,7 @@
 #include "Commands/Project/SearchAssetsCommand.h"
 #include "Commands/Project/CaptureViewportScreenshotCommand.h"
 #include "Commands/Project/SetInputActionMappableSettingsCommand.h"
+#include "Commands/Project/SetIMCMappingSettingsCommand.h"
 #include "Services/IProjectService.h"
 
 void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Registry, TSharedPtr<IProjectService> ProjectService)
@@ -97,8 +98,9 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     Registry.RegisterCommand(MakeShared<FMoveAssetCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FSearchAssetsCommand>());
 
-    // Register Enhanced Input settings command
+    // Register Enhanced Input settings commands
     Registry.RegisterCommand(MakeShared<FSetInputActionMappableSettingsCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FSetIMCMappingSettingsCommand>(ProjectService));
 
     UE_LOG(LogTemp, Log, TEXT("Registered project commands successfully"));
 }

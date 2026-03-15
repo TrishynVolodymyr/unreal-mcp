@@ -21,7 +21,8 @@ from utils.editor.editor_operations import (
     get_level_metadata as get_level_metadata_impl,
     batch_delete_actors as batch_delete_actors_impl,
     batch_spawn_actors as batch_spawn_actors_impl,
-    import_static_mesh as import_static_mesh_impl
+    import_static_mesh as import_static_mesh_impl,
+    import_texture as import_texture_impl
 )
 from utils.mcp_help import get_help_registry, get_mcp_help as get_mcp_help_impl
 
@@ -728,6 +729,60 @@ def register_editor_tools(mcp: FastMCP):
         """
         return import_static_mesh_impl(ctx, source_file_path, asset_name, folder_path, import_materials)
 
+    @mcp.tool()
+    def import_texture(
+        ctx: Context,
+        source_file_path: str,
+        asset_name: str,
+        folder_path: str = "/Game/Textures",
+        compression_settings: str = "Default",
+        srgb: bool = True,
+        preserve_alpha: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Import a texture from disk into the Unreal Engine project.
+
+        Supports PNG, TGA, TIF, JPEG, EXR, HDR, BMP formats.
+
+        Args:
+            source_file_path: Absolute path to the texture file on disk
+                (e.g., "E:/textures/T_Grass_Short_01.png")
+            asset_name: Name for the imported Texture asset (e.g., "T_Grass_Short_01")
+            folder_path: Content folder path for the imported asset (default: "/Game/Textures")
+            compression_settings: Texture compression type (default: "Default")
+                - "Default": Standard color texture (BC1/BC3)
+                - "Normalmap": Normal map compression (BC5), forces sRGB off
+                - "Masks": Mask/utility texture, forces sRGB off
+                - "Grayscale": Grayscale texture, forces sRGB off
+                - "HDR": High dynamic range (RGBA16F)
+                - "Alpha": Alpha-only compression
+            srgb: Whether texture uses sRGB color space (default: True).
+                Automatically disabled for Normalmap, Masks, and Grayscale compression.
+            preserve_alpha: Whether to preserve the alpha channel (default: True).
+                Set to False for opaque textures to save memory.
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the import was successful
+            - path: Full asset path of the imported texture
+            - name: Name of the imported asset
+            - size_x: Texture width in pixels
+            - size_y: Texture height in pixels
+            - has_alpha: Whether the texture has an alpha channel
+            - message: Success/error message
+
+        Example:
+            import_texture(
+                source_file_path="E:/project/Content/Environment/GroundCover/T_Grass_Short_01.png",
+                asset_name="T_Grass_Short_01",
+                folder_path="/Game/Environment/GroundCover",
+                compression_settings="Default",
+                srgb=True,
+                preserve_alpha=True
+            )
+        """
+        return import_texture_impl(ctx, source_file_path, asset_name, folder_path, compression_settings, srgb, preserve_alpha)
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -743,5 +798,6 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(delete_actors, category="actors")
     _help_registry.register(spawn_actors, category="actors")
     _help_registry.register(import_static_mesh, category="assets")
+    _help_registry.register(import_texture, category="assets")
 
     logger.info("Editor tools registered successfully")

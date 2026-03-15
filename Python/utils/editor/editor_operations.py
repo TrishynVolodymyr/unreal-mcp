@@ -445,3 +445,21 @@ def import_static_mesh(ctx: Context, source_file_path: str, asset_name: str,
     }
     logger.info(f"Importing static mesh '{asset_name}' from '{source_file_path}'")
     return send_unreal_command("import_static_mesh", params)
+
+
+def import_texture(ctx: Context, source_file_path: str, asset_name: str,
+                   folder_path: str = "/Game/Textures",
+                   compression_settings: str = "Default",
+                   srgb: bool = True,
+                   preserve_alpha: bool = True) -> Dict[str, Any]:
+    """Import a texture (PNG, TGA, TIF, JPEG, EXR, HDR, BMP) from disk into the Unreal project."""
+    params = {
+        "source_file_path": source_file_path,
+        "asset_name": asset_name,
+        "folder_path": folder_path,
+        "compression_settings": compression_settings,
+        "srgb": srgb,
+        "preserve_alpha": preserve_alpha
+    }
+    logger.info(f"Importing texture '{asset_name}' from '{source_file_path}'")
+    return send_unreal_command("import_texture", params)
