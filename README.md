@@ -141,6 +141,13 @@ Design AI behavior with StateTree system:
 - Configure tasks and conditions
 - Property bindings and target bindings
 
+### 📐 Static Mesh Operations
+Manage Static Mesh assets and LOD systems:
+- Get mesh metadata (LOD count, vertices, triangles, bounds, materials)
+- Import LODs from FBX files into specific LOD slots
+- Set LOD screen size thresholds for transitions
+- Auto-generate LODs with built-in mesh reduction
+
 ### 🌿 Procedural Content Generation (PCG)
 Build and execute PCG graphs for procedural world-building:
 - Create PCG Graph assets with optional templates
@@ -167,6 +174,8 @@ Manage actors and the editor environment:
 - Find actors by name patterns and wildcards
 - Control viewport camera focus and orientation
 - Query and modify actor properties
+- Performance profiling (FPS, GPU time, draw calls, memory)
+- Execute console commands with captured output
 
 ### 📁 Project Organization
 Organize assets, inputs, and project structure:
@@ -211,7 +220,7 @@ The project uses a **dual-component synchronized architecture** enabling natural
 ```
 AI Assistant (Claude/Cursor/Windsurf)
     ↓ [MCP Protocol]
-Python MCP Servers (14 specialized FastMCP servers)
+Python MCP Servers (15 specialized FastMCP servers)
     ↓ [TCP/JSON on localhost:55557]
 C++ Plugin (UnrealMCP EditorSubsystem)
     ↓ [Direct Unreal Engine API]
@@ -270,6 +279,7 @@ unreal-mcp/
 │   ├── font_mcp_server.py            # Font tools server
 │   ├── statetree_mcp_server.py       # StateTree AI server
 │   ├── pcg_mcp_server.py            # PCG procedural generation server
+│   ├── mesh_mcp_server.py           # Static Mesh LOD & properties server
 │   ├── *_tools/                      # Tool implementations
 │   ├── utils/                        # Shared utilities
 │   └── scripts/                      # Test scripts
@@ -387,7 +397,7 @@ For more details, see [Python/README.md](Python/README.md).
 
 ### Configure Your MCP Client
 
-The 14 MCP servers need to be configured in your AI assistant. Below is the configuration template - **adjust the path** to match your installation directory.
+The 15 MCP servers need to be configured in your AI assistant. Below is the configuration template - **adjust the path** to match your installation directory.
 
 #### Configuration Template
 
@@ -449,6 +459,10 @@ The 14 MCP servers need to be configured in your AI assistant. Below is the conf
     "pcgMCP": {
       "command": "uv",
       "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "pcg_mcp_server.py"]
+    },
+    "meshMCP": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/unreal-mcp/Python", "run", "mesh_mcp_server.py"]
     }
   }
 }
