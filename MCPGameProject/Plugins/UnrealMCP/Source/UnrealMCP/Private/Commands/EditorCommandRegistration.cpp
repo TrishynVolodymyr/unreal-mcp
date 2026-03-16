@@ -16,6 +16,8 @@
 #include "Commands/Editor/CreateRenderTargetCommand.h"
 #include "Commands/Editor/ImportStaticMeshCommand.h"
 #include "Commands/Editor/ImportTextureCommand.h"
+#include "Commands/Editor/GetPerformanceStatsCommand.h"
+#include "Commands/Editor/ExecuteConsoleCommandCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -48,6 +50,8 @@ void FEditorCommandRegistration::RegisterAllCommands()
     // Register asset import commands
     RegisterAndTrackCommand(MakeShared<FImportStaticMeshCommand>());
     RegisterAndTrackCommand(MakeShared<FImportTextureCommand>());
+    RegisterAndTrackCommand(MakeShared<FGetPerformanceStatsCommand>());
+    RegisterAndTrackCommand(MakeShared<FExecuteConsoleCommandCommand>());
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:
