@@ -137,7 +137,9 @@ public class UnrealMCP : ModuleRules
 					"StateTreeEditorModule",   // StateTree editor utilities (factories, compilation)
 					"PropertyBindingUtils",    // Property binding path utilities
 					// PCG (Procedural Content Generation) support
-					"PCG"                      // Core PCG runtime (graphs, nodes, elements)
+					"PCG",                     // Core PCG runtime (graphs, nodes, elements)
+					// Static Mesh editor support (LOD management)
+					"StaticMeshEditor"         // UStaticMeshEditorSubsystem
 				}
 			);
 		}
