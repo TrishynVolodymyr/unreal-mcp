@@ -24,6 +24,9 @@
 #include "Materials/MaterialFunction.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
+// Collection Parameter (MPC) support
+#include "Materials/MaterialExpressionCollectionParameter.h"
+#include "Materials/MaterialParameterCollection.h"
 // Noise expression
 #include "Materials/MaterialExpressionNoise.h"
 // Particle SubUV for flipbook animations
@@ -546,6 +549,48 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
             OutError = FString::Printf(TEXT("MaterialFunctionCall requires 'Function' or 'FunctionPath' property to specify the material function path. "
                 "Got properties: [%s]. Example: {\"Function\": \"/Engine/Functions/Engine_MaterialFunctions01/Gradient/RadialGradientExponential.RadialGradientExponential\"}"),
                 *FString::Join(ProvidedKeys, TEXT(", ")));
+            return false;
+        }
+    }
+    // Handle CollectionParameter - load MPC by path and set parameter name
+    else if (UMaterialExpressionCollectionParameter* CollectionParamExpr = Cast<UMaterialExpressionCollectionParameter>(Expression))
+    {
+        FString CollectionPath;
+        if (Properties->HasField(TEXT("Collection")))
+            CollectionPath = Properties->GetStringField(TEXT("Collection"));
+        else if (Properties->HasField(TEXT("collection")))
+            CollectionPath = Properties->GetStringField(TEXT("collection"));
+
+        if (!CollectionPath.IsEmpty())
+        {
+            UMaterialParameterCollection* MPC = LoadObject<UMaterialParameterCollection>(nullptr, *CollectionPath);
+            if (MPC)
+            {
+                CollectionParamExpr->Collection = MPC;
+
+                FString ParamName;
+                if (Properties->HasField(TEXT("ParameterName")))
+                    ParamName = Properties->GetStringField(TEXT("ParameterName"));
+                else if (Properties->HasField(TEXT("parameter_name")))
+                    ParamName = Properties->GetStringField(TEXT("parameter_name"));
+
+                if (!ParamName.IsEmpty())
+                {
+                    CollectionParamExpr->ParameterName = FName(*ParamName);
+                    CollectionParamExpr->ParameterId = MPC->GetParameterId(FName(*ParamName));
+                }
+
+                UE_LOG(LogTemp, Log, TEXT("Set CollectionParameter: MPC=%s, Param=%s"), *CollectionPath, *ParamName);
+            }
+            else
+            {
+                OutError = FString::Printf(TEXT("Failed to load MPC at path: %s"), *CollectionPath);
+                return false;
+            }
+        }
+        else
+        {
+            OutError = TEXT("CollectionParameter requires 'Collection' property with MPC asset path");
             return false;
         }
     }

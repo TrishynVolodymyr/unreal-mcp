@@ -25,6 +25,7 @@ from utils.editor.editor_operations import (
     import_texture as import_texture_impl
 )
 from utils.mcp_help import get_help_registry, get_mcp_help as get_mcp_help_impl
+from utils.unreal_connection_utils import send_unreal_command
 
 # Get logger
 logger = logging.getLogger("UnrealMCP")
@@ -783,6 +784,59 @@ def register_editor_tools(mcp: FastMCP):
         """
         return import_texture_impl(ctx, source_file_path, asset_name, folder_path, compression_settings, srgb, preserve_alpha)
 
+    @mcp.tool()
+    def get_performance_stats(ctx: Context) -> Dict[str, Any]:
+        """
+        Get real-time performance statistics from Unreal Engine.
+
+        Returns FPS, frame time, GPU time, memory usage, draw calls, and triangle count.
+        Use this to profile performance and identify bottlenecks.
+
+        Returns:
+            Dictionary containing:
+            - fps_current: Current frame FPS
+            - fps_average: Smoothed average FPS
+            - frame_time_ms: Current frame time in milliseconds
+            - gpu_time_ms: GPU frame time in milliseconds
+            - draw_calls: Number of draw calls this frame
+            - primitives_drawn: Number of triangles/primitives drawn
+            - memory: Object with used_physical_mb, available_physical_mb, peak_used_physical_mb
+            - message: Human-readable summary
+
+        Example:
+            get_performance_stats()
+        """
+        return send_unreal_command("get_performance_stats", {})
+
+    @mcp.tool()
+    def execute_console_command(
+        ctx: Context,
+        command: str
+    ) -> Dict[str, Any]:
+        """
+        Execute an Unreal Engine console command and capture output.
+
+        Useful for toggling stat overlays, changing CVars, and runtime tweaks.
+
+        Args:
+            command: Console command to execute (e.g., "stat fps", "stat unit",
+                    "stat scenerendering", "r.SetRes 1920x1080",
+                    "t.MaxFPS 60", "stat memory")
+
+        Returns:
+            Dictionary containing:
+            - success: Whether command was executed
+            - command: The command that was run
+            - output: Captured text output (may be empty for toggle commands)
+            - message: Status message
+
+        Examples:
+            execute_console_command(command="stat fps")
+            execute_console_command(command="stat unit")
+            execute_console_command(command="r.ScreenPercentage 50")
+        """
+        return send_unreal_command("execute_console_command", {"command": command})
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -799,5 +853,7 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(spawn_actors, category="actors")
     _help_registry.register(import_static_mesh, category="assets")
     _help_registry.register(import_texture, category="assets")
+    _help_registry.register(get_performance_stats, category="profiling")
+    _help_registry.register(execute_console_command, category="profiling")
 
     logger.info("Editor tools registered successfully")

@@ -64,11 +64,112 @@ bool FCreateMPCCommand::ParseAndExecute(const FString& JsonString, FString& OutR
 		UMaterialParameterCollection* Existing = FindObject<UMaterialParameterCollection>(ExistingPackage, *Name);
 		if (Existing)
 		{
-			// Return existing
+			// Upsert: add any new params that don't already exist
+			int32 AddedScalar = 0, AddedVector = 0;
+
+			const TArray<TSharedPtr<FJsonValue>>* ScalarParams;
+			if (JsonObject->TryGetArrayField(TEXT("scalar_params"), ScalarParams))
+			{
+				for (const auto& ParamVal : *ScalarParams)
+				{
+					const TSharedPtr<FJsonObject>* ParamObj;
+					if (ParamVal->TryGetObject(ParamObj))
+					{
+						FString ParamName;
+						if ((*ParamObj)->TryGetStringField(TEXT("name"), ParamName))
+						{
+							// Check if already exists — update default if so, add if not
+							double DefaultVal = 0.0;
+							(*ParamObj)->TryGetNumberField(TEXT("default_value"), DefaultVal);
+
+							bool bFound = false;
+							for (auto& Existing_P : Existing->ScalarParameters)
+							{
+								if (Existing_P.ParameterName == FName(*ParamName))
+								{
+									Existing_P.DefaultValue = (float)DefaultVal;
+									bFound = true;
+									break;
+								}
+							}
+							if (!bFound)
+							{
+								FCollectionScalarParameter Param;
+								Param.ParameterName = FName(*ParamName);
+								Param.DefaultValue = (float)DefaultVal;
+								Existing->ScalarParameters.Add(Param);
+								AddedScalar++;
+							}
+						}
+					}
+				}
+			}
+
+			const TArray<TSharedPtr<FJsonValue>>* VectorParams;
+			if (JsonObject->TryGetArrayField(TEXT("vector_params"), VectorParams))
+			{
+				for (const auto& ParamVal : *VectorParams)
+				{
+					const TSharedPtr<FJsonObject>* ParamObj;
+					if (ParamVal->TryGetObject(ParamObj))
+					{
+						FString ParamName;
+						if ((*ParamObj)->TryGetStringField(TEXT("name"), ParamName))
+						{
+							double R = 0, G = 0, B = 0, A = 1;
+							(*ParamObj)->TryGetNumberField(TEXT("r"), R);
+							(*ParamObj)->TryGetNumberField(TEXT("g"), G);
+							(*ParamObj)->TryGetNumberField(TEXT("b"), B);
+							(*ParamObj)->TryGetNumberField(TEXT("a"), A);
+							FLinearColor NewDefault((float)R, (float)G, (float)B, (float)A);
+
+							bool bFound = false;
+							for (auto& Existing_P : Existing->VectorParameters)
+							{
+								if (Existing_P.ParameterName == FName(*ParamName))
+								{
+									Existing_P.DefaultValue = NewDefault;
+									bFound = true;
+									break;
+								}
+							}
+							if (!bFound)
+							{
+								FCollectionVectorParameter Param;
+								Param.ParameterName = FName(*ParamName);
+								Param.DefaultValue = NewDefault;
+								Existing->VectorParameters.Add(Param);
+								AddedVector++;
+							}
+						}
+					}
+				}
+			}
+
+			if (AddedScalar > 0 || AddedVector > 0)
+			{
+				Existing->SetupWorldParameterCollectionInstances();
+				ExistingPackage->MarkPackageDirty();
+
+				FString PkgFileName = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
+				FSavePackageArgs SaveArgs;
+				SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+				UPackage::SavePackage(ExistingPackage, Existing, *PkgFileName, SaveArgs);
+
+				UE_LOG(LogTemp, Log, TEXT("Updated MPC %s: added %d scalar, %d vector params"), *PackagePath, AddedScalar, AddedVector);
+			}
+
 			TSharedPtr<FJsonObject> Resp = MakeShared<FJsonObject>();
 			Resp->SetBoolField(TEXT("success"), true);
 			Resp->SetStringField(TEXT("mpc_path"), PackagePath);
-			Resp->SetStringField(TEXT("message"), TEXT("MPC already exists, returning existing"));
+			Resp->SetNumberField(TEXT("scalar_count"), Existing->ScalarParameters.Num());
+			Resp->SetNumberField(TEXT("vector_count"), Existing->VectorParameters.Num());
+			Resp->SetNumberField(TEXT("added_scalar"), AddedScalar);
+			Resp->SetNumberField(TEXT("added_vector"), AddedVector);
+			Resp->SetStringField(TEXT("message"),
+				FString::Printf(TEXT("MPC updated: %d scalar, %d vector params (added %d new)"),
+					Existing->ScalarParameters.Num(), Existing->VectorParameters.Num(), AddedScalar + AddedVector));
+
 			FString Out;
 			TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 			FJsonSerializer::Serialize(Resp.ToSharedRef(), Writer);
