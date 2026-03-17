@@ -6,6 +6,7 @@
 #include "Animation/AnimBlueprint.h"
 #include "AnimGraphNode_StateMachine.h"
 #include "AnimGraphNode_SequencePlayer.h"
+#include "AnimGraphNode_StateResult.h"
 #include "AnimStateNode.h"
 #include "AnimStateTransitionNode.h"
 #include "AnimationGraph.h"
