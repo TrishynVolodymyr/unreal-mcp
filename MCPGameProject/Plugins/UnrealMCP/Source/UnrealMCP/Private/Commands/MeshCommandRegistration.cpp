@@ -6,6 +6,7 @@
 #include "Commands/Mesh/ImportLodCommand.h"
 #include "Commands/Mesh/SetLodScreenSizesCommand.h"
 #include "Commands/Mesh/AutoGenerateLodsCommand.h"
+#include "Commands/Mesh/SetMeshPropertiesCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FMeshCommandRegistration::RegisteredCommands;
 
@@ -18,6 +19,7 @@ void FMeshCommandRegistration::RegisterAllCommands()
 	RegisterAndTrackCommand(MakeShared<FImportLodCommand>());
 	RegisterAndTrackCommand(MakeShared<FSetLodScreenSizesCommand>());
 	RegisterAndTrackCommand(MakeShared<FAutoGenerateLodsCommand>());
+	RegisterAndTrackCommand(MakeShared<FSetMeshPropertiesCommand>());
 
 	UE_LOG(LogTemp, Log, TEXT("Registered %d Mesh commands"), RegisteredCommands.Num());
 }
