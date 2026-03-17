@@ -837,6 +837,28 @@ def register_editor_tools(mcp: FastMCP):
         """
         return send_unreal_command("execute_console_command", {"command": command})
 
+    @mcp.tool()
+    def get_gpu_stats(ctx: Context) -> Dict[str, Any]:
+        """
+        Get per-pass GPU profiler breakdown.
+
+        Returns detailed GPU timing for each render pass: BasePass, Shadows,
+        Translucency, PostProcessing, etc. Sorted by cost (highest first).
+
+        First call enables GPU stat collection. Call again for actual data.
+
+        Returns:
+            Dictionary containing:
+            - total_gpu_ms: Total GPU frame time
+            - passes: Array of {name, avg_ms, min_ms, max_ms} per render pass
+            - pass_count: Number of active passes
+            - message: Human-readable summary of top passes
+
+        Example:
+            get_gpu_stats()
+        """
+        return send_unreal_command("get_gpu_stats", {})
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -855,5 +877,6 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(import_texture, category="assets")
     _help_registry.register(get_performance_stats, category="profiling")
     _help_registry.register(execute_console_command, category="profiling")
+    _help_registry.register(get_gpu_stats, category="profiling")
 
     logger.info("Editor tools registered successfully")
