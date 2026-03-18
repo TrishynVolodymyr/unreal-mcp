@@ -70,26 +70,26 @@ FString FSetPCGNodePropertyCommand::Execute(const FString& Parameters)
         return CreateErrorResponse(FString::Printf(TEXT("Node '%s' has no settings"), *NodeId));
     }
 
-    // Find the property on the settings object
-    FProperty* Property = Settings->GetClass()->FindPropertyByName(FName(*PropertyName));
-    if (!Property)
+    // Resolve property path — supports dotted paths like "MeshSelectorParameters.MeshEntries[0].Descriptor.bCastShadow"
+    UObject* TargetObject = nullptr;
+    FProperty* Property = nullptr;
+    void* PropertyAddr = nullptr;
+    FString ResolveError;
+
+    if (!ResolvePropertyPath(Settings, PropertyName, TargetObject, Property, PropertyAddr, ResolveError))
     {
-        return CreateErrorResponse(FString::Printf(TEXT("Property '%s' not found on settings class '%s'"),
-            *PropertyName, *Settings->GetClass()->GetName()));
+        return CreateErrorResponse(ResolveError);
     }
 
     // Get property type string before modifying
     FString PropertyType = GetPropertyTypeString(Property);
 
-    // Get pointer to the property's value within the settings object
-    void* PropertyAddr = Property->ContainerPtrToValuePtr<void>(Settings);
-
 #if WITH_EDITOR
     Settings->PreEditChange(Property);
 #endif
 
-    // Use ImportText to set the value from string — handles int, float, bool, FName, enums, structs, object paths, etc.
-    const TCHAR* Result = Property->ImportText_Direct(*PropertyValue, PropertyAddr, Settings, PPF_None);
+    // Use ImportText to set the value from string
+    const TCHAR* Result = Property->ImportText_Direct(*PropertyValue, PropertyAddr, TargetObject, PPF_None);
 
     if (!Result)
     {
@@ -141,6 +141,112 @@ bool FSetPCGNodePropertyCommand::ValidateParams(const FString& Parameters) const
            JsonObject->HasField(TEXT("node_id")) &&
            JsonObject->HasField(TEXT("property_name")) &&
            JsonObject->HasField(TEXT("property_value"));
+}
+
+bool FSetPCGNodePropertyCommand::ResolvePropertyPath(
+    UObject* RootObject,
+    const FString& PropertyPath,
+    UObject*& OutObject,
+    FProperty*& OutProperty,
+    void*& OutValuePtr,
+    FString& OutError) const
+{
+    // Split path by '.' — e.g., "MeshSelectorParameters.MeshEntries[0].Descriptor.bCastShadow"
+    TArray<FString> Segments;
+    PropertyPath.ParseIntoArray(Segments, TEXT("."), true);
+
+    if (Segments.Num() == 0)
+    {
+        OutError = TEXT("Empty property path");
+        return false;
+    }
+
+    UObject* CurrentObject = RootObject;
+    void* CurrentContainer = RootObject;
+    UStruct* CurrentStruct = RootObject->GetClass();
+
+    for (int32 i = 0; i < Segments.Num(); ++i)
+    {
+        FString Segment = Segments[i];
+        bool bIsLast = (i == Segments.Num() - 1);
+
+        // Check for array index: "MeshEntries[0]"
+        int32 ArrayIndex = -1;
+        FString BaseName = Segment;
+        int32 BracketPos = Segment.Find(TEXT("["));
+        if (BracketPos != INDEX_NONE)
+        {
+            BaseName = Segment.Left(BracketPos);
+            FString IndexStr = Segment.Mid(BracketPos + 1);
+            IndexStr.RemoveFromEnd(TEXT("]"));
+            ArrayIndex = FCString::Atoi(*IndexStr);
+        }
+
+        FProperty* Prop = CurrentStruct->FindPropertyByName(FName(*BaseName));
+        if (!Prop)
+        {
+            OutError = FString::Printf(TEXT("Property '%s' not found on '%s'"), *BaseName, *CurrentStruct->GetName());
+            return false;
+        }
+
+        void* ValuePtr = Prop->ContainerPtrToValuePtr<void>(CurrentContainer);
+
+        // Handle array access
+        if (ArrayIndex >= 0)
+        {
+            FArrayProperty* ArrayProp = CastField<FArrayProperty>(Prop);
+            if (!ArrayProp)
+            {
+                OutError = FString::Printf(TEXT("'%s' is not an array property"), *BaseName);
+                return false;
+            }
+
+            FScriptArrayHelper ArrayHelper(ArrayProp, ValuePtr);
+            if (ArrayIndex >= ArrayHelper.Num())
+            {
+                OutError = FString::Printf(TEXT("Array index %d out of range (size=%d) for '%s'"), ArrayIndex, ArrayHelper.Num(), *BaseName);
+                return false;
+            }
+
+            ValuePtr = ArrayHelper.GetRawPtr(ArrayIndex);
+            Prop = ArrayProp->Inner;
+        }
+
+        if (bIsLast)
+        {
+            OutObject = CurrentObject;
+            OutProperty = Prop;
+            OutValuePtr = ValuePtr;
+            return true;
+        }
+
+        // Traverse into sub-object or struct
+        if (FObjectProperty* ObjProp = CastField<FObjectProperty>(Prop))
+        {
+            UObject* SubObject = ObjProp->GetObjectPropertyValue(ValuePtr);
+            if (!SubObject)
+            {
+                OutError = FString::Printf(TEXT("Sub-object '%s' is null"), *BaseName);
+                return false;
+            }
+            CurrentObject = SubObject;
+            CurrentContainer = SubObject;
+            CurrentStruct = SubObject->GetClass();
+        }
+        else if (FStructProperty* StructProp = CastField<FStructProperty>(Prop))
+        {
+            CurrentContainer = ValuePtr;
+            CurrentStruct = StructProp->Struct;
+        }
+        else
+        {
+            OutError = FString::Printf(TEXT("Cannot traverse into '%s' (type: %s) — not an object or struct"), *BaseName, *GetPropertyTypeString(Prop));
+            return false;
+        }
+    }
+
+    OutError = TEXT("Unexpected end of property path");
+    return false;
 }
 
 FString FSetPCGNodePropertyCommand::GetPropertyTypeString(const FProperty* Property) const

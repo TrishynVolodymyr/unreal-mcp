@@ -93,21 +93,32 @@ async def create_pcg_graph(
 @app.tool()
 async def get_pcg_graph_metadata(
     graph_path: str,
-    include_properties: bool = False
+    include_properties: bool = False,
+    node_id: str = "",
+    max_depth: int = 2
 ) -> dict:
     """Get metadata about a PCG Graph including all nodes, connections, and pins.
 
     Args:
         graph_path: Path to the PCG Graph asset (e.g., "/Game/PCG/PCG_ForestScatter")
         include_properties: If True, include settings properties for each node
+        node_id: Filter to a specific node by ID (e.g., "StaticMeshSpawner_1")
+        max_depth: Max recursion depth for sub-object properties (1-5, default 2).
+                   Depth 2 expands sub-objects like MeshSelectorParameters.
+                   Depth 3+ expands nested structs within those sub-objects.
 
     Returns:
         Dict with graph structure: input/output nodes, all nodes with pins and connections
     """
-    return await send_tcp_command("get_pcg_graph_metadata", {
+    params = {
         "graph_path": graph_path,
         "include_properties": include_properties
-    })
+    }
+    if node_id:
+        params["node_id"] = node_id
+    if max_depth != 2:
+        params["max_depth"] = max_depth
+    return await send_tcp_command("get_pcg_graph_metadata", params)
 
 
 @app.tool()
