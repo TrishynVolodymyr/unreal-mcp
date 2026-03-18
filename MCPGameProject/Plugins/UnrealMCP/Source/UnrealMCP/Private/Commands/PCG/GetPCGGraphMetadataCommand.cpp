@@ -9,6 +9,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "UObject/UnrealType.h"
+#include "UObject/TextProperty.h"
 
 // Helper: Convert pin AllowedTypes to a human-readable string
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -76,7 +77,120 @@ static TSharedPtr<FJsonObject> BuildPinsObject(const UPCGNode* Node)
     return PinsObj;
 }
 
+// Helper: Recursively build properties, expanding sub-objects and struct members
+static TSharedPtr<FJsonObject> BuildPropertiesObject(const UObject* Object, const UStruct* Struct, const UStruct* StopAtClass, int32 Depth, const void* Container = nullptr)
+{
+    TSharedPtr<FJsonObject> PropsObj = MakeShared<FJsonObject>();
+    if (Depth <= 0 || !Struct) return PropsObj;
+
+    const void* ActualContainer = Container ? Container : Object;
+
+    for (TFieldIterator<FProperty> PropIt(Struct); PropIt; ++PropIt)
+    {
+        FProperty* Prop = *PropIt;
+        if (!Prop) continue;
+
+        // Skip base class properties
+        if (StopAtClass && Prop->GetOwnerClass() &&
+            (Prop->GetOwnerClass() == UObject::StaticClass() || Prop->GetOwnerClass() == StopAtClass))
+        {
+            continue;
+        }
+
+        const void* ValuePtr = Prop->ContainerPtrToValuePtr<void>(ActualContainer);
+        TSharedPtr<FJsonObject> PropInfoObj = MakeShared<FJsonObject>();
+        PropInfoObj->SetStringField(TEXT("type"), Prop->GetCPPType());
+
+        // Recurse into UObject sub-objects
+        if (const FObjectProperty* ObjProp = CastField<FObjectProperty>(Prop))
+        {
+            UObject* SubObject = ObjProp->GetObjectPropertyValue(ValuePtr);
+            if (SubObject && Depth > 1)
+            {
+                PropInfoObj->SetStringField(TEXT("class"), SubObject->GetClass()->GetName());
+                PropInfoObj->SetObjectField(TEXT("properties"), BuildPropertiesObject(SubObject, SubObject->GetClass(), nullptr, Depth - 1));
+            }
+            else
+            {
+                FString ValueStr;
+                Prop->ExportTextItem_Direct(ValueStr, ValuePtr, nullptr, nullptr, PPF_None);
+                PropInfoObj->SetStringField(TEXT("value"), ValueStr);
+            }
+        }
+        // Recurse into structs
+        else if (const FStructProperty* StructProp = CastField<FStructProperty>(Prop))
+        {
+            if (Depth > 1)
+            {
+                PropInfoObj->SetObjectField(TEXT("properties"), BuildPropertiesObject(nullptr, StructProp->Struct, nullptr, Depth - 1, ValuePtr));
+            }
+            else
+            {
+                FString ValueStr;
+                Prop->ExportTextItem_Direct(ValueStr, ValuePtr, nullptr, nullptr, PPF_None);
+                PropInfoObj->SetStringField(TEXT("value"), ValueStr);
+            }
+        }
+        // Expand arrays — show element count and recurse if struct/object elements
+        else if (const FArrayProperty* ArrayProp = CastField<FArrayProperty>(Prop))
+        {
+            FScriptArrayHelper ArrayHelper(ArrayProp, ValuePtr);
+            PropInfoObj->SetNumberField(TEXT("count"), ArrayHelper.Num());
+
+            if (Depth > 1 && ArrayHelper.Num() > 0)
+            {
+                TArray<TSharedPtr<FJsonValue>> Elements;
+                int32 MaxElements = FMath::Min(ArrayHelper.Num(), 10); // Cap at 10 elements
+
+                for (int32 i = 0; i < MaxElements; ++i)
+                {
+                    void* ElemPtr = ArrayHelper.GetRawPtr(i);
+                    FProperty* Inner = ArrayProp->Inner;
+
+                    if (const FStructProperty* InnerStruct = CastField<FStructProperty>(Inner))
+                    {
+                        TSharedPtr<FJsonObject> ElemObj = BuildPropertiesObject(nullptr, InnerStruct->Struct, nullptr, Depth - 1, ElemPtr);
+                        Elements.Add(MakeShared<FJsonValueObject>(ElemObj));
+                    }
+                    else if (const FObjectProperty* InnerObj = CastField<FObjectProperty>(Inner))
+                    {
+                        UObject* SubObj = InnerObj->GetObjectPropertyValue(ElemPtr);
+                        if (SubObj)
+                        {
+                            TSharedPtr<FJsonObject> ElemObj = BuildPropertiesObject(SubObj, SubObj->GetClass(), nullptr, Depth - 1);
+                            Elements.Add(MakeShared<FJsonValueObject>(ElemObj));
+                        }
+                    }
+                    else
+                    {
+                        FString ElemStr;
+                        Inner->ExportTextItem_Direct(ElemStr, ElemPtr, nullptr, nullptr, PPF_None);
+                        Elements.Add(MakeShared<FJsonValueString>(ElemStr));
+                    }
+                }
+                PropInfoObj->SetArrayField(TEXT("elements"), Elements);
+            }
+            else
+            {
+                FString ValueStr;
+                Prop->ExportTextItem_Direct(ValueStr, ValuePtr, nullptr, nullptr, PPF_None);
+                PropInfoObj->SetStringField(TEXT("value"), ValueStr);
+            }
+        }
+        else
+        {
+            FString ValueStr;
+            Prop->ExportTextItem_Direct(ValueStr, ValuePtr, nullptr, nullptr, PPF_None);
+            PropInfoObj->SetStringField(TEXT("value"), ValueStr);
+        }
+
+        PropsObj->SetObjectField(Prop->GetName(), PropInfoObj);
+    }
+    return PropsObj;
+}
+
 // Helper: Build a node JSON object (for regular nodes)
+static int32 MaxPropertyDepth = 2;
 static TSharedPtr<FJsonObject> BuildNodeObject(const UPCGNode* Node, bool bIncludeProperties)
 {
     TSharedPtr<FJsonObject> NodeObj = MakeShared<FJsonObject>();
@@ -109,32 +223,10 @@ static TSharedPtr<FJsonObject> BuildNodeObject(const UPCGNode* Node, bool bInclu
     // Pins
     NodeObj->SetObjectField(TEXT("pins"), BuildPinsObject(Node));
 
-    // Optional: settings properties via UE reflection
+    // Optional: settings properties via UE reflection (with sub-object recursion)
     if (bIncludeProperties && Settings)
     {
-        TSharedPtr<FJsonObject> PropsObj = MakeShared<FJsonObject>();
-        for (TFieldIterator<FProperty> PropIt(Settings->GetClass()); PropIt; ++PropIt)
-        {
-            FProperty* Prop = *PropIt;
-            if (!Prop) continue;
-
-            // Skip properties from base engine classes
-            if (Prop->GetOwnerClass() == UObject::StaticClass() ||
-                Prop->GetOwnerClass() == UPCGSettings::StaticClass())
-            {
-                continue;
-            }
-
-            FString ValueStr;
-            const void* ValuePtr = Prop->ContainerPtrToValuePtr<void>(Settings);
-            Prop->ExportTextItem_Direct(ValueStr, ValuePtr, nullptr, nullptr, PPF_None);
-
-            TSharedPtr<FJsonObject> PropInfoObj = MakeShared<FJsonObject>();
-            PropInfoObj->SetStringField(TEXT("type"), Prop->GetCPPType());
-            PropInfoObj->SetStringField(TEXT("value"), ValueStr);
-            PropsObj->SetObjectField(Prop->GetName(), PropInfoObj);
-        }
-        NodeObj->SetObjectField(TEXT("properties"), PropsObj);
+        NodeObj->SetObjectField(TEXT("properties"), BuildPropertiesObject(Settings, Settings->GetClass(), UPCGSettings::StaticClass(), MaxPropertyDepth));
     }
 
     return NodeObj;
@@ -159,6 +251,14 @@ FString FGetPCGGraphMetadataCommand::Execute(const FString& Parameters)
 
     bool bIncludeProperties = false;
     JsonObject->TryGetBoolField(TEXT("include_properties"), bIncludeProperties);
+
+    FString NodeIdFilter;
+    JsonObject->TryGetStringField(TEXT("node_id"), NodeIdFilter);
+
+    int32 MaxDepth = 2;
+    JsonObject->TryGetNumberField(TEXT("max_depth"), MaxDepth);
+    MaxDepth = FMath::Clamp(MaxDepth, 1, 5);
+    MaxPropertyDepth = MaxDepth;
 
     // Load the PCG Graph asset
     UPCGGraph* Graph = LoadObject<UPCGGraph>(nullptr, *GraphPath);
@@ -198,6 +298,11 @@ FString FGetPCGGraphMetadataCommand::Execute(const FString& Parameters)
     for (const UPCGNode* Node : Nodes)
     {
         if (!Node) continue;
+        // Filter by node_id if specified
+        if (!NodeIdFilter.IsEmpty() && Node->GetName() != NodeIdFilter)
+        {
+            continue;
+        }
         NodesArray.Add(MakeShared<FJsonValueObject>(BuildNodeObject(Node, bIncludeProperties)));
     }
     ResponseObj->SetArrayField(TEXT("nodes"), NodesArray);

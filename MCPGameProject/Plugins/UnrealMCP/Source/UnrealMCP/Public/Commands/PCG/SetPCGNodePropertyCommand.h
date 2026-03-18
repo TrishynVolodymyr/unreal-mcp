@@ -17,6 +17,9 @@ public:
     virtual bool ValidateParams(const FString& Parameters) const override;
 
 private:
+    /** Resolve a dotted property path (e.g., "MeshSelectorParameters.MeshEntries[0].Descriptor.bCastShadow") */
+    bool ResolvePropertyPath(UObject* RootObject, const FString& PropertyPath, UObject*& OutObject, FProperty*& OutProperty, void*& OutValuePtr, FString& OutError) const;
+
     FString GetPropertyTypeString(const FProperty* Property) const;
     FString CreateSuccessResponse(const FString& NodeId, const FString& PropertyName, const FString& Value, const FString& PropertyType) const;
     FString CreateErrorResponse(const FString& ErrorMessage) const;
