@@ -293,17 +293,36 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
         }
         if (Properties->HasField(TEXT("default_value")) || Properties->HasField(TEXT("DefaultValue")))
         {
-            const TArray<TSharedPtr<FJsonValue>>* ColorArray;
             FString FieldName = Properties->HasField(TEXT("default_value")) ? TEXT("default_value") : TEXT("DefaultValue");
+            TSharedPtr<FJsonValue> Value = Properties->TryGetField(FieldName);
+
+            // Try as array first: [R, G, B] or [R, G, B, A]
+            const TArray<TSharedPtr<FJsonValue>>* ColorArray;
             if (Properties->TryGetArrayField(FieldName, ColorArray) && ColorArray->Num() >= 3)
             {
-                // Set values directly - PostEditChangeProperty is unsafe (see ScalarParameter comment above)
                 VectorParam->DefaultValue.R = (*ColorArray)[0]->AsNumber();
                 VectorParam->DefaultValue.G = (*ColorArray)[1]->AsNumber();
                 VectorParam->DefaultValue.B = (*ColorArray)[2]->AsNumber();
                 if (ColorArray->Num() >= 4)
                 {
                     VectorParam->DefaultValue.A = (*ColorArray)[3]->AsNumber();
+                }
+            }
+            // Try as comma-separated string: "R,G,B" or "R,G,B,A"
+            else if (Value.IsValid() && Value->Type == EJson::String)
+            {
+                FString ColorString = Value->AsString();
+                TArray<FString> Components;
+                ColorString.ParseIntoArray(Components, TEXT(","), true);
+                if (Components.Num() >= 3)
+                {
+                    VectorParam->DefaultValue.R = FCString::Atof(*Components[0].TrimStartAndEnd());
+                    VectorParam->DefaultValue.G = FCString::Atof(*Components[1].TrimStartAndEnd());
+                    VectorParam->DefaultValue.B = FCString::Atof(*Components[2].TrimStartAndEnd());
+                    VectorParam->DefaultValue.A = Components.Num() >= 4
+                        ? FCString::Atof(*Components[3].TrimStartAndEnd()) : 1.0f;
+                    UE_LOG(LogTemp, Log, TEXT("Parsed VectorParameter DefaultValue from string: R=%f, G=%f, B=%f, A=%f"),
+                        VectorParam->DefaultValue.R, VectorParam->DefaultValue.G, VectorParam->DefaultValue.B, VectorParam->DefaultValue.A);
                 }
             }
         }
