@@ -192,8 +192,11 @@ FString FSearchAssetsCommand::Execute(const FString& Parameters)
 
 		FString AssetName = AssetData.AssetName.ToString();
 
-		// Case-insensitive name match (contains)
-		if (AssetName.Contains(SearchQuery, ESearchCase::IgnoreCase))
+		// If no search query, match everything; if query has wildcards use MatchesWildcard, otherwise Contains
+		if (SearchQuery.IsEmpty()
+			|| (SearchQuery.Contains(TEXT("*")) || SearchQuery.Contains(TEXT("?")))
+				? AssetName.MatchesWildcard(SearchQuery, ESearchCase::IgnoreCase)
+				: AssetName.Contains(SearchQuery, ESearchCase::IgnoreCase))
 		{
 			TSharedPtr<FJsonObject> AssetInfo = MakeShared<FJsonObject>();
 			AssetInfo->SetStringField(TEXT("name"), AssetName);
