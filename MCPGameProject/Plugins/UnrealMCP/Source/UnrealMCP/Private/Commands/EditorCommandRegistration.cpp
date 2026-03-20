@@ -19,6 +19,7 @@
 #include "Commands/Editor/GetPerformanceStatsCommand.h"
 #include "Commands/Editor/ExecuteConsoleCommandCommand.h"
 #include "Commands/Editor/GetGPUStatsCommand.h"
+#include "Commands/Editor/GetSceneBreakdownCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -54,6 +55,7 @@ void FEditorCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FGetPerformanceStatsCommand>());
     RegisterAndTrackCommand(MakeShared<FExecuteConsoleCommandCommand>());
     RegisterAndTrackCommand(MakeShared<FGetGPUStatsCommand>());
+    RegisterAndTrackCommand(MakeShared<FGetSceneBreakdownCommand>());
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:
