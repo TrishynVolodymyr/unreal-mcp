@@ -25,34 +25,21 @@ FString FGetGPUStatsCommand::Execute(const FString& Parameters)
 	Result->SetNumberField(TEXT("total_gpu_ms"), TotalGPUMs);
 
 #if STATS && RHI_NEW_GPU_PROFILER
-	// UE 5.7 new GPU profiler: data flows through the stat system
-	// Enable stat gpu groups on first call
-	static bool bGPUStatsEnabled = false;
-	if (!bGPUStatsEnabled)
+	// UE 5.7 new GPU profiler: data flows through the stat system.
+	// Requires "stat gpu" to be enabled via console command first.
+	FGameThreadStatsData* ViewData = FLatestGameThreadStatsData::Get().Latest;
+	if (!ViewData)
 	{
+		// Auto-enable stat gpu if not active
 		if (GEngine)
 		{
 			UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
 			GEngine->Exec(World, TEXT("stat gpu"));
 		}
-		bGPUStatsEnabled = true;
 
 		Result->SetBoolField(TEXT("success"), true);
 		Result->SetBoolField(TEXT("gpu_stats_just_enabled"), true);
 		Result->SetStringField(TEXT("message"), TEXT("GPU stats enabled. Call again for per-pass breakdown."));
-
-		FString OutputString;
-		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-		FJsonSerializer::Serialize(Result.ToSharedRef(), Writer);
-		return OutputString;
-	}
-
-	// Read GPU stat data from the stat system
-	FGameThreadStatsData* ViewData = FLatestGameThreadStatsData::Get().Latest;
-	if (!ViewData)
-	{
-		Result->SetBoolField(TEXT("success"), true);
-		Result->SetStringField(TEXT("message"), TEXT("No stat data available yet. Ensure stat gpu is active and try again."));
 
 		FString OutputString;
 		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
