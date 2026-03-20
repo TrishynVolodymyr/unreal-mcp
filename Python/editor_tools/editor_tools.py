@@ -900,6 +900,29 @@ def register_editor_tools(mcp: FastMCP):
             params["max_results"] = max_results
         return send_unreal_command("get_scene_breakdown", params)
 
+    @mcp.tool()
+    def get_rendering_stats(ctx: Context) -> Dict[str, Any]:
+        """
+        Get focused rendering diagnostics: draw call categories, VRAM, key counters.
+
+        Complements get_gpu_stats (GPU pass timing) and get_scene_breakdown (mesh instances).
+        Shows per-category draw call breakdown (shadow, basepass, translucency, etc.),
+        VRAM usage, and total draw calls / triangles.
+
+        Returns:
+            Dictionary containing:
+            - draw_calls: Total draw calls
+            - primitives_drawn: Total triangles
+            - gpu_time_ms: GPU frame time
+            - draw_call_categories: Array of {name, draw_calls} sorted by cost
+            - vram: {dedicated_vram_mb, budget_mb, allocated_mb, streaming_mb}
+            - message: Human-readable summary
+
+        Example:
+            get_rendering_stats()
+        """
+        return send_unreal_command("get_rendering_stats", {})
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -920,5 +943,6 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(execute_console_command, category="profiling")
     _help_registry.register(get_gpu_stats, category="profiling")
     _help_registry.register(get_scene_breakdown, category="profiling")
+    _help_registry.register(get_rendering_stats, category="profiling")
 
     logger.info("Editor tools registered successfully")
