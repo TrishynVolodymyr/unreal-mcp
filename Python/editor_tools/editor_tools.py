@@ -859,6 +859,47 @@ def register_editor_tools(mcp: FastMCP):
         """
         return send_unreal_command("get_gpu_stats", {})
 
+    @mcp.tool()
+    def get_scene_breakdown(
+        ctx: Context,
+        mesh_filter: str = "",
+        max_results: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Get per-mesh breakdown of scene rendering cost.
+
+        Iterates all StaticMesh/ISM/HISM components, aggregates by mesh,
+        sorted by total triangle cost (instances * LOD0 tris). Essential for
+        identifying what's eating FPS.
+
+        Args:
+            mesh_filter: Optional filter by mesh name (case-insensitive contains)
+            max_results: Max meshes to return (default: 50)
+
+        Returns:
+            Dictionary containing:
+            - meshes: Array sorted by cost, each with:
+                - mesh: Mesh asset name
+                - instances: Total instance count (ISM) or component count (SMC)
+                - lod0_tris: Triangle count at LOD0
+                - total_tris: instances * lod0_tris
+                - shadow_casters: Components with CastShadow=true
+                - nanite: Whether Nanite is enabled
+                - instanced: Whether using ISM/HISM
+            - total_instances, total_tris_lod0, total_shadow_casters
+            - message: Human-readable summary
+
+        Example:
+            get_scene_breakdown()
+            get_scene_breakdown(mesh_filter="Grass")
+        """
+        params = {}
+        if mesh_filter:
+            params["mesh_filter"] = mesh_filter
+        if max_results != 50:
+            params["max_results"] = max_results
+        return send_unreal_command("get_scene_breakdown", params)
+
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -878,5 +919,6 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(get_performance_stats, category="profiling")
     _help_registry.register(execute_console_command, category="profiling")
     _help_registry.register(get_gpu_stats, category="profiling")
+    _help_registry.register(get_scene_breakdown, category="profiling")
 
     logger.info("Editor tools registered successfully")
