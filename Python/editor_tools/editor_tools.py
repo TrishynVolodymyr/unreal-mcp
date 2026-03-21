@@ -311,6 +311,8 @@ def register_editor_tools(mcp: FastMCP):
                 - "SourceRadius": Size of the light source (float)
                 - "SoftSourceRadius": Size of the soft light source border (float)
                 - "CastShadows": Whether the light casts shadows (boolean)
+                - "ContactShadowLength": Length of contact shadows (float, 0-1, screen-space by default)
+                - "ContactShadowLengthInWS": Whether ContactShadowLength is in world space (boolean)
             property_value: Value to set the property to
             
         Returns:

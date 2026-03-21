@@ -781,6 +781,18 @@ bool FEditorService::SetLightProperty(AActor* Actor, const FString& PropertyName
         bool Value = PropertyValue.ToBool();
         LightComponent->SetCastShadows(Value);
     }
+    else if (PropertyName == TEXT("ContactShadowLength"))
+    {
+        float Value = FCString::Atof(*PropertyValue);
+        LightComponent->ContactShadowLength = Value;
+        LightComponent->MarkRenderStateDirty();
+    }
+    else if (PropertyName == TEXT("ContactShadowLengthInWS"))
+    {
+        bool Value = PropertyValue.ToBool();
+        LightComponent->ContactShadowLengthInWS = Value;
+        LightComponent->MarkRenderStateDirty();
+    }
     else
     {
         OutError = FString::Printf(TEXT("Unknown light property: %s"), *PropertyName);
