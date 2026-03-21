@@ -214,25 +214,25 @@ async def auto_generate_lods(
 async def set_static_mesh_properties(
     mesh_path: str,
     enable_nanite: bool = None,
-    has_collision: bool = None,
-    cull_distance: float = None,
-    cast_shadow: bool = None
+    has_collision: bool = None
 ) -> Dict[str, Any]:
     """
     Set properties on a Static Mesh asset.
 
+    Note: cast_shadow, cull_distance, and WorldPositionOffsetDisableDistance are
+    COMPONENT-level properties (UStaticMeshComponent), not mesh asset properties.
+    For PCG-spawned instances, use set_pcg_node_property with dotted paths on the
+    descriptor (e.g., "MeshEntries[0].Descriptor.WorldPositionOffsetDisableDistance").
+
     Args:
-        mesh_path: Path to the Static Mesh
+        mesh_path: Path to the Static Mesh asset
         enable_nanite: Enable/disable Nanite (note: doesn't work well with masked materials)
         has_collision: Enable/disable collision
-        cull_distance: Max draw distance (0 = no limit)
-        cast_shadow: Enable/disable shadow casting
 
     Example:
         set_static_mesh_properties(
             mesh_path="/Game/Meshes/SM_Grass_01",
-            cull_distance=8000,
-            cast_shadow=False
+            enable_nanite=False
         )
     """
     params = {"mesh_path": mesh_path}
@@ -240,10 +240,6 @@ async def set_static_mesh_properties(
         params["enable_nanite"] = enable_nanite
     if has_collision is not None:
         params["has_collision"] = has_collision
-    if cull_distance is not None:
-        params["cull_distance"] = cull_distance
-    if cast_shadow is not None:
-        params["cast_shadow"] = cast_shadow
 
     return await send_tcp_command("set_static_mesh_properties", params)
 

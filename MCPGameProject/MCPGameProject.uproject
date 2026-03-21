@@ -21,6 +21,10 @@
 		{
 			"Name": "CommonUI",
 			"Enabled": true
+		},
+		{
+			"Name": "FastGeoStreaming",
+			"Enabled": true
 		}
 	]
 }
