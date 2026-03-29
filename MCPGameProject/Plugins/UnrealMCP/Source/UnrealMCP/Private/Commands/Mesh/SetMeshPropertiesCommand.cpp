@@ -3,6 +3,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "StaticMeshEditorSubsystem.h"
 #include "UObject/SavePackage.h"
 
@@ -55,6 +56,43 @@ FString FSetMeshPropertiesCommand::Execute(const FString& Parameters)
 			Mesh->SetNaniteSettings(NaniteSettings);
 		}
 		ChangedProperties.Add(FString::Printf(TEXT("Nanite=%s"), bEnableNanite ? TEXT("true") : TEXT("false")));
+	}
+
+	// Materials — array of {slot_index, material_path} or single material_path for all slots
+	FString MaterialPath;
+	if (JsonObject->TryGetStringField(TEXT("material_path"), MaterialPath))
+	{
+		UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+		if (Material)
+		{
+			int32 NumSlots = Mesh->GetStaticMaterials().Num();
+			for (int32 i = 0; i < NumSlots; i++)
+			{
+				Mesh->SetMaterial(i, Material);
+			}
+			ChangedProperties.Add(FString::Printf(TEXT("Material=%s (all %d slots)"), *MaterialPath, NumSlots));
+		}
+		else
+		{
+			TSharedPtr<FJsonObject> E = MakeShared<FJsonObject>(); E->SetBoolField(TEXT("success"), false);
+			E->SetStringField(TEXT("error"), FString::Printf(TEXT("Material not found: %s"), *MaterialPath));
+			FString O; TSharedRef<TJsonWriter<>> W = TJsonWriterFactory<>::Create(&O);
+			FJsonSerializer::Serialize(E.ToSharedRef(), W); return O;
+		}
+	}
+
+	// Material per slot
+	int32 SlotIndex;
+	FString SlotMaterialPath;
+	if (JsonObject->TryGetNumberField(TEXT("material_slot_index"), SlotIndex) &&
+		JsonObject->TryGetStringField(TEXT("material_slot_path"), SlotMaterialPath))
+	{
+		UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, *SlotMaterialPath);
+		if (Material && SlotIndex >= 0 && SlotIndex < Mesh->GetStaticMaterials().Num())
+		{
+			Mesh->SetMaterial(SlotIndex, Material);
+			ChangedProperties.Add(FString::Printf(TEXT("Material[%d]=%s"), SlotIndex, *SlotMaterialPath));
+		}
 	}
 
 	// Collision

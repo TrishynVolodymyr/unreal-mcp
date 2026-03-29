@@ -214,7 +214,10 @@ async def auto_generate_lods(
 async def set_static_mesh_properties(
     mesh_path: str,
     enable_nanite: bool = None,
-    has_collision: bool = None
+    has_collision: bool = None,
+    material_path: str = None,
+    material_slot_index: int = None,
+    material_slot_path: str = None
 ) -> Dict[str, Any]:
     """
     Set properties on a Static Mesh asset.
@@ -228,11 +231,18 @@ async def set_static_mesh_properties(
         mesh_path: Path to the Static Mesh asset
         enable_nanite: Enable/disable Nanite (note: doesn't work well with masked materials)
         has_collision: Enable/disable collision
+        material_path: Path to material to set on ALL slots (e.g., "/Game/Materials/M_Grass")
+        material_slot_index: Specific slot index to set material on (use with material_slot_path)
+        material_slot_path: Material path for the specific slot (use with material_slot_index)
 
     Example:
         set_static_mesh_properties(
             mesh_path="/Game/Meshes/SM_Grass_01",
             enable_nanite=False
+        )
+        set_static_mesh_properties(
+            mesh_path="/Game/Meshes/SM_Grass_01",
+            material_path="/Game/Environment/Materials/M_Grass"
         )
     """
     params = {"mesh_path": mesh_path}
@@ -240,6 +250,12 @@ async def set_static_mesh_properties(
         params["enable_nanite"] = enable_nanite
     if has_collision is not None:
         params["has_collision"] = has_collision
+    if material_path is not None:
+        params["material_path"] = material_path
+    if material_slot_index is not None:
+        params["material_slot_index"] = material_slot_index
+    if material_slot_path is not None:
+        params["material_slot_path"] = material_slot_path
 
     return await send_tcp_command("set_static_mesh_properties", params)
 

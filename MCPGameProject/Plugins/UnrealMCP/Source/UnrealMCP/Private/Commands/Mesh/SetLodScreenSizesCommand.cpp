@@ -46,26 +46,28 @@ FString FSetLodScreenSizesCommand::Execute(const FString& Parameters)
 		ScreenSizes.Add((float)Val->AsNumber());
 	}
 
-	// Use subsystem for proper handling
-	UStaticMeshEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UStaticMeshEditorSubsystem>();
-	if (Subsystem)
+	// Disable auto-compute so manual screen sizes stick
+	Mesh->SetAutoComputeLODScreenSize(false);
+
+	// Set on source models (persists to disk)
+	for (int32 i = 0; i < ScreenSizes.Num() && i < Mesh->GetNumSourceModels(); ++i)
 	{
-		Subsystem->SetLodScreenSizes(Mesh, ScreenSizes);
+		Mesh->GetSourceModel(i).ScreenSize.Default = ScreenSizes[i];
 	}
-	else
+
+	// Set on render data for immediate visual effect
+	if (Mesh->GetRenderData())
 	{
-		// Fallback: set directly on render data
-		if (Mesh->GetRenderData())
+		for (int32 i = 0; i < ScreenSizes.Num() && i < MAX_STATIC_MESH_LODS; ++i)
 		{
-			Mesh->SetAutoComputeLODScreenSize(false);
-			for (int32 i = 0; i < ScreenSizes.Num() && i < MAX_STATIC_MESH_LODS; ++i)
-			{
-				Mesh->GetRenderData()->ScreenSize[i].Default = ScreenSizes[i];
-			}
+			Mesh->GetRenderData()->ScreenSize[i].Default = ScreenSizes[i];
 		}
 	}
 
-	Mesh->PostEditChange();
+	// Do NOT call PostEditChange() — it triggers a full mesh rebuild that
+	// destroys and recreates RenderData, corrupting the mesh scale.
+	// This follows Epic's own UStaticMeshEditorSubsystem::SetLodScreenSizes pattern.
+	Mesh->Modify();
 	Mesh->MarkPackageDirty();
 
 	// Save
