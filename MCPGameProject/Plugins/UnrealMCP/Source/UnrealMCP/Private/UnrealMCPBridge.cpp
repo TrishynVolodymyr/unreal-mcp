@@ -224,7 +224,8 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
     // but FBX ImportObject queues more tasks on GameThread → recursion crash.
     // FTSTicker runs on game thread tick, OUTSIDE TaskGraph.
     static const TArray<FString> TickerCommands = {
-        TEXT("import_static_mesh")
+        TEXT("import_static_mesh"),
+        TEXT("import_lod")
     };
     const bool bUseTicker = TickerCommands.Contains(CommandType);
 

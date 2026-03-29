@@ -1,8 +1,10 @@
 #include "Services/Project/ProjectAssetOperations.h"
 #include "EditorAssetLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "PackageTools.h"
 #include "Misc/Paths.h"
 #include "HAL/PlatformFileManager.h"
+#include "Editor.h"
 
 FProjectAssetOperations& FProjectAssetOperations::Get()
 {
@@ -67,12 +69,33 @@ bool FProjectAssetOperations::DeleteAsset(const FString& AssetPath, FString& Out
         return false;
     }
 
-    // Use UEditorAssetLibrary::DeleteAsset to remove the asset
+    // Reset transaction buffer to release references that prevent full cleanup
+    if (GEditor)
+    {
+        GEditor->ResetTransaction(FText::FromString(TEXT("MCP Delete Asset")));
+    }
+
+    // Use UEditorAssetLibrary::DeleteAsset (calls ForceDeleteObjects internally)
     if (!UEditorAssetLibrary::DeleteAsset(AssetPath))
     {
         OutError = FString::Printf(TEXT("Failed to delete asset: %s"), *AssetPath);
         return false;
     }
+
+    // Post-delete cleanup: ensure package is unloaded from memory
+    // ForceDeleteObjects may leave the package in memory if references remain
+    FString PackagePath = AssetPath;
+    // Strip asset name to get package path (e.g. "/Game/Foo/Bar" -> "/Game/Foo/Bar")
+    UPackage* StalePackage = FindPackage(nullptr, *PackagePath);
+    if (StalePackage)
+    {
+        TArray<UPackage*> PackagesToUnload;
+        PackagesToUnload.Add(StalePackage);
+        UPackageTools::UnloadPackages(PackagesToUnload);
+    }
+
+    // Force garbage collection to fully purge the object
+    CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 
     UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully deleted asset: %s"), *AssetPath);
     return true;

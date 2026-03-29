@@ -157,8 +157,18 @@ FString FImportTextureCommand::Execute(const FString& Parameters)
 
 	if (ImportedTexture)
 	{
-		SizeX = ImportedTexture->GetSizeX();
-		SizeY = ImportedTexture->GetSizeY();
+		// Read dimensions from source data instead of render resource
+		// (render resource may still be initializing asynchronously, returning 32x32 placeholder)
+		if (ImportedTexture->Source.IsValid())
+		{
+			SizeX = ImportedTexture->Source.GetSizeX();
+			SizeY = ImportedTexture->Source.GetSizeY();
+		}
+		else
+		{
+			SizeX = ImportedTexture->GetSizeX();
+			SizeY = ImportedTexture->GetSizeY();
+		}
 		bHasAlpha = ImportedTexture->HasAlphaChannel();
 
 		UE_LOG(LogTemp, Log, TEXT("Imported texture '%s' from '%s' (%dx%d, Alpha: %s, sRGB: %s, Compression: %s)"),
