@@ -21,6 +21,9 @@
 #include "Commands/Editor/GetGPUStatsCommand.h"
 #include "Commands/Editor/GetSceneBreakdownCommand.h"
 #include "Commands/Editor/GetRenderingStatsCommand.h"
+#include "Commands/Editor/GetMeshDrawStatsCommand.h"
+#include "Commands/Editor/StartPIECommand.h"
+#include "Commands/Editor/StopPIECommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -58,6 +61,9 @@ void FEditorCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FGetGPUStatsCommand>());
     RegisterAndTrackCommand(MakeShared<FGetSceneBreakdownCommand>());
     RegisterAndTrackCommand(MakeShared<FGetRenderingStatsCommand>());
+    RegisterAndTrackCommand(MakeShared<FGetMeshDrawStatsCommand>());
+    RegisterAndTrackCommand(MakeShared<FStartPIECommand>());
+    RegisterAndTrackCommand(MakeShared<FStopPIECommand>());
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:

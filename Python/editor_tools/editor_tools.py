@@ -905,25 +905,101 @@ def register_editor_tools(mcp: FastMCP):
     @mcp.tool()
     def get_rendering_stats(ctx: Context) -> Dict[str, Any]:
         """
-        Get focused rendering diagnostics: draw call categories, VRAM, key counters.
+        Get focused rendering diagnostics: draw call categories, VRAM, visibility/culling stats.
 
         Complements get_gpu_stats (GPU pass timing) and get_scene_breakdown (mesh instances).
-        Shows per-category draw call breakdown (shadow, basepass, translucency, etc.),
-        VRAM usage, and total draw calls / triangles.
+        Shows VRAM usage, total draw calls / triangles, and initviews visibility data.
 
         Returns:
             Dictionary containing:
             - draw_calls: Total draw calls
             - primitives_drawn: Total triangles
             - gpu_time_ms: GPU frame time
-            - draw_call_categories: Array of {name, draw_calls} sorted by cost
-            - vram: {dedicated_vram_mb, budget_mb, allocated_mb, streaming_mb}
+            - draw_call_categories: Array (empty in UE 5.7+ due to RHI_NEW_GPU_PROFILER)
+            - visibility: Culling/visibility stats (auto-enabled on first call):
+                - processed_primitives: Total primitives processed
+                - frustum_culled_primitives: Primitives culled by frustum
+                - occluded_primitives: Primitives culled by occlusion
+                - statically_occluded: Statically occluded primitives
+                - visible_static_mesh_elements: Visible static mesh draw elements
+                - visible_dynamic_primitives: Visible dynamic primitives
+                - occlusion_queries: Number of occlusion queries
+            - vram: {dedicated_vram_mb, budget_mb, streaming_mb, non_streaming_mb}
             - message: Human-readable summary
 
         Example:
             get_rendering_stats()
         """
         return send_unreal_command("get_rendering_stats", {})
+
+    @mcp.tool()
+    def get_mesh_draw_stats(ctx: Context, mesh_filter: str = None) -> Dict[str, Any]:
+        """
+        Get per-mesh draw count breakdown per render pass.
+
+        Triggers mesh draw command stats dump and returns per-resource/material
+        breakdown showing how many primitives, vertices, and instances each mesh
+        contributes to each render pass (BasePass, ShadowDepths, etc.).
+
+        First call triggers stats collection. Call again after one rendered frame for data.
+
+        Args:
+            mesh_filter: Optional filter by mesh/resource name (case-insensitive contains)
+
+        Returns:
+            Dictionary containing:
+            - entries: Array of {pass, resource, category, material, visible_primitives,
+              visible_vertices, visible_instances, lod_index, total_instances,
+              total_primitives, total_vertices}
+            - total_entries: Total CSV rows (after filter)
+            - shown_entries: Entries returned (max 100)
+            - total_visible_primitives/vertices/instances: Aggregated totals
+            - mesh_filter: Applied filter (if any)
+            - message: Human-readable summary
+
+        Example:
+            get_mesh_draw_stats()
+            get_mesh_draw_stats(mesh_filter="Grass")
+        """
+        params = {}
+        if mesh_filter:
+            params["mesh_filter"] = mesh_filter
+        return send_unreal_command("get_mesh_draw_stats", params)
+
+    @mcp.tool()
+    def start_pie(ctx: Context) -> Dict[str, Any]:
+        """
+        Start a Play In Editor (PIE) session.
+
+        Queues PIE start for the next engine tick. The session begins
+        asynchronously — it won't be active the instant this returns.
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the request was accepted
+            - already_running: True if PIE was already active
+            - message: Status message
+
+        Example:
+            start_pie()
+        """
+        return send_unreal_command("start_pie", {})
+
+    @mcp.tool()
+    def stop_pie(ctx: Context) -> Dict[str, Any]:
+        """
+        Stop the current Play In Editor (PIE) session.
+
+        Returns:
+            Dictionary containing:
+            - success: Whether the request was accepted
+            - already_stopped: True if no PIE session was running
+            - message: Status message
+
+        Example:
+            stop_pie()
+        """
+        return send_unreal_command("stop_pie", {})
 
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
@@ -946,5 +1022,8 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(get_gpu_stats, category="profiling")
     _help_registry.register(get_scene_breakdown, category="profiling")
     _help_registry.register(get_rendering_stats, category="profiling")
+    _help_registry.register(get_mesh_draw_stats, category="profiling")
+    _help_registry.register(start_pie, category="profiling")
+    _help_registry.register(stop_pie, category="profiling")
 
     logger.info("Editor tools registered successfully")
