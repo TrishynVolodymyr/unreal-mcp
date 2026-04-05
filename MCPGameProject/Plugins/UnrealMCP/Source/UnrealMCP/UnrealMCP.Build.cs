@@ -139,7 +139,9 @@ public class UnrealMCP : ModuleRules
 					// PCG (Procedural Content Generation) support
 					"PCG",                     // Core PCG runtime (graphs, nodes, elements)
 					// Static Mesh editor support (LOD management)
-					"StaticMeshEditor"         // UStaticMeshEditorSubsystem
+					"StaticMeshEditor",        // UStaticMeshEditorSubsystem
+					// PIE (Play In Editor) control
+					"LevelEditor"              // FLevelEditorModule for PIE viewport access
 				}
 			);
 		}
