@@ -1,10 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from node_tools.node_tools import register_blueprint_node_tools
 
-mcp = FastMCP(
-    "nodeMCP",
-    description="Blueprint Node tools for Unreal via MCP"
-)
+mcp = FastMCP("nodeMCP")
 
 register_blueprint_node_tools(mcp)
 
@@ -59,9 +56,9 @@ create_node_by_action_name(blueprint_name="BP_Player", function_name="ReceiveEnd
 
 # Custom events
 create_node_by_action_name(
-    blueprint_name="BP_Player", 
+    blueprint_name="BP_Player",
     function_name="CustomEvent",
-    kwargs='{"event_name": "OnPlayerDied"}'
+    event_name="OnPlayerDied"
 )
 
 # Function calls

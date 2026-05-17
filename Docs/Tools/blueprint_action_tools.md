@@ -177,17 +177,23 @@ Create a blueprint node by discovered action/function name.
 **Parameters:**
 - `blueprint_name` (string) **REQUIRED** - Name of the target Blueprint (e.g., "BP_MyActor")
 - `function_name` (string) **REQUIRED** - Name of the function to create a node for (from discovered actions)
-- `kwargs` (string) **REQUIRED** - JSON string with additional parameters (use "{}" if no special params needed)
 - `class_name` (string, optional) - Optional class name if the function is from a specific class (e.g., "KismetMathLibrary")
 - `node_position` (array, optional) - Optional [X, Y] position in the graph (e.g., [100, 200])
 - `target_graph` (string, optional) - Optional specific graph to create node in (e.g., "EventGraph", "UpdateDialogueText")
+- `pin_values` (object, optional) - Dict mapping pin names to values to set immediately after node creation
+- `connections` (array, optional) - List of connection dicts to establish after node creation (use `"$new"` as placeholder for the new node's id)
+- `target_type` (string, optional) - For Cast nodes (e.g., `"PlayerController"`)
+- `component_name` (string, optional) - For Component Bound Events (REQUIRED with `event_name`)
+- `event_name` (string, optional) - For Component Bound Events (REQUIRED with `component_name`) and for Custom Events
+- `scope` (string, optional) - For variable getter/setter nodes: `"function"`, `"blueprint"`, or `""` (auto)
+- `variable_name` (string, optional) - Variable name when `function_name` is `"Get"` or `"Set"`
 
 **⚠️ Common Issues:**
 - Function names must match exactly as discovered (case-sensitive)
 - Some functions require class_name (e.g., "AddToViewport" needs class_name="UserWidget")
 - Use search_blueprint_actions first to find correct function names
-- For control flow nodes like "CustomEvent", use kwargs to specify event_name
-- For cast nodes, use kwargs to specify target_type
+- For Custom Events, pass `event_name` directly as a named parameter
+- For Cast nodes, pass `target_type` directly
 
 **✅ Working Node Types:**
 - Function calls (KismetMathLibrary, GameplayStatics, etc.)
@@ -222,14 +228,14 @@ Both methods work identically. Use `search_blueprint_actions(search_query="IA_")
 }
 ```
 
-**Example with JSON parameters:**
+**Example with named parameters:**
 ```json
 {
   "command": "create_node_by_action_name",
   "params": {
     "blueprint_name": "BP_MyActor",
     "function_name": "CustomEvent",
-    "json_params": "{\"event_name\": \"OnPlayerDied\"}"
+    "event_name": "OnPlayerDied"
   }
 }
 ```
@@ -323,8 +329,7 @@ You can use this approach for any variable in any Blueprint, including UMG Widge
   "command": "create_node_by_action_name",
   "params": {
     "blueprint_name": "BP_GamePlayer",
-    "function_name": "Add to Viewport",
-    "kwargs": "{}"
+    "function_name": "Add to Viewport"
   }
 }
 
@@ -342,8 +347,7 @@ You can use this approach for any variable in any Blueprint, including UMG Widge
   "params": {
     "blueprint_name": "BP_GamePlayer",
     "function_name": "AddToViewport",
-    "class_name": "UserWidget",
-    "kwargs": "{}"
+    "class_name": "UserWidget"
   }
 }
 ```
@@ -355,7 +359,7 @@ You can use this approach for any variable in any Blueprint, including UMG Widge
   "params": {
     "blueprint_name": "BP_GamePlayer",
     "function_name": "CustomEvent",
-    "kwargs": "{\"event_name\": \"OnInteractPressed\"}",
+    "event_name": "OnInteractPressed",
     "node_position": [200, 300]
   }
 }
@@ -382,7 +386,6 @@ Then create the event node (Method 1 - just function_name):
   "params": {
     "blueprint_name": "BP_ThirdPersonCharacter",
     "function_name": "IA_Interact",
-    "kwargs": "{}",
     "node_position": [100, 200]
   }
 }
@@ -396,7 +399,6 @@ Or Method 2 (with class_name):
     "blueprint_name": "BP_ThirdPersonCharacter",
     "function_name": "IA_Jump",
     "class_name": "EnhancedInputAction",
-    "kwargs": "{}",
     "node_position": [100, 300]
   }
 }
@@ -409,7 +411,7 @@ Or Method 2 (with class_name):
   "params": {
     "blueprint_name": "BP_MyActor",
     "function_name": "Cast",
-    "kwargs": "{\"target_type\": \"PlayerController\"}"
+    "target_type": "PlayerController"
   }
 }
 ```

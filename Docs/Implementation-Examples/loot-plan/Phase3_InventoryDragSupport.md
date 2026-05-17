@@ -36,14 +36,14 @@ add_widget_component_to_widget(
     component_type="Border",
     position=[0, 0],
     size=[64, 64],
-    kwargs={"background_color": [0.3, 0.3, 0.3, 0.6]}
+    properties={"background_color": [0.3, 0.3, 0.3, 0.6]}
 )
 
 # Set DragOverlay to Hidden by default
 set_widget_component_property(
     widget_name="WBP_InventorySlot",
     component_name="DragOverlay",
-    kwargs={"Visibility": "Hidden"}
+    properties={"Visibility": "Hidden"}
 )
 
 # Add IsDragSource variable

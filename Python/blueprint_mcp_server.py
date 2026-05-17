@@ -185,7 +185,7 @@ async def add_component_to_blueprint(
 async def modify_blueprint_component_properties(
     blueprint_name: str,
     component_name: str,
-    **kwargs
+    properties: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
     Modify ANY properties on a Blueprint component.
@@ -200,7 +200,8 @@ async def modify_blueprint_component_properties(
     Args:
         blueprint_name: Name of the target Blueprint
         component_name: Name of the component to modify
-        **kwargs: Component properties to set (e.g., WidgetClass, StaticMesh, Material, LightColor, etc.)
+        properties: Dict of property name -> value to set on the component.
+                    Example: {"WidgetClass": "/Game/UI/WBP_Health", "DrawSize": [200, 50]}
 
     WARNING - DO NOT USE FOR COMPONENT EVENTS:
         For Blueprint component events (OnComponentBeginOverlap, OnComponentEndOverlap, etc.),
@@ -216,10 +217,11 @@ async def modify_blueprint_component_properties(
 
         The bind_events parameter here is only for UMG widget events (OnClicked, etc.)
     """
+    props = properties or {}
     params = {
         "blueprint_name": blueprint_name,
         "component_name": component_name,
-        "kwargs": json.dumps(kwargs)
+        "kwargs": json.dumps(props)
     }
     return await send_tcp_command("modify_blueprint_component_properties", params)
 

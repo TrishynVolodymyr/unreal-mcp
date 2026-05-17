@@ -192,10 +192,10 @@ add_component_to_blueprint(
 )
 
 # Set sphere radius to match interaction radius (300cm)
-set_component_property(
+modify_blueprint_component_properties(
     blueprint_name="BP_DialogueNPC",
     component_name="InteractionSphere",
-    kwargs='{"SphereRadius": 300.0}'
+    properties={"SphereRadius": 300.0}
 )
 
 # Widget Component for "Press E" indicator

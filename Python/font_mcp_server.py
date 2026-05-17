@@ -1,10 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from font_tools.font_tools import register_font_tools
 
-mcp = FastMCP(
-    "fontMCP",
-    description="Font tools for Unreal via MCP"
-)
+mcp = FastMCP("fontMCP")
 
 register_font_tools(mcp)
 

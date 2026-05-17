@@ -172,3 +172,7 @@ Python/tcp_debug.log
 vfx_frames/
 state/
 .claude/skills/*/output/
+
+# Local-only specs and plans (kept out of git per project preference)
+docs/superpowers/
+Docs/superpowers/

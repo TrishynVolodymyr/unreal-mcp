@@ -1,10 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from datatable_tools.datatable_tools import register_datatable_tools
 
-mcp = FastMCP(
-    "datatableMCP",
-    description="Datatable tools for Unreal via MCP"
-)
+mcp = FastMCP("datatableMCP")
 
 register_datatable_tools(mcp)
 

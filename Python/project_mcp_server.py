@@ -1,10 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from project_tools.project_tools import register_project_tools
 
-mcp = FastMCP(
-    "projectMCP",
-    description="Project tools for Unreal via MCP"
-)
+mcp = FastMCP("projectMCP")
 
 register_project_tools(mcp)
 

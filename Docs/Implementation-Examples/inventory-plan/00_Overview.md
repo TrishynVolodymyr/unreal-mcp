@@ -313,7 +313,7 @@ Button text labels MUST have `Visibility: SelfHitTestInvisible` to prevent them 
 set_widget_component_property(
     widget_name="WBP_ItemContextMenu",
     component_name="UseButtonText",
-    kwargs={"Visibility": "SelfHitTestInvisible"}
+    properties={"Visibility": "SelfHitTestInvisible"}
 )
 ```
 

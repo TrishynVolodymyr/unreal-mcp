@@ -337,7 +337,7 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="WBP_ItemContextMenu",
     component_name="UseButtonText",
-    kwargs={"Visibility": "SelfHitTestInvisible"}
+    properties={"Visibility": "SelfHitTestInvisible"}
 )
 
 # Add Drop button
@@ -361,7 +361,7 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="WBP_ItemContextMenu",
     component_name="DropButtonText",
-    kwargs={"Visibility": "SelfHitTestInvisible"}
+    properties={"Visibility": "SelfHitTestInvisible"}
 )
 ```
 
@@ -643,7 +643,7 @@ Button text blocks MUST have `Visibility: SelfHitTestInvisible` to prevent them 
 set_widget_component_property(
     widget_name="WBP_ItemContextMenu",
     component_name="UseButtonText",
-    kwargs={"Visibility": "SelfHitTestInvisible"}
+    properties={"Visibility": "SelfHitTestInvisible"}
 )
 ```
 

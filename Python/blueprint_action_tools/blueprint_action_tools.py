@@ -279,7 +279,13 @@ def register_blueprint_action_tools(mcp: FastMCP):
         class_name: str = "",
         node_position: List[float] = None,
         target_graph: str = "EventGraph",
-        **kwargs
+        pin_values: Dict[str, Any] = None,
+        connections: List[Dict[str, str]] = None,
+        target_type: str = "",
+        component_name: str = "",
+        event_name: str = "",
+        scope: str = "",
+        variable_name: str = "",
     ) -> Dict[str, Any]:
         """
         Create a blueprint node by discovered action/function name.
@@ -365,25 +371,27 @@ def register_blueprint_action_tools(mcp: FastMCP):
             node_position: Optional [X, Y] position in the graph (e.g., [100, 200])
             target_graph: Optional name of the specific graph to place the node in (e.g., "CanInteract", "GetSpeaker").
                          If not specified, defaults to "EventGraph". This allows creating nodes in custom functions.
-                         Can be passed either as a direct parameter or as a keyword argument.
-            **kwargs: Additional parameters for special nodes:
-                     - target_type: For Cast nodes (e.g., target_type="PlayerController")
-                     - component_name + event_name: For Component Bound Events (REQUIRED together)
-                       Creates UK2Node_ComponentBoundEvent - the CORRECT way to handle component events.
-                       Example: component_name="InteractionSphere", event_name="OnComponentBeginOverlap"
-                     - scope: For variable getter/setter nodes:
-                       * "function" - Search function parameters only (use in function graphs)
-                       * "blueprint" - Search Blueprint variables only
-                       * "auto" (default) - Smart search: checks function params first, then Blueprint vars
-                     - pin_values: Dict mapping pin names to values to set immediately after node creation.
+            pin_values: Dict mapping pin names to values to set immediately after node creation.
                        Example: {"InString": "Hello World", "bPrintToLog": True}
                        If a pin name is not found on the node, a warning is added but creation succeeds.
-                     - connections: List of connection dicts to establish after node creation.
-                       Use "$new" as a placeholder for the newly created node's ID.
-                       Example: [
-                           {"source_node_id": "ABC123", "source_pin": "Then", "target_node_id": "$new", "target_pin": "execute"},
-                           {"source_node_id": "$new", "source_pin": "Return Value", "target_node_id": "DEF456", "target_pin": "Value"}
-                       ]
+            connections: List of connection dicts to establish after node creation.
+                        Use "$new" as a placeholder for the newly created node's ID.
+                        Example: [
+                            {"source_node_id": "ABC123", "source_pin": "Then", "target_node_id": "$new", "target_pin": "execute"},
+                            {"source_node_id": "$new", "source_pin": "Return Value", "target_node_id": "DEF456", "target_pin": "Value"}
+                        ]
+            target_type: For Cast nodes (e.g., target_type="PlayerController").
+            component_name: For Component Bound Events - the component to bind to (REQUIRED with event_name).
+                           Example: component_name="InteractionSphere"
+            event_name: For Component Bound Events (REQUIRED with component_name) and Custom Events.
+                       Component Bound: event_name="OnComponentBeginOverlap" / "OnComponentEndOverlap" / etc.
+                       Custom Event: event_name="OnPlayerDied" (with function_name="CustomEvent")
+            scope: For variable getter/setter nodes:
+                  * "function" - Search function parameters only (use in function graphs)
+                  * "blueprint" - Search Blueprint variables only
+                  * "" (default, auto) - Smart search: checks function params first, then Blueprint vars
+            variable_name: Required when function_name is "Get" or "Set" - the variable to get/set.
+                          Example: function_name="Get", variable_name="MyHealth"
 
         Returns:
             Dict containing:
@@ -513,7 +521,28 @@ def register_blueprint_action_tools(mcp: FastMCP):
                 node_position=[300, 100]
             )
         """
-        return create_node_by_action_name_impl(ctx, blueprint_name, function_name, class_name, node_position, target_graph=target_graph, **kwargs)
+        extras: Dict[str, Any] = {}
+        if target_type:
+            extras["target_type"] = target_type
+        if component_name:
+            extras["component_name"] = component_name
+        if event_name:
+            extras["event_name"] = event_name
+        if scope:
+            extras["scope"] = scope
+        if variable_name:
+            extras["variable_name"] = variable_name
+        return create_node_by_action_name_impl(
+            ctx,
+            blueprint_name,
+            function_name,
+            class_name,
+            node_position,
+            target_graph=target_graph,
+            pin_values=pin_values,
+            connections=connections,
+            **extras,
+        )
 
     @mcp.tool()
     def find_in_blueprints(

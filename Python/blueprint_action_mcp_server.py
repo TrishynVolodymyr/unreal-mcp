@@ -97,10 +97,7 @@ in the Blueprint editor, giving you programmatic access to the same rich action 
 from mcp.server.fastmcp import FastMCP
 from blueprint_action_tools.blueprint_action_tools import register_blueprint_action_tools
 
-mcp = FastMCP(
-    "blueprintActionMCP", 
-    description="Blueprint action discovery tools for Unreal via MCP"
-)
+mcp = FastMCP("blueprintActionMCP")
 
 # Register the blueprint action tools
 register_blueprint_action_tools(mcp)
