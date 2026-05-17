@@ -61,8 +61,7 @@ add_widget_component_to_widget(
     component_name="ItemIcon",
     component_type="Image",
     position=[4, 4],
-    size=[56, 56],
-    kwargs={}
+    size=[56, 56]
 )
 
 # Add StackCountText
@@ -72,7 +71,7 @@ add_widget_component_to_widget(
     component_type="TextBlock",
     position=[40, 46],
     size=[20, 16],
-    kwargs={"text": "", "font_size": 12}
+    properties={"text": "", "font_size": 12}
 )
 
 # Add variables

@@ -73,10 +73,7 @@ See tool docstrings for full argument details, or use get_mcp_help(tool_name="..
 from mcp.server.fastmcp import FastMCP
 from editor_tools.editor_tools import register_editor_tools
 
-mcp = FastMCP(
-    "editorMCP",
-    description="Editor tools for Unreal via MCP"
-)
+mcp = FastMCP("editorMCP")
 
 register_editor_tools(mcp)
 

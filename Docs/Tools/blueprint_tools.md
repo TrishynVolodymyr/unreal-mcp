@@ -88,46 +88,31 @@ Set the mesh for a StaticMeshComponent.
 }
 ```
 
-### set_component_property
+### modify_blueprint_component_properties
 
-Set one or more properties on a component in a Blueprint.
+Set one or more properties on a component in a Blueprint. This is the unified tool
+that replaces the legacy `set_component_property`, `set_static_mesh_properties`,
+`set_physics_properties`, `set_pawn_properties`, and `set_blueprint_property` tools.
 
 **Parameters:**
 - `blueprint_name` (string) - The name of the Blueprint
 - `component_name` (string) - The name of the component
-- `kwargs` (object) - Dictionary of property names and values to set. You can pass properties as direct keyword arguments (recommended), or as a single dict using `kwargs={...}`. If double-wrapped (i.e., `kwargs={'kwargs': {...}}`), the function will automatically flatten it for convenience. This matches the widget property setter pattern.
+- `properties` (object) - Dictionary of property names and values to set.
 
 **Returns:**
 - Result of the property setting operation including lists of success_properties and failed_properties
 
-**Examples:**
-
-Preferred usage (direct keyword arguments):
-```json
-{
-  "command": "set_component_property",
-  "params": {
-    "blueprint_name": "MyActor",
-    "component_name": "Mesh",
-    "kwargs": {
-      "StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube",
-      "Mobility": "Movable"
+**Example:**
+```python
+modify_blueprint_component_properties(
+    blueprint_name="MyActor",
+    component_name="Mesh",
+    properties={
+        "StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube",
+        "Mobility": "Movable"
     }
-  }
-}
+)
 ```
-
-Also supported (dict):
-```python
-set_component_property(ctx, "MyActor", "Mesh", kwargs={"StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", "Mobility": "Movable"})
-```
-
-If double-wrapped (rare, but handled):
-```python
-set_component_property(ctx, "MyActor", "Mesh", kwargs={"kwargs": {"StaticMesh": "/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube", "Mobility": "Movable"}})
-```
-
-All styles above will be handled correctly and set the properties as expected.
 
 ### set_physics_properties
 
@@ -495,7 +480,7 @@ Create Blueprint nodes in graphs dynamically, including function calls, control 
 - `class_name` (string, optional) - Class name for the function (required when multiple classes have the same function name)
 - `node_position` (array, optional) - [X, Y] position in the graph, defaults to [0, 0]
 - `target_graph` (string, optional) - Name of the graph to place the node in, defaults to "EventGraph"
-- `scope` (string, optional, via kwargs) - For variable getter/setter nodes only:
+- `scope` (string, optional) - For variable getter/setter nodes only:
   - `"function"` - Search function parameters only (use in function graphs)
   - `"blueprint"` - Search Blueprint variables only
   - `"auto"` (default) - Smart search: checks function params first, then Blueprint vars
@@ -513,9 +498,7 @@ Create Blueprint nodes in graphs dynamically, including function calls, control 
     "blueprint_name": "WBP_DialogueWindow",
     "function_name": "Get NPCRef",
     "target_graph": "InitializeDialogue",
-    "kwargs": {
-      "scope": "function"
-    },
+    "scope": "function",
     "node_position": [200, 100]
   }
 }
@@ -528,9 +511,7 @@ Create Blueprint nodes in graphs dynamically, including function calls, control 
   "params": {
     "blueprint_name": "BP_MyActor",
     "function_name": "Get PlayerHealth",
-    "kwargs": {
-      "scope": "blueprint"
-    },
+    "scope": "blueprint",
     "node_position": [300, 200]
   }
 }

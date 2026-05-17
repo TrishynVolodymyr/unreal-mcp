@@ -87,7 +87,7 @@ add_widget_component_to_widget(
     component_type="Border",
     position=[0, 0],
     size=[64, 64],
-    kwargs={"background_color": [0.1, 0.1, 0.1, 1.0]}
+    properties={"background_color": [0.1, 0.1, 0.1, 1.0]}
 )
 
 # Add ItemIcon (inside SlotBackground, or on top)
@@ -96,8 +96,7 @@ add_widget_component_to_widget(
     component_name="ItemIcon",
     component_type="Image",
     position=[4, 4],
-    size=[56, 56],
-    kwargs={}
+    size=[56, 56]
 )
 
 # Add StackCountText
@@ -107,7 +106,7 @@ add_widget_component_to_widget(
     component_type="TextBlock",
     position=[40, 46],
     size=[20, 16],
-    kwargs={"text": "", "font_size": 12}
+    properties={"text": "", "font_size": 12}
 )
 
 # Add DragOverlay (initially Hidden)
@@ -117,13 +116,13 @@ add_widget_component_to_widget(
     component_type="Border",
     position=[0, 0],
     size=[64, 64],
-    kwargs={"background_color": [0.3, 0.3, 0.3, 0.6]}
+    properties={"background_color": [0.3, 0.3, 0.3, 0.6]}
 )
 
 set_widget_component_property(
     widget_name="WBP_ItemSlotBase",
     component_name="DragOverlay",
-    kwargs={"Visibility": "Hidden"}
+    properties={"Visibility": "Hidden"}
 )
 
 # Add variables
@@ -307,7 +306,7 @@ add_widget_component_to_widget(
     component_type="Border",
     position=[0, 0],
     size=[300, 350],
-    kwargs={"background_color": [0.05, 0.05, 0.05, 0.95]}
+    properties={"background_color": [0.05, 0.05, 0.05, 0.95]}
 )
 
 # Add HeaderBackground
@@ -317,7 +316,7 @@ add_widget_component_to_widget(
     component_type="Border",
     position=[10, 10],
     size=[280, 35],
-    kwargs={"background_color": [0.1, 0.1, 0.15, 1.0]}
+    properties={"background_color": [0.1, 0.1, 0.15, 1.0]}
 )
 
 # Add TitleText
@@ -327,7 +326,7 @@ add_widget_component_to_widget(
     component_type="TextBlock",
     position=[20, 15],
     size=[200, 25],
-    kwargs={"text": "Loot", "font_size": 16}
+    properties={"text": "Loot", "font_size": 16}
 )
 
 # Add CloseButton
@@ -337,7 +336,7 @@ add_widget_component_to_widget(
     component_type="Button",
     position=[262, 15],
     size=[24, 24],
-    kwargs={"text": "X"}
+    properties={"text": "X"}
 )
 
 # Add SlotsGrid
@@ -346,8 +345,7 @@ add_widget_component_to_widget(
     component_name="SlotsGrid",
     component_type="UniformGridPanel",
     position=[10, 55],
-    size=[280, 280],
-    kwargs={}
+    size=[280, 280]
 )
 
 # Add variables

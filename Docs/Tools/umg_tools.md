@@ -171,7 +171,7 @@ Unified function to add any type of widget component to a UMG Widget Blueprint.
 - `component_type` (string) - Type of component to add (e.g., "TextBlock", "Button", etc.)
 - `position` (array, optional) - [X, Y] position in the canvas panel
 - `size` (array, optional) - [Width, Height] of the component
-- `kwargs` (object, optional) - Additional parameters specific to the component type
+- `properties` (object, optional) - Additional parameters specific to the component type
 
 **Returns:**
 - Dict containing success status and component properties
@@ -186,7 +186,7 @@ Unified function to add any type of widget component to a UMG Widget Blueprint.
     "component_type": "Button",
     "position": [100, 100],
     "size": [200, 50],
-    "kwargs": {
+    "properties": {
       "text": "Submit",
       "background_color": [0.2, 0.4, 0.8, 1.0]
     }
@@ -201,7 +201,7 @@ Set one or more properties on a specific component within a UMG Widget Blueprint
 **Parameters:**
 - `widget_name` (string) - Name of the target Widget Blueprint
 - `component_name` (string) - Name of the component to modify
-- `kwargs` (object) - Properties to set as keyword arguments
+- `properties` (object) - Dict of property name → value to set
 
 **Returns:**
 - Dict containing success status and property setting results
@@ -213,7 +213,7 @@ Set one or more properties on a specific component within a UMG Widget Blueprint
   "params": {
     "widget_name": "MyWidget",
     "component_name": "MyTextBlock",
-    "kwargs": {
+    "properties": {
       "Text": "Red Text",
       "ColorAndOpacity": {
         "SpecifiedColor": {

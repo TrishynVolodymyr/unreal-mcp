@@ -68,7 +68,7 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="MyWidget",
     component_name="TransparentImage",
-    kwargs={"UseBrushTransparency": "true"}
+    properties={"UseBrushTransparency": "true"}
 )
 ```
 
@@ -91,7 +91,7 @@ add_widget_component_to_widget(
 set_widget_component_property(
     widget_name="MyWidget",
     component_name="TransparentButton",
-    kwargs={"UseBrushTransparency": "true"}
+    properties={"UseBrushTransparency": "true"}
 )
 ```
 

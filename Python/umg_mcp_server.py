@@ -102,7 +102,7 @@ Exposes UMG (Widget Blueprint) tools for Unreal Engine via MCP.
   Example:
     set_widget_component_placement(widget_name="MainMenu", component_name="TitleText", position=[350.0, 75.0])
 
-- **add_widget_component_to_widget(widget_name, component_name, component_type, position=None, size=None, **kwargs)**
+- **add_widget_component_to_widget(widget_name, component_name, component_type, position=None, size=None, properties=None)**
 
   Unified function to add any type of widget component to a UMG Widget Blueprint.
 
@@ -112,21 +112,21 @@ Exposes UMG (Widget Blueprint) tools for Unreal Engine via MCP.
     - component_type: Type of component to add (e.g., "TextBlock", "Button", etc.)
     - position: Optional [X, Y] position in the canvas panel
     - size: Optional [Width, Height] of the component
-    - **kwargs: Additional parameters specific to the component type
+    - properties: Optional dict of additional parameters specific to the component type
 
   Returns: Dict containing success status and component properties
 
   Example:
-    add_widget_component_to_widget(widget_name="MyWidget", component_name="HeaderText", component_type="TextBlock", position=[100, 50], size=[200, 50], text="Hello World", font_size=24)
+    add_widget_component_to_widget(widget_name="MyWidget", component_name="HeaderText", component_type="TextBlock", position=[100, 50], size=[200, 50], properties={"text": "Hello World", "font_size": 24})
 
-- **set_widget_component_property(widget_name, component_name, **kwargs)**
+- **set_widget_component_property(widget_name, component_name, properties=None)**
 
   Set one or more properties on a specific component within a UMG Widget Blueprint.
 
   Args:
     - widget_name: Name of the target Widget Blueprint
     - component_name: Name of the component to modify
-    - **kwargs: Properties to set (as keyword arguments or a dict)
+    - properties: Dict of properties to set
         For widget properties: Text, ColorAndOpacity, Font, etc.
         For slot properties: Use "Slot." prefix:
 
@@ -150,14 +150,14 @@ Exposes UMG (Widget Blueprint) tools for Unreal Engine via MCP.
 
   Examples:
     # Set widget properties
-    set_widget_component_property("MyWidget", "MyTextBlock", Text="Red Text", ColorAndOpacity={"SpecifiedColor": {"R": 1.0, "G": 0.0, "B": 0.0, "A": 1.0}})
+    set_widget_component_property("MyWidget", "MyTextBlock", properties={"Text": "Red Text", "ColorAndOpacity": {"SpecifiedColor": {"R": 1.0, "G": 0.0, "B": 0.0, "A": 1.0}}})
 
     # Set slot properties for HorizontalBox/VerticalBox children
-    set_widget_component_property("WBP_AnswerButton", "NumberBadgeWrapper", **{"Slot.SizeRule": "Auto", "Slot.VerticalAlignment": "Center"})
-    set_widget_component_property("WBP_AnswerButton", "AnswerText", **{"Slot.SizeRule": "Fill", "Slot.VerticalAlignment": "Center"})
+    set_widget_component_property("WBP_AnswerButton", "NumberBadgeWrapper", properties={"Slot.SizeRule": "Auto", "Slot.VerticalAlignment": "Center"})
+    set_widget_component_property("WBP_AnswerButton", "AnswerText", properties={"Slot.SizeRule": "Fill", "Slot.VerticalAlignment": "Center"})
 
     # Set slot properties for CanvasPanel children (stretch to fill parent)
-    set_widget_component_property("WBP_AnswerButton", "MainButton", **{"Slot.Anchors": {"Minimum": {"X": 0, "Y": 0}, "Maximum": {"X": 1, "Y": 1}}, "Slot.Offsets": {"Left": 0, "Top": 0, "Right": 0, "Bottom": 0}})
+    set_widget_component_property("WBP_AnswerButton", "MainButton", properties={"Slot.Anchors": {"Minimum": {"X": 0, "Y": 0}, "Maximum": {"X": 1, "Y": 1}}, "Slot.Offsets": {"Left": 0, "Top": 0, "Right": 0, "Bottom": 0}})
 
 - **get_widget_blueprint_metadata(widget_name, fields=None, container_name="CanvasPanel_0")**
 
@@ -252,10 +252,7 @@ See the main server or tool docstrings for argument details and examples.
 from mcp.server.fastmcp import FastMCP
 from umg_tools.umg_tools import register_umg_tools
 
-mcp = FastMCP(
-    "umgMCP",
-    description="UMG (Widget) tools for Unreal via MCP"
-)
+mcp = FastMCP("umgMCP")
 
 register_umg_tools(mcp)
 
