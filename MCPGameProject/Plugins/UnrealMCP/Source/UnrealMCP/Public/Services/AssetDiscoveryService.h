@@ -52,4 +52,6 @@ private:
     FString BuildEnginePath(const FString& Path);
     FString BuildCorePath(const FString& Path);
     FString BuildUMGPath(const FString& Path);
+    /** Build `/Script/<ProjectName>.<Name>` path for native types declared in the host project's primary module. */
+    FString BuildProjectPath(const FString& Name);
 };
