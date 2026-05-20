@@ -22,7 +22,9 @@ from utils.editor.editor_operations import (
     batch_delete_actors as batch_delete_actors_impl,
     batch_spawn_actors as batch_spawn_actors_impl,
     import_static_mesh as import_static_mesh_impl,
-    import_texture as import_texture_impl
+    import_texture as import_texture_impl,
+    create_level as create_level_impl,
+    set_level_world_settings as set_level_world_settings_impl
 )
 from utils.mcp_help import get_help_registry, get_mcp_help as get_mcp_help_impl
 from utils.unreal_connection_utils import send_unreal_command
@@ -662,6 +664,90 @@ def register_editor_tools(mcp: FastMCP):
             delete_asset(asset_path="/Game/UI/WBP_TestWidget")
         """
         return delete_asset_impl(ctx, asset_path)
+
+    @mcp.tool()
+    def create_level(
+        ctx: Context,
+        level_name: str,
+        save_path: str,
+        template: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Create a new level (umap) at a content path.
+
+        Creates an empty level or clones from a template. The new level becomes the
+        active editor world. Saves the level to disk after creation.
+
+        Args:
+            level_name: Name of the level without extension (e.g., "TestLevel_Building")
+            save_path: Folder path under /Game where the level will be saved (e.g., "/Game/Tests")
+            template: Optional content path to an existing level to clone from.
+                      Empty (default) creates a blank empty level.
+
+        Returns:
+            Dict containing:
+            - success: Whether creation succeeded
+            - level_path: Full asset path of the new level (e.g., "/Game/Tests/TestLevel_Building")
+            - template: The template used (empty if blank)
+            - saved: Whether the initial save succeeded
+
+        Side effect:
+            The newly created level becomes the editor's active world.
+
+        Examples:
+            # Create an empty test level
+            create_level(level_name="TestLevel_Building", save_path="/Game/Tests")
+
+            # Clone from an existing level template
+            create_level(
+                level_name="TestLevel_Combat",
+                save_path="/Game/Tests",
+                template="/Game/Templates/CombatBase"
+            )
+        """
+        return create_level_impl(ctx, level_name, save_path, template)
+
+    @mcp.tool()
+    def set_level_world_settings(
+        ctx: Context,
+        level_path: str,
+        game_mode: str = None
+    ) -> Dict[str, Any]:
+        """
+        Modify a level's World Settings. Currently supports GameMode override.
+
+        Loads the target level, applies changes, saves. Target level becomes the
+        editor's active world after this call.
+
+        Args:
+            level_path: Full asset path of the level (e.g., "/Game/Tests/TestLevel_Building")
+            game_mode: GameMode override class path. Examples:
+                       - "/Game/TopDown/Blueprints/BP_TopDownGameMode" (Blueprint)
+                       - "/Script/SimPrototype.GameModeMain" (C++ class)
+                       - "" (empty string) clears the override (uses project default)
+                       - None (default): leaves GameMode unchanged
+
+        Returns:
+            Dict containing:
+            - success: Whether the operation succeeded
+            - level_path: The level that was modified
+            - game_mode_resolved: Full class path of the resolved GameMode (empty if cleared)
+            - changed: Whether any change was applied
+
+        Examples:
+            # Set a Blueprint GameMode
+            set_level_world_settings(
+                level_path="/Game/Tests/TestLevel_Building",
+                game_mode="/Game/TopDown/Blueprints/BP_TopDownGameMode"
+            )
+
+            # Clear the GameMode override (use project default)
+            set_level_world_settings(
+                level_path="/Game/Tests/TestLevel_Building",
+                game_mode=""
+            )
+        """
+        return set_level_world_settings_impl(ctx, level_path, game_mode)
 
     @mcp.tool()
     def create_render_target(
