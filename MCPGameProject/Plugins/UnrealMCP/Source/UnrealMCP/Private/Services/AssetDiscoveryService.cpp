@@ -449,6 +449,7 @@ UScriptStruct* FAssetDiscoveryService::FindStructType(const FString& StructPath)
     TArray<FString> CommonPaths = {
         BuildEnginePath(StructName),
         BuildCorePath(StructName),
+        BuildProjectPath(StructName),
         BuildGamePath(StructName)
     };
 
@@ -561,6 +562,7 @@ UEnum* FAssetDiscoveryService::FindEnumType(const FString& EnumPath)
     TArray<FString> CommonPaths = {
         BuildEnginePath(EnumName),
         BuildCorePath(EnumName),
+        BuildProjectPath(EnumName),
         BuildGamePath(EnumName)
     };
 
@@ -643,6 +645,7 @@ UClass* FAssetDiscoveryService::ResolveObjectClass(const FString& ClassName)
         BuildEnginePath(ClassName),
         BuildCorePath(ClassName),
         BuildUMGPath(ClassName),
+        BuildProjectPath(ClassName),
         BuildGamePath(ClassName),
         BuildGamePath(FString::Printf(TEXT("Blueprints/%s"), *ClassName))
     };
@@ -818,6 +821,11 @@ FString FAssetDiscoveryService::BuildEnginePath(const FString& Path)
 FString FAssetDiscoveryService::BuildCorePath(const FString& Path)
 {
     return FString::Printf(TEXT("/Script/CoreUObject.%s"), *Path);
+}
+
+FString FAssetDiscoveryService::BuildProjectPath(const FString& Name)
+{
+    return FString::Printf(TEXT("/Script/%s.%s"), FApp::GetProjectName(), *Name);
 }
 
 FString FAssetDiscoveryService::BuildUMGPath(const FString& Path)

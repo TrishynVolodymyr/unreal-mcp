@@ -3,7 +3,7 @@
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastmcp import FastMCP
 
@@ -50,11 +50,69 @@ async def create_blueprint(name: str, parent_class: str, folder_path: str = "") 
         name: Name of the new Blueprint class
         parent_class: Parent class for the Blueprint (e.g., "Actor", "Pawn")
         folder_path: Optional folder path where the blueprint should be created
+
+    Note on renaming a project C++ class that existing BPs derive from:
+    CoreRedirects in DefaultEngine.ini do not always relink Blueprints whose
+    parent class was previously deleted — the asset can end up persisted with
+    an engine-class fallback parent (e.g. ACharacter instead of your project
+    base class). After such a rename, use `set_blueprint_parent_class` on each
+    affected BP to do an explicit reparent + compile + save.
     """
     params = {"name": name, "parent_class": parent_class}
     if folder_path:
         params["folder_path"] = folder_path
     return await send_tcp_command("create_blueprint", params)
+
+
+@app.tool()
+async def set_blueprint_parent_class(
+    blueprint_name: str,
+    new_parent_class: str
+) -> Dict[str, Any]:
+    """
+    Change the parent class of an existing Blueprint.
+
+    Reparents `Blueprint->ParentClass` and recompiles. The asset is marked
+    dirty and saved by the editor's normal flow. Mirrors the pattern used by
+    `set_widget_parent_class` (umgMCP) but for regular UBlueprint.
+
+    Args:
+        blueprint_name: Simple name or full content path of the Blueprint
+            (e.g., "BP_TopDownCharacter" or
+            "/Game/TopDown/Blueprints/BP_TopDownCharacter")
+        new_parent_class: Target parent class. Accepts:
+            - Native class short name: "Character", "Actor"
+            - Native class full path: "/Script/Engine.Character"
+            - Project module short name: "PawnBase"
+            - Project module full path: "/Script/<ProjectName>.PawnBase"
+            - Blueprint asset path: "/Game/Blueprints/BP_Base"
+
+    Returns:
+        Dict containing:
+        - success: Whether the reparent succeeded
+        - changed: False if BP already had the requested parent (no-op)
+        - blueprint_name: Name of the modified Blueprint
+        - old_parent_class: Previous parent class name
+        - new_parent_class: Resolved new parent class path
+
+    Examples:
+        # Reparent to a project C++ base class
+        set_blueprint_parent_class(
+            blueprint_name="/Game/TopDown/Blueprints/BP_TopDownCharacter",
+            new_parent_class="PawnBase"
+        )
+
+        # Reparent to engine class (revert)
+        set_blueprint_parent_class(
+            blueprint_name="BP_TopDownCharacter",
+            new_parent_class="Character"
+        )
+    """
+    params = {
+        "blueprint_name": blueprint_name,
+        "new_parent_class": new_parent_class
+    }
+    return await send_tcp_command("set_blueprint_parent_class", params)
 
 
 @app.tool()
@@ -152,9 +210,9 @@ async def add_component_to_blueprint(
     blueprint_name: str,
     component_type: str,
     component_name: str,
-    location: Optional[List[float]] = None,
-    rotation: Optional[List[float]] = None,
-    scale: Optional[List[float]] = None
+    location: List[float] = None,
+    rotation: List[float] = None,
+    scale: List[float] = None
 ) -> Dict[str, Any]:
     """
     Add a component to a Blueprint.
@@ -230,8 +288,8 @@ async def modify_blueprint_component_properties(
 async def create_custom_blueprint_function(
     blueprint_name: str,
     function_name: str,
-    inputs: Optional[List[Dict[str, str]]] = None,
-    outputs: Optional[List[Dict[str, str]]] = None,
+    inputs: List[Dict[str, str]] = None,
+    outputs: List[Dict[str, str]] = None,
     is_pure: bool = False,
     is_const: bool = False,
     access_specifier: str = "Public",

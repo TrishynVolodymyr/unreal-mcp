@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import sys
 import os
 
@@ -70,7 +70,7 @@ def register_datatable_tools(mcp: 'FastMCP'):
     @mcp.tool()
     def get_datatable_rows(
         datatable_path: str,
-        row_names: Optional[List[str]] = None
+        row_names: List[str] = None
     ) -> Dict[str, Any]:
         """Get rows from a DataTable.
         

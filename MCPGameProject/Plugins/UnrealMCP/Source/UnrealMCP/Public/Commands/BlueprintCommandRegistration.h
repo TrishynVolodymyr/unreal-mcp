@@ -45,6 +45,7 @@ private:
     static void RegisterModifyBlueprintFunctionPropertiesCommand();
     static void RegisterDeleteBlueprintVariableCommand();
     static void RegisterAddEventDispatcherCommand();
+    static void RegisterSetBlueprintParentClassCommand();
 
     /**
      * Helper to register a command and track it for cleanup

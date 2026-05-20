@@ -17,6 +17,7 @@
 #include "Commands/Blueprint/ModifyBlueprintFunctionPropertiesCommand.h"
 #include "Commands/Blueprint/DeleteBlueprintVariableCommand.h"
 #include "Commands/Blueprint/AddEventDispatcherCommand.h"
+#include "Commands/Blueprint/SetBlueprintParentClassCommand.h"
 #include "Services/BlueprintService.h"
 
 // Static member definition
@@ -47,6 +48,7 @@ void FBlueprintCommandRegistration::RegisterAllBlueprintCommands()
     RegisterModifyBlueprintFunctionPropertiesCommand();
     RegisterDeleteBlueprintVariableCommand();
     RegisterAddEventDispatcherCommand();
+    RegisterSetBlueprintParentClassCommand();
 
     UE_LOG(LogTemp, Log, TEXT("FBlueprintCommandRegistration::RegisterAllBlueprintCommands: Registered %d Blueprint commands"),
         RegisteredCommandNames.Num());
@@ -106,6 +108,12 @@ void FBlueprintCommandRegistration::RegisterSetPhysicsPropertiesCommand()
 void FBlueprintCommandRegistration::RegisterSetBlueprintPropertyCommand()
 {
     TSharedPtr<FSetBlueprintPropertyCommand> Command = MakeShared<FSetBlueprintPropertyCommand>(FBlueprintService::Get());
+    RegisterAndTrackCommand(Command);
+}
+
+void FBlueprintCommandRegistration::RegisterSetBlueprintParentClassCommand()
+{
+    TSharedPtr<FSetBlueprintParentClassCommand> Command = MakeShared<FSetBlueprintParentClassCommand>(FBlueprintService::Get());
     RegisterAndTrackCommand(Command);
 }
 
