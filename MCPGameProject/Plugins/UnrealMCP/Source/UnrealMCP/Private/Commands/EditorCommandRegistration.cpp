@@ -24,6 +24,8 @@
 #include "Commands/Editor/GetMeshDrawStatsCommand.h"
 #include "Commands/Editor/StartPIECommand.h"
 #include "Commands/Editor/StopPIECommand.h"
+#include "Commands/Editor/CreateLevelCommand.h"
+#include "Commands/Editor/SetLevelWorldSettingsCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -64,6 +66,10 @@ void FEditorCommandRegistration::RegisterAllCommands()
     RegisterAndTrackCommand(MakeShared<FGetMeshDrawStatsCommand>());
     RegisterAndTrackCommand(MakeShared<FStartPIECommand>());
     RegisterAndTrackCommand(MakeShared<FStopPIECommand>());
+
+    // Level management commands
+    RegisterAndTrackCommand(MakeShared<FCreateLevelCommand>());
+    RegisterAndTrackCommand(MakeShared<FSetLevelWorldSettingsCommand>());
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:

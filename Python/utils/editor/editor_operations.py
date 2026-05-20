@@ -226,6 +226,20 @@ def create_render_target(ctx: Context, name: str, folder_path: str = "/Game", wi
     params = {"name": name, "folder_path": folder_path, "width": width, "height": height}
     return send_unreal_command("create_render_target", params)
 
+def create_level(ctx: Context, level_name: str, save_path: str, template: str = "") -> Dict[str, Any]:
+    """Implementation for creating a new level."""
+    params = {"level_name": level_name, "save_path": save_path}
+    if template:
+        params["template"] = template
+    return send_unreal_command("create_level", params)
+
+def set_level_world_settings(ctx: Context, level_path: str, game_mode: str = None) -> Dict[str, Any]:
+    """Implementation for modifying a level's World Settings (GameMode override)."""
+    params = {"level_path": level_path}
+    if game_mode is not None:
+        params["game_mode"] = game_mode
+    return send_unreal_command("set_level_world_settings", params)
+
 def create_folder(ctx: Context, folder_path: str) -> Dict[str, Any]:
     """Implementation for creating a new folder in the Content Browser."""
     params = {"folder_path": folder_path}
