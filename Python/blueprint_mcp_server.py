@@ -299,7 +299,7 @@ async def set_blueprint_variable_value(
 @app.tool()
 async def get_blueprint_metadata(
     blueprint_name: str,
-    fields: Optional[List[str]] = None,
+    fields: List[str] = None,
     graph_name: str = None,
     node_type: str = None,
     event_type: str = None,
