@@ -559,7 +559,7 @@ def register_blueprint_tools(mcp: FastMCP):
     def get_blueprint_metadata(
         ctx: Context,
         blueprint_name: str,
-        fields: List[str],
+        fields: List[str] = None,
         graph_name: str = None,
         node_type: str = None,
         event_type: str = None,
