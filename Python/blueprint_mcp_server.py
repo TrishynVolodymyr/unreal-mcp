@@ -3,7 +3,7 @@
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastmcp import FastMCP
 
@@ -152,9 +152,9 @@ async def add_component_to_blueprint(
     blueprint_name: str,
     component_type: str,
     component_name: str,
-    location: Optional[List[float]] = None,
-    rotation: Optional[List[float]] = None,
-    scale: Optional[List[float]] = None
+    location: List[float] = None,
+    rotation: List[float] = None,
+    scale: List[float] = None
 ) -> Dict[str, Any]:
     """
     Add a component to a Blueprint.
@@ -230,8 +230,8 @@ async def modify_blueprint_component_properties(
 async def create_custom_blueprint_function(
     blueprint_name: str,
     function_name: str,
-    inputs: Optional[List[Dict[str, str]]] = None,
-    outputs: Optional[List[Dict[str, str]]] = None,
+    inputs: List[Dict[str, str]] = None,
+    outputs: List[Dict[str, str]] = None,
     is_pure: bool = False,
     is_const: bool = False,
     access_specifier: str = "Public",
