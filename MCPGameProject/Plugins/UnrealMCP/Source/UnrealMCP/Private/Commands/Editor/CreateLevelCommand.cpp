@@ -8,7 +8,7 @@
 
 namespace
 {
-	FString MakeErr(const FString& Msg)
+	FString MakeErr_CreateLevel(const FString& Msg)
 	{
 		TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
 		Obj->SetBoolField(TEXT("success"), false);
@@ -26,7 +26,7 @@ FString FCreateLevelCommand::Execute(const FString& Parameters)
 	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
 	if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
 	{
-		return MakeErr(TEXT("Invalid JSON parameters"));
+		return MakeErr_CreateLevel(TEXT("Invalid JSON parameters"));
 	}
 
 	FString LevelName;
@@ -36,30 +36,30 @@ FString FCreateLevelCommand::Execute(const FString& Parameters)
 
 	if (!JsonObject->TryGetStringField(TEXT("level_name"), LevelName) || LevelName.IsEmpty())
 	{
-		return MakeErr(TEXT("Missing 'level_name' parameter"));
+		return MakeErr_CreateLevel(TEXT("Missing 'level_name' parameter"));
 	}
 	if (!JsonObject->TryGetStringField(TEXT("save_path"), SavePath) || SavePath.IsEmpty())
 	{
-		return MakeErr(TEXT("Missing 'save_path' parameter"));
+		return MakeErr_CreateLevel(TEXT("Missing 'save_path' parameter"));
 	}
 
 	// Normalize: ensure save_path starts with /Game and does not end with /
 	if (!SavePath.StartsWith(TEXT("/Game")))
 	{
-		return MakeErr(TEXT("'save_path' must start with /Game"));
+		return MakeErr_CreateLevel(TEXT("'save_path' must start with /Game"));
 	}
 	SavePath.RemoveFromEnd(TEXT("/"));
 	const FString FullPath = FString::Printf(TEXT("%s/%s"), *SavePath, *LevelName);
 
 	if (!GEditor)
 	{
-		return MakeErr(TEXT("GEditor is null — command requires editor context"));
+		return MakeErr_CreateLevel(TEXT("GEditor is null - command requires editor context"));
 	}
 
 	ULevelEditorSubsystem* LES = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>();
 	if (!LES)
 	{
-		return MakeErr(TEXT("ULevelEditorSubsystem unavailable"));
+		return MakeErr_CreateLevel(TEXT("ULevelEditorSubsystem unavailable"));
 	}
 
 	bool bOk = false;
@@ -74,7 +74,7 @@ FString FCreateLevelCommand::Execute(const FString& Parameters)
 
 	if (!bOk)
 	{
-		return MakeErr(FString::Printf(TEXT("Failed to create level at %s (template='%s')"),
+		return MakeErr_CreateLevel(FString::Printf(TEXT("Failed to create level at %s (template='%s')"),
 			*FullPath, *Template));
 	}
 
