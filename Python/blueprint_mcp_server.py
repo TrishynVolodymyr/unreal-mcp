@@ -331,20 +331,34 @@ async def set_blueprint_variable_value(
     value: Any
 ) -> Dict[str, Any]:
     """
-    Set the default value of a Blueprint variable.
+    Set the default value of a Blueprint variable (CDO).
 
-    This sets the value on the Blueprint's Class Default Object (CDO), which means
-    it becomes the default value for all instances of this Blueprint.
+    This sets a property on the Blueprint's Class Default Object — i.e. it
+    changes the default value of a *declared variable* for all instances of
+    the Blueprint. It does NOT modify Blueprint asset-level metadata.
+
+    For asset-level changes use the dedicated tools:
+    - ParentClass: `set_blueprint_parent_class`
+    - Implemented interfaces: `add_interface_to_blueprint`
+    - Variable declaration: `add_blueprint_variable` / `delete_blueprint_variable`
 
     Args:
         blueprint_name: Name of the target Blueprint
-        variable_name: Name of the variable to modify
+        variable_name: Name of the variable to modify (must already be declared
+                       on the Blueprint or one of its parents)
         value: New default value for the variable. Type must match the variable type:
             - For bool: True/False
             - For int/float: numeric values
             - For string: text values
             - For arrays: list of values
             - For structs: dictionary with field names as keys
+
+    Returns:
+        Dict containing success status and the property name that was set.
+
+    Note: the underlying TCP command is `set_blueprint_property` for historical
+    reasons; the parameter name on the C++ side is `property_name` but it must
+    name a declared variable, not an arbitrary asset property.
     """
     params = {
         "blueprint_name": blueprint_name,
