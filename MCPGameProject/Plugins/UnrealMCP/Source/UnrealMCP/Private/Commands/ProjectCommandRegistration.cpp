@@ -9,6 +9,7 @@
 #include "Commands/Project/CreateEnhancedInputActionCommand.h"
 #include "Commands/Project/CreateInputMappingContextCommand.h"
 #include "Commands/Project/AddMappingToContextCommand.h"
+#include "Commands/Project/RemoveMappingFromContextCommand.h"
 #include "Commands/Project/UpdateStructCommand.h"
 #include "Commands/Project/GetProjectMetadataCommand.h"
 #include "Commands/Project/GetStructPinNamesCommand.h"
@@ -59,6 +60,7 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     Registry.RegisterCommand(MakeShared<FCreateEnhancedInputActionCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FCreateInputMappingContextCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FAddMappingToContextCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FRemoveMappingFromContextCommand>(ProjectService));
 
     // Register struct commands
     Registry.RegisterCommand(MakeShared<FUpdateStructCommand>(ProjectService));
