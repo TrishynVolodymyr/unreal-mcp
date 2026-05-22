@@ -221,6 +221,70 @@ def register_project_tools(mcp: FastMCP):
             return {"success": False, "message": error_msg}
 
     @mcp.tool()
+    def remove_mapping_from_context(
+        ctx: Context,
+        context_path: str,
+        action_path: str,
+        key: str = "",
+        remove_all_keys: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Remove key mapping(s) from an Input Mapping Context.
+
+        Two modes:
+          - precise: pass `key` to remove just that (action, key) pair.
+          - bulk:    pass `remove_all_keys=True` (and leave key empty) to drop
+                     ALL keys currently bound to `action_path` in this context.
+
+        Args:
+            context_path: Full path to the Input Mapping Context asset.
+            action_path: Full path to the Input Action asset.
+            key: Key to unbind (e.g. "Q", "SpaceBar"). Ignored if remove_all_keys=True.
+            remove_all_keys: When True, unmap every key bound to this action.
+
+        Returns dict with `removed_count` (number of mappings actually deleted).
+
+        Example:
+            remove_mapping_from_context(
+                context_path="/Game/Input/IMC_Default",
+                action_path="/Game/Input/Actions/IA_Level_Up",
+                key="Q",
+            )
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "context_path": context_path,
+                "action_path": action_path,
+                "key": key,
+                "remove_all_keys": remove_all_keys,
+            }
+
+            logger.info(
+                f"Removing mapping(s) from context '{context_path}' action '{action_path}' "
+                f"(key='{key}', all={remove_all_keys})"
+            )
+            response = unreal.send_command("remove_mapping_from_context", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Remove mapping from context response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error removing mapping from context: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
     def create_folder(
         ctx: Context,
         folder_path: str
