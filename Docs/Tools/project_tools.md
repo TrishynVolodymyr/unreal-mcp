@@ -114,6 +114,43 @@ Add a key mapping to an Input Mapping Context.
 }
 ```
 
+### remove_mapping_from_context
+
+Remove key mapping(s) from an Input Mapping Context. Mirror of `add_mapping_to_context` for unwiring keys (e.g. rebinding away from a stale action).
+
+**Parameters:**
+- `context_path` (string) - Full path to the Input Mapping Context asset
+- `action_path` (string) - Full path to the Input Action asset
+- `key` (string, optional) - Key to unbind (e.g. "Q", "SpaceBar"). Ignored when `remove_all_keys=true`. Required otherwise.
+- `remove_all_keys` (boolean, optional) - When true, unmap every key bound to the action in this context. Defaults to false.
+
+**Returns:**
+- Dict containing success status and `removed_count` (number of mappings actually deleted).
+
+**Example:**
+```json
+{
+  "command": "remove_mapping_from_context",
+  "params": {
+    "context_path": "/Game/Input/IMC_Default",
+    "action_path": "/Game/Input/Actions/IA_Level_Up",
+    "key": "Q"
+  }
+}
+```
+
+Bulk unbind:
+```json
+{
+  "command": "remove_mapping_from_context",
+  "params": {
+    "context_path": "/Game/Input/IMC_Default",
+    "action_path": "/Game/Input/Actions/IA_Level_Up",
+    "remove_all_keys": true
+  }
+}
+```
+
 ### get_project_metadata
 
 Get project metadata with selective field querying. This consolidated tool replaces the deprecated `list_input_actions`, `list_input_mapping_contexts`, `show_struct_variables`, and `list_folder_contents` tools.
