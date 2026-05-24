@@ -290,57 +290,28 @@ TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildComponentsInfo(UB
     return ComponentsInfo;
 }
 
-TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildComponentPropertiesInfo(UBlueprint* Blueprint, const FString& ComponentName) const
+TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::ExtractComponentProperties(UActorComponent* ComponentTemplate) const
 {
-    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
-
-    if (!Blueprint)
+    TSharedPtr<FJsonObject> PropertiesObj = MakeShared<FJsonObject>();
+    if (!ComponentTemplate)
     {
-        Result->SetStringField(TEXT("error"), TEXT("Invalid Blueprint"));
-        return Result;
+        return PropertiesObj;
     }
 
-    if (ComponentName.IsEmpty())
+    UClass* ComponentClass = ComponentTemplate->GetClass();
+
+    // Iterate through all blueprint-visible properties
+    for (TFieldIterator<FProperty> PropIt(ComponentClass); PropIt; ++PropIt)
     {
-        Result->SetStringField(TEXT("error"), TEXT("component_name parameter is required"));
-        return Result;
-    }
+        FProperty* Property = *PropIt;
+        if (!Property) continue;
 
-    // Get components from Simple Construction Script
-    if (Blueprint->SimpleConstructionScript)
-    {
-        for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
-        {
-            if (Node && Node->ComponentTemplate)
-            {
-                FString CurrentName = Node->GetVariableName().ToString();
+        // Only include editable/visible properties
+        if (!Property->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible))
+            continue;
 
-                // Only process the requested component
-                if (!CurrentName.Equals(ComponentName, ESearchCase::IgnoreCase))
-                {
-                    continue;
-                }
-                TSharedPtr<FJsonObject> CompObj = MakeShared<FJsonObject>();
-                CompObj->SetStringField(TEXT("name"), Node->GetVariableName().ToString());
-                CompObj->SetStringField(TEXT("type"), Node->ComponentTemplate->GetClass()->GetName());
-
-                // Extract properties from the component template
-                TSharedPtr<FJsonObject> PropertiesObj = MakeShared<FJsonObject>();
-                UActorComponent* ComponentTemplate = Node->ComponentTemplate;
-                UClass* ComponentClass = ComponentTemplate->GetClass();
-
-                // Iterate through all blueprint-visible properties
-                for (TFieldIterator<FProperty> PropIt(ComponentClass); PropIt; ++PropIt)
-                {
-                    FProperty* Property = *PropIt;
-                    if (!Property) continue;
-
-                    // Only include editable/visible properties
-                    if (!Property->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible))
-                        continue;
-
-                    FString PropName = Property->GetName();
-                    void* ValuePtr = Property->ContainerPtrToValuePtr<void>(ComponentTemplate);
+        FString PropName = Property->GetName();
+        void* ValuePtr = Property->ContainerPtrToValuePtr<void>(ComponentTemplate);
 
                     // Handle different property types
                     if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Property))
@@ -517,21 +488,76 @@ TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildComponentProperti
                                 }
                             }
 
-                            PropertiesObj->SetObjectField(PropName, BodyObj);
-                        }
-                        else
-                        {
-                            // For other struct types, just indicate the type
-                            PropertiesObj->SetStringField(PropName, FString::Printf(TEXT("[Struct:%s]"), *StructProp->Struct->GetName()));
-                        }
-                    }
-                }
+            PropertiesObj->SetObjectField(PropName, BodyObj);
+        }
+        else
+        {
+            // For other struct types, just indicate the type
+            PropertiesObj->SetStringField(PropName, FString::Printf(TEXT("[Struct:%s]"), *StructProp->Struct->GetName()));
+        }
+    }
+    }
 
-                // Found the component - return its properties directly
-                Result->SetStringField(TEXT("name"), CurrentName);
-                Result->SetStringField(TEXT("type"), Node->ComponentTemplate->GetClass()->GetName());
-                Result->SetObjectField(TEXT("properties"), PropertiesObj);
-                return Result;
+    return PropertiesObj;
+}
+
+TSharedPtr<FJsonObject> FBlueprintMetadataBuilderService::BuildComponentPropertiesInfo(UBlueprint* Blueprint, const FString& ComponentName) const
+{
+    TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+
+    if (!Blueprint)
+    {
+        Result->SetStringField(TEXT("error"), TEXT("Invalid Blueprint"));
+        return Result;
+    }
+
+    if (ComponentName.IsEmpty())
+    {
+        Result->SetStringField(TEXT("error"), TEXT("component_name parameter is required"));
+        return Result;
+    }
+
+    // 1) Look in Simple Construction Script (BP-local components)
+    if (Blueprint->SimpleConstructionScript)
+    {
+        for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+        {
+            if (!Node || !Node->ComponentTemplate) continue;
+
+            FString CurrentName = Node->GetVariableName().ToString();
+            if (!CurrentName.Equals(ComponentName, ESearchCase::IgnoreCase))
+            {
+                continue;
+            }
+
+            Result->SetStringField(TEXT("name"), CurrentName);
+            Result->SetStringField(TEXT("type"), Node->ComponentTemplate->GetClass()->GetName());
+            Result->SetObjectField(TEXT("properties"), ExtractComponentProperties(Node->ComponentTemplate));
+            return Result;
+        }
+    }
+
+    // 2) Fallback: look in inherited components via the CDO (e.g. ACharacter's
+    //    CharacterMesh0/CapsuleComponent/CharacterMovement and any other native
+    //    DefaultSubobjects from parent classes).
+    if (Blueprint->GeneratedClass)
+    {
+        if (AActor* DefaultActor = Cast<AActor>(Blueprint->GeneratedClass->GetDefaultObject()))
+        {
+            TArray<UActorComponent*> AllComponents;
+            DefaultActor->GetComponents(AllComponents);
+            for (UActorComponent* Component : AllComponents)
+            {
+                if (!Component) continue;
+
+                if (Component->GetName().Equals(ComponentName, ESearchCase::IgnoreCase))
+                {
+                    Result->SetStringField(TEXT("name"), Component->GetName());
+                    Result->SetStringField(TEXT("type"), Component->GetClass()->GetName());
+                    Result->SetBoolField(TEXT("inherited"), true);
+                    Result->SetObjectField(TEXT("properties"), ExtractComponentProperties(Component));
+                    return Result;
+                }
             }
         }
     }
