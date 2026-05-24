@@ -67,4 +67,8 @@ public:
 
 private:
     IBlueprintService& BlueprintService;
+
+    // Extract properties from a component template/instance into a JSON object.
+    // Works for both SCS templates and inherited CDO components.
+    TSharedPtr<FJsonObject> ExtractComponentProperties(class UActorComponent* ComponentTemplate) const;
 };
