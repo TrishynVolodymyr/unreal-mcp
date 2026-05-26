@@ -359,7 +359,7 @@ bool FDataTableService::UpdateRowsInDataTable(UDataTable* DataTable, const TArra
             OutFailedRows.Add(FString::Printf(TEXT("%s: row not found"), *RowParams.RowName));
             continue;
         }
-        
+
         // Check if we have GUID fields that need transformation BEFORE validation (to avoid auto-fill contamination)
         bool bHasGuidFields = false;
         for (const auto& Field : RowParams.RowData->Values)
@@ -372,17 +372,38 @@ bool FDataTableService::UpdateRowsInDataTable(UDataTable* DataTable, const TArra
                 break;
             }
         }
-        
+
         UE_LOG(LogTemp, Warning, TEXT("Has GUID fields: %s"), bHasGuidFields ? TEXT("YES") : TEXT("NO"));
-        
-        // Transform GUID field names to friendly names before validation and JsonObjectToUStruct
-        TSharedPtr<FJsonObject> StructJson = RowParams.RowData;
+
+        // Transform GUID field names to friendly names before merge.
+        TSharedPtr<FJsonObject> UserJson = RowParams.RowData;
         if (bHasGuidFields)
         {
-            StructJson = FDataTableTransformationService::AutoTransformFromGuidNames(RowParams.RowData, RowStruct);
+            UserJson = FDataTableTransformationService::AutoTransformFromGuidNames(RowParams.RowData, RowStruct);
         }
-        
-        // Validate row data (after potential transformation)
+
+        // PARTIAL-UPDATE MERGE: read existing row, serialize to JSON, then
+        // overlay user-provided fields. Without this, fields missing from
+        // user input get FillMissingFields-zeroed (and enum properties get
+        // empty-string-filled which crashes JsonAttributesToUStruct → entire
+        // update fails). This makes update_rows actually update one field
+        // without nuking the rest.
+        TSharedPtr<FJsonObject> StructJson = MakeShared<FJsonObject>();
+        {
+            void* ExistingRowPtr = DataTable->FindRowUnchecked(FName(*RowParams.RowName));
+            if (ExistingRowPtr)
+            {
+                FJsonObjectConverter::UStructToJsonObject(RowStruct, ExistingRowPtr,
+                                                          StructJson.ToSharedRef());
+            }
+        }
+        // Overlay user fields (user wins on conflict).
+        for (const auto& Field : UserJson->Values)
+        {
+            StructJson->SetField(Field.Key, Field.Value);
+        }
+
+        // Validate merged data.
         if (!ValidateRowData(DataTable, StructJson, ValidationError))
         {
             OutFailedRows.Add(FString::Printf(TEXT("%s: %s"), *RowParams.RowName, *ValidationError));
@@ -968,6 +989,33 @@ void FDataTableService::FillMissingFields(const UScriptStruct* RowStruct, const 
                 TSharedPtr<FJsonObject> EmptyStruct = MakeShared<FJsonObject>();
                 RowData->SetObjectField(PropertyName, EmptyStruct);
                 UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled struct property '%s' with empty object"), *PropertyName);
+            }
+            else if (FEnumProperty* EnumProp = CastField<FEnumProperty>(Property))
+            {
+                // Use the first declared enum value as default. Empty string
+                // crashes JsonAttributesToUStruct → entire row update fails.
+                UEnum* Enum = EnumProp->GetEnum();
+                FString EnumValueName = Enum && Enum->NumEnums() > 0
+                    ? Enum->GetNameStringByIndex(0)
+                    : TEXT("");
+                RowData->SetStringField(PropertyName, EnumValueName);
+                UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled enum property '%s' with '%s'"), *PropertyName, *EnumValueName);
+            }
+            else if (FByteProperty* ByteProp = CastField<FByteProperty>(Property))
+            {
+                // TEnumAsByte / EnumAsByte case — same as FEnumProperty.
+                if (UEnum* Enum = ByteProp->Enum)
+                {
+                    FString EnumValueName = Enum->NumEnums() > 0
+                        ? Enum->GetNameStringByIndex(0)
+                        : TEXT("");
+                    RowData->SetStringField(PropertyName, EnumValueName);
+                    UE_LOG(LogTemp, Display, TEXT("MCP DataTable: Auto-filled byte-enum property '%s' with '%s'"), *PropertyName, *EnumValueName);
+                }
+                else
+                {
+                    RowData->SetNumberField(PropertyName, 0);
+                }
             }
             else
             {
