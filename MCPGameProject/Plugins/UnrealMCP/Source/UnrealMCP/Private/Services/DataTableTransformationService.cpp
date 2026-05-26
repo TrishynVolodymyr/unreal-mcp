@@ -241,9 +241,9 @@ TSharedPtr<FJsonObject> FDataTableTransformationService::AutoTransformFromGuidNa
 TMap<FString, FString> FDataTableTransformationService::BuildFriendlyToGuidMap(const UScriptStruct* Struct)
 {
     TMap<FString, FString> FriendlyToGuidMap;
-    
+
     UE_LOG(LogTemp, Error, TEXT("BuildFriendlyToGuidMap: Processing struct '%s'"), Struct ? *Struct->GetName() : TEXT("NULL"));
-    
+
     for (TFieldIterator<FProperty> PropIt(Struct); PropIt; ++PropIt)
     {
         FProperty* Property = *PropIt;
@@ -253,13 +253,27 @@ TMap<FString, FString> FDataTableTransformationService::BuildFriendlyToGuidMap(c
             // Fallback to property name without GUID
             FriendlyName = ExtractFriendlyName(Property->GetName());
         }
-        
+
         FString GuidName = Property->GetName();
+
+        // Skip identity mappings (Friendly == Guid). Happens for C++ structs
+        // where GetDisplayNameText returns the same string as GetName for
+        // single-word property names (e.g. "Category", "Layer", "Mesh").
+        // FString TMap keys are case-INSENSITIVE in UE, so an identity mapping
+        // makes AutoTransformFromGuidNames think the JSON key "layer" has a
+        // separate GUID twin "Layer" — both case-insensitive-match the same
+        // entry — and it drops the friendly form as a "duplicate".
+        if (FriendlyName.Equals(GuidName, ESearchCase::IgnoreCase))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("BuildFriendlyToGuidMap: Skipping identity mapping for '%s'"), *FriendlyName);
+            continue;
+        }
+
         FriendlyToGuidMap.Add(FriendlyName, GuidName);
-        
+
         UE_LOG(LogTemp, Warning, TEXT("BuildFriendlyToGuidMap: Added mapping '%s' -> '%s'"), *FriendlyName, *GuidName);
     }
-    
+
     UE_LOG(LogTemp, Warning, TEXT("BuildFriendlyToGuidMap: Created %d mappings for struct '%s'"), FriendlyToGuidMap.Num(), *Struct->GetName());
     return FriendlyToGuidMap;
 }
