@@ -797,27 +797,74 @@ TSharedPtr<FJsonObject> FDataTableService::TransformJsonToStructNames(const TSha
 TSharedPtr<FJsonObject> FDataTableService::RowToJson(const UDataTable* DataTable, const FName& RowName)
 {
     UE_LOG(LogTemp, Warning, TEXT("=== MCP DataTable: RowToJson START for row '%s' ==="), *RowName.ToString());
-    
+
     TSharedPtr<FJsonObject> RowObj = MakeShared<FJsonObject>();
     RowObj->SetStringField(TEXT("row_name"), RowName.ToString());
-    
+
     // Get the row data
     void* RowPtr = DataTable->FindRowUnchecked(RowName);
     if (RowPtr && DataTable->GetRowStruct())
     {
+        const UScriptStruct* RowStruct = DataTable->GetRowStruct();
         UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Found row data, converting UStruct to JSON"));
         TSharedPtr<FJsonObject> RowDataObj = MakeShared<FJsonObject>();
-        FJsonObjectConverter::UStructToJsonObject(DataTable->GetRowStruct(), RowPtr, RowDataObj.ToSharedRef());
-        
-        UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Raw UStruct to JSON resulted in %d fields"), RowDataObj->Values.Num());
-        for (const auto& Pair : RowDataObj->Values)
+        FJsonObjectConverter::UStructToJsonObject(RowStruct, RowPtr, RowDataObj.ToSharedRef());
+
+        // Defensive backfill: UStructToJsonObject silently skips some property
+        // types (observed: enum-class default values like EBuildableLayer::Floor,
+        // FName NAME_None, unset TSoftObjectPtr — exact rules depend on the UE
+        // build). Iterate the struct fields explicitly and supplement any field
+        // missing from the converter output using ExportTextItem_Direct (UE's
+        // most permissive serializer). Without this, partial-update merge would
+        // re-default these silently-dropped fields on every update.
+        for (TFieldIterator<FProperty> PropIt(RowStruct); PropIt; ++PropIt)
         {
-            UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Raw field: '%s' (type: %d)"), *Pair.Key, (int32)Pair.Value->Type);
+            FProperty* Property = *PropIt;
+            // Mirror FJsonObjectConverter's case standardization so we match
+            // the existing keys in RowDataObj (lower-first authored name).
+            FString FriendlyKey = Property->GetAuthoredName();
+            if (!FriendlyKey.IsEmpty())
+            {
+                FriendlyKey[0] = FChar::ToLower(FriendlyKey[0]);
+            }
+            if (RowDataObj->HasField(FriendlyKey)) continue;
+
+            const void* Value = Property->ContainerPtrToValuePtr<uint8>(RowPtr);
+            FString Exported;
+            Property->ExportTextItem_Direct(Exported, Value, nullptr, nullptr, PPF_None);
+
+            // Try numeric first, then bool, fall back to string. Enum bytes
+            // export as their authored name (e.g. "Furniture"), so string is
+            // the right default fallback.
+            if (CastField<FBoolProperty>(Property))
+            {
+                RowDataObj->SetBoolField(FriendlyKey, Exported.Equals(TEXT("True"), ESearchCase::IgnoreCase));
+            }
+            else if (CastField<FNumericProperty>(Property)
+                     && !CastField<FNumericProperty>(Property)->IsEnum())
+            {
+                double NumVal = 0.0;
+                LexFromString(NumVal, *Exported);
+                RowDataObj->SetNumberField(FriendlyKey, NumVal);
+            }
+            else
+            {
+                // Strip surrounding quotes that ExportTextItem_Direct adds for
+                // FName/FString/FText so the JSON value reads cleanly.
+                if (Exported.Len() >= 2 && Exported.StartsWith(TEXT("\""))
+                                       && Exported.EndsWith(TEXT("\"")))
+                {
+                    Exported = Exported.Mid(1, Exported.Len() - 2);
+                }
+                RowDataObj->SetStringField(FriendlyKey, Exported);
+            }
+            UE_LOG(LogTemp, Warning, TEXT("MCP DataTable: Backfilled missing field '%s' = '%s'"),
+                   *FriendlyKey, *Exported);
         }
-        
+
         // Auto-transform GUID field names back to friendly names
-        TSharedPtr<FJsonObject> FriendlyRowDataObj = FDataTableTransformationService::AutoTransformFromGuidNames(RowDataObj, DataTable->GetRowStruct());
-        
+        TSharedPtr<FJsonObject> FriendlyRowDataObj = FDataTableTransformationService::AutoTransformFromGuidNames(RowDataObj, RowStruct);
+
         RowObj->SetObjectField(TEXT("row_data"), FriendlyRowDataObj);
     }
     else
