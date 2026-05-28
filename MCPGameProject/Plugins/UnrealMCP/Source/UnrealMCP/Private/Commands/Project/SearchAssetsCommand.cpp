@@ -1,5 +1,6 @@
 #include "Commands/Project/SearchAssetsCommand.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "UObject/UObjectGlobals.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Texture2D.h"
 #include "Materials/Material.h"
@@ -160,13 +161,28 @@ FString FSearchAssetsCommand::Execute(const FString& Parameters)
 		}
 		else
 		{
-			// Try to find class by name in script modules
+			// Try common script modules first, then any loaded module by class name.
 			FString FullPath = FString::Printf(TEXT("/Script/Engine.%s"), *AssetType);
 			UClass* FoundClass = FindObject<UClass>(nullptr, *FullPath);
 			if (!FoundClass)
 			{
 				FullPath = FString::Printf(TEXT("/Script/CoreUObject.%s"), *AssetType);
 				FoundClass = FindObject<UClass>(nullptr, *FullPath);
+			}
+			// Fallback: search ALL loaded modules by class name — covers plugin classes
+			// (e.g. VoxelSurfaceTypeAsset in /Script/Voxel) that aren't in Engine/CoreUObject.
+			// Try the name as given, then with the U/A native prefixes.
+			if (!FoundClass)
+			{
+				FoundClass = FindFirstObject<UClass>(*AssetType, EFindFirstObjectOptions::ExactClass);
+			}
+			if (!FoundClass)
+			{
+				FoundClass = FindFirstObject<UClass>(*(TEXT("U") + AssetType), EFindFirstObjectOptions::ExactClass);
+			}
+			if (!FoundClass)
+			{
+				FoundClass = FindFirstObject<UClass>(*(TEXT("A") + AssetType), EFindFirstObjectOptions::ExactClass);
 			}
 			if (FoundClass)
 			{
@@ -192,11 +208,25 @@ FString FSearchAssetsCommand::Execute(const FString& Parameters)
 
 		FString AssetName = AssetData.AssetName.ToString();
 
-		// If no search query, match everything; if query has wildcards use MatchesWildcard, otherwise Contains
-		if (SearchQuery.IsEmpty()
-			|| (SearchQuery.Contains(TEXT("*")) || SearchQuery.Contains(TEXT("?")))
-				? AssetName.MatchesWildcard(SearchQuery, ESearchCase::IgnoreCase)
-				: AssetName.Contains(SearchQuery, ESearchCase::IgnoreCase))
+		// Empty query matches everything; wildcard query uses MatchesWildcard; plain query uses Contains.
+		// NOTE: the previous one-liner `A || B ? C : D` was an operator-precedence bug — it parsed as
+		// `(A || B) ? C : D`, so an EMPTY query took the MatchesWildcard("") branch which matches NOTHING.
+		// Result: any class-only search (asset_class with no pattern) returned 0. Fixed with explicit branches.
+		bool bNameMatches;
+		if (SearchQuery.IsEmpty())
+		{
+			bNameMatches = true;
+		}
+		else if (SearchQuery.Contains(TEXT("*")) || SearchQuery.Contains(TEXT("?")))
+		{
+			bNameMatches = AssetName.MatchesWildcard(SearchQuery, ESearchCase::IgnoreCase);
+		}
+		else
+		{
+			bNameMatches = AssetName.Contains(SearchQuery, ESearchCase::IgnoreCase);
+		}
+
+		if (bNameMatches)
 		{
 			TSharedPtr<FJsonObject> AssetInfo = MakeShared<FJsonObject>();
 			AssetInfo->SetStringField(TEXT("name"), AssetName);
