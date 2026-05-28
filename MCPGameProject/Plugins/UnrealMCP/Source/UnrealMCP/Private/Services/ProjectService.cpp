@@ -404,3 +404,13 @@ TSharedPtr<FJsonObject> FProjectService::GetDataAssetMetadata(const FString& Ass
 {
     return FProjectDataAssetService::Get().GetDataAssetMetadata(AssetPath, OutError);
 }
+
+bool FProjectService::CreateAsset(const FString& Name, const FString& AssetClass, const FString& FolderPath, FString& OutAssetPath, FString& OutError)
+{
+    return FProjectDataAssetService::Get().CreateAsset(Name, AssetClass, FolderPath, OutAssetPath, OutError);
+}
+
+bool FProjectService::SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError)
+{
+    return FProjectDataAssetService::Get().SetObjectProperty(AssetPath, PropertyName, ValueString, OutError);
+}

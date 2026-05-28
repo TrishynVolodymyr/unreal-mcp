@@ -24,6 +24,8 @@
 #include "Commands/Project/CreateDataAssetCommand.h"
 #include "Commands/Project/SetDataAssetPropertyCommand.h"
 #include "Commands/Project/GetDataAssetMetadataCommand.h"
+#include "Commands/Project/CreateAssetCommand.h"
+#include "Commands/Project/SetObjectPropertyCommand.h"
 #include "Commands/Project/RenameAssetCommand.h"
 #include "Commands/Project/MoveAssetCommand.h"
 #include "Commands/Project/SearchAssetsCommand.h"
@@ -94,6 +96,10 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     Registry.RegisterCommand(MakeShared<FCreateDataAssetCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FSetDataAssetPropertyCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FGetDataAssetMetadataCommand>(ProjectService));
+
+    // Generic asset ops (any UObject class — e.g. Voxel assets)
+    Registry.RegisterCommand(MakeShared<FCreateAssetCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FSetObjectPropertyCommand>(ProjectService));
 
     // Register Asset Management commands
     Registry.RegisterCommand(MakeShared<FRenameAssetCommand>(ProjectService));

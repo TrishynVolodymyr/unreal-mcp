@@ -4,7 +4,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Misc/Paths.h"
 #include "UObject/UObjectGlobals.h"
+#include "UObject/UnrealType.h"
 #include "Serialization/ObjectReader.h"
+#include "Misc/StringOutputDevice.h"
 
 FProjectDataAssetService& FProjectDataAssetService::Get()
 {
@@ -220,6 +222,145 @@ bool FProjectDataAssetService::SetDataAssetProperty(const FString& AssetPath, co
     UEditorAssetLibrary::SaveAsset(AssetPath, false);
 
     UE_LOG(LogTemp, Display, TEXT("MCP Project: Set property '%s' on DataAsset '%s'"), *PropertyName, *AssetPath);
+    return true;
+}
+
+bool FProjectDataAssetService::CreateAsset(const FString& Name, const FString& AssetClass, const FString& FolderPath, FString& OutAssetPath, FString& OutError)
+{
+    if (Name.IsEmpty())
+    {
+        OutError = TEXT("Asset name cannot be empty");
+        return false;
+    }
+    if (AssetClass.IsEmpty())
+    {
+        OutError = TEXT("Asset class cannot be empty");
+        return false;
+    }
+
+    const FString BasePath = FolderPath.IsEmpty() ? TEXT("/Game") : FolderPath;
+    const FString PackageName = BasePath / Name;
+
+    ProjectDataAssetServiceHelpers::EnsureFolderExists(BasePath);
+
+    // Resolve the class generically (any UObject), trying: exact, U-prefixed, by path.
+    UClass* AssetUClass = FindFirstObject<UClass>(*AssetClass, EFindFirstObjectOptions::ExactClass);
+    if (!AssetUClass)
+    {
+        AssetUClass = FindFirstObject<UClass>(*(TEXT("U") + AssetClass), EFindFirstObjectOptions::ExactClass);
+    }
+    if (!AssetUClass && AssetClass.Contains(TEXT("/")))
+    {
+        AssetUClass = LoadObject<UClass>(nullptr, *AssetClass);
+    }
+    if (!AssetUClass)
+    {
+        OutError = FString::Printf(TEXT("Class '%s' not found. Pass a full class path like '/Script/Voxel.VoxelSurfaceTypeAsset' or a registered class name."), *AssetClass);
+        return false;
+    }
+
+    // Guard against classes that can't be instantiated as standalone assets.
+    if (AssetUClass->HasAnyClassFlags(CLASS_Abstract))
+    {
+        OutError = FString::Printf(TEXT("Class '%s' is abstract — cannot create an instance."), *AssetUClass->GetName());
+        return false;
+    }
+    if (!AssetUClass->IsChildOf(UObject::StaticClass()))
+    {
+        OutError = FString::Printf(TEXT("Class '%s' is not a UObject subclass."), *AssetUClass->GetName());
+        return false;
+    }
+
+    // Refuse to clobber an existing asset.
+    if (UEditorAssetLibrary::DoesAssetExist(PackageName))
+    {
+        OutError = FString::Printf(TEXT("Asset already exists at '%s' — choose a different name/folder."), *PackageName);
+        return false;
+    }
+
+    UPackage* Package = CreatePackage(*PackageName);
+    if (!Package)
+    {
+        OutError = FString::Printf(TEXT("Failed to create package: %s"), *PackageName);
+        return false;
+    }
+
+    UObject* NewAsset = NewObject<UObject>(Package, AssetUClass, *Name, RF_Public | RF_Standalone);
+    if (!NewAsset)
+    {
+        OutError = FString::Printf(TEXT("NewObject failed for class '%s' (name '%s')."), *AssetUClass->GetName(), *Name);
+        return false;
+    }
+
+    NewAsset->MarkPackageDirty();
+    Package->MarkPackageDirty();
+    FAssetRegistryModule::AssetCreated(NewAsset);
+
+    if (!UEditorAssetLibrary::SaveAsset(PackageName, false))
+    {
+        OutError = FString::Printf(TEXT("Asset created in memory but SaveAsset failed for '%s'."), *PackageName);
+        return false;
+    }
+
+    OutAssetPath = PackageName;
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Created asset '%s' of class '%s' at '%s'"),
+        *Name, *AssetUClass->GetName(), *OutAssetPath);
+    return true;
+}
+
+bool FProjectDataAssetService::SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError)
+{
+    if (AssetPath.IsEmpty()) { OutError = TEXT("Asset path cannot be empty"); return false; }
+    if (PropertyName.IsEmpty()) { OutError = TEXT("Property name cannot be empty"); return false; }
+
+    // Normalize Package → Object path (append .AssetName if missing).
+    FString NormalizedPath = AssetPath;
+    if (!NormalizedPath.Contains(TEXT(".")))
+    {
+        NormalizedPath = AssetPath + TEXT(".") + FPaths::GetBaseFilename(AssetPath);
+    }
+
+    UObject* Asset = StaticLoadObject(UObject::StaticClass(), nullptr, *NormalizedPath);
+    if (!Asset)
+    {
+        OutError = FString::Printf(TEXT("Failed to load asset at '%s'."), *AssetPath);
+        return false;
+    }
+
+    FProperty* Property = Asset->GetClass()->FindPropertyByName(FName(*PropertyName));
+    if (!Property)
+    {
+        OutError = FString::Printf(TEXT("Property '%s' not found on class '%s'."),
+            *PropertyName, *Asset->GetClass()->GetName());
+        return false;
+    }
+
+    void* ValuePtr = Property->ContainerPtrToValuePtr<void>(Asset);
+
+    // Generic import — ImportText parses object refs, arrays, structs, enums, etc.
+    // Capture the UE parser's diagnostics for a precise error message.
+    FStringOutputDevice ImportErrors;
+    Asset->Modify();
+    const TCHAR* Result = Property->ImportText_Direct(*ValueString, ValuePtr, Asset, PPF_None, &ImportErrors);
+    if (Result == nullptr || !ImportErrors.IsEmpty())
+    {
+        OutError = FString::Printf(TEXT("Failed to set '%s' (type %s) to '%s': %s"),
+            *PropertyName, *Property->GetCPPType(), *ValueString,
+            ImportErrors.IsEmpty() ? TEXT("value could not be parsed for this property type") : *ImportErrors);
+        return false;
+    }
+
+    FPropertyChangedEvent ChangedEvent(Property);
+    Asset->PostEditChangeProperty(ChangedEvent);
+    Asset->MarkPackageDirty();
+
+    if (!UEditorAssetLibrary::SaveAsset(AssetPath, false))
+    {
+        OutError = FString::Printf(TEXT("Property set but SaveAsset failed for '%s'."), *AssetPath);
+        return false;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Set '%s' = '%s' on '%s'"), *PropertyName, *ValueString, *AssetPath);
     return true;
 }
 

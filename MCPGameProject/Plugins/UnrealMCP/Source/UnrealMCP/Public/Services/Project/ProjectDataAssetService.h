@@ -58,6 +58,40 @@ public:
         const FString& AssetPath,
         FString& OutError);
 
+    /**
+     * Create a new asset of ANY UObject class (generic — not restricted to
+     * UDataAsset). Use for Voxel assets, etc. that have no factory MCP tool.
+     * @param Name - Name for the new asset
+     * @param AssetClass - Class path or name (e.g. "/Script/Voxel.VoxelSurfaceTypeAsset")
+     * @param FolderPath - Content browser folder (default /Game)
+     * @param OutAssetPath - Output: full object path of created asset
+     * @param OutError - Output: detailed error message if failed
+     * @return true on success
+     */
+    bool CreateAsset(
+        const FString& Name,
+        const FString& AssetClass,
+        const FString& FolderPath,
+        FString& OutAssetPath,
+        FString& OutError);
+
+    /**
+     * Set ANY property on ANY loaded UObject asset via UE property text import
+     * (ImportText). Handles numerics, bools, strings, names, enums, object
+     * references (by path), structs, and arrays — anything ExportText round-trips.
+     * @param AssetPath - Path of the asset
+     * @param PropertyName - Reflected property name
+     * @param ValueString - UE property-text value (e.g. "/Game/X.X" for object ref,
+     *        "(\"/Game/A.A\",\"/Game/B.B\")" for an array of object refs, "5.0", "true")
+     * @param OutError - Output: detailed error (incl. UE import parser message)
+     * @return true on success
+     */
+    bool SetObjectProperty(
+        const FString& AssetPath,
+        const FString& PropertyName,
+        const FString& ValueString,
+        FString& OutError);
+
 private:
     FProjectDataAssetService() = default;
 };
