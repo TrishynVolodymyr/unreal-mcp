@@ -1287,6 +1287,142 @@ def register_project_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
+    # ========================================
+    # Generic Asset Tools (any UObject class)
+    # ========================================
+
+    @mcp.tool()
+    def create_asset(
+        ctx: Context,
+        name: str,
+        asset_class: str,
+        folder_path: str = "/Game"
+    ) -> Dict[str, Any]:
+        """
+        Create a new asset of ANY UObject class. Generic — unlike create_data_asset
+        this is NOT restricted to UDataAsset subclasses, so it works for plugin
+        asset types that have no dedicated MCP tool (e.g. Voxel Plugin assets:
+        UVoxelSurfaceTypeAsset, UVoxelMegaMaterial, UVoxelHeightmap).
+
+        Set the new asset's properties afterward with set_object_property.
+
+        Args:
+            name: Name of the asset (e.g., "ST_Grass")
+            asset_class: Class path (recommended) or registered name. Examples:
+                - "/Script/Voxel.VoxelSurfaceTypeAsset"
+                - "/Script/Voxel.VoxelMegaMaterial"
+            folder_path: Content folder (default "/Game")
+
+        Returns:
+            Dict with success, name, asset_class, folder_path, asset_path, message.
+            On failure: success=False + a detailed message (class not found,
+            abstract class, already exists, save failed, etc.).
+
+        Examples:
+            create_asset(name="ST_Grass",
+                         asset_class="/Script/Voxel.VoxelSurfaceTypeAsset",
+                         folder_path="/Game/Landscape/Surface")
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "name": name,
+                "asset_class": asset_class,
+                "folder_path": folder_path
+            }
+
+            logger.info(f"Creating asset '{name}' of class '{asset_class}' at '{folder_path}'")
+            response = unreal.send_command("create_asset", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Create asset response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error creating asset: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def set_object_property(
+        ctx: Context,
+        asset_path: str,
+        property_name: str,
+        property_value: str
+    ) -> Dict[str, Any]:
+        """
+        Set ANY property on ANY UObject asset via Unreal property-text import.
+        Generic counterpart to set_data_asset_property — handles object
+        references, arrays, structs, and enums in addition to scalars, because
+        it uses Unreal's ImportText (the same format ExportText produces).
+
+        property_value is a STRING in Unreal property-text form:
+            - Scalar:        "4000.0", "5", "true"
+            - Name/String:   "Plains"
+            - Enum:          "AlphaBlended"
+            - Object ref:    "/Game/Path/Asset.Asset"
+            - Array:         '("/Game/A.A","/Game/B.B")'
+            - Struct:        "(X=1.0,Y=2.0)"
+
+        Args:
+            asset_path: Full path to the asset (e.g., "/Game/Landscape/Surface/ST_Grass")
+            property_name: Reflected property name (e.g., "Material", "SurfaceTypes")
+            property_value: Value in Unreal property-text form (see above)
+
+        Returns:
+            Dict with success, asset_path, property_name, message. On failure:
+            success=False + detailed message including the Unreal parser error
+            (property not found, type mismatch, unresolved object path, etc.).
+
+        Examples:
+            # Object reference
+            set_object_property(asset_path="/Game/Landscape/Surface/ST_Grass",
+                                property_name="Material",
+                                property_value="/Game/Landscape/Materials/M_Biome_Grass.M_Biome_Grass")
+
+            # Array of object references
+            set_object_property(asset_path="/Game/Landscape/MM_Landscape",
+                                property_name="SurfaceTypes",
+                                property_value='("/Game/Landscape/Surface/ST_Grass.ST_Grass","/Game/Landscape/Surface/ST_Rock.ST_Rock")')
+        """
+        from utils.unreal_connection_utils import get_unreal_engine_connection as get_unreal_connection
+
+        try:
+            unreal = get_unreal_connection()
+            if not unreal:
+                logger.error("Failed to connect to Unreal Engine")
+                return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+            params = {
+                "asset_path": asset_path,
+                "property_name": property_name,
+                "property_value": property_value
+            }
+
+            logger.info(f"Setting object property '{property_name}' on '{asset_path}'")
+            response = unreal.send_command("set_object_property", params)
+
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+
+            logger.info(f"Set object property response: {response}")
+            return response
+
+        except Exception as e:
+            error_msg = f"Error setting object property: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
     @mcp.tool()
     def get_data_asset_metadata(
         ctx: Context,
