@@ -11,6 +11,7 @@
 #include "Materials/MaterialExpressionConstant3Vector.h"
 #include "Materials/MaterialExpressionConstant4Vector.h"
 #include "Materials/MaterialExpressionTextureSample.h"
+#include "Materials/MaterialExpressionTextureSampleParameter.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
@@ -56,6 +57,53 @@ UMaterialExpression* FMaterialExpressionService::CreateExpressionByType(UMateria
     NewExpression->UpdateMaterialExpressionGuid(true, true);
 
     return NewExpression;
+}
+
+// Parse an EMaterialSamplerType from a JSON "SamplerType"/"sampler_type" field.
+// Accepts a numeric index, a numeric string, or an enum name (case-insensitive,
+// with or without the "SAMPLERTYPE_" prefix, e.g. "Normal", "Masks", "LinearColor").
+// MCP clients pass the value as a string, so number-only parsing silently fell back
+// to SAMPLERTYPE_Color (0) — this is the canonical parser for that field.
+static bool TryParseSamplerTypeField(const TSharedPtr<FJsonObject>& Properties, EMaterialSamplerType& OutType)
+{
+    TSharedPtr<FJsonValue> Val = Properties->TryGetField(TEXT("SamplerType"));
+    if (!Val.IsValid())
+    {
+        Val = Properties->TryGetField(TEXT("sampler_type"));
+    }
+    if (!Val.IsValid())
+    {
+        return false;
+    }
+
+    if (Val->Type == EJson::Number)
+    {
+        OutType = (EMaterialSamplerType)(int32)Val->AsNumber();
+        return true;
+    }
+
+    if (Val->Type == EJson::String)
+    {
+        FString S = Val->AsString().TrimStartAndEnd();
+        if (S.IsNumeric())
+        {
+            OutType = (EMaterialSamplerType)FCString::Atoi(*S);
+            return true;
+        }
+        S.RemoveFromStart(TEXT("SAMPLERTYPE_"), ESearchCase::IgnoreCase);
+        if (S.Equals(TEXT("Color"), ESearchCase::IgnoreCase))            { OutType = SAMPLERTYPE_Color;            return true; }
+        if (S.Equals(TEXT("Grayscale"), ESearchCase::IgnoreCase))        { OutType = SAMPLERTYPE_Grayscale;        return true; }
+        if (S.Equals(TEXT("Alpha"), ESearchCase::IgnoreCase))            { OutType = SAMPLERTYPE_Alpha;            return true; }
+        if (S.Equals(TEXT("Normal"), ESearchCase::IgnoreCase))           { OutType = SAMPLERTYPE_Normal;           return true; }
+        if (S.Equals(TEXT("Masks"), ESearchCase::IgnoreCase) ||
+            S.Equals(TEXT("Mask"), ESearchCase::IgnoreCase))             { OutType = SAMPLERTYPE_Masks;            return true; }
+        if (S.Equals(TEXT("DistanceFieldFont"), ESearchCase::IgnoreCase)){ OutType = SAMPLERTYPE_DistanceFieldFont;return true; }
+        if (S.Equals(TEXT("LinearColor"), ESearchCase::IgnoreCase))      { OutType = SAMPLERTYPE_LinearColor;      return true; }
+        if (S.Equals(TEXT("LinearGrayscale"), ESearchCase::IgnoreCase))  { OutType = SAMPLERTYPE_LinearGrayscale;  return true; }
+        return false; // unknown name — leave caller's value untouched
+    }
+
+    return false;
 }
 
 bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* Expression, const TSharedPtr<FJsonObject>& Properties, FString& OutError)
@@ -347,48 +395,63 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                 ? Properties->GetBoolField(TEXT("blend"))
                 : Properties->GetBoolField(TEXT("bBlend"));
         }
-        // Handle SamplerType property (inherited from TextureSample)
-        if (Properties->HasField(TEXT("SamplerType")) || Properties->HasField(TEXT("sampler_type")))
+        // Handle SamplerType property (inherited from TextureSample) — string or numeric.
+        EMaterialSamplerType SamplerTypeValue;
+        if (TryParseSamplerTypeField(Properties, SamplerTypeValue))
         {
-            int32 SamplerTypeValue = Properties->HasField(TEXT("SamplerType"))
-                ? (int32)Properties->GetNumberField(TEXT("SamplerType"))
-                : (int32)Properties->GetNumberField(TEXT("sampler_type"));
-            ParticleSubUVExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
+            ParticleSubUVExpr->SamplerType = SamplerTypeValue;
         }
     }
-    // Handle TextureSample
+    // Handle TextureSample — also covers parameter subtypes that derive from it:
+    // TextureSampleParameter2D, TextureObjectParameter, etc.
     else if (UMaterialExpressionTextureSample* TextureSampleExpr = Cast<UMaterialExpressionTextureSample>(Expression))
     {
-        if (Properties->HasField(TEXT("texture")))
+        if (Properties->HasField(TEXT("texture")) || Properties->HasField(TEXT("Texture")))
         {
-            FString TexturePath = Properties->GetStringField(TEXT("texture"));
+            FString TexturePath = Properties->HasField(TEXT("texture"))
+                ? Properties->GetStringField(TEXT("texture"))
+                : Properties->GetStringField(TEXT("Texture"));
             UTexture* Texture = LoadObject<UTexture>(nullptr, *TexturePath);
             if (Texture)
             {
                 TextureSampleExpr->Texture = Texture;
             }
         }
-        // Handle SamplerType property
-        // Values: 0=Color, 1=Grayscale, 2=Alpha, 3=Normal, 4=Masks, 5=DistanceFieldFont, 6=LinearColor, 7=LinearGrayscale
-        if (Properties->HasField(TEXT("SamplerType")) || Properties->HasField(TEXT("sampler_type")))
-        {
-            int32 SamplerTypeValue = Properties->HasField(TEXT("SamplerType"))
-                ? (int32)Properties->GetNumberField(TEXT("SamplerType"))
-                : (int32)Properties->GetNumberField(TEXT("sampler_type"));
 
+        // ParameterName — only meaningful for parameter subtypes (TextureSampleParameter2D,
+        // TextureObjectParameter, ...). Without this, the param stays named "None" and
+        // Material Instances cannot override its texture by name.
+        if (Properties->HasField(TEXT("ParameterName")) || Properties->HasField(TEXT("parameter_name")))
+        {
+            if (UMaterialExpressionTextureSampleParameter* TexParam = Cast<UMaterialExpressionTextureSampleParameter>(Expression))
+            {
+                FString ParamName = Properties->HasField(TEXT("parameter_name"))
+                    ? Properties->GetStringField(TEXT("parameter_name"))
+                    : Properties->GetStringField(TEXT("ParameterName"));
+                TexParam->SetParameterName(FName(*ParamName));
+            }
+        }
+
+        // Handle SamplerType property — accepts an enum-name string ("Normal", "Masks",
+        // "LinearColor", ...) or a numeric index. Numeric-only parsing previously made
+        // string values silently fall back to SAMPLERTYPE_Color (0).
+        // Values: 0=Color, 1=Grayscale, 2=Alpha, 3=Normal, 4=Masks, 5=DistanceFieldFont, 6=LinearColor, 7=LinearGrayscale
+        EMaterialSamplerType SamplerTypeValue;
+        if (TryParseSamplerTypeField(Properties, SamplerTypeValue))
+        {
             // Use PreEditChange/PostEditChangeProperty for proper notification
             FProperty* SamplerTypeProp = TextureSampleExpr->GetClass()->FindPropertyByName(TEXT("SamplerType"));
             if (SamplerTypeProp)
             {
                 TextureSampleExpr->PreEditChange(SamplerTypeProp);
-                TextureSampleExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
+                TextureSampleExpr->SamplerType = SamplerTypeValue;
                 FPropertyChangedEvent PropertyChangedEvent(SamplerTypeProp);
                 TextureSampleExpr->PostEditChangeProperty(PropertyChangedEvent);
             }
             else
             {
                 // Fallback if property not found
-                TextureSampleExpr->SamplerType = (EMaterialSamplerType)SamplerTypeValue;
+                TextureSampleExpr->SamplerType = SamplerTypeValue;
             }
         }
     }

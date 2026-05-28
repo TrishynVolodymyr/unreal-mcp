@@ -7,6 +7,11 @@
 #include "UObject/UnrealType.h"
 #include "Serialization/ObjectReader.h"
 #include "Misc/StringOutputDevice.h"
+#include "Editor.h"
+#include "GameFramework/Actor.h"
+#include "Components/ActorComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "UObject/Package.h"
 
 FProjectDataAssetService& FProjectDataAssetService::Get()
 {
@@ -353,6 +358,48 @@ bool FProjectDataAssetService::SetObjectProperty(const FString& AssetPath, const
     FPropertyChangedEvent ChangedEvent(Property);
     Asset->PostEditChangeProperty(ChangedEvent);
     Asset->MarkPackageDirty();
+
+    // Force a render-state refresh for level objects so the change shows live in
+    // the editor viewport. PostEditChangeProperty alone marks render state dirty
+    // on the component, but with viewport realtime off the swap (e.g. an
+    // OverrideMaterials change) won't appear until something redraws — hence the
+    // explicit MarkRenderStateDirty + RedrawLevelEditingViewports below.
+    if (UPrimitiveComponent* AsPrimitive = Cast<UPrimitiveComponent>(Asset))
+    {
+        AsPrimitive->MarkRenderStateDirty();
+    }
+    if (UActorComponent* AsComponent = Cast<UActorComponent>(Asset))
+    {
+        if (AActor* OwningActor = AsComponent->GetOwner())
+        {
+            OwningActor->MarkComponentsRenderStateDirty();
+        }
+    }
+    else if (AActor* AsActor = Cast<AActor>(Asset))
+    {
+        AsActor->MarkComponentsRenderStateDirty();
+    }
+
+    // Objects embedded in a level (actors/components) live in a map package, not a
+    // standalone saveable asset. UEditorAssetLibrary::SaveAsset can't save a map
+    // this way, so treating that as an error is wrong — the property IS set. Mark
+    // the map dirty (user saves the level) and redraw, then report success.
+    UPackage* OwningPackage = Asset->GetOutermost();
+    const bool bIsMapObject = OwningPackage && OwningPackage->ContainsMap();
+    if (bIsMapObject)
+    {
+        if (OwningPackage)
+        {
+            OwningPackage->MarkPackageDirty();
+        }
+        if (GEditor)
+        {
+            GEditor->RedrawLevelEditingViewports(true);
+        }
+        UE_LOG(LogTemp, Display, TEXT("MCP Project: Set '%s' = '%s' on level object '%s' (render refreshed; map left dirty for manual save)"),
+            *PropertyName, *ValueString, *AssetPath);
+        return true;
+    }
 
     if (!UEditorAssetLibrary::SaveAsset(AssetPath, false))
     {
