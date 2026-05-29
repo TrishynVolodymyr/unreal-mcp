@@ -7,7 +7,8 @@
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/WorldSettings.h"
-#include "LevelEditorSubsystem.h"
+#include "FileHelpers.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -86,27 +87,38 @@ FString FSetLevelWorldSettingsCommand::Execute(const FString& Parameters)
 		return MakeWorldSettingsErr(TEXT("GEditor is null — command requires editor context"));
 	}
 
-	ULevelEditorSubsystem* LES = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>();
-	if (!LES)
+	// Resolve the World object path "/Game/Path/Name.Name" from the package path.
+	FString ObjectPath = LevelPath;
 	{
-		return MakeWorldSettingsErr(TEXT("ULevelEditorSubsystem unavailable"));
+		int32 DotIdx;
+		if (!ObjectPath.FindChar('.', DotIdx))
+		{
+			int32 SlashIdx;
+			if (LevelPath.FindLastChar('/', SlashIdx))
+			{
+				ObjectPath = LevelPath + TEXT(".") + LevelPath.RightChop(SlashIdx + 1);
+			}
+		}
 	}
 
-	if (!LES->LoadLevel(LevelPath))
-	{
-		return MakeWorldSettingsErr(FString::Printf(TEXT("Failed to load level at %s"), *LevelPath));
-	}
-
-	UWorld* World = GEditor->GetEditorWorldContext().World();
+	// Load the World OBJECT without making it the active editor world.
+	// We deliberately DO NOT use ULevelEditorSubsystem::LoadLevel: that performs a full
+	// editor map-switch, and on a malformed / World-Partition map the switch can trip the
+	// engine's map-load leak check (Fatal EditorServer.cpp:2524 "World Memory Leaks") and
+	// kill the editor. Editing WorldSettings does not require switching the active world.
+	// A missing/corrupt map returns null here, which we handle gracefully instead of crashing.
+	UWorld* World = LoadObject<UWorld>(nullptr, *ObjectPath);
 	if (!World)
 	{
-		return MakeWorldSettingsErr(TEXT("Editor world is null after LoadLevel"));
+		return MakeWorldSettingsErr(FString::Printf(
+			TEXT("Could not load a World at '%s' (missing or malformed map — e.g. a corrupt "
+				 "duplicate). Aborting safely without switching the editor world."), *LevelPath));
 	}
 
-	AWorldSettings* WS = World->GetWorldSettings();
+	AWorldSettings* WS = World->GetWorldSettings(/*bCheckStreamingPersistent*/ false, /*bChecked*/ false);
 	if (!WS)
 	{
-		return MakeWorldSettingsErr(TEXT("WorldSettings is null"));
+		return MakeWorldSettingsErr(TEXT("WorldSettings is null on the loaded world"));
 	}
 
 	bool bChanged = false;
@@ -136,9 +148,12 @@ FString FSetLevelWorldSettingsCommand::Execute(const FString& Parameters)
 	if (bChanged)
 	{
 		WS->MarkPackageDirty();
-		if (!LES->SaveCurrentLevel())
+		// Save the map package directly — no editor world switch (avoids the map-load
+		// leak-check fatal). SaveMap handles map (.umap) packages correctly, unlike
+		// UEditorAssetLibrary::SaveAsset which fails on maps.
+		if (!UEditorLoadingAndSavingUtils::SaveMap(World, LevelPath))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("SetLevelWorldSettings: SaveCurrentLevel returned false for %s"),
+			UE_LOG(LogTemp, Warning, TEXT("SetLevelWorldSettings: SaveMap returned false for %s"),
 				*LevelPath);
 		}
 	}

@@ -5,6 +5,7 @@
 #include "Misc/Paths.h"
 #include "HAL/PlatformFileManager.h"
 #include "Editor.h"
+#include "Engine/World.h"
 
 FProjectAssetOperations& FProjectAssetOperations::Get()
 {
@@ -19,6 +20,27 @@ bool FProjectAssetOperations::DuplicateAsset(const FString& SourcePath, const FS
     {
         OutError = FString::Printf(TEXT("Source asset does not exist: %s"), *SourcePath);
         return false;
+    }
+
+    // Refuse to duplicate Worlds/levels (.umap). Generic asset duplication
+    // (UEditorAssetLibrary::DuplicateAsset) does NOT handle level-specific data —
+    // World Partition external actor packages and data layers in particular — and
+    // silently produces a structurally-malformed World. Loading that broken duplicate
+    // later trips the engine's map-load leak check (Fatal EditorServer.cpp:2524
+    // "World Memory Leaks") and kills the editor. Levels must be created via
+    // create_level (optionally from a template) or "Save Current As" in-editor.
+    {
+        const FAssetData SrcData = UEditorAssetLibrary::FindAssetData(SourcePath);
+        if (SrcData.IsValid() && SrcData.AssetClassPath == UWorld::StaticClass()->GetClassPathName())
+        {
+            OutError = FString::Printf(
+                TEXT("Refusing to duplicate '%s': it is a level/map (World). Generic asset "
+                     "duplication corrupts levels (World Partition external actors/data layers "
+                     "are not handled) and crashes the editor when the duplicate is loaded. "
+                     "Use create_level (optionally with a template), or 'Save Current As' in the editor."),
+                *SourcePath);
+            return false;
+        }
     }
 
     // Ensure destination path exists

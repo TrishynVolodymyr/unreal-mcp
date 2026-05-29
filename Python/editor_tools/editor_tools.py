@@ -716,8 +716,11 @@ def register_editor_tools(mcp: FastMCP):
         """
         Modify a level's World Settings. Currently supports GameMode override.
 
-        Loads the target level, applies changes, saves. Target level becomes the
-        editor's active world after this call.
+        Edits the level's WorldSettings in place and saves the map package. Does NOT
+        switch the active editor world (the level is loaded as an object, not opened as
+        the current map) — this avoids the editor map-load leak-check fatal that could
+        occur when switching into a World Partition / malformed level. A missing or
+        corrupt target map returns an error instead of crashing the editor.
 
         Args:
             level_path: Full asset path of the level (e.g., "/Game/Tests/TestLevel_Building")
