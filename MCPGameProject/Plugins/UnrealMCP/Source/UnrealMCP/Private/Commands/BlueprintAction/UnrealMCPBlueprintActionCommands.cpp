@@ -63,7 +63,18 @@
 // Utility to convert CamelCase function names to Title Case (e.g., "GetActorLocation" -> "Get Actor Location")
 static FString ConvertCamelCaseToTitleCase(const FString& InFunctionName)
 {
-    
+    FString Out;
+    Out.Reserve(InFunctionName.Len() * 2);
+    for (int32 i = 0; i < InFunctionName.Len(); ++i)
+    {
+        const TCHAR Ch = InFunctionName[i];
+        if (i > 0 && FChar::IsUpper(Ch) && !FChar::IsUpper(InFunctionName[i - 1]))
+        {
+            Out.AppendChar(TEXT(' '));
+        }
+        Out.AppendChar(Ch);
+    }
+    return Out;
 }
 
 // Phase 2 includes removed - using universal dynamic creation via Blueprint Action Database
