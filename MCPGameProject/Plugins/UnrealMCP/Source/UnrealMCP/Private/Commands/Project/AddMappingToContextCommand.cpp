@@ -5,8 +5,54 @@
 #include "Serialization/JsonWriter.h"
 #include "EnhancedInput/Public/InputMappingContext.h"
 #include "EnhancedInput/Public/InputAction.h"
+#include "EnhancedInput/Public/InputTriggers.h"
 #include "EditorAssetLibrary.h"
 #include "Engine/Engine.h"
+#include "AssetToolsModule.h"
+#include "Misc/PackageName.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "InputCoreTypes.h"
+
+namespace
+{
+    // Find-or-create a Digital modifier Input Action (e.g. IA_Mod_Ctrl) in the same package
+    // path as the IMC, and ensure its key is mapped in the context so the chord gets driven.
+    // Used to back the ctrl/shift/alt/cmd chord flags on add_mapping_to_context.
+    UInputAction* FindOrCreateModifierAction(UInputMappingContext* Context,
+                                             const FKey& ModKey, const FString& AssetName)
+    {
+        const FString PkgPath = FPackageName::GetLongPackagePath(Context->GetOutermost()->GetName());
+        const FString PackageName = PkgPath / AssetName;
+
+        UInputAction* ModAction = nullptr;
+        if (UEditorAssetLibrary::DoesAssetExist(PackageName))
+        {
+            ModAction = Cast<UInputAction>(UEditorAssetLibrary::LoadAsset(PackageName));
+        }
+        if (!ModAction)
+        {
+            FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+            UObject* Created = AssetToolsModule.Get().CreateAsset(AssetName, PkgPath, UInputAction::StaticClass(), nullptr);
+            ModAction = Cast<UInputAction>(Created);
+            if (ModAction)
+            {
+                ModAction->ValueType = EInputActionValueType::Boolean;
+                ModAction->MarkPackageDirty();
+                FAssetRegistryModule& ARM = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+                ARM.Get().AssetCreated(ModAction);
+            }
+        }
+        if (!ModAction) { return nullptr; }
+
+        bool bMapped = false;
+        for (const FEnhancedActionKeyMapping& M : Context->GetMappings())
+        {
+            if (M.Action == ModAction && M.Key == ModKey) { bMapped = true; break; }
+        }
+        if (!bMapped) { Context->MapKey(ModAction, ModKey); }
+        return ModAction;
+    }
+}
 
 FAddMappingToContextCommand::FAddMappingToContextCommand(TSharedPtr<IProjectService> InProjectService)
     : ProjectService(InProjectService)
@@ -138,13 +184,66 @@ FString FAddMappingToContextCommand::Execute(const FString& Parameters)
         return OutputString;
     }
 
-    // Create the enhanced input mapping
-    FEnhancedActionKeyMapping& NewMapping = Context->MapKey(Action, InputKey);
+    // Optional: chord-blocker mode adds a ChordBlocker to an EXISTING (action,key) mapping
+    // instead of creating a new mapping — prevents a bare-key action firing while the chord
+    // (e.g. Ctrl) is held.
+    bool bChordBlocker = false;
+    JsonObject->TryGetBoolField(TEXT("chord_blocker"), bChordBlocker);
 
-    // Set modifiers if specified (note: modifier implementation would need additional work for full functionality)
-    if (bShift || bCtrl || bAlt || bCmd)
+    // Resolve modifier IAs FIRST. FindOrCreateModifierAction may call Context->MapKey (which
+    // mutates the Mappings array), so do this BEFORE taking any FEnhancedActionKeyMapping&
+    // reference below — otherwise that reference could dangle on reallocation.
+    struct FModSpec { bool bWanted; FKey Key; const TCHAR* Name; };
+    const FModSpec ModSpecs[] = {
+        { bCtrl,  EKeys::LeftControl, TEXT("IA_Mod_Ctrl")  },
+        { bShift, EKeys::LeftShift,   TEXT("IA_Mod_Shift") },
+        { bAlt,   EKeys::LeftAlt,     TEXT("IA_Mod_Alt")   },
+        { bCmd,   EKeys::LeftCommand, TEXT("IA_Mod_Cmd")   },
+    };
+    TArray<UInputAction*> ModActions;
+    for (const FModSpec& M : ModSpecs)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Modifier keys requested but not fully implemented in this version"));
+        if (M.bWanted)
+        {
+            if (UInputAction* Mod = FindOrCreateModifierAction(Context, M.Key, M.Name))
+            {
+                ModActions.Add(Mod);
+            }
+        }
+    }
+
+    if (bChordBlocker)
+    {
+        // Add ChordBlocker trigger(s) to the EXISTING (Action, Key) mapping, in place.
+        TArray<FEnhancedActionKeyMapping>& Mappings =
+            const_cast<TArray<FEnhancedActionKeyMapping>&>(Context->GetMappings());
+        FEnhancedActionKeyMapping* Existing = Mappings.FindByPredicate(
+            [&](const FEnhancedActionKeyMapping& M){ return M.Action == Action && M.Key == InputKey; });
+        if (!Existing) { Existing = &Context->MapKey(Action, InputKey); }
+        for (UInputAction* Mod : ModActions)
+        {
+            // Outer MUST be the Context: Triggers is an Instanced array owned by the IMC.
+            // Using the Action as Outer puts the trigger in the IA's package and makes the
+            // IMC's cross-package reference "private" → IMC fails to save.
+            UInputTriggerChordBlocker* Blocker = NewObject<UInputTriggerChordBlocker>(Context);
+            Blocker->ChordAction = Mod;
+            Existing->Triggers.Add(Blocker);
+        }
+    }
+    else
+    {
+        // Create the mapping + attach a ChordAction trigger per requested modifier. A ChordAction
+        // is an implicit trigger (Enhanced Input auto-orders chord evaluation via
+        // FDependentChordTracker), so the key fires only while the modifier IA is also held.
+        FEnhancedActionKeyMapping& NewMapping = Context->MapKey(Action, InputKey);
+        for (UInputAction* Mod : ModActions)
+        {
+            // Outer MUST be the Context (Instanced Triggers array is owned by the IMC) — see
+            // the blocker branch above: Action-as-Outer breaks IMC save (private cross-pkg ref).
+            UInputTriggerChordAction* Chord = NewObject<UInputTriggerChordAction>(Context);
+            Chord->ChordAction = Mod;
+            NewMapping.Triggers.Add(Chord);
+        }
     }
 
     // Mark the context as dirty
