@@ -166,7 +166,8 @@ def register_project_tools(mcp: FastMCP):
         shift: bool = False,
         ctrl: bool = False,
         alt: bool = False,
-        cmd: bool = False
+        cmd: bool = False,
+        chord_blocker: bool = False
     ) -> Dict[str, Any]:
         """
         Add a key mapping to an Input Mapping Context.
@@ -179,6 +180,9 @@ def register_project_tools(mcp: FastMCP):
             ctrl: Whether Ctrl modifier is required
             alt: Whether Alt modifier is required
             cmd: Whether Cmd modifier is required
+            chord_blocker: If True, add a ChordBlocker to the EXISTING (action,key) mapping
+                instead of creating a new mapping. Prevents a bare-key action firing when the
+                chord (e.g. Ctrl) is held. Pair with the same modifier flags as the chord.
 
         Example:
             add_mapping_to_context(
@@ -202,7 +206,8 @@ def register_project_tools(mcp: FastMCP):
                 "shift": shift,
                 "ctrl": ctrl,
                 "alt": alt,
-                "cmd": cmd
+                "cmd": cmd,
+                "chord_blocker": chord_blocker
             }
 
             logger.info(f"Adding mapping for '{key}' to context '{context_path}' -> action '{action_path}'")
