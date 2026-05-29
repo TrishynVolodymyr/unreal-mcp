@@ -177,7 +177,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                     FString NodeId = GetSafeNodeIdForQuery(Node, NodeTitle);
 
                     // Get node type
-                    FString NodeType = Node->GetClass()->GetName();
+                    FString NodeClassName = Node->GetClass()->GetName();
 
                     // Get node position
                     FVector2D Position(Node->NodePosX, Node->NodePosY);
@@ -186,7 +186,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                     TArray<FBlueprintPinInfo> PinInfos = GetNodePinInfo(Node);
 
                     // Create node info and set IsPure flag
-                    FBlueprintNodeInfo NodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos);
+                    FBlueprintNodeInfo NodeInfo(NodeId, NodeTitle, NodeClassName, Position, PinInfos);
                     NodeInfo.IsPure = IsNodePure(Node);
                     OutNodeInfos.Add(NodeInfo);
                 }
@@ -214,7 +214,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                             FString NodeId = GetSafeNodeIdForQuery(Node, NodeTitle);
 
                             // Get node type
-                            FString NodeType = Node->GetClass()->GetName();
+                            FString NodeClassName = Node->GetClass()->GetName();
 
                             // Get node position
                             FVector2D Position(Node->NodePosX, Node->NodePosY);
@@ -223,7 +223,7 @@ bool FBlueprintNodeQueryService::FindBlueprintNodes(UBlueprint* Blueprint, const
                             TArray<FBlueprintPinInfo> PinInfos = GetNodePinInfo(Node);
 
                             // Create node info and set IsPure flag
-                            FBlueprintNodeInfo NodeInfo(NodeId, NodeTitle, NodeType, Position, PinInfos);
+                            FBlueprintNodeInfo NodeInfo(NodeId, NodeTitle, NodeClassName, Position, PinInfos);
                             NodeInfo.IsPure = IsNodePure(Node);
                             OutNodeInfos.Add(NodeInfo);
                         }
