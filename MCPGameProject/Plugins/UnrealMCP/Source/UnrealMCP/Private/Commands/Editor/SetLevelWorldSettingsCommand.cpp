@@ -12,7 +12,7 @@
 
 namespace
 {
-	FString MakeErr(const FString& Msg)
+	FString MakeWorldSettingsErr(const FString& Msg)
 	{
 		TSharedPtr<FJsonObject> Obj = MakeShared<FJsonObject>();
 		Obj->SetBoolField(TEXT("success"), false);
@@ -70,13 +70,13 @@ FString FSetLevelWorldSettingsCommand::Execute(const FString& Parameters)
 	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters);
 	if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
 	{
-		return MakeErr(TEXT("Invalid JSON parameters"));
+		return MakeWorldSettingsErr(TEXT("Invalid JSON parameters"));
 	}
 
 	FString LevelPath;
 	if (!JsonObject->TryGetStringField(TEXT("level_path"), LevelPath) || LevelPath.IsEmpty())
 	{
-		return MakeErr(TEXT("Missing 'level_path' parameter"));
+		return MakeWorldSettingsErr(TEXT("Missing 'level_path' parameter"));
 	}
 
 	FString GameModePath;
@@ -84,7 +84,7 @@ FString FSetLevelWorldSettingsCommand::Execute(const FString& Parameters)
 
 	if (!GEditor)
 	{
-		return MakeErr(TEXT("GEditor is null — command requires editor context"));
+		return MakeWorldSettingsErr(TEXT("GEditor is null — command requires editor context"));
 	}
 
 	// Resolve the World object path "/Game/Path/Name.Name" from the package path.
@@ -110,7 +110,7 @@ FString FSetLevelWorldSettingsCommand::Execute(const FString& Parameters)
 	UWorld* World = LoadObject<UWorld>(nullptr, *ObjectPath);
 	if (!World)
 	{
-		return MakeErr(FString::Printf(
+		return MakeWorldSettingsErr(FString::Printf(
 			TEXT("Could not load a World at '%s' (missing or malformed map — e.g. a corrupt "
 				 "duplicate). Aborting safely without switching the editor world."), *LevelPath));
 	}
@@ -118,7 +118,7 @@ FString FSetLevelWorldSettingsCommand::Execute(const FString& Parameters)
 	AWorldSettings* WS = World->GetWorldSettings(/*bCheckStreamingPersistent*/ false, /*bChecked*/ false);
 	if (!WS)
 	{
-		return MakeErr(TEXT("WorldSettings is null on the loaded world"));
+		return MakeWorldSettingsErr(TEXT("WorldSettings is null on the loaded world"));
 	}
 
 	bool bChanged = false;
@@ -136,7 +136,7 @@ FString FSetLevelWorldSettingsCommand::Execute(const FString& Parameters)
 			UClass* GMClass = ResolveGameModeClass(GameModePath);
 			if (!GMClass)
 			{
-				return MakeErr(FString::Printf(
+				return MakeWorldSettingsErr(FString::Printf(
 					TEXT("Could not resolve GameMode class from path: %s"), *GameModePath));
 			}
 			WS->DefaultGameMode = GMClass;

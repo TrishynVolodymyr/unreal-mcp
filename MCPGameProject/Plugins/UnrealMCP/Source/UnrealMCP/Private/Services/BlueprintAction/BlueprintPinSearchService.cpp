@@ -317,12 +317,12 @@ FString FBlueprintPinSearchService::GetActionsForPin(
                 continue;
             }
             FString PropName = Property->GetName();
-            FString PinType = Property->GetCPPType();
+            FString PropertyPinType = Property->GetCPPType();
             FString Category = TEXT("Native Property");
-            FString Keywords = FString::Printf(TEXT("property variable %s %s native"), *PropName, *PinType);
+            FString Keywords = FString::Printf(TEXT("property variable %s %s native"), *PropName, *PropertyPinType);
             FString Tooltip = FString::Printf(TEXT("Access the %s property on %s"), *PropName, *TargetClass->GetName());
             // Apply search filter
-            if (!SearchFilter.IsEmpty() && !(PropName.ToLower().Contains(SearchFilter.ToLower()) || PinType.ToLower().Contains(SearchFilter.ToLower()) || Keywords.ToLower().Contains(SearchFilter.ToLower())))
+            if (!SearchFilter.IsEmpty() && !(PropName.ToLower().Contains(SearchFilter.ToLower()) || PropertyPinType.ToLower().Contains(SearchFilter.ToLower()) || Keywords.ToLower().Contains(SearchFilter.ToLower())))
             {
                 continue;
             }
@@ -334,7 +334,7 @@ FString FBlueprintPinSearchService::GetActionsForPin(
                 GetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 GetterObj->SetStringField(TEXT("category"), Category);
                 GetterObj->SetStringField(TEXT("variable_name"), PropName);
-                GetterObj->SetStringField(TEXT("pin_type"), PinType);
+                GetterObj->SetStringField(TEXT("pin_type"), PropertyPinType);
                 GetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Get %s"), *DisplayName));
                 GetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(GetterObj));
@@ -349,7 +349,7 @@ FString FBlueprintPinSearchService::GetActionsForPin(
                 SetterObj->SetStringField(TEXT("tooltip"), Tooltip);
                 SetterObj->SetStringField(TEXT("category"), Category);
                 SetterObj->SetStringField(TEXT("variable_name"), PropName);
-                SetterObj->SetStringField(TEXT("pin_type"), PinType);
+                SetterObj->SetStringField(TEXT("pin_type"), PropertyPinType);
                 SetterObj->SetStringField(TEXT("function_name"), FString::Printf(TEXT("Set %s"), *DisplayName));
                 SetterObj->SetBoolField(TEXT("is_native_property"), true);
                 ActionsArray.Add(MakeShared<FJsonValueObject>(SetterObj));

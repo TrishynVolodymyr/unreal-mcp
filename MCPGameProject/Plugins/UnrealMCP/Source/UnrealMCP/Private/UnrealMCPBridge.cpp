@@ -249,7 +249,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
             else
             {
                 // Define command arrays for better maintenance
-                static const TArray<FString> EditorCommands = {
+                static const TArray<FString> EditorCommandsList = {
                     TEXT("spawn_actor"),
                     TEXT("create_actor"),
                     TEXT("delete_actor"),
@@ -352,7 +352,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                     }
                 }
                 // Fall back to legacy command handlers
-                else if (EditorCommands.Contains(CommandType))
+                else if (EditorCommandsList.Contains(CommandType))
                 {
                     ResultJson = this->EditorCommands->HandleCommand(CommandType, Params);
                 }
