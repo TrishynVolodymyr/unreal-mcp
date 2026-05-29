@@ -621,6 +621,11 @@ def register_project_tools(mcp: FastMCP):
         This is useful for creating copies of existing assets as starting points for new functionality,
         avoiding the need to recreate complex assets from scratch.
 
+        NOTE: Levels/maps (Worlds, .umap) CANNOT be duplicated with this tool — it refuses
+        them with an error. Generic asset duplication corrupts levels (World Partition
+        external actors / data layers aren't handled) and crashes the editor on load.
+        To copy a level use create_level (optionally with a template) or "Save Current As".
+
         Args:
             source_path: Full path to the source asset (e.g., "/Game/Inventory/UI/WBP_InventorySlot")
             new_name: Name for the new asset (e.g., "WBP_LootSlot")
