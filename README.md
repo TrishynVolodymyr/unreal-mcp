@@ -604,6 +604,8 @@ This is a fork and continuation of the original [unreal-mcp](https://github.com/
 
 ### Contributors
 - **[asseti6](https://github.com/asseti6)** - Animation Blueprint MCP module, batch actor operations, enhanced Material Instance tools, Niagara parameter helpers, DataAsset tools, runtime help system, StateTree AI system MCP module
+- **[sawich](https://github.com/sawich)** - Prevent silent MCP TCP freezes with timeouts and always-respond protocol
+- **[abrady](https://github.com/abrady)** - macOS clang `-Werror` build fixes, httpcore bump (1.0.7 → 1.0.8) to fix Python 3.14 import crash
 
 ### Built With
 - [FastMCP](https://github.com/anthropics/fastmcp) - Python MCP framework by Anthropic
