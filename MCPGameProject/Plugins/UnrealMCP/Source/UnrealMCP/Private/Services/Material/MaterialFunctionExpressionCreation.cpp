@@ -80,6 +80,8 @@ UMaterialExpression* FMaterialExpressionService::AddExpressionToFunction(
                     InputExpr->InputType = FunctionInput_Texture2D;
                 else if (InputTypeStr == TEXT("Bool") || InputTypeStr == TEXT("StaticBool"))
                     InputExpr->InputType = FunctionInput_StaticBool;
+                else if (InputTypeStr == TEXT("MaterialAttributes") || InputTypeStr == TEXT("MaterialAttribute"))
+                    InputExpr->InputType = FunctionInput_MaterialAttributes;
             }
 
             int32 SortPriority;
