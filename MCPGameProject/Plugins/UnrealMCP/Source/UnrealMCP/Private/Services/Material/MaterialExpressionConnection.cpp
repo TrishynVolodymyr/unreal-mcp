@@ -4,8 +4,98 @@
 #include "MaterialGraph/MaterialGraphSchema.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Materials/MaterialFunction.h"
+#include "Materials/MaterialExpressionSetMaterialAttributes.h"
+#include "Materials/MaterialAttributeDefinitionMap.h"
+#include "MaterialShared.h"
 #include "Misc/PackageName.h"
 #include "UObject/SavePackage.h"
+
+namespace
+{
+    // Strict name -> EMaterialProperty map. Unlike the service's
+    // GetMaterialPropertyFromString (which defaults unknown names to
+    // MP_EmissiveColor), this returns MP_MAX for anything unrecognized so we
+    // never silently create the wrong attribute pin.
+    EMaterialProperty NameToMaterialPropertyStrict(const FString& Name)
+    {
+        static const TMap<FString, EMaterialProperty> Map = {
+            { TEXT("BaseColor"),            MP_BaseColor },
+            { TEXT("Metallic"),             MP_Metallic },
+            { TEXT("Specular"),             MP_Specular },
+            { TEXT("Roughness"),            MP_Roughness },
+            { TEXT("Anisotropy"),           MP_Anisotropy },
+            { TEXT("EmissiveColor"),        MP_EmissiveColor },
+            { TEXT("Opacity"),              MP_Opacity },
+            { TEXT("OpacityMask"),          MP_OpacityMask },
+            { TEXT("Normal"),               MP_Normal },
+            { TEXT("Tangent"),              MP_Tangent },
+            { TEXT("WorldPositionOffset"),  MP_WorldPositionOffset },
+            { TEXT("SubsurfaceColor"),      MP_SubsurfaceColor },
+            { TEXT("AmbientOcclusion"),     MP_AmbientOcclusion },
+            { TEXT("Refraction"),           MP_Refraction },
+            { TEXT("PixelDepthOffset"),     MP_PixelDepthOffset },
+            { TEXT("Displacement"),         MP_Displacement },
+        };
+        for (const TPair<FString, EMaterialProperty>& Pair : Map)
+        {
+            if (Name.Equals(Pair.Key, ESearchCase::IgnoreCase))
+            {
+                return Pair.Value;
+            }
+        }
+        return MP_MAX;
+    }
+
+    // Resolve the target input pin by name. Handles the normal named-input case
+    // and the special SetMaterialAttributes node, whose per-attribute input pins
+    // (e.g. "OpacityMask") do not exist until the attribute's GUID is added to
+    // AttributeSetTypes. When the requested name is a known material attribute we
+    // add the pin on demand so callers can wire it. Returns nullptr (and fills
+    // OutAvailable) if the input cannot be resolved.
+    FExpressionInput* ResolveTargetInput(UMaterialExpression* TargetExpr, const FString& InputName, FString& OutAvailable)
+    {
+        const int32 NumInputs = TargetExpr->GetInputsView().Num();
+        for (int32 i = 0; i < NumInputs; ++i)
+        {
+            if (TargetExpr->GetInputName(i).ToString().Equals(InputName, ESearchCase::IgnoreCase))
+            {
+                return TargetExpr->GetInput(i);
+            }
+        }
+
+        // SetMaterialAttributes: dynamically expose the requested attribute pin.
+        if (UMaterialExpressionSetMaterialAttributes* SetAttr = Cast<UMaterialExpressionSetMaterialAttributes>(TargetExpr))
+        {
+            const EMaterialProperty Prop = NameToMaterialPropertyStrict(InputName);
+            if (Prop != MP_MAX)
+            {
+                const FGuid AttrId = FMaterialAttributeDefinitionMap::GetID(Prop);
+                int32 AttrIdx = SetAttr->AttributeSetTypes.IndexOfByKey(AttrId);
+                if (AttrIdx == INDEX_NONE)
+                {
+                    SetAttr->Modify();
+                    SetAttr->AttributeSetTypes.Add(AttrId);
+                    AttrIdx = SetAttr->AttributeSetTypes.Num() - 1;
+                }
+                // Input[0] is the base MaterialAttributes pin; each attribute adds
+                // one input at index (attribute index + 1).
+                while (SetAttr->Inputs.Num() < SetAttr->AttributeSetTypes.Num() + 1)
+                {
+                    SetAttr->Inputs.AddDefaulted();
+                }
+                return &SetAttr->Inputs[AttrIdx + 1];
+            }
+        }
+
+        TArray<FString> Available;
+        for (int32 i = 0; i < NumInputs; ++i)
+        {
+            Available.Add(TargetExpr->GetInputName(i).ToString());
+        }
+        OutAvailable = FString::Join(Available, TEXT(", "));
+        return nullptr;
+    }
+}
 
 bool FMaterialExpressionService::ConnectExpressions(
     const FMaterialExpressionConnectionParams& Params,
@@ -39,29 +129,16 @@ bool FMaterialExpressionService::ConnectExpressions(
             return false;
         }
 
-        // Find target input by name
-        int32 TargetInputIndex = -1;
-        int32 NumInputs = TargetExpr->GetInputsView().Num();
-        for (int32 i = 0; i < NumInputs; ++i)
+        // Resolve target input (handles SetMaterialAttributes dynamic attribute pins)
+        FString AvailableInputs;
+        FExpressionInput* TargetInput = ResolveTargetInput(TargetExpr, Params.TargetInputName, AvailableInputs);
+        if (!TargetInput)
         {
-            if (TargetExpr->GetInputName(i).ToString().Equals(Params.TargetInputName, ESearchCase::IgnoreCase))
-            {
-                TargetInputIndex = i;
-                break;
-            }
-        }
-
-        if (TargetInputIndex < 0)
-        {
-            TArray<FString> AvailableInputs;
-            for (int32 i = 0; i < NumInputs; ++i)
-                AvailableInputs.Add(TargetExpr->GetInputName(i).ToString());
             OutError = FString::Printf(TEXT("Input '%s' not found. Available: %s"),
-                *Params.TargetInputName, *FString::Join(AvailableInputs, TEXT(", ")));
+                *Params.TargetInputName, *AvailableInputs);
             return false;
         }
 
-        FExpressionInput* TargetInput = TargetExpr->GetInput(TargetInputIndex);
         SourceExpr->Modify();
         TargetExpr->Modify();
         SourceExpr->ConnectExpression(TargetInput, Params.SourceOutputIndex);
@@ -112,37 +189,13 @@ bool FMaterialExpressionService::ConnectExpressions(
         return false;
     }
 
-    // Find target input by name
-    int32 TargetInputIndex = -1;
-    int32 NumInputs = TargetExpr->GetInputsView().Num();
-    for (int32 i = 0; i < NumInputs; ++i)
-    {
-        FName InputName = TargetExpr->GetInputName(i);
-        if (InputName.ToString().Equals(Params.TargetInputName, ESearchCase::IgnoreCase))
-        {
-            TargetInputIndex = i;
-            break;
-        }
-    }
-
-    if (TargetInputIndex < 0)
-    {
-        // Build list of available input names for error message
-        TArray<FString> AvailableInputs;
-        for (int32 i = 0; i < NumInputs; ++i)
-        {
-            AvailableInputs.Add(TargetExpr->GetInputName(i).ToString());
-        }
-        OutError = FString::Printf(TEXT("Input '%s' not found on target expression. Available inputs: %s"),
-            *Params.TargetInputName, *FString::Join(AvailableInputs, TEXT(", ")));
-        return false;
-    }
-
-    // Get the target input
-    FExpressionInput* TargetInput = TargetExpr->GetInput(TargetInputIndex);
+    // Resolve target input (handles SetMaterialAttributes dynamic attribute pins)
+    FString AvailableInputs;
+    FExpressionInput* TargetInput = ResolveTargetInput(TargetExpr, Params.TargetInputName, AvailableInputs);
     if (!TargetInput)
     {
-        OutError = FString::Printf(TEXT("Failed to get input at index %d on target expression"), TargetInputIndex);
+        OutError = FString::Printf(TEXT("Input '%s' not found on target expression. Available inputs: %s"),
+            *Params.TargetInputName, *AvailableInputs);
         return false;
     }
 
@@ -233,29 +286,12 @@ bool FMaterialExpressionService::ConnectExpressionsBatch(
             continue;
         }
 
-        // Find target input by name
-        int32 TargetInputIndex = -1;
-        int32 NumInputs = TargetExpr->GetInputsView().Num();
-        for (int32 i = 0; i < NumInputs; ++i)
-        {
-            FName InputName = TargetExpr->GetInputName(i);
-            if (InputName.ToString().Equals(Conn.TargetInputName, ESearchCase::IgnoreCase))
-            {
-                TargetInputIndex = i;
-                break;
-            }
-        }
-
-        if (TargetInputIndex < 0)
-        {
-            OutResults.Add(FString::Printf(TEXT("FAILED: Input '%s' not found on target"), *Conn.TargetInputName));
-            continue;
-        }
-
-        FExpressionInput* TargetInput = TargetExpr->GetInput(TargetInputIndex);
+        // Resolve target input (handles SetMaterialAttributes dynamic attribute pins)
+        FString AvailableInputs;
+        FExpressionInput* TargetInput = ResolveTargetInput(TargetExpr, Conn.TargetInputName, AvailableInputs);
         if (!TargetInput)
         {
-            OutResults.Add(FString::Printf(TEXT("FAILED: Could not get input at index %d"), TargetInputIndex));
+            OutResults.Add(FString::Printf(TEXT("FAILED: Input '%s' not found on target. Available: %s"), *Conn.TargetInputName, *AvailableInputs));
             continue;
         }
 
