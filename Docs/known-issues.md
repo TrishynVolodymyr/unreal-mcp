@@ -4,6 +4,27 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ## Active Issues
 
+### MCP TCP Connection Freezes (Mitigated 2026-05-31)
+- **Affected**: All MCP servers communicating via TCP port 55557
+- **Previous Problem**: After long sessions, MCP tools could hang silently with no error returned to Cursor. Causes included:
+  - C++ server logging parse errors but never sending a response (client/server deadlock)
+  - `Future.Get()` blocking the server thread indefinitely when the game thread was stalled (modal dialogs, heavy compiles)
+  - Python async clients using `reader.read(49152)` with no timeout
+  - Single 8192-byte `Recv()` truncating large command payloads
+- **Fix Applied**:
+  - C++ server always returns JSON (success or error) and uses one-shot request/response per connection
+  - Multi-chunk JSON read on C++ (up to 256 KB commands) and Python (up to 4 MB responses)
+  - 120s command timeout on C++ `ExecuteCommand`; 130s timeout on Python clients
+  - Shared async TCP utility: `Python/utils/async_tcp_utils.py`
+- **120s Timeout Policy**: Commands exceeding 120 seconds return a timeout error instead of freezing MCP. Heavy operations (large Blueprint/Niagara compiles) may hit this limit — split work into smaller steps or compile manually in the editor.
+- **Recovery if timeout occurs**:
+  1. Check UE Output Log for `"Command timed out"` or stuck `"Executing command"`
+  2. Look for hidden modal dialogs in the editor (save prompts, Material/Niagara editor dialogs)
+  3. Restart Unreal Editor if the server thread remains wedged
+  4. Restart Python MCP servers in Cursor after UE restart
+- **Known Limitation**: A timed-out command may still complete on the game thread later (AsyncTask is not cancelled). The timeout unblocks the server thread so other MCP calls can proceed.
+- **Debug TCP logging**: Set `UNREAL_MCP_TCP_DEBUG=1` to enable `Python/tcp_debug.log` (disabled by default to avoid unbounded file growth).
+
 ### Struct Field GUID Middle Numbers Can Change When Structs Are Modified
 - **Affected**: `get_struct_pin_names`, `get_datatable_row_names`, DataTable operations
 - **Problem**: User-defined structs use GUID-based internal field names (e.g., `TestField1_2_1EAE0B8A4B971533B2AD21BF45BA9220`). The hex suffix (GUID) remains stable, but the middle number can change when the struct is modified (type changes, field additions/removals).

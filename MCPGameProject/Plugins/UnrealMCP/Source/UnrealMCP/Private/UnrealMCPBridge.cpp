@@ -456,5 +456,12 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
         AsyncTask(ENamedThreads::GameThread, MoveTemp(ExecuteLambda));
     }
 
-    return Future.Get();
+    static constexpr double CommandTimeoutSeconds = 120.0;
+    if (Future.WaitFor(FTimespan::FromSeconds(CommandTimeoutSeconds)))
+    {
+        return Future.Get();
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("UnrealMCPBridge: Command '%s' timed out after %.0f seconds"), *CommandType, CommandTimeoutSeconds);
+    return TEXT("{\"status\":\"error\",\"error\":\"Command timed out after 120 seconds\"}");
 }

@@ -5,45 +5,9 @@ Test script to verify enhanced Blueprint compilation error reporting.
 
 import asyncio
 import json
-import socket
 
-TCP_HOST = "127.0.0.1"
-TCP_PORT = 55557
+from utils.async_tcp_utils import send_tcp_command
 
-async def send_tcp_command(command_type: str, params: dict):
-    """Send a command to the Unreal Engine TCP server."""
-    try:
-        command_data = {
-            "type": command_type,
-            "params": params
-        }
-        
-        json_data = json.dumps(command_data)
-        
-        reader, writer = await asyncio.open_connection(TCP_HOST, TCP_PORT)
-        
-        writer.write(json_data.encode('utf-8'))
-        writer.write(b'\n')
-        await writer.drain()
-        
-        response_data = await reader.read(49152)  # Read up to 48KB for detailed errors
-        response_str = response_data.decode('utf-8').strip()
-        
-        writer.close()
-        await writer.wait_closed()
-        
-        if response_str:
-            try:
-                return json.loads(response_str)
-            except json.JSONDecodeError as json_err:
-                print(f"JSON Decode Error: {json_err}")
-                print(f"Response (first 500 chars): {response_str[:500]}")
-                return {"success": False, "error": f"JSON decode error: {str(json_err)}"}
-        else:
-            return {"success": False, "error": "Empty response from server"}
-            
-    except Exception as e:
-        return {"success": False, "error": f"TCP communication error: {str(e)}"}
 
 async def test_compile_blueprint(blueprint_name: str):
     """Test compiling a Blueprint and display error details."""

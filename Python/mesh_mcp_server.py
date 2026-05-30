@@ -4,50 +4,14 @@ Mesh MCP Server - Static Mesh operations for Unreal Engine.
 Includes: LOD management, mesh metadata, mesh properties.
 """
 
-import asyncio
-import json
 from typing import Any, Dict, List
 
 from fastmcp import FastMCP
 
+from utils.async_tcp_utils import send_tcp_command
+
 # Initialize FastMCP app
 app = FastMCP("Mesh MCP Server")
-
-# TCP connection settings
-TCP_HOST = "127.0.0.1"
-TCP_PORT = 55557
-
-
-async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Send a command to the Unreal Engine TCP server."""
-    try:
-        command_data = {
-            "type": command_type,
-            "params": params
-        }
-        json_data = json.dumps(command_data)
-
-        reader, writer = await asyncio.open_connection(TCP_HOST, TCP_PORT)
-        writer.write(json_data.encode('utf-8'))
-        writer.write(b'\n')
-        await writer.drain()
-
-        response_data = await reader.read(49152)
-        response_str = response_data.decode('utf-8').strip()
-
-        writer.close()
-        await writer.wait_closed()
-
-        if response_str:
-            try:
-                return json.loads(response_str)
-            except json.JSONDecodeError as json_err:
-                return {"success": False, "error": f"JSON decode error: {str(json_err)}, Response: {response_str[:200]}"}
-        else:
-            return {"success": False, "error": "Empty response from server"}
-
-    except Exception as e:
-        return {"success": False, "error": f"TCP communication error: {str(e)}"}
 
 
 # ============================================================================
