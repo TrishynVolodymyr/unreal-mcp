@@ -7,59 +7,14 @@ including creating systems, managing emitters, setting parameters, and
 configuring renderers.
 """
 
-import asyncio
-import json
 from typing import Any, Dict, List
 
 from fastmcp import FastMCP
 
+from utils.async_tcp_utils import send_tcp_command
+
 # Initialize FastMCP app
 app = FastMCP("Niagara MCP Server")
-
-# TCP connection settings
-TCP_HOST = "127.0.0.1"
-TCP_PORT = 55557
-
-
-async def send_tcp_command(command_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Send a command to the Unreal Engine TCP server."""
-    try:
-        # Create the command payload
-        command_data = {
-            "type": command_type,
-            "params": params
-        }
-
-        # Convert to JSON string
-        json_data = json.dumps(command_data)
-
-        # Connect to TCP server
-        reader, writer = await asyncio.open_connection(TCP_HOST, TCP_PORT)
-
-        # Send command
-        writer.write(json_data.encode('utf-8'))
-        writer.write(b'\n')  # Add newline delimiter
-        await writer.drain()
-
-        # Read response
-        response_data = await reader.read(49152)  # Read up to 48KB
-        response_str = response_data.decode('utf-8').strip()
-
-        # Close connection
-        writer.close()
-        await writer.wait_closed()
-
-        # Parse JSON response
-        if response_str:
-            try:
-                return json.loads(response_str)
-            except json.JSONDecodeError as json_err:
-                return {"success": False, "error": f"JSON decode error: {str(json_err)}, Response: {response_str[:200]}"}
-        else:
-            return {"success": False, "error": "Empty response from server"}
-
-    except Exception as e:
-        return {"success": False, "error": f"TCP communication error: {str(e)}"}
 
 
 # ============================================================================
