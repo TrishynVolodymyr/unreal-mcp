@@ -337,6 +337,11 @@ bool FProjectService::DeleteAsset(const FString& AssetPath, FString& OutError)
     return FProjectAssetOperations::Get().DeleteAsset(AssetPath, OutError);
 }
 
+bool FProjectService::SaveAsset(const FString& AssetPath, FString& OutError)
+{
+    return FProjectAssetOperations::Get().SaveAsset(AssetPath, OutError);
+}
+
 bool FProjectService::RenameAsset(const FString& AssetPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError)
 {
     return FProjectAssetOperations::Get().RenameAsset(AssetPath, NewName, OutNewAssetPath, OutError);

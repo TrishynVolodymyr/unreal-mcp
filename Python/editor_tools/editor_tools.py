@@ -11,6 +11,7 @@ from utils.editor.editor_operations import (
     spawn_actor as spawn_actor_impl,
     delete_actor as delete_actor_impl,
     delete_asset as delete_asset_impl,
+    save_asset as save_asset_impl,
     create_render_target as create_render_target_impl,
     set_actor_transform as set_actor_transform_impl,
     get_actor_properties as get_actor_properties_impl,
@@ -666,6 +667,34 @@ def register_editor_tools(mcp: FastMCP):
         return delete_asset_impl(ctx, asset_path)
 
     @mcp.tool()
+    def save_asset(ctx: Context, asset_path: str) -> Dict[str, Any]:
+        """
+        Save an asset's package to disk (persist a dirty / in-memory asset).
+
+        Writes the asset's .uasset to disk regardless of dirty state. Use this when an
+        asset was created or modified in memory but not yet persisted — e.g. a texture
+        built in C++ via NewObject + MarkPackageDirty, or an asset edited via MCP that
+        left the package dirty — so commits/reloads don't hit a stale or missing file.
+
+        Args:
+            asset_path: Full path to the asset to save (e.g., "/Game/Tests/VT_ColonyOccupancy")
+
+        Returns:
+            Dict containing:
+            - success: Whether the save succeeded
+            - asset_path: The saved asset path
+            - message: Status message or error description
+
+        Examples:
+            # Persist a runtime-generated volume texture
+            save_asset(asset_path="/Game/Tests/VT_ColonyOccupancy")
+
+            # Persist a material edited via MCP
+            save_asset(asset_path="/Game/Materials/M_MyMaterial")
+        """
+        return save_asset_impl(ctx, asset_path)
+
+    @mcp.tool()
     def create_level(
         ctx: Context,
         level_name: str,
@@ -1173,6 +1202,7 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
     _help_registry.register(delete_asset, category="assets")
+    _help_registry.register(save_asset, category="assets")
     _help_registry.register(create_render_target, category="assets")
     _help_registry.register(set_actor_transform, category="actors")
     _help_registry.register(get_actor_properties, category="actors")
