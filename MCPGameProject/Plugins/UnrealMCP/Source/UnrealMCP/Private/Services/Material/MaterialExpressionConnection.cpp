@@ -65,27 +65,23 @@ namespace
             }
         }
 
-        // SetMaterialAttributes: dynamically expose the requested attribute pin.
+        // SetMaterialAttributes: expose the requested attribute pin via the engine's own
+        // CreateOrGetInputAttribute(). The earlier approach manually appended to
+        // AttributeSetTypes + Inputs; that compiled in-session but the override did NOT
+        // survive serialization — on reload the emissive/basecolor pin reverted to default
+        // (only OpacityMask, which masked-blend forces live, appeared to work). The engine
+        // API does the node's full internal bookkeeping so the override persists + compiles.
         if (UMaterialExpressionSetMaterialAttributes* SetAttr = Cast<UMaterialExpressionSetMaterialAttributes>(TargetExpr))
         {
             const EMaterialProperty Prop = NameToMaterialPropertyStrict(InputName);
             if (Prop != MP_MAX)
             {
-                const FGuid AttrId = FMaterialAttributeDefinitionMap::GetID(Prop);
-                int32 AttrIdx = SetAttr->AttributeSetTypes.IndexOfByKey(AttrId);
-                if (AttrIdx == INDEX_NONE)
+                SetAttr->Modify();
+                const int32 InputIndex = SetAttr->CreateOrGetInputAttribute(Prop);
+                if (FExpressionInput* AttrInput = SetAttr->GetInput(InputIndex))
                 {
-                    SetAttr->Modify();
-                    SetAttr->AttributeSetTypes.Add(AttrId);
-                    AttrIdx = SetAttr->AttributeSetTypes.Num() - 1;
+                    return AttrInput;
                 }
-                // Input[0] is the base MaterialAttributes pin; each attribute adds
-                // one input at index (attribute index + 1).
-                while (SetAttr->Inputs.Num() < SetAttr->AttributeSetTypes.Num() + 1)
-                {
-                    SetAttr->Inputs.AddDefaulted();
-                }
-                return &SetAttr->Inputs[AttrIdx + 1];
             }
         }
 
