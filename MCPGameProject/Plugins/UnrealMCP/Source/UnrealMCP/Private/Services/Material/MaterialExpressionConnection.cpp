@@ -5,6 +5,8 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Materials/MaterialFunction.h"
 #include "Materials/MaterialExpressionSetMaterialAttributes.h"
+#include "Materials/MaterialExpressionBreakMaterialAttributes.h"
+#include "Materials/MaterialExpressionGetMaterialAttributes.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "MaterialShared.h"
 #include "Misc/PackageName.h"
@@ -85,6 +87,19 @@ namespace
                 }
                 return &SetAttr->Inputs[AttrIdx + 1];
             }
+        }
+
+        // Break/GetMaterialAttributes expose their single MaterialAttributes input as a
+        // special FMaterialAttributesInput member that is NOT part of GetInputsView(), so
+        // the name loop above can never find it. Resolve it directly (these nodes have
+        // exactly one input, so any requested name — including "" — maps to it).
+        if (UMaterialExpressionBreakMaterialAttributes* BreakAttr = Cast<UMaterialExpressionBreakMaterialAttributes>(TargetExpr))
+        {
+            return &BreakAttr->MaterialAttributes;
+        }
+        if (UMaterialExpressionGetMaterialAttributes* GetAttr = Cast<UMaterialExpressionGetMaterialAttributes>(TargetExpr))
+        {
+            return &GetAttr->MaterialAttributes;
         }
 
         TArray<FString> Available;

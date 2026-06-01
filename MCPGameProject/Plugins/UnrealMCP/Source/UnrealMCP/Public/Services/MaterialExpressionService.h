@@ -103,11 +103,11 @@ struct UNREALMCP_API FMaterialExpressionConnectionParams
             OutError = TEXT("Target expression ID is invalid");
             return false;
         }
-        if (TargetInputName.IsEmpty())
-        {
-            OutError = TEXT("Target input name cannot be empty");
-            return false;
-        }
+        // NOTE: an empty TargetInputName is intentionally allowed. It resolves to a
+        // node's *unnamed* input pin (e.g. BreakMaterialAttributes / GetMaterialAttributes,
+        // whose single MaterialAttributes input has no pin name). ResolveTargetInput matches
+        // it via GetInputName(i) == "" and still reports the available pins (so a genuine
+        // typo on a named-input node fails there with a helpful list, not silently).
         return true;
     }
 };
