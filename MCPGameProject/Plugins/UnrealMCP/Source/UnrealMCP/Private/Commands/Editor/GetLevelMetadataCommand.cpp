@@ -1,5 +1,8 @@
 #include "Commands/Editor/GetLevelMetadataCommand.h"
 #include "Utils/UnrealMCPCommonUtils.h"
+#include "Editor.h"
+#include "Engine/World.h"
+#include "UObject/Package.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -67,6 +70,22 @@ FString FGetLevelMetadataCommand::Execute(const FString& Parameters)
     // Build response
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
+
+    // Always include the currently-loaded editor level (short name + package path) so
+    // callers can confirm which map is open without inferring it from actor names.
+    if (GEditor)
+    {
+        if (UWorld* EditorWorld = GEditor->GetEditorWorldContext().World())
+        {
+            TSharedPtr<FJsonObject> LevelInfo = MakeShared<FJsonObject>();
+            LevelInfo->SetStringField(TEXT("name"), EditorWorld->GetMapName());
+            if (UPackage* LevelPackage = EditorWorld->GetOutermost())
+            {
+                LevelInfo->SetStringField(TEXT("path"), LevelPackage->GetName());
+            }
+            ResponseObj->SetObjectField(TEXT("level"), LevelInfo);
+        }
+    }
 
     // Add requested fields
     if (bIncludeAll || IsFieldRequested(FieldsArray, TEXT("actors")))
