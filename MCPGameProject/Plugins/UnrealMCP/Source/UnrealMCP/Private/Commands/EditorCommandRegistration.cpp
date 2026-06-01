@@ -27,6 +27,7 @@
 #include "Commands/Editor/StopPIECommand.h"
 #include "Commands/Editor/CreateLevelCommand.h"
 #include "Commands/Editor/SetLevelWorldSettingsCommand.h"
+#include "Commands/Editor/OpenLevelCommand.h"
 
 TArray<TSharedPtr<IUnrealMCPCommand>> FEditorCommandRegistration::RegisteredCommands;
 
@@ -74,6 +75,7 @@ void FEditorCommandRegistration::RegisterAllCommands()
     // Level management commands
     RegisterAndTrackCommand(MakeShared<FCreateLevelCommand>());
     RegisterAndTrackCommand(MakeShared<FSetLevelWorldSettingsCommand>());
+    RegisterAndTrackCommand(MakeShared<FOpenLevelCommand>());
 
     // Note: Additional editor commands are handled by legacy command system
     // and will be migrated to the new architecture in future iterations:

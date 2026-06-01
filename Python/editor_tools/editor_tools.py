@@ -753,6 +753,43 @@ def register_editor_tools(mcp: FastMCP):
         return set_level_world_settings_impl(ctx, level_path, game_mode)
 
     @mcp.tool()
+    def open_level(
+        ctx: Context,
+        level_path: str
+    ) -> Dict[str, Any]:
+        """
+        Open an EXISTING level (umap) as the ACTIVE editor world, by content path.
+
+        The missing counterpart to create_level (makes a NEW level active) and
+        set_level_world_settings (edits a level WITHOUT switching worlds): this switches the
+        editor's current world to an already-existing level — e.g. to leave the default
+        startup map and work on a test level.
+
+        SAFETY: World Partition levels are REFUSED. Switching the active editor world into a
+        WP map via code can trigger the engine map-load leak-check fatal (EditorServer.cpp
+        "World Memory Leaks"). The target is first loaded as an object (no world switch) to
+        detect WP; only a non-WP level is then opened. Open WP maps via the editor UI
+        (File > Open Level).
+
+        Args:
+            level_path: Package path of the level (e.g., "/Game/Tests/TestLevel_ColonyView")
+
+        Returns:
+            Dict containing:
+            - success: Whether the level was opened
+            - level_path: The level path
+            - was_world_partition: True when refused because the target is a WP level
+            - error: Message when refused/failed
+
+        Side effect:
+            A non-WP target becomes the editor's active world.
+
+        Examples:
+            open_level(level_path="/Game/Tests/TestLevel_ColonyView")
+        """
+        return send_unreal_command("open_level", {"level_path": level_path})
+
+    @mcp.tool()
     def create_render_target(
         ctx: Context,
         name: str,
