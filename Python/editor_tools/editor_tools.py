@@ -929,6 +929,48 @@ def register_editor_tools(mcp: FastMCP):
         return send_unreal_command("execute_console_command", {"command": command})
 
     @mcp.tool()
+    def set_viewport_camera(
+        ctx: Context,
+        location: list = None,
+        look_at: list = None,
+        rotation: list = None,
+        fov: float = None
+    ) -> Dict[str, Any]:
+        """
+        Set the editor perspective viewport camera (to frame the level for screenshots).
+
+        Lets you position the camera and then capture_viewport_screenshot from a chosen
+        angle without a human dragging the viewport — including orbiting a point to
+        check view-dependent rendering.
+
+        Args:
+            location: [X, Y, Z] camera world position. If omitted, keeps current.
+            look_at: [X, Y, Z] point to aim the camera at. Overrides rotation — ideal
+                     for orbiting: vary location around a target, aim at the target.
+            rotation: [Pitch, Yaw, Roll] explicit rotation (used only if look_at omitted).
+            fov: optional horizontal field of view in degrees.
+
+        Returns:
+            success, plus the applied location and rotation.
+
+        Examples:
+            # Look at a cavity centered at (0,0,300) from the +X side, slightly above
+            set_viewport_camera(location=[2500, 0, 1200], look_at=[0, 0, 300])
+            # Orbit 90 degrees: move to +Y side, still aiming at the cavity
+            set_viewport_camera(location=[0, 2500, 1200], look_at=[0, 0, 300])
+        """
+        params = {}
+        if location is not None:
+            params["location"] = location
+        if look_at is not None:
+            params["look_at"] = look_at
+        if rotation is not None:
+            params["rotation"] = rotation
+        if fov is not None:
+            params["fov"] = fov
+        return send_unreal_command("set_viewport_camera", params)
+
+    @mcp.tool()
     def get_gpu_stats(ctx: Context) -> Dict[str, Any]:
         """
         Get per-pass GPU profiler breakdown.
