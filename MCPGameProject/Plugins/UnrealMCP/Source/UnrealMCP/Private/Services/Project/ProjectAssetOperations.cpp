@@ -123,6 +123,28 @@ bool FProjectAssetOperations::DeleteAsset(const FString& AssetPath, FString& Out
     return true;
 }
 
+bool FProjectAssetOperations::SaveAsset(const FString& AssetPath, FString& OutError)
+{
+    // Validate asset exists
+    if (!UEditorAssetLibrary::DoesAssetExist(AssetPath))
+    {
+        OutError = FString::Printf(TEXT("Asset does not exist: %s"), *AssetPath);
+        return false;
+    }
+
+    // Persist the asset's package to disk. bOnlyIfIsDirty=false → always write, so callers
+    // can rely on the on-disk .uasset being current — e.g. after a C++ NewObject +
+    // MarkPackageDirty that never auto-saves, or MCP edits that leave the package dirty.
+    if (!UEditorAssetLibrary::SaveAsset(AssetPath, /*bOnlyIfIsDirty*/ false))
+    {
+        OutError = FString::Printf(TEXT("Failed to save asset: %s"), *AssetPath);
+        return false;
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("MCP Project: Successfully saved asset: %s"), *AssetPath);
+    return true;
+}
+
 bool FProjectAssetOperations::RenameAsset(const FString& AssetPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError)
 {
     // Validate inputs

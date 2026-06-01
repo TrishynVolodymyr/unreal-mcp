@@ -30,6 +30,7 @@ public:
     virtual FString GetProjectDirectory() const override;
     virtual bool DuplicateAsset(const FString& SourcePath, const FString& DestinationPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) override;
     virtual bool DeleteAsset(const FString& AssetPath, FString& OutError) override;
+    virtual bool SaveAsset(const FString& AssetPath, FString& OutError) override;
     virtual bool RenameAsset(const FString& AssetPath, const FString& NewName, FString& OutNewAssetPath, FString& OutError) override;
     virtual bool MoveAsset(const FString& AssetPath, const FString& DestinationFolder, FString& OutNewAssetPath, FString& OutError) override;
     virtual TArray<TSharedPtr<FJsonObject>> SearchAssets(const FString& Pattern, const FString& AssetClass, const FString& Folder, bool& bOutSuccess, FString& OutError) override;

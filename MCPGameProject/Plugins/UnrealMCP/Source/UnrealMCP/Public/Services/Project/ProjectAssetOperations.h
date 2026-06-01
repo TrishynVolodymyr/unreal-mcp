@@ -42,6 +42,16 @@ public:
         FString& OutError);
 
     /**
+     * Save an asset's package to disk (persist a dirty / in-memory asset).
+     * @param AssetPath - Path of the asset to save
+     * @param OutError - Output: error message if failed
+     * @return true if the asset was saved successfully
+     */
+    bool SaveAsset(
+        const FString& AssetPath,
+        FString& OutError);
+
+    /**
      * Rename an asset.
      * @param AssetPath - Current path of the asset
      * @param NewName - New name for the asset

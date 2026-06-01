@@ -15,6 +15,7 @@
 #include "Commands/Project/GetStructPinNamesCommand.h"
 #include "Commands/Project/DuplicateAssetCommand.h"
 #include "Commands/Project/DeleteAssetCommand.h"
+#include "Commands/Project/SaveAssetCommand.h"
 #include "Commands/Project/CreateFontFaceCommand.h"
 #include "Commands/Project/SetFontFacePropertiesCommand.h"
 #include "Commands/Project/GetFontFaceMetadataCommand.h"
@@ -76,6 +77,7 @@ void FProjectCommandRegistration::RegisterCommands(FUnrealMCPCommandRegistry& Re
     // Register asset management commands
     Registry.RegisterCommand(MakeShared<FDuplicateAssetCommand>(ProjectService));
     Registry.RegisterCommand(MakeShared<FDeleteAssetCommand>(ProjectService));
+    Registry.RegisterCommand(MakeShared<FSaveAssetCommand>(ProjectService));
 
     // Register viewport screenshot command
     Registry.RegisterCommand(MakeShared<FCaptureViewportScreenshotCommand>());
