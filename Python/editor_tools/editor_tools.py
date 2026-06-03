@@ -860,29 +860,34 @@ def register_editor_tools(mcp: FastMCP):
         """
         Import a static mesh from disk into the Unreal Engine project.
 
-        Supports FBX, OBJ, GLTF, GLB formats.
+        Supports FBX, OBJ. Matches the editor's default Import behaviour: a multi-mesh
+        ("pack"/"set") FBX is SPLIT into one Static Mesh per mesh, each named after its FBX
+        node, at the FBX's own scale. (It is NOT merged into a single combined mesh.)
 
         Args:
             source_file_path: Absolute path to the mesh file on disk
                 (e.g., "E:/meshes/SM_Rock_Boulder_01.fbx")
-            asset_name: Name for the imported Static Mesh asset (e.g., "SM_Rock_Boulder_01")
-            folder_path: Content folder path for the imported asset (default: "/Game/Meshes")
-            import_materials: Whether to import materials from the source file (default: False)
+            asset_name: Used ONLY when the FBX contains a single mesh — that one asset is
+                renamed to asset_name. For a multi-mesh FBX it is ignored (the per-node FBX
+                names are used), so the props land as e.g. .../axe, .../jug, .../flask.
+            folder_path: Destination Content FOLDER for the imported asset(s) (default: "/Game/Meshes")
+            import_materials: Whether to import materials/textures from the source file (default: False)
 
         Returns:
             Dictionary containing:
             - success: Whether the import was successful
-            - path: Full asset path of the imported mesh
-            - name: Name of the imported asset
-            - vertex_count: Number of vertices in LOD0
-            - triangle_count: Number of triangles in LOD0
+            - count: Number of static meshes created
+            - folder: Destination folder
+            - meshes: List of {name, path, vertex_count, triangle_count} — one per created mesh
+            - path/name/vertex_count/triangle_count: mirror of the FIRST mesh (back-compat)
             - message: Success/error message
 
         Example:
+            # A pack FBX -> separate props (alchemical_table, axe, jug, ...) under the folder
             import_static_mesh(
-                source_file_path="E:/project/Content/Environment/Rocks/SM_Rock_01.fbx",
-                asset_name="SM_Rock_01",
-                folder_path="/Game/Environment/Rocks"
+                source_file_path="C:/Downloads/alchemical_set.fbx",
+                asset_name="alchemical_set",
+                folder_path="/Game/Meshes/Props"
             )
         """
         return import_static_mesh_impl(ctx, source_file_path, asset_name, folder_path, import_materials)
