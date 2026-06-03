@@ -246,12 +246,16 @@ FString FAddMappingToContextCommand::Execute(const FString& Parameters)
         }
     }
 
-    // Mark the context as dirty
+    // Mark the context dirty + PERSIST to disk. Previously this was MarkPackageDirty-only, so the
+    // new mapping was lost on the next editor restart (the IMC reverted) — fatal when the caller
+    // adds a binding then rebuilds. SaveLoadedAsset writes the .uasset now.
     Context->MarkPackageDirty();
+    const bool bSaved = UEditorAssetLibrary::SaveLoadedAsset(Context, /*bOnlyIfIsDirty*/ false);
 
     // Create success response
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
+    ResponseObj->SetBoolField(TEXT("saved"), bSaved);
     ResponseObj->SetStringField(TEXT("context_path"), ContextPath);
     ResponseObj->SetStringField(TEXT("action_path"), ActionPath);
     ResponseObj->SetStringField(TEXT("key"), Key);
