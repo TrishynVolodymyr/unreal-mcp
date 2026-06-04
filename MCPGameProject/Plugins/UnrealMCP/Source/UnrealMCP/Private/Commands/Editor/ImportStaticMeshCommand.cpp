@@ -2,6 +2,7 @@
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
 #include "Engine/StaticMesh.h"
+#include "AssetImportTask.h"
 #include "Factories/FbxFactory.h"
 #include "Factories/FbxImportUI.h"
 #include "Factories/FbxStaticMeshImportData.h"
@@ -60,77 +61,153 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 		}
 	}
 
-	// Create package for the asset
-	FString PackagePath = DestinationPath / AssetName;
-	UPackage* Package = CreatePackage(*PackagePath);
-	if (!Package)
-	{
-		return CreateErrorResponse(FString::Printf(TEXT("Failed to create package: %s"), *PackagePath));
-	}
-	Package->FullyLoad();
+	// Import via UFbxFactory::ImportObject directly. This is the SAME proven call the command used before
+	// (it does NOT hang) — but with bCombineMeshes=false it SPLITS a multi-mesh "pack" FBX into one asset
+	// per mesh, named after its FBX node, at the FBX's own scale: i.e. what the editor's default Import
+	// dialog produces. (The old code forced bCombineMeshes=true + a single overridden name → every prop
+	// merged into one mis-scaled mesh.) NOTE: ImportAssetTasks() was tried and SPINS/hangs from the MCP
+	// FTSTicker context (verified 2026-06-03, 120s bridge timeout) — do NOT reintroduce it here.
+	// DestinationPath is the FOLDER; the split meshes land in it under their FBX-node names.
+	FAssetToolsModule& AssetToolsModule =
+		FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
+	FAssetRegistryModule& AssetRegistryModule =
+		FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
-	// Use FbxFactory directly — avoids TaskGraph recursion from ImportAssetTasks
+	// Snapshot the folder's existing static meshes so we can isolate the newly-imported ones (the
+	// factory creates one package PER mesh node, so the single ImportObject return value is not enough).
+	TSet<FString> PreExisting;
+	{
+		TArray<FAssetData> Existing;
+		AssetRegistryModule.Get().GetAssetsByPath(FName(*DestinationPath), Existing, /*bRecursive*/ false);
+		for (const FAssetData& A : Existing) { PreExisting.Add(A.GetObjectPathString()); }
+	}
+
+	// Anchor package (ImportObject needs an InParent). With bOverrideFullName=false the factory names the
+	// meshes by FBX node; this package is just the import anchor in the target folder.
+	UPackage* AnchorPackage = CreatePackage(*(DestinationPath / AssetName));
+	if (!AnchorPackage)
+	{
+		return CreateErrorResponse(FString::Printf(TEXT("Failed to create package in: %s"), *DestinationPath));
+	}
+	AnchorPackage->FullyLoad();
+
 	UFbxFactory* FbxFactory = NewObject<UFbxFactory>();
 	FbxFactory->AddToRoot();
-
-	// Configure for automated import
 	FbxFactory->ImportUI->bIsObjImport = (Extension == TEXT("obj"));
 	FbxFactory->ImportUI->bImportMesh = true;
+	FbxFactory->ImportUI->bImportAsSkeletal = false;
+	FbxFactory->ImportUI->MeshTypeToImport = FBXIT_StaticMesh;
 	FbxFactory->ImportUI->bImportMaterials = bImportMaterials;
 	FbxFactory->ImportUI->bImportTextures = bImportMaterials;
 	FbxFactory->ImportUI->bImportAnimations = false;
 	FbxFactory->ImportUI->bAutomatedImportShouldDetectType = false;
-	FbxFactory->ImportUI->MeshTypeToImport = FBXIT_StaticMesh;
-	FbxFactory->ImportUI->bOverrideFullName = true;
-
-	// Static mesh specific settings
-	FbxFactory->ImportUI->StaticMeshImportData->bCombineMeshes = true;
+	FbxFactory->ImportUI->bOverrideFullName = false;                       // per-node FBX names
+	FbxFactory->ImportUI->StaticMeshImportData->bCombineMeshes = false;    // SPLIT — match the dialog default
+	FbxFactory->ImportUI->StaticMeshImportData->bConvertSceneUnit = true;  // FBX scene unit (m) → UE cm — correct size
 	FbxFactory->ImportUI->StaticMeshImportData->bAutoGenerateCollision = true;
+
+	// THE SCALE FIX (UE 5.7, NOT Interchange): ImportObject uses the LEGACY libfbx path, but it only copies
+	// the StaticMeshImportData scale/unit options into the live FBXImportOptions when the import is AUTOMATED
+	// (UFactory::IsAutomatedImport) or a modal dialog is shown. With neither, FbxMainImport::GetImportOptions
+	// takes the "else" branch and bConvertSceneUnit / ImportUniformScale silently NO-OP — which is why earlier
+	// imports were 100× too small (bCombineMeshes survived only because it is read straight off ImportUI, not
+	// off FBXImportOptions). An automated UAssetImportTask flips that gate AND suppresses the dialog; the
+	// factory also adopts Task->Options as its UFbxImportUI. (Headless automation tests would NOT catch the
+	// scale bug — GIsAutomationTesting flips the same gate, so scale applies there even without the task.)
+	UAssetImportTask* ImportTask = NewObject<UAssetImportTask>();
+	ImportTask->AddToRoot();
+	ImportTask->bAutomated = true;
+	ImportTask->bAsync = false;
+	ImportTask->Options = FbxFactory->ImportUI;   // same configured UFbxImportUI the factory will use
+	FbxFactory->SetAssetImportTask(ImportTask);
 
 	bool bCancelled = false;
 	UObject* ImportedObject = FbxFactory->ImportObject(
-		UStaticMesh::StaticClass(),
-		Package,
-		FName(*AssetName),
-		RF_Public | RF_Standalone,
-		SourceFilePath,
-		nullptr,
-		bCancelled
-	);
-
+		UStaticMesh::StaticClass(), AnchorPackage, FName(*AssetName),
+		RF_Public | RF_Standalone, SourceFilePath, nullptr, bCancelled);
 	FbxFactory->RemoveFromRoot();
+	ImportTask->RemoveFromRoot();
 
-	if (!ImportedObject || bCancelled)
+	if (bCancelled)
 	{
-		return CreateErrorResponse(FString::Printf(TEXT("Failed to import mesh file: %s"), *SourceFilePath));
+		return CreateErrorResponse(FString::Printf(TEXT("Import was cancelled: %s"), *SourceFilePath));
 	}
 
-	// Notify asset registry
-	FAssetRegistryModule::AssetCreated(ImportedObject);
-	Package->MarkPackageDirty();
-
-	// Get mesh stats
-	UStaticMesh* ImportedMesh = Cast<UStaticMesh>(ImportedObject);
-	int32 VertexCount = 0;
-	int32 TriangleCount = 0;
-
-	if (ImportedMesh)
+	// Collect every static mesh now in the folder that was not there before (handles the multi-asset split).
+	TArray<UStaticMesh*> ImportedMeshes;
 	{
-		// Don't call Build() here — it triggers TaskGraph recursion when called from MCP thread.
-		// UE will build the mesh lazily when needed (e.g., on save or viewport display).
-		// Try to read stats if render data already exists.
-		if (ImportedMesh->GetRenderData() && ImportedMesh->GetRenderData()->LODResources.Num() > 0)
+		TArray<FAssetData> After;
+		AssetRegistryModule.Get().GetAssetsByPath(FName(*DestinationPath), After, /*bRecursive*/ false);
+		for (const FAssetData& A : After)
 		{
-			const FStaticMeshLODResources& LOD0 = ImportedMesh->GetRenderData()->LODResources[0];
-			VertexCount = LOD0.GetNumVertices();
-			TriangleCount = LOD0.GetNumTriangles();
+			if (PreExisting.Contains(A.GetObjectPathString())) { continue; }
+			if (UStaticMesh* Mesh = Cast<UStaticMesh>(A.GetAsset())) { ImportedMeshes.AddUnique(Mesh); }
 		}
+	}
+	if (UStaticMesh* Direct = Cast<UStaticMesh>(ImportedObject)) { ImportedMeshes.AddUnique(Direct); }
 
-		UE_LOG(LogTemp, Log, TEXT("Imported static mesh '%s' from '%s' (Verts: %d, Tris: %d)"),
-			*PackagePath, *SourceFilePath, VertexCount, TriangleCount);
+	if (ImportedMeshes.Num() == 0)
+	{
+		return CreateErrorResponse(FString::Printf(TEXT("Import produced no static meshes from: %s"), *SourceFilePath));
 	}
 
-	return CreateSuccessResponse(PackagePath, AssetName, VertexCount, TriangleCount);
+	// Backward-compat: a SINGLE-mesh FBX renames its one asset to the requested asset_name (the old
+	// one-asset contract). A multi-mesh "pack" keeps the per-node FBX names (asset_name is not a single
+	// target then — documented on the tool). Best-effort: a rename failure does not fail the import.
+	if (ImportedMeshes.Num() == 1 && !AssetName.IsEmpty() && ImportedMeshes[0]->GetName() != AssetName)
+	{
+		TArray<FAssetRenameData> Renames;
+		Renames.Emplace(ImportedMeshes[0], DestinationPath, AssetName);
+		AssetToolsModule.Get().RenameAssets(Renames);
+	}
+
+	// Build the response: one entry per created static mesh (+ a top-level mirror of the first for
+	// backward-compat with callers that read response["path"]/["name"]).
+	TArray<TSharedPtr<FJsonValue>> MeshEntries;
+	FString FirstPath, FirstName;
+	int32 FirstVerts = 0, FirstTris = 0;
+	for (UStaticMesh* Mesh : ImportedMeshes)
+	{
+		FAssetRegistryModule::AssetCreated(Mesh);
+		Mesh->MarkPackageDirty();
+
+		// Don't Build() here (TaskGraph recursion risk from the MCP tick); read stats if already built.
+		int32 V = 0, T = 0;
+		if (Mesh->GetRenderData() && Mesh->GetRenderData()->LODResources.Num() > 0)
+		{
+			V = Mesh->GetRenderData()->LODResources[0].GetNumVertices();
+			T = Mesh->GetRenderData()->LODResources[0].GetNumTriangles();
+		}
+		const FString MeshPkgPath = Mesh->GetOutermost()->GetName();
+
+		TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+		Entry->SetStringField(TEXT("name"), Mesh->GetName());
+		Entry->SetStringField(TEXT("path"), MeshPkgPath);
+		Entry->SetNumberField(TEXT("vertex_count"), V);
+		Entry->SetNumberField(TEXT("triangle_count"), T);
+		MeshEntries.Add(MakeShared<FJsonValueObject>(Entry));
+
+		if (FirstPath.IsEmpty()) { FirstPath = MeshPkgPath; FirstName = Mesh->GetName(); FirstVerts = V; FirstTris = T; }
+
+		UE_LOG(LogTemp, Log, TEXT("Imported static mesh '%s' (Verts: %d, Tris: %d)"), *MeshPkgPath, V, T);
+	}
+
+	TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
+	Response->SetBoolField(TEXT("success"), true);
+	Response->SetNumberField(TEXT("count"), MeshEntries.Num());
+	Response->SetStringField(TEXT("folder"), DestinationPath);
+	Response->SetArrayField(TEXT("meshes"), MeshEntries);
+	Response->SetStringField(TEXT("path"), FirstPath);
+	Response->SetStringField(TEXT("name"), FirstName);
+	Response->SetNumberField(TEXT("vertex_count"), FirstVerts);
+	Response->SetNumberField(TEXT("triangle_count"), FirstTris);
+	Response->SetStringField(TEXT("message"),
+		FString::Printf(TEXT("Imported %d static mesh(es) into %s"), MeshEntries.Num(), *DestinationPath));
+
+	FString OutputString;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+	FJsonSerializer::Serialize(Response.ToSharedRef(), Writer);
+	return OutputString;
 }
 
 bool FImportStaticMeshCommand::ParseParameters(
@@ -173,22 +250,6 @@ bool FImportStaticMeshCommand::ParseParameters(
 	}
 
 	return true;
-}
-
-FString FImportStaticMeshCommand::CreateSuccessResponse(const FString& AssetPath, const FString& AssetName, int32 VertexCount, int32 TriangleCount) const
-{
-	TSharedPtr<FJsonObject> Response = MakeShared<FJsonObject>();
-	Response->SetBoolField(TEXT("success"), true);
-	Response->SetStringField(TEXT("path"), AssetPath);
-	Response->SetStringField(TEXT("name"), AssetName);
-	Response->SetNumberField(TEXT("vertex_count"), VertexCount);
-	Response->SetNumberField(TEXT("triangle_count"), TriangleCount);
-	Response->SetStringField(TEXT("message"), FString::Printf(TEXT("Successfully imported mesh as: %s (Verts: %d, Tris: %d)"), *AssetPath, VertexCount, TriangleCount));
-
-	FString OutputString;
-	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-	FJsonSerializer::Serialize(Response.ToSharedRef(), Writer);
-	return OutputString;
 }
 
 FString FImportStaticMeshCommand::CreateErrorResponse(const FString& ErrorMessage) const

@@ -27,6 +27,5 @@ private:
 		bool& OutImportMaterials,
 		FString& OutError) const;
 
-	FString CreateSuccessResponse(const FString& AssetPath, const FString& AssetName, int32 VertexCount, int32 TriangleCount) const;
 	FString CreateErrorResponse(const FString& ErrorMessage) const;
 };

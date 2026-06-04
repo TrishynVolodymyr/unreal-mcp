@@ -82,17 +82,16 @@ FString FCreateEnhancedInputActionCommand::Execute(const FString& Parameters)
         ActionName = TEXT("IA_") + ActionName;
     }
 
-    // Make sure the path exists
+    // Ensure the destination content directory exists — BEST-EFFORT, do NOT hard-fail.
+    // UEditorAssetLibrary::MakeDirectory returns false when the directory ALREADY exists, and
+    // DoesDirectoryExist can under-report an existing folder the asset registry hasn't surfaced
+    // this session (repro: create_enhanced_input_action into /Game/TopDown/Input/Actions — a
+    // populated folder — wrongly failed "Failed to create directory"). AssetTools::CreateAsset
+    // below creates the package directory itself, so a best-effort make suffices; a genuinely
+    // unusable path is surfaced by the CreateAsset null-check.
     if (!UEditorAssetLibrary::DoesDirectoryExist(Path))
     {
-        if (!UEditorAssetLibrary::MakeDirectory(Path))
-        {
-            TSharedPtr<FJsonObject> ErrorResponse = FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to create directory: %s"), *Path));
-            FString OutputString;
-            TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
-            FJsonSerializer::Serialize(ErrorResponse.ToSharedRef(), Writer);
-            return OutputString;
-        }
+        UEditorAssetLibrary::MakeDirectory(Path);
     }
 
     // Create the asset path
@@ -152,14 +151,18 @@ FString FCreateEnhancedInputActionCommand::Execute(const FString& Parameters)
         NewAction->ValueType = EInputActionValueType::Boolean;
     }
 
-    // Mark the asset as dirty and save
+    // Register + PERSIST to disk. Previously the asset was only MarkPackageDirty'd (never written),
+    // so it vanished on the next editor restart — fatal for a create-then-rebuild workflow. Write
+    // the .uasset now and report whether the save succeeded.
     NewAction->MarkPackageDirty();
     FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
     AssetRegistryModule.Get().AssetCreated(NewAction);
+    const bool bSaved = UEditorAssetLibrary::SaveLoadedAsset(NewAction, /*bOnlyIfIsDirty*/ false);
 
     // Create success response
     TSharedPtr<FJsonObject> ResponseObj = MakeShared<FJsonObject>();
     ResponseObj->SetBoolField(TEXT("success"), true);
+    ResponseObj->SetBoolField(TEXT("saved"), bSaved);
     ResponseObj->SetStringField(TEXT("action_name"), ActionName);
     ResponseObj->SetStringField(TEXT("asset_path"), PackageName);
     ResponseObj->SetStringField(TEXT("value_type"), ValueType);
