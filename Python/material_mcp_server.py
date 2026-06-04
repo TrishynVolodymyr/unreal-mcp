@@ -4,6 +4,7 @@ Material MCP Server - Material and Material Instance tools for Unreal Engine.
 Includes: create_material, create_material_instance, set parameters, batch ops.
 """
 
+import json
 from typing import Any, Dict, List
 
 from fastmcp import FastMCP
