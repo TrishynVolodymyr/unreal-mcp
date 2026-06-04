@@ -159,7 +159,28 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
+### ProjectMCP set_object_property Silently Fails on Object-Array Properties (e.g. UVoxelMegaMaterial.SurfaceTypes)
+- **Affected**: `set_object_property` (projectMCP) when the target is a `TArray<UObject*>` property on a plugin `UVoxelAsset` (likely other object-array props too)
+- **Date Discovered**: 2026-06-04
+- **Problem**: Setting `MM_Landscape.SurfaceTypes` (a `TArray<UVoxelSurfaceTypeAsset*>` on a `UVoxelMegaMaterial`) to a new array returned `success: true` but the array was unchanged. PROVEN via the voxel MegaMaterial cache-regen log: it rebuilt materials for only the original 6 surface types, not the 7th that was supposedly added.
+- **Impact**: Caller believes an object-array property changed (e.g. adding a cave/ore surface type) when it didn't → downstream renders fall back to `WorldGridMaterial` (checker). Silent data loss.
+- **Status**: OPEN — deferred. `PropertyServiceArrayOps::SetArrayPropertyFromJson` → `SetPropertyFromJson` (per element) looks correct on inspection, so the failure is elsewhere (command-level array-value parsing, `UVoxelMegaMaterial`/`UVoxelAsset` specifics, or save-not-persisting) and needs a reproduce-and-trace session.
+- **Workaround**: Edit the object-array property in the asset-editor UI (additive, safe), then save. After any `set_object_property` on an object-array, re-verify the value actually changed — do not trust the `success` flag.
+
+---
+
 ## Resolved Issues
+
+- **MaterialMCP create_material_instance Crashes Python with `name 'json' is not defined`** - Fixed 2026-06-04
+  - Issue: `create_material_instance` (and the batch param tools) called `json.dumps(...)` when a `scalar_params`/`vector_params`/`texture_params` dict was passed, but `Python/material_mcp_server.py` never imported `json` → `NameError`, before the TCP command was even sent.
+  - Fix: Added `import json` at the top of `material_mcp_server.py`. (Python-only — needs a material MCP server restart to take effect.)
+  - Verified live: `create_material_instance(..., vector_params={...})` succeeds.
+
+- **MaterialMCP set_material_expression_property Silently Stores (0,0,0,0) for FLinearColor `"(R=..,G=..,B=..,A=..)"` DefaultValue** - Fixed 2026-06-04
+  - Issue: Setting a `VectorParameter` (or `Constant3Vector`/`Constant4Vector`) `DefaultValue`/`Constant` to the UE ImportText form `"(R=1,G=1,B=1,A=1)"` returned `success: true` but stored `(0,0,0,0)` — `ParseIntoArray(",")` produced tokens like `"(R=1"` and `FCString::Atof("(R=1")` returns `0.0`.
+  - Real-world impact: greyed an entire voxel terrain (a shared master's `Tint` defaulted to black, multiplying all biome albedo to 0).
+  - Fix: Added `TryParseLinearColorString()` in `MaterialExpressionCreation.cpp` accepting BOTH `"(R=..)"` (`FLinearColor::InitFromString`) and `"R,G,B[,A]"`, returning an ERROR (not silent success) when neither parses. Applied to `VectorParameter`, `Constant3Vector`, `Constant4Vector`.
+  - Verified live: `"(R=0.5,G=0.6,B=0.7,A=1.0)"` → `[0.5,0.6,0.7,1.0]`; `"notacolor"` → error; `"0.1,0.2,0.3,0.4"` → `[0.1,0.2,0.3,0.4]`.
 
 - **NiagaraMCP get_module_inputs Cannot Read Default UniformRanged Dynamic Input Min/Max Values** - Fixed 2026-01-17
   - Issue: When a module input uses an UniformRanged dynamic input with default/unmodified values (e.g., systems created in Unreal Editor using stock dynamic inputs), the min/max values could not be read because they were baked into the dynamic input script asset.
