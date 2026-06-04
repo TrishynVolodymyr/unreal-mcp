@@ -37,6 +37,32 @@
 #include "Dom/JsonValue.h"
 #include "Engine/Texture.h"
 
+// Parse an FLinearColor from EITHER the UE ImportText form "(R=..,G=..,B=..,A=..)"
+// OR a bare comma list "R,G,B[,A]". Returns false if neither parses, so callers can
+// surface an error instead of silently storing garbage — ParseIntoArray on
+// "(R=1,G=1,B=1,A=1)" yields tokens like "(R=1" whose Atof is 0.0 -> a silent (0,0,0,0).
+static bool TryParseLinearColorString(const FString& In, FLinearColor& Out)
+{
+    const FString S = In.TrimStartAndEnd();
+    // UE ImportText form first — InitFromString needs R=,G=,B= present (A optional -> 1).
+    if (S.Contains(TEXT("R=")) && Out.InitFromString(S))
+    {
+        return true;
+    }
+    // Bare comma list: "R,G,B" or "R,G,B,A".
+    TArray<FString> C;
+    S.ParseIntoArray(C, TEXT(","), true);
+    if (C.Num() >= 3)
+    {
+        Out.R = FCString::Atof(*C[0].TrimStartAndEnd());
+        Out.G = FCString::Atof(*C[1].TrimStartAndEnd());
+        Out.B = FCString::Atof(*C[2].TrimStartAndEnd());
+        Out.A = (C.Num() >= 4) ? FCString::Atof(*C[3].TrimStartAndEnd()) : 1.0f;
+        return true;
+    }
+    return false;
+}
+
 UMaterialExpression* FMaterialExpressionService::CreateExpressionByType(UMaterial* Material, const FString& TypeName)
 {
     UClass* ExpressionClass = GetExpressionClassFromTypeName(TypeName);
@@ -189,24 +215,23 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                     Const3Expr->Constant.B = (*ColorArray)[2]->AsNumber();
                     bValueChanged = true;
                 }
-                // Try as comma-separated string: "R,G,B"
+                // String: accept BOTH "(R=..,G=..,B=..)" (UE ImportText) and "R,G,B".
                 else if (Value->Type == EJson::String)
                 {
-                    FString ColorString = Value->AsString();
-                    TArray<FString> Components;
-                    ColorString.ParseIntoArray(Components, TEXT(","), true);
-                    if (Components.Num() >= 3)
+                    const FString ColorString = Value->AsString();
+                    FLinearColor Parsed;
+                    if (TryParseLinearColorString(ColorString, Parsed))
                     {
-                        Const3Expr->Constant.R = FCString::Atof(*Components[0].TrimStartAndEnd());
-                        Const3Expr->Constant.G = FCString::Atof(*Components[1].TrimStartAndEnd());
-                        Const3Expr->Constant.B = FCString::Atof(*Components[2].TrimStartAndEnd());
+                        Const3Expr->Constant.R = Parsed.R;
+                        Const3Expr->Constant.G = Parsed.G;
+                        Const3Expr->Constant.B = Parsed.B;
                         bValueChanged = true;
                         UE_LOG(LogTemp, Log, TEXT("Parsed Constant3Vector from string: R=%f, G=%f, B=%f"),
                             Const3Expr->Constant.R, Const3Expr->Constant.G, Const3Expr->Constant.B);
                     }
                     else
                     {
-                        OutError = FString::Printf(TEXT("Constant3Vector requires 3 comma-separated values (R,G,B), got: %s"), *ColorString);
+                        OutError = FString::Printf(TEXT("Constant3Vector requires \"R,G,B\" or \"(R=..,G=..,B=..)\", got: %s"), *ColorString);
                         return false;
                     }
                 }
@@ -256,34 +281,21 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                     Const4Expr->Constant.A = (*ColorArray)[3]->AsNumber();
                     bValueChanged = true;
                 }
-                // Try as comma-separated string: "R,G,B,A"
+                // String: accept BOTH "(R=..,G=..,B=..,A=..)" (UE ImportText) and "R,G,B[,A]".
                 else if (Value->Type == EJson::String)
                 {
-                    FString ColorString = Value->AsString();
-                    TArray<FString> Components;
-                    ColorString.ParseIntoArray(Components, TEXT(","), true);
-                    if (Components.Num() >= 4)
+                    const FString ColorString = Value->AsString();
+                    FLinearColor Parsed;
+                    if (TryParseLinearColorString(ColorString, Parsed))
                     {
-                        Const4Expr->Constant.R = FCString::Atof(*Components[0].TrimStartAndEnd());
-                        Const4Expr->Constant.G = FCString::Atof(*Components[1].TrimStartAndEnd());
-                        Const4Expr->Constant.B = FCString::Atof(*Components[2].TrimStartAndEnd());
-                        Const4Expr->Constant.A = FCString::Atof(*Components[3].TrimStartAndEnd());
+                        Const4Expr->Constant = Parsed;
                         bValueChanged = true;
                         UE_LOG(LogTemp, Log, TEXT("Parsed Constant4Vector from string: R=%f, G=%f, B=%f, A=%f"),
                             Const4Expr->Constant.R, Const4Expr->Constant.G, Const4Expr->Constant.B, Const4Expr->Constant.A);
                     }
-                    else if (Components.Num() >= 3)
-                    {
-                        // Allow 3 components with default A=1.0
-                        Const4Expr->Constant.R = FCString::Atof(*Components[0].TrimStartAndEnd());
-                        Const4Expr->Constant.G = FCString::Atof(*Components[1].TrimStartAndEnd());
-                        Const4Expr->Constant.B = FCString::Atof(*Components[2].TrimStartAndEnd());
-                        Const4Expr->Constant.A = 1.0f;
-                        bValueChanged = true;
-                    }
                     else
                     {
-                        OutError = FString::Printf(TEXT("Constant4Vector requires 3-4 comma-separated values (R,G,B[,A]), got: %s"), *ColorString);
+                        OutError = FString::Printf(TEXT("Constant4Vector requires \"R,G,B[,A]\" or \"(R=..,G=..,B=..,A=..)\", got: %s"), *ColorString);
                         return false;
                     }
                 }
@@ -356,21 +368,21 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
                     VectorParam->DefaultValue.A = (*ColorArray)[3]->AsNumber();
                 }
             }
-            // Try as comma-separated string: "R,G,B" or "R,G,B,A"
+            // String: accept BOTH "(R=..,G=..,B=..,A=..)" (UE ImportText) and "R,G,B[,A]".
             else if (Value.IsValid() && Value->Type == EJson::String)
             {
-                FString ColorString = Value->AsString();
-                TArray<FString> Components;
-                ColorString.ParseIntoArray(Components, TEXT(","), true);
-                if (Components.Num() >= 3)
+                const FString ColorString = Value->AsString();
+                FLinearColor Parsed;
+                if (TryParseLinearColorString(ColorString, Parsed))
                 {
-                    VectorParam->DefaultValue.R = FCString::Atof(*Components[0].TrimStartAndEnd());
-                    VectorParam->DefaultValue.G = FCString::Atof(*Components[1].TrimStartAndEnd());
-                    VectorParam->DefaultValue.B = FCString::Atof(*Components[2].TrimStartAndEnd());
-                    VectorParam->DefaultValue.A = Components.Num() >= 4
-                        ? FCString::Atof(*Components[3].TrimStartAndEnd()) : 1.0f;
-                    UE_LOG(LogTemp, Log, TEXT("Parsed VectorParameter DefaultValue from string: R=%f, G=%f, B=%f, A=%f"),
-                        VectorParam->DefaultValue.R, VectorParam->DefaultValue.G, VectorParam->DefaultValue.B, VectorParam->DefaultValue.A);
+                    VectorParam->DefaultValue = Parsed;
+                    UE_LOG(LogTemp, Log, TEXT("Parsed VectorParameter DefaultValue: R=%f, G=%f, B=%f, A=%f"),
+                        Parsed.R, Parsed.G, Parsed.B, Parsed.A);
+                }
+                else
+                {
+                    OutError = FString::Printf(TEXT("VectorParameter DefaultValue: cannot parse '%s' (use \"R,G,B[,A]\" or \"(R=..,G=..,B=..,A=..)\")"), *ColorString);
+                    return false;
                 }
             }
         }
