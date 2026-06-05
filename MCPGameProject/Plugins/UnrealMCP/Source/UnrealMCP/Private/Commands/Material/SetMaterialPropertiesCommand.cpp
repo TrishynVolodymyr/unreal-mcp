@@ -124,6 +124,37 @@ FString FSetMaterialPropertiesCommand::Execute(const FString& Parameters)
         UE_LOG(LogTemp, Log, TEXT("Set TwoSided to %s"), bTwoSided ? TEXT("true") : TEXT("false"));
     }
 
+    // ── UE 5.7 Nanite tessellation / displacement ──────────────────────────────────────────
+    // Optional: enable_tessellation. NOTE: required for the Displacement output to do anything
+    // (the engine gates DisplacementScaling/DisplacementFade editing behind bEnableTessellation).
+    bool bEnableTess;
+    if (JsonObject->TryGetBoolField(TEXT("enable_tessellation"), bEnableTess))
+    {
+        Material->bEnableTessellation = bEnableTess;
+        ChangedProperties.Add(FString::Printf(TEXT("bEnableTessellation=%s"), bEnableTess ? TEXT("true") : TEXT("false")));
+        UE_LOG(LogTemp, Log, TEXT("Set bEnableTessellation to %s"), bEnableTess ? TEXT("true") : TEXT("false"));
+    }
+
+    // Optional: displacement_magnitude — FDisplacementScaling.Magnitude (Nanite displacement height,
+    // read by GetDisplacementScaling().Magnitude; the Voxel MegaMaterial scales per-surface by this).
+    double DispMagnitude;
+    if (JsonObject->TryGetNumberField(TEXT("displacement_magnitude"), DispMagnitude))
+    {
+        Material->DisplacementScaling.Magnitude = static_cast<float>(DispMagnitude);
+        ChangedProperties.Add(FString::Printf(TEXT("DisplacementScaling.Magnitude=%.4f"), static_cast<float>(DispMagnitude)));
+        UE_LOG(LogTemp, Log, TEXT("Set DisplacementScaling.Magnitude to %.4f"), static_cast<float>(DispMagnitude));
+    }
+
+    // Optional: displacement_center — FDisplacementScaling.Center (the [0..1] sample value that maps
+    // to zero displacement; values above push out, below pull in). Engine default 0.5.
+    double DispCenter;
+    if (JsonObject->TryGetNumberField(TEXT("displacement_center"), DispCenter))
+    {
+        Material->DisplacementScaling.Center = static_cast<float>(DispCenter);
+        ChangedProperties.Add(FString::Printf(TEXT("DisplacementScaling.Center=%.4f"), static_cast<float>(DispCenter)));
+        UE_LOG(LogTemp, Log, TEXT("Set DisplacementScaling.Center to %.4f"), static_cast<float>(DispCenter));
+    }
+
     // Optional: material_domain
     FString MaterialDomainStr;
     if (JsonObject->TryGetStringField(TEXT("material_domain"), MaterialDomainStr))
@@ -192,7 +223,7 @@ FString FSetMaterialPropertiesCommand::Execute(const FString& Parameters)
     // Check if any properties were changed
     if (ChangedProperties.Num() == 0)
     {
-        return CreateErrorResponse(TEXT("No valid properties provided to change. Supported: material_domain, blend_mode, shading_model, two_sided, used_with_niagara_sprites, used_with_niagara_ribbons, used_with_niagara_mesh_particles, used_with_particle_sprites, used_with_mesh_particles, used_with_skeletal_mesh, used_with_static_lighting"));
+        return CreateErrorResponse(TEXT("No valid properties provided to change. Supported: material_domain, blend_mode, shading_model, two_sided, enable_tessellation, displacement_magnitude, displacement_center, used_with_niagara_sprites, used_with_niagara_ribbons, used_with_niagara_mesh_particles, used_with_particle_sprites, used_with_mesh_particles, used_with_skeletal_mesh, used_with_static_lighting"));
     }
 
     // Mark package dirty

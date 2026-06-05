@@ -25,6 +25,17 @@ This file tracks MCP tool limitations discovered during development. When encoun
 - **Known Limitation**: A timed-out command may still complete on the game thread later (AsyncTask is not cancelled). The timeout unblocks the server thread so other MCP calls can proceed.
 - **Debug TCP logging**: Set `UNREAL_MCP_TCP_DEBUG=1` to enable `Python/tcp_debug.log` (disabled by default to avoid unbounded file growth).
 
+### Material-Output Property List Is Duplicated Across 4 Files (Refactor Candidate)
+- **Affected**: `connect_expression_to_material_output`, `get_material_expression_metadata`, `compile_material`, `delete_material_expression`
+- **Problem**: The set of supported `EMaterialProperty` outputs is hand-maintained as **7 separate hard-coded lists** across 4 files:
+  - `MaterialExpressionCore.cpp` — `GetMaterialPropertyFromString` (string→enum for connect)
+  - `MaterialExpressionConnection.cpp` — `NameToMaterialPropertyStrict` (SetMaterialAttributes pins)
+  - `MaterialExpressionMetadata.cpp` — `AddOutputIfConnected` (material_outputs), orphan `CheckMaterialOutput`, `TraceFlow`
+  - `MaterialExpressionManagement.cpp` — `DisconnectFromOutput` (delete path), orphan `CheckMaterialOutput` (compile)
+- **Impact**: Adding a new output (e.g. Displacement in UE 5.7) requires touching all 7 or things silently break — a node wired to a missing output is mis-flagged as an orphan (`compile_material`), invisible in `material_outputs`, or left dangling on delete. The lists are also already inconsistent (`DisconnectFromOutput` omits Refraction/SubsurfaceColor that the others include).
+- **Fix (deferred)**: Extract one shared `static const TArray<TPair<EMaterialProperty, FString>>` (or iterate the engine's `FMaterialAttributeDefinitionMap`) and drive all sites from it.
+- **Workaround**: When adding an output, grep `MP_AmbientOcclusion` as a sentinel — every match needs the new property added beside it.
+
 ### Struct Field GUID Middle Numbers Can Change When Structs Are Modified
 - **Affected**: `get_struct_pin_names`, `get_datatable_row_names`, DataTable operations
 - **Problem**: User-defined structs use GUID-based internal field names (e.g., `TestField1_2_1EAE0B8A4B971533B2AD21BF45BA9220`). The hex suffix (GUID) remains stable, but the middle number can change when the struct is modified (type changes, field additions/removals).

@@ -169,6 +169,8 @@ EMaterialProperty FMaterialExpressionService::GetMaterialPropertyFromString(cons
         return MP_Refraction;
     if (PropertyName.Equals(TEXT("SubsurfaceColor"), ESearchCase::IgnoreCase))
         return MP_SubsurfaceColor;
+    if (PropertyName.Equals(TEXT("Displacement"), ESearchCase::IgnoreCase))
+        return MP_Displacement;  // UE 5.7 Nanite tessellation displacement (EditorOnly->Displacement, FScalarMaterialInput)
 
     // Default to emissive for unrecognized properties
     return MP_EmissiveColor;

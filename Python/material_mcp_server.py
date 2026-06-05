@@ -797,6 +797,9 @@ async def connect_expression_to_material_output(
             - "AmbientOcclusion": AO value
             - "Refraction": Refraction for translucent materials
             - "SubsurfaceColor": Subsurface scattering color
+            - "Displacement": UE 5.7 Nanite tessellation displacement (scalar). The material
+              must have tessellation enabled for this to take effect — call
+              set_material_properties(enable_tessellation=True) first.
         output_index: Output index on source expression (default 0)
 
     Returns:
@@ -888,6 +891,9 @@ async def set_material_properties(
     blend_mode: str = None,
     shading_model: str = None,
     two_sided: bool = None,
+    enable_tessellation: bool = None,
+    displacement_magnitude: float = None,
+    displacement_center: float = None,
     used_with_niagara_sprites: bool = None,
     used_with_niagara_ribbons: bool = None,
     used_with_niagara_mesh_particles: bool = None,
@@ -908,6 +914,13 @@ async def set_material_properties(
         blend_mode: Blend mode - "Opaque", "Masked", "Translucent", "Additive", "Modulate", "AlphaComposite", "AlphaHoldout"
         shading_model: Shading model - "Unlit", "DefaultLit", "Subsurface", "ClearCoat", "SubsurfaceProfile", "TwoSidedFoliage", "Hair", "Cloth", "Eye", "SingleLayerWater", "ThinTranslucent"
         two_sided: Whether the material renders on both sides
+        enable_tessellation: Enable UE 5.7 Nanite tessellation. REQUIRED for the material's
+            Displacement output to take effect (gates DisplacementScaling editing). Pair with
+            connect_expression_to_material_output(material_property="Displacement").
+        displacement_magnitude: Nanite displacement height (FDisplacementScaling.Magnitude, engine
+            default 4.0). Read per-surface by GetDisplacementScaling().Magnitude.
+        displacement_center: Sample value [0..1] that maps to zero displacement
+            (FDisplacementScaling.Center, engine default 0.5). Above pushes out, below pulls in.
         used_with_niagara_sprites: Enable for Niagara sprite particles
         used_with_niagara_ribbons: Enable for Niagara ribbon particles
         used_with_niagara_mesh_particles: Enable for Niagara mesh particles
@@ -949,6 +962,12 @@ async def set_material_properties(
         params["shading_model"] = shading_model
     if two_sided is not None:
         params["two_sided"] = two_sided
+    if enable_tessellation is not None:
+        params["enable_tessellation"] = enable_tessellation
+    if displacement_magnitude is not None:
+        params["displacement_magnitude"] = displacement_magnitude
+    if displacement_center is not None:
+        params["displacement_center"] = displacement_center
     if used_with_niagara_sprites is not None:
         params["used_with_niagara_sprites"] = used_with_niagara_sprites
     if used_with_niagara_ribbons is not None:

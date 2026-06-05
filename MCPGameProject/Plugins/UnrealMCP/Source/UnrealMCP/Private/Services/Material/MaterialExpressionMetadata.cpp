@@ -212,6 +212,7 @@ bool FMaterialExpressionService::GetGraphMetadata(
         AddOutputIfConnected(MP_OpacityMask, TEXT("OpacityMask"));
         AddOutputIfConnected(MP_WorldPositionOffset, TEXT("WorldPositionOffset"));
         AddOutputIfConnected(MP_AmbientOcclusion, TEXT("AmbientOcclusion"));
+        AddOutputIfConnected(MP_Displacement, TEXT("Displacement"));  // UE 5.7 Nanite tessellation
 
         OutMetadata->SetObjectField(TEXT("material_outputs"), OutputsObj);
     }
@@ -260,6 +261,8 @@ bool FMaterialExpressionService::GetGraphMetadata(
             CheckMaterialOutput(MP_AmbientOcclusion);
             CheckMaterialOutput(MP_Refraction);
             CheckMaterialOutput(MP_SubsurfaceColor);
+            CheckMaterialOutput(MP_Displacement);  // UE 5.7 Nanite tessellation — a node feeding
+                                                   // Displacement is a real sink, not an orphan
         }
 
         // Find orphans - expressions not in UsedExpressions
@@ -357,6 +360,7 @@ bool FMaterialExpressionService::GetGraphMetadata(
         TraceFlow(MP_OpacityMask, TEXT("OpacityMask"));
         TraceFlow(MP_WorldPositionOffset, TEXT("WorldPositionOffset"));
         TraceFlow(MP_AmbientOcclusion, TEXT("AmbientOcclusion"));
+        TraceFlow(MP_Displacement, TEXT("Displacement"));  // UE 5.7 Nanite tessellation
 
         OutMetadata->SetObjectField(TEXT("flow"), FlowObj);
     }
