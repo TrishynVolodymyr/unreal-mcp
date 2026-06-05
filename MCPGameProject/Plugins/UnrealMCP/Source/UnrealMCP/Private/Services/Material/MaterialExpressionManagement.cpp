@@ -120,6 +120,8 @@ bool FMaterialExpressionService::DeleteExpression(
     DisconnectFromOutput(MP_OpacityMask);
     DisconnectFromOutput(MP_WorldPositionOffset);
     DisconnectFromOutput(MP_AmbientOcclusion);
+    DisconnectFromOutput(MP_Displacement);  // UE 5.7 Nanite tessellation — else deleting a node wired
+                                            // to Displacement leaves a dangling input expression ptr
 
     // Remove from expression collection
     EditorData->ExpressionCollection.RemoveExpression(Expression);
@@ -390,6 +392,8 @@ bool FMaterialExpressionService::CompileMaterial(
     CheckMaterialOutput(MP_AmbientOcclusion);
     CheckMaterialOutput(MP_Refraction);
     CheckMaterialOutput(MP_SubsurfaceColor);
+    CheckMaterialOutput(MP_Displacement);  // UE 5.7 Nanite tessellation — a node feeding Displacement
+                                           // is a real sink, not an orphan (else compile_material miscounts)
 
     // Find orphans
     TArray<TSharedPtr<FJsonValue>> OrphanArray;

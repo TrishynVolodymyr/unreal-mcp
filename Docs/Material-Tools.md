@@ -256,8 +256,10 @@ Connect a material expression to a material output property.
 |-----------|------|----------|-------------|
 | `material_path` | string | ✅ | Path to the material |
 | `expression_id` | string | ✅ | GUID of the source expression |
-| `material_property` | string | ✅ | Target property: `"BaseColor"`, `"Metallic"`, `"Roughness"`, `"Normal"`, `"EmissiveColor"`, `"Opacity"`, `"OpacityMask"`, `"WorldPositionOffset"`, etc. |
+| `material_property` | string | ✅ | Target property: `"BaseColor"`, `"Metallic"`, `"Roughness"`, `"Normal"`, `"EmissiveColor"`, `"Opacity"`, `"OpacityMask"`, `"WorldPositionOffset"`, `"Displacement"`, etc. |
 | `output_index` | number | | Output index on source expression (default: 0) |
+
+> **`"Displacement"` (UE 5.7 Nanite tessellation):** wires the source to the material's scalar Displacement output. It only does anything once tessellation is enabled — call `set_material_properties(enable_tessellation=True)` (and optionally set `displacement_magnitude` / `displacement_center`) on the same material.
 
 ---
 
@@ -283,6 +285,9 @@ Set properties on an existing base Material (blend mode, shading model, usage fl
 | `blend_mode` | string | | `"Opaque"`, `"Masked"`, `"Translucent"`, `"Additive"`, `"Modulate"`, `"AlphaComposite"` |
 | `shading_model` | string | | `"Unlit"`, `"DefaultLit"`, `"Subsurface"`, `"ClearCoat"`, `"Hair"`, `"Cloth"`, `"Eye"`, etc. |
 | `two_sided` | boolean | | Whether the material renders on both sides |
+| `enable_tessellation` | boolean | | Enable UE 5.7 Nanite tessellation. Required for the Displacement output to take effect |
+| `displacement_magnitude` | number | | Nanite displacement height (`FDisplacementScaling.Magnitude`, default 4.0). Read per-surface by `GetDisplacementScaling().Magnitude` |
+| `displacement_center` | number | | Sample value [0..1] mapping to zero displacement (`FDisplacementScaling.Center`, default 0.5) |
 | `used_with_niagara_sprites` | boolean | | Enable for Niagara sprite particles |
 | `used_with_niagara_ribbons` | boolean | | Enable for Niagara ribbon particles |
 
