@@ -173,6 +173,11 @@ vfx_frames/
 state/
 .claude/skills/*/output/
 
+# Codex CLI internals (not part of the plugin)
+.agents/
+.codex/
+AGENTS.md
+
 # Local-only specs and plans (kept out of git per project preference)
 docs/superpowers/
 Docs/superpowers/
