@@ -1706,6 +1706,12 @@ def register_project_tools(mcp: FastMCP):
         Saves a PNG image of the current viewport and returns the file path.
         Useful for AI to visually inspect the current state of the scene.
 
+        The capture force-renders a fresh frame synchronously before reading pixels,
+        so it always reflects the CURRENT camera/viewmode state — even when the editor
+        window is unfocused and its tick is throttled (the normal state while an agent
+        drives the editor; previously this returned a stale frame from before the
+        latest set_viewport_camera / console viewmode change).
+
         Args:
             output_path: Optional full path for the output file. If not provided,
                         saves to MCPGameProject/Saved/Screenshots/MCP/ with timestamp.

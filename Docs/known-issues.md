@@ -4,6 +4,24 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ## Resolved Issues
 
+### `capture_viewport_screenshot` Returned a Stale Frame When the Editor Was Unfocused (Fixed 2026-06-11)
+- **Affected**: `projectMCP.capture_viewport_screenshot`
+- **Problem**: The capture read the last drawn frame (`GetViewportScreenShot` → `ReadPixels`) without forcing a
+  redraw. With the editor window unfocused — the normal state while an MCP agent drives it — the editor throttles
+  non-realtime viewport redraws, so `Invalidate()`/`RedrawLevelEditingViewports()` (already called by
+  `set_viewport_camera`) only queued a redraw the throttled tick never performed. Consecutive captures returned
+  byte-identical stale PNGs despite successful `set_viewport_camera`/`viewmode` changes in between. `HighResShot`
+  via console rendered the true state, which confirmed the camera state itself was fine.
+- **Fix**: `FViewport::Draw(bShouldPresent=true)` + `FlushRenderingCommands()` synchronously in the capture
+  command, right before reading pixels — bypasses the editor-tick throttle. The Python tool schema is unchanged;
+  the docstring now documents the fresh-frame guarantee.
+- **Verification**: With the editor unfocused: camera A (top-down) → capture, camera B (ground horizon) →
+  capture. Each PNG must differ and show its own camera state (previously consecutive captures were
+  byte-identical). Verified live 2026-06-11 on SimPrototype's Lvl_TopDown.
+- **No automation test**: the repro depends on the window focus/throttle state, which an in-editor automation run
+  cannot control deterministically (a focused session redraws normally and the bug never manifests). Covered by
+  the live MCP verification protocol above.
+
 ### `execute_console_command` Ignored the Active PIE World (Fixed 2026-06-10)
 - **Affected**: `editorMCP.execute_console_command`
 - **Problem**: The C++ command always executed through `GEditor->GetEditorWorldContext()`. During PIE, runtime
@@ -23,6 +41,16 @@ This file tracks MCP tool limitations discovered during development. When encoun
   accordingly.
 
 ## Active Issues
+
+### `viewmode` Console Commands Don't Reach the Editor Viewport
+- **Affected**: `editorMCP.execute_console_command` with `viewmode unlit` / `viewmode wireframe` / etc.
+- **Problem**: The command executes successfully but the level-editor viewport keeps its current view mode —
+  the exec path doesn't route to the `FEditorViewportClient` the way the in-viewport console does. Confirmed
+  2026-06-11 (both via capture_viewport_screenshot after the stale-frame fix AND via `HighResShot`, so it is
+  not a stale-frame symptom — the viewport genuinely never switches).
+- **Workaround**: none via MCP today; change the view mode by hand in the viewport toolbar.
+- **Fix candidate**: a dedicated `set_viewport_viewmode` tool (or special-casing in execute_console_command)
+  calling `FEditorViewportClient::SetViewMode(VMI_*)` on the active perspective viewport.
 
 ### MCP TCP Connection Freezes (Mitigated 2026-05-31)
 - **Affected**: All MCP servers communicating via TCP port 55557
