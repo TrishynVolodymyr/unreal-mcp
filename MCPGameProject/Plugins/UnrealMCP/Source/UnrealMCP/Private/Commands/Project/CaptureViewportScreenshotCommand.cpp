@@ -12,6 +12,7 @@
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
 #include "Modules/ModuleManager.h"
+#include "RenderingThread.h"
 
 bool FCaptureViewportScreenshotCommand::ValidateParams(const FString& Parameters) const
 {
@@ -90,6 +91,16 @@ FString FCaptureViewportScreenshotCommand::Execute(const FString& Parameters)
 		FJsonSerializer::Serialize(ErrorResponse.ToSharedRef(), Writer);
 		return OutputString;
 	}
+
+	// Force-render a fresh frame before reading pixels. When the editor window is unfocused
+	// (the normal state while an MCP agent drives it), the editor throttles non-realtime
+	// viewport redraws — Invalidate()/RedrawLevelEditingViewports() only QUEUE a redraw that
+	// the throttled tick never performs, so ReadPixels would return the LAST drawn frame:
+	// stale relative to any set_viewport_camera / viewmode change since (verified live
+	// 2026-06-11 — consecutive captures came back byte-identical despite camera moves).
+	// FViewport::Draw renders synchronously on the game thread, bypassing the throttle.
+	Viewport->Draw(/*bShouldPresent*/ true);
+	FlushRenderingCommands();
 
 	// Use UE's proper screenshot function - this handles all the render target magic correctly
 	TArray<FColor> Bitmap;
