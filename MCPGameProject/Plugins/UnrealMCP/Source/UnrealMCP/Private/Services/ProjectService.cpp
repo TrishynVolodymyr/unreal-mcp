@@ -415,7 +415,7 @@ bool FProjectService::CreateAsset(const FString& Name, const FString& AssetClass
     return FProjectDataAssetService::Get().CreateAsset(Name, AssetClass, FolderPath, OutAssetPath, OutError);
 }
 
-bool FProjectService::SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError)
+bool FProjectService::SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError, FString* OutAppliedValue)
 {
-    return FProjectDataAssetService::Get().SetObjectProperty(AssetPath, PropertyName, ValueString, OutError);
+    return FProjectDataAssetService::Get().SetObjectProperty(AssetPath, PropertyName, ValueString, OutError, OutAppliedValue);
 }

@@ -84,13 +84,18 @@ public:
      * @param ValueString - UE property-text value (e.g. "/Game/X.X" for object ref,
      *        "(\"/Game/A.A\",\"/Game/B.B\")" for an array of object refs, "5.0", "true")
      * @param OutError - Output: detailed error (incl. UE import parser message)
+     * @param OutAppliedValue - Optional output: the property value RE-EXPORTED from the
+     *        asset AFTER import + PostEditChangeProperty (what will actually persist).
+     *        Lets the caller verify the write took without trusting the success flag —
+     *        a PostEditChange that sanitizes/reverts the value shows up here.
      * @return true on success
      */
     bool SetObjectProperty(
         const FString& AssetPath,
         const FString& PropertyName,
         const FString& ValueString,
-        FString& OutError);
+        FString& OutError,
+        FString* OutAppliedValue = nullptr);
 
 private:
     FProjectDataAssetService() = default;

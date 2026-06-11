@@ -2,6 +2,26 @@
 
 This file tracks MCP tool limitations discovered during development. When encountering issues, document them here.
 
+## Resolved Issues
+
+### `execute_console_command` Ignored the Active PIE World (Fixed 2026-06-10)
+- **Affected**: `editorMCP.execute_console_command`
+- **Problem**: The C++ command always executed through `GEditor->GetEditorWorldContext()`. During PIE, runtime
+  commands such as world regeneration changed the editor world while the visible PIE session remained unchanged.
+- **Fix**: Prefer `GEditor->GetPIEWorldContext()->World()` while PIE is active, with the editor world as the
+  fallback outside play sessions. The Python tool schema is unchanged.
+- **Verification**: Execute a world-specific console command during PIE and confirm its runtime log/HUD state
+  changes in the PIE world; stop PIE and confirm the same tool still executes against the editor world.
+
+### `set_viewport_camera` Ignored the Active PIE Camera (Fixed 2026-06-10)
+- **Affected**: `editorMCP.set_viewport_camera`
+- **Problem**: The command only moved the editor viewport. During PIE, captures stayed on the gameplay pawn camera,
+  so project-specific camera and spring-arm behavior ignored the requested transform.
+- **Fix**: In PIE, create or reuse a transient `ACameraActor`, apply the requested transform/FOV, and make it the
+  local player's view target. Outside PIE, retain the editor viewport behavior. The Python tool schema is unchanged.
+- **Verification**: Capture the same PIE target from distinct camera transforms and confirm the images change
+  accordingly.
+
 ## Active Issues
 
 ### MCP TCP Connection Freezes (Mitigated 2026-05-31)
@@ -170,17 +190,16 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ---
 
-### ProjectMCP set_object_property Silently Fails on Object-Array Properties (e.g. UVoxelMegaMaterial.SurfaceTypes)
-- **Affected**: `set_object_property` (projectMCP) when the target is a `TArray<UObject*>` property on a plugin `UVoxelAsset` (likely other object-array props too)
-- **Date Discovered**: 2026-06-04
-- **Problem**: Setting `MM_Landscape.SurfaceTypes` (a `TArray<UVoxelSurfaceTypeAsset*>` on a `UVoxelMegaMaterial`) to a new array returned `success: true` but the array was unchanged. PROVEN via the voxel MegaMaterial cache-regen log: it rebuilt materials for only the original 6 surface types, not the 7th that was supposedly added.
-- **Impact**: Caller believes an object-array property changed (e.g. adding a cave/ore surface type) when it didn't → downstream renders fall back to `WorldGridMaterial` (checker). Silent data loss.
-- **Status**: OPEN — deferred. `PropertyServiceArrayOps::SetArrayPropertyFromJson` → `SetPropertyFromJson` (per element) looks correct on inspection, so the failure is elsewhere (command-level array-value parsing, `UVoxelMegaMaterial`/`UVoxelAsset` specifics, or save-not-persisting) and needs a reproduce-and-trace session.
-- **Workaround**: Edit the object-array property in the asset-editor UI (additive, safe), then save. After any `set_object_property` on an object-array, re-verify the value actually changed — do not trust the `success` flag.
-
----
-
 ## Resolved Issues
+
+- **ProjectMCP set_object_property Silently Failed on Object-Array Properties (e.g. UVoxelMegaMaterial.SurfaceTypes)** - Resolved 2026-06-11
+  - Issue (2026-06-04): setting `MM_Landscape.SurfaceTypes` (`TArray<UVoxelSurfaceTypeAsset*>` on a `UVoxelMegaMaterial`) returned `success: true` but the array stayed at the original 6 elements after a cache-delete + editor relaunch.
+  - Root cause (reconstructed): NOT the array import — the command's tail saved via `UEditorAssetLibrary::SaveAsset(RAW asset path)`. With a package-form path that save silently no-ops (the same object-path-vs-package-path resolution bug as the create_data_asset persist issue above, fixed 2026-06-07). The import succeeded in memory, the save never hit disk, and the relaunch-based verification flow lost the change. The save now uses the normalized OBJECT path.
+  - Verified live 2026-06-11 (UE 5.7, SimPrototype): a 7-element `SurfaceTypes` write (6 biomes + ST_CaveWall) onto a `MM_Landscape` duplicate applies all 7 (re-exported value confirms, incl. after `PostEditChangeProperty`) and persists to disk immediately.
+  - Hardening (2026-06-11), because the old lesson was "do not trust the success flag":
+    - every `set_object_property` response now carries **`applied_value`** — the property RE-EXPORTED from the asset after import + PostEditChangeProperty (what will actually persist); compare it against intent instead of trusting `success`;
+    - **unresolvable object references are now an error**: UE's ImportText imports an unloadable object path as `None` WITHOUT a parser error (verified live: a bogus array element produced `(None)` + `success: true`). For object-ref properties/arrays/sets a `None` token the caller did not explicitly write is rejected and the previous value is **rolled back**; explicit `None` in the input keeps working.
+  - Historical note: the original OPEN entry suspected `PropertyServiceArrayOps::SetArrayPropertyFromJson` — that path is unrelated; this command imports via `FProjectDataAssetService::SetObjectProperty` → `ImportText_Direct`.
 
 - **ProjectMCP create_data_asset / create_asset Don't Persist to Disk; properties dropped; save_asset rejects package path** - Fixed 2026-06-07
   - Issue: `create_data_asset` returned `success` but the `.uasset` was never written to disk (lived in memory only → lost on editor close, uncommittable). Passing a `properties` map silently dropped ALL properties (asset saved with class defaults). `save_asset("/Game/Foo/Bar")` (package path) returned "Asset does not exist", though `save_asset("/Game/Foo/Bar.Bar")` (object path) worked. `create_asset` shared the persist bug.

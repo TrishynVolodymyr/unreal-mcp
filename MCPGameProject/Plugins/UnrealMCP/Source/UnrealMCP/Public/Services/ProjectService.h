@@ -40,7 +40,7 @@ public:
     virtual bool SetDataAssetProperty(const FString& AssetPath, const FString& PropertyName, const TSharedPtr<FJsonValue>& PropertyValue, FString& OutError) override;
     virtual TSharedPtr<FJsonObject> GetDataAssetMetadata(const FString& AssetPath, FString& OutError) override;
     virtual bool CreateAsset(const FString& Name, const FString& AssetClass, const FString& FolderPath, FString& OutAssetPath, FString& OutError) override;
-    virtual bool SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError) override;
+    virtual bool SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError, FString* OutAppliedValue = nullptr) override;
 
     // Font Face operations (for TTF-based fonts)
     virtual bool CreateFontFace(const FString& FontName, const FString& Path, const FString& SourceTexturePath, bool bUseSDF, int32 DistanceFieldSpread, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError) override;

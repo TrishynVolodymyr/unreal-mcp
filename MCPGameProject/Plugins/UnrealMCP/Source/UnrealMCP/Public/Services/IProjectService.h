@@ -54,7 +54,9 @@ public:
 
     // Generic asset operations (any UObject class — for assets with no dedicated MCP tool, e.g. Voxel)
     virtual bool CreateAsset(const FString& Name, const FString& AssetClass, const FString& FolderPath, FString& OutAssetPath, FString& OutError) = 0;
-    virtual bool SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError) = 0;
+    // OutAppliedValue (optional): the value re-exported from the asset AFTER import +
+    // PostEditChangeProperty — what will actually persist (verify-after-write evidence).
+    virtual bool SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError, FString* OutAppliedValue = nullptr) = 0;
 
     // Font Face operations (for TTF-based fonts)
     virtual bool CreateFontFace(const FString& FontName, const FString& Path, const FString& SourceTexturePath, bool bUseSDF, int32 DistanceFieldSpread, const TSharedPtr<FJsonObject>& FontMetrics, FString& OutAssetPath, FString& OutError) = 0;
