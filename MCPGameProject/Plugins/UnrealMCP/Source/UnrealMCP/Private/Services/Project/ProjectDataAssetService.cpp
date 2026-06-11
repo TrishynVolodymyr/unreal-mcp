@@ -371,7 +371,7 @@ bool FProjectDataAssetService::CreateAsset(const FString& Name, const FString& A
     return true;
 }
 
-bool FProjectDataAssetService::SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError)
+bool FProjectDataAssetService::SetObjectProperty(const FString& AssetPath, const FString& PropertyName, const FString& ValueString, FString& OutError, FString* OutAppliedValue)
 {
     if (AssetPath.IsEmpty()) { OutError = TEXT("Asset path cannot be empty"); return false; }
     if (PropertyName.IsEmpty()) { OutError = TEXT("Property name cannot be empty"); return false; }
@@ -402,6 +402,10 @@ bool FProjectDataAssetService::SetObjectProperty(const FString& AssetPath, const
 
     // Generic import — ImportText parses object refs, arrays, structs, enums, etc.
     // Capture the UE parser's diagnostics for a precise error message.
+    // PreviousValue backs the unresolved-ref rollback below (the import mutates the
+    // asset in memory BEFORE we can detect silently-Nulled object refs).
+    FString PreviousValue;
+    Property->ExportTextItem_Direct(PreviousValue, ValuePtr, nullptr, Asset, PPF_None);
     FStringOutputDevice ImportErrors;
     Asset->Modify();
     const TCHAR* Result = Property->ImportText_Direct(*ValueString, ValuePtr, Asset, PPF_None, &ImportErrors);
@@ -416,6 +420,62 @@ bool FProjectDataAssetService::SetObjectProperty(const FString& AssetPath, const
     FPropertyChangedEvent ChangedEvent(Property);
     Asset->PostEditChangeProperty(ChangedEvent);
     Asset->MarkPackageDirty();
+
+    // Anti-lie evidence (known-issues "set_object_property silently fails"): re-export
+    // the property AFTER PostEditChangeProperty so the caller sees the value that will
+    // actually persist — a PostEditChange that sanitizes/reverts the import is visible
+    // here without a second read call.
+    FString AppliedValue;
+    Property->ExportTextItem_Direct(AppliedValue, ValuePtr, nullptr, Asset, PPF_None);
+    if (OutAppliedValue)
+    {
+        *OutAppliedValue = AppliedValue;
+    }
+
+    // Honest failure for unresolved object references: UE's ImportText imports an
+    // unloadable object path as None WITHOUT a parser error (verified live 2026-06-11:
+    // a bogus "/Game/.../ST_DoesNotExist" array element produced applied "(None)" and
+    // would otherwise report success). For object-ref-rooted properties, a None token
+    // in the re-exported value that the caller did not explicitly write means at least
+    // one reference failed to resolve — report failure instead of claiming success.
+    // Explicit "None" in the input keeps working (deliberate null slots).
+    {
+        const FProperty* RefRoot = Property;
+        if (const FArrayProperty* AsArray = CastField<FArrayProperty>(Property))
+        {
+            RefRoot = AsArray->Inner;
+        }
+        else if (const FSetProperty* AsSet = CastField<FSetProperty>(Property))
+        {
+            RefRoot = AsSet->ElementProp;
+        }
+        if (CastField<FObjectPropertyBase>(RefRoot))
+        {
+            // A null object ref exports as the bare token None: the whole value, or
+            // an array/set element right after '(' or ','. Quoted object paths can't
+            // produce these sequences.
+            auto HasNoneToken = [](const FString& S)
+            {
+                return S == TEXT("None")
+                    || S.Contains(TEXT("(None"))
+                    || S.Contains(TEXT(",None"));
+            };
+            if (HasNoneToken(AppliedValue) && !HasNoneToken(ValueString))
+            {
+                // Roll the in-memory value back so a later unrelated save can't
+                // persist the half-Nulled import.
+                FStringOutputDevice RollbackErrors;
+                Property->ImportText_Direct(*PreviousValue, ValuePtr, Asset, PPF_None, &RollbackErrors);
+                FPropertyChangedEvent RollbackEvent(Property);
+                Asset->PostEditChangeProperty(RollbackEvent);
+                OutError = FString::Printf(
+                    TEXT("One or more object references in '%s' failed to resolve (imported as None). ")
+                    TEXT("Check the asset paths. Rejected import: %s — asset rolled back to: %s"),
+                    *PropertyName, *AppliedValue, *PreviousValue);
+                return false;
+            }
+        }
+    }
 
     // Force a render-state refresh for level objects so the change shows live in
     // the editor viewport. PostEditChangeProperty alone marks render state dirty

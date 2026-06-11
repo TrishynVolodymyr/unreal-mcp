@@ -62,7 +62,8 @@ FString FSetObjectPropertyCommand::Execute(const FString& Parameters)
     }
 
     FString Error;
-    if (!ProjectService->SetObjectProperty(AssetPath, PropertyName, ValueString, Error))
+    FString AppliedValue;
+    if (!ProjectService->SetObjectProperty(AssetPath, PropertyName, ValueString, Error, &AppliedValue))
     {
         return MakeError(Error);
     }
@@ -71,6 +72,10 @@ FString FSetObjectPropertyCommand::Execute(const FString& Parameters)
     ResponseData->SetBoolField(TEXT("success"), true);
     ResponseData->SetStringField(TEXT("asset_path"), AssetPath);
     ResponseData->SetStringField(TEXT("property_name"), PropertyName);
+    // The value RE-EXPORTED from the asset after import + PostEditChangeProperty — what
+    // actually persists. Callers must compare this against intent instead of trusting
+    // `success` (known-issues: a write that parses can still be sanitized/reverted).
+    ResponseData->SetStringField(TEXT("applied_value"), AppliedValue);
     ResponseData->SetStringField(TEXT("message"), FString::Printf(TEXT("Set '%s' on %s"), *PropertyName, *AssetPath));
 
     FString OutputString;

@@ -1389,9 +1389,16 @@ def register_project_tools(mcp: FastMCP):
             property_value: Value in Unreal property-text form (see above)
 
         Returns:
-            Dict with success, asset_path, property_name, message. On failure:
+            Dict with success, asset_path, property_name, applied_value, message.
+            applied_value is the property RE-EXPORTED from the asset AFTER import +
+            PostEditChangeProperty — what will actually persist. ALWAYS compare it
+            against your intent instead of trusting success alone (a parseable write
+            can still be sanitized/reverted by the asset's PostEditChange). On failure:
             success=False + detailed message including the Unreal parser error
             (property not found, type mismatch, unresolved object path, etc.).
+            Unresolvable object references (UE imports them as None WITHOUT a parser
+            error) are detected for object-ref properties/arrays/sets: the write is
+            rejected and rolled back unless your input explicitly contains None.
 
         Examples:
             # Object reference
