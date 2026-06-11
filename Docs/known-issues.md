@@ -2,6 +2,26 @@
 
 This file tracks MCP tool limitations discovered during development. When encountering issues, document them here.
 
+## Resolved Issues
+
+### `execute_console_command` Ignored the Active PIE World (Fixed 2026-06-10)
+- **Affected**: `editorMCP.execute_console_command`
+- **Problem**: The C++ command always executed through `GEditor->GetEditorWorldContext()`. During PIE, runtime
+  commands such as world regeneration changed the editor world while the visible PIE session remained unchanged.
+- **Fix**: Prefer `GEditor->GetPIEWorldContext()->World()` while PIE is active, with the editor world as the
+  fallback outside play sessions. The Python tool schema is unchanged.
+- **Verification**: Execute a world-specific console command during PIE and confirm its runtime log/HUD state
+  changes in the PIE world; stop PIE and confirm the same tool still executes against the editor world.
+
+### `set_viewport_camera` Ignored the Active PIE Camera (Fixed 2026-06-10)
+- **Affected**: `editorMCP.set_viewport_camera`
+- **Problem**: The command only moved the editor viewport. During PIE, captures stayed on the gameplay pawn camera,
+  so project-specific camera and spring-arm behavior ignored the requested transform.
+- **Fix**: In PIE, create or reuse a transient `ACameraActor`, apply the requested transform/FOV, and make it the
+  local player's view target. Outside PIE, retain the editor viewport behavior. The Python tool schema is unchanged.
+- **Verification**: Capture the same PIE target from distinct camera transforms and confirm the images change
+  accordingly.
+
 ## Active Issues
 
 ### MCP TCP Connection Freezes (Mitigated 2026-05-31)

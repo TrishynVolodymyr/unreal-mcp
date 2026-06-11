@@ -34,11 +34,19 @@ FString FExecuteConsoleCommandCommand::Execute(const FString& Parameters)
 		return Out;
 	}
 
-	// Get the editor world for command context
+	// Runtime console commands must target the active PIE world. Falling back to
+	// the editor world preserves the existing behavior outside play sessions.
 	UWorld* World = nullptr;
 	if (GEditor)
 	{
-		World = GEditor->GetEditorWorldContext().World();
+		if (FWorldContext* PIEContext = GEditor->GetPIEWorldContext())
+		{
+			World = PIEContext->World();
+		}
+		if (!World)
+		{
+			World = GEditor->GetEditorWorldContext().World();
+		}
 	}
 
 	// Execute with output capture
