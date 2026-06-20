@@ -542,7 +542,11 @@ bool FProjectFontService::CreateOfflineFont(const FString& FontName, const FStri
     const TSharedPtr<FJsonObject>* CharactersObj;
     if (MetricsJson->TryGetObjectField(TEXT("characters"), CharactersObj))
     {
-        TMap<FString, TSharedPtr<FJsonValue>> CharMap = (*CharactersObj)->Values;
+        TMap<FString, TSharedPtr<FJsonValue>> CharMap;
+        for (const auto& Pair : (*CharactersObj)->Values)
+        {
+            CharMap.Add(FString(Pair.Key.ToView()), Pair.Value);
+        }
 
         // Initialize character remap
         NewFont->IsRemapped = 1;

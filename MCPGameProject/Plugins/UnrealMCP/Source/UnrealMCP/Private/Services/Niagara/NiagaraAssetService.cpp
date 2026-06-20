@@ -30,8 +30,10 @@ UNiagaraSystem* FNiagaraService::CreateSystem(const FNiagaraSystemCreationParams
         return nullptr;
     }
 
-    // Create the system using the factory
-    UNiagaraSystemFactoryNew* Factory = NewObject<UNiagaraSystemFactoryNew>();
+    // Create the system using the factory.
+    // UE 5.8: UNiagaraSystemFactoryNew::FactoryCreateNew is now private; call via the
+    // public UFactory base declaration (virtual dispatch still runs the Niagara override).
+    UFactory* Factory = NewObject<UNiagaraSystemFactoryNew>();
 
     UNiagaraSystem* NewSystem = Cast<UNiagaraSystem>(
         Factory->FactoryCreateNew(
@@ -109,8 +111,10 @@ UNiagaraEmitter* FNiagaraService::CreateEmitter(const FNiagaraEmitterCreationPar
         return nullptr;
     }
 
-    // Create the emitter using the factory
-    UNiagaraEmitterFactoryNew* Factory = NewObject<UNiagaraEmitterFactoryNew>();
+    // Create the emitter using the factory.
+    // UE 5.8: UNiagaraEmitterFactoryNew::FactoryCreateNew is now private; call via the
+    // public UFactory base declaration (virtual dispatch still runs the Niagara override).
+    UFactory* Factory = NewObject<UNiagaraEmitterFactoryNew>();
 
     UNiagaraEmitter* NewEmitter = Cast<UNiagaraEmitter>(
         Factory->FactoryCreateNew(

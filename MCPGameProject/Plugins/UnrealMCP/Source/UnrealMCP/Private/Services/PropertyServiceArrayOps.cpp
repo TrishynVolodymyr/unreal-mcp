@@ -266,19 +266,20 @@ UObject* FPropertyService::CreateInstancedObjectFromJson(const TSharedPtr<FJsonO
 
     for (const auto& PropertyPair : JsonObject->Values)
     {
-        if (PropertyPair.Key == TEXT("_class"))
+        const FString Key = FString(PropertyPair.Key.ToView());
+        if (Key == TEXT("_class"))
         {
             continue; // Skip the class specifier
         }
 
         FString PropError;
-        if (MutableService.SetObjectProperty(CreatedObject, PropertyPair.Key, PropertyPair.Value, PropError))
+        if (MutableService.SetObjectProperty(CreatedObject, Key, PropertyPair.Value, PropError))
         {
-            SuccessProps.Add(PropertyPair.Key);
+            SuccessProps.Add(Key);
         }
         else
         {
-            FailedProps.Add(PropertyPair.Key, PropError);
+            FailedProps.Add(Key, PropError);
         }
     }
 

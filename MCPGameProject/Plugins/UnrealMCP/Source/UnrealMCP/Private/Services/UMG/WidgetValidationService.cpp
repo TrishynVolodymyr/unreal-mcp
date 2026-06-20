@@ -152,7 +152,7 @@ FWidgetValidationResult FWidgetValidationService::ValidateWidgetComponentCreatio
     {
         for (const auto& PropertyPair : Kwargs->Values)
         {
-            const FString& PropertyName = PropertyPair.Key;
+            const FString PropertyName = FString(PropertyPair.Key.ToView());
             const TSharedPtr<FJsonValue>& PropertyValue = PropertyPair.Value;
 
             FWidgetValidationResult PropertyResult = ValidateWidgetProperty(ComponentType, PropertyName, PropertyValue);
@@ -194,7 +194,7 @@ FWidgetValidationResult FWidgetValidationService::ValidateWidgetPropertySetting(
     
     for (const auto& PropertyPair : Properties->Values)
     {
-        const FString& PropertyName = PropertyPair.Key;
+        const FString PropertyName = FString(PropertyPair.Key.ToView());
         const TSharedPtr<FJsonValue>& PropertyValue = PropertyPair.Value;
 
         if (PropertyName.IsEmpty())

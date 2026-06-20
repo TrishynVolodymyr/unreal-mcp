@@ -639,7 +639,10 @@ bool FMaterialExpressionService::ApplyExpressionProperties(UMaterialExpression* 
         {
             // MaterialFunctionCall requires a function path - return helpful error with valid property names
             TArray<FString> ProvidedKeys;
-            Properties->Values.GetKeys(ProvidedKeys);
+            for (const auto& Pair : Properties->Values)
+            {
+                ProvidedKeys.Add(FString(Pair.Key.ToView()));
+            }
             OutError = FString::Printf(TEXT("MaterialFunctionCall requires 'Function' or 'FunctionPath' property to specify the material function path. "
                 "Got properties: [%s]. Example: {\"Function\": \"/Engine/Functions/Engine_MaterialFunctions01/Gradient/RadialGradientExponential.RadialGradientExponential\"}"),
                 *FString::Join(ProvidedKeys, TEXT(", ")));

@@ -7,7 +7,7 @@
 #include "K2Node_FunctionResult.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "EdGraphSchema_K2.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "UObject/StructOnScope.h"
 #include "Services/BlueprintService.h"
 

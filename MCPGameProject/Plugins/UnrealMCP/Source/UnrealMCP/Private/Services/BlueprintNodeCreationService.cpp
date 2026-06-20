@@ -620,7 +620,7 @@ void FBlueprintNodeCreationService::ApplyPinValues(UEdGraphNode* Node, UEdGraph*
     // Iterate over all pin values
     for (const auto& PinValuePair : PinValuesObject->Values)
     {
-        const FString& PinName = PinValuePair.Key;
+        const FString PinName = FString(PinValuePair.Key.ToView());
         FString Value;
 
         // Get value as string (handles string, number, bool)

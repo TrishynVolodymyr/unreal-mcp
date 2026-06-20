@@ -1385,7 +1385,7 @@ bool FStateTreeService::AddConditionToTransition(const FAddConditionParams& Para
 
         for (const auto& PropertyPair : Params.ConditionProperties->Values)
         {
-            const FString& PropertyName = PropertyPair.Key;
+            const FString PropertyName = FString(PropertyPair.Key.ToView());
             const TSharedPtr<FJsonValue>& PropertyValue = PropertyPair.Value;
             bool bPropertySet = false;
 

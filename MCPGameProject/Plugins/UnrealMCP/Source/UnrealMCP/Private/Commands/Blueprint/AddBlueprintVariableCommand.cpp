@@ -6,7 +6,7 @@
 #include "Serialization/JsonWriter.h"
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "Engine/DataTable.h"
 #include "UObject/UObjectGlobals.h"

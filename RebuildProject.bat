@@ -34,7 +34,7 @@ if exist "Plugins\UnrealMCP\Binaries" (
 
 echo.
 echo [3/4] Building project...
-"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="e:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject" -TargetType=Editor
+"C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" MCPGameProjectEditor Win64 Development -Project="e:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject" -TargetType=Editor
 
 echo.
 echo [4/4] Build complete!

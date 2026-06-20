@@ -268,7 +268,10 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
     
     // Iterate through all properties to set
     TArray<FString> PropertyNames;
-    Properties->Values.GetKeys(PropertyNames);
+    for (const auto& Pair : Properties->Values)
+    {
+        PropertyNames.Add(FString(Pair.Key.ToView()));
+    }
     
     UE_LOG(LogUnrealMCP, Log, TEXT("Attempting to set %d properties"), PropertyNames.Num());
     
@@ -280,7 +283,7 @@ bool FSetComponentPropertyCommand::SetComponentProperties(UBlueprint* Blueprint,
             continue;
         }
 
-        const TSharedPtr<FJsonValue>& JsonValue = Properties->Values[PropertyName];
+        const TSharedPtr<FJsonValue> JsonValue = Properties->TryGetField(PropertyName);
 
         UE_LOG(LogUnrealMCP, Log, TEXT("  Setting property: %s"), *PropertyName);
         if (!JsonValue.IsValid())

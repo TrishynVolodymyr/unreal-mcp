@@ -78,7 +78,7 @@ static FString ConvertCamelCaseToTitleCase(const FString& InFunctionName)
 }
 
 // Phase 2 includes removed - using universal dynamic creation via Blueprint Action Database
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "Engine/UserDefinedEnum.h"
 #include "KismetCompiler.h"
 #include "BlueprintNodeSpawner.h"

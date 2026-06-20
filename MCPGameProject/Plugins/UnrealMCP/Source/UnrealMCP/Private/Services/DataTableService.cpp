@@ -227,8 +227,9 @@ bool FDataTableService::AddRowsToDataTable(UDataTable* DataTable, const TArray<F
         bool bHasGuidFields = false;
         for (const auto& Field : RowParams.RowData->Values)
         {
-            bool bIsGuid = FDataTableTransformationService::IsGuidField(Field.Key);
-            UE_LOG(LogTemp, Warning, TEXT("Field '%s' is GUID: %s"), *Field.Key, bIsGuid ? TEXT("YES") : TEXT("NO"));
+            const FString FieldKey = FString(Field.Key.ToView());
+            bool bIsGuid = FDataTableTransformationService::IsGuidField(FieldKey);
+            UE_LOG(LogTemp, Warning, TEXT("Field '%s' is GUID: %s"), *FieldKey, bIsGuid ? TEXT("YES") : TEXT("NO"));
             if (bIsGuid)
             {
                 bHasGuidFields = true;
@@ -364,8 +365,9 @@ bool FDataTableService::UpdateRowsInDataTable(UDataTable* DataTable, const TArra
         bool bHasGuidFields = false;
         for (const auto& Field : RowParams.RowData->Values)
         {
-            bool bIsGuid = FDataTableTransformationService::IsGuidField(Field.Key);
-            UE_LOG(LogTemp, Warning, TEXT("Field '%s' is GUID: %s"), *Field.Key, bIsGuid ? TEXT("YES") : TEXT("NO"));
+            const FString FieldKey = FString(Field.Key.ToView());
+            bool bIsGuid = FDataTableTransformationService::IsGuidField(FieldKey);
+            UE_LOG(LogTemp, Warning, TEXT("Field '%s' is GUID: %s"), *FieldKey, bIsGuid ? TEXT("YES") : TEXT("NO"));
             if (bIsGuid)
             {
                 bHasGuidFields = true;
@@ -780,7 +782,7 @@ TSharedPtr<FJsonObject> FDataTableService::TransformJsonToStructNames(const TSha
     TSharedPtr<FJsonObject> OutJson = MakeShared<FJsonObject>();
     for (const auto& Pair : InJson->Values)
     {
-        FString Key = Pair.Key;
+        FString Key = FString(Pair.Key.ToView());
         const FString* StructName = GuidToStructMap.Find(Key);
         if (StructName)
         {

@@ -36,10 +36,11 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
     {
         for (const auto& Pair : (*ScalarParamsObj)->Values)
         {
+            const FString Key = FString(Pair.Key.ToView());
             float Value = static_cast<float>(Pair.Value->AsNumber());
-            if (MaterialService.SetScalarParameter(MaterialPath, Pair.Key, Value, Error))
+            if (MaterialService.SetScalarParameter(MaterialPath, Key, Value, Error))
             {
-                SetScalarParams.Add(Pair.Key);
+                SetScalarParams.Add(Key);
             }
         }
     }
@@ -50,6 +51,7 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
     {
         for (const auto& Pair : (*VectorParamsObj)->Values)
         {
+            const FString Key = FString(Pair.Key.ToView());
             const TArray<TSharedPtr<FJsonValue>>* ColorArray;
             if (Pair.Value->TryGetArray(ColorArray) && ColorArray->Num() >= 3)
             {
@@ -59,9 +61,9 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
                 Color.B = static_cast<float>((*ColorArray)[2]->AsNumber());
                 Color.A = ColorArray->Num() >= 4 ? static_cast<float>((*ColorArray)[3]->AsNumber()) : 1.0f;
 
-                if (MaterialService.SetVectorParameter(MaterialPath, Pair.Key, Color, Error))
+                if (MaterialService.SetVectorParameter(MaterialPath, Key, Color, Error))
                 {
-                    SetVectorParams.Add(Pair.Key);
+                    SetVectorParams.Add(Key);
                 }
             }
         }
@@ -73,10 +75,11 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
     {
         for (const auto& Pair : (*TextureParamsObj)->Values)
         {
+            const FString Key = FString(Pair.Key.ToView());
             FString TexturePath = Pair.Value->AsString();
-            if (MaterialService.SetTextureParameter(MaterialPath, Pair.Key, TexturePath, Error))
+            if (MaterialService.SetTextureParameter(MaterialPath, Key, TexturePath, Error))
             {
-                SetTextureParams.Add(Pair.Key);
+                SetTextureParams.Add(Key);
             }
         }
     }

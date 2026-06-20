@@ -92,7 +92,7 @@ FMCPEnhancedError FMCPEnhancedError::FromJsonString(const FString& JsonString)
             FString Value;
             if (ContextPair.Value->TryGetString(Value))
             {
-                Error.Context.Add(ContextPair.Key, Value);
+                Error.Context.Add(FString(ContextPair.Key.ToView()), Value);
             }
         }
     }

@@ -2,7 +2,7 @@
 #include "Services/PropertyTypeResolverService.h"
 #include "Services/AssetDiscoveryService.h"
 #include "EditorAssetLibrary.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet2/StructureEditorUtils.h"
 #include "AssetToolsModule.h"

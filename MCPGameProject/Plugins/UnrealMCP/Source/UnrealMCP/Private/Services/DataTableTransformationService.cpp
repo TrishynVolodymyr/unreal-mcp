@@ -21,7 +21,7 @@ TSharedPtr<FJsonObject> FDataTableTransformationService::AutoTransformToGuidName
     // Transform each field in the input JSON
     for (const auto& Pair : InJson->Values)
     {
-        FString InputKey = Pair.Key;
+        FString InputKey = FString(Pair.Key.ToView());
         
         // Handle both GUID and friendly field names
         FString OutputKey;
@@ -119,7 +119,7 @@ TSharedPtr<FJsonObject> FDataTableTransformationService::AutoTransformFromGuidNa
     // Transform each field in the input JSON
     for (const auto& Pair : InJson->Values)
     {
-        FString InputKey = Pair.Key;
+        FString InputKey = FString(Pair.Key.ToView());
         FString OutputKey;
         bool bShouldProcess = false;
         
@@ -142,7 +142,7 @@ TSharedPtr<FJsonObject> FDataTableTransformationService::AutoTransformFromGuidNa
         {
             // This might be a friendly field - check if it has a corresponding GUID field in the input
             FString* GuidKeyPtr = FriendlyToGuidMap.Find(InputKey);
-            if (GuidKeyPtr && InJson->Values.Contains(*GuidKeyPtr))
+            if (GuidKeyPtr && InJson->HasField(*GuidKeyPtr))
             {
                 // Both GUID and friendly versions exist - skip friendly to avoid duplicates
                 UE_LOG(LogTemp, Warning, TEXT("AutoTransformFromGuidNames: Skipping friendly field '%s' - GUID version '%s' already processed"), *InputKey, **GuidKeyPtr);
@@ -364,7 +364,7 @@ TArray<TSharedPtr<FJsonValue>> FDataTableTransformationService::TransformArrayTo
                 // Transform each field in the struct
                 for (const auto& StructPair : (*ElementObj)->Values)
                 {
-                    FString StructInputKey = StructPair.Key;
+                    FString StructInputKey = FString(StructPair.Key.ToView());
                     FString* StructGuidKeyPtr = StructFriendlyToGuidMap.Find(StructInputKey);
                     FString StructOutputKey = StructGuidKeyPtr ? *StructGuidKeyPtr : StructInputKey;
                     
@@ -420,7 +420,7 @@ TArray<TSharedPtr<FJsonValue>> FDataTableTransformationService::TransformArrayFr
                 // Transform each field in the struct
                 for (const auto& StructPair : (*ElementObj)->Values)
                 {
-                    FString StructInputKey = StructPair.Key;
+                    FString StructInputKey = FString(StructPair.Key.ToView());
                     FString* StructFriendlyKeyPtr = StructGuidToFriendlyMap.Find(StructInputKey);
                     FString StructOutputKey = StructFriendlyKeyPtr ? ConvertToCamelCase(*StructFriendlyKeyPtr) : StructInputKey;
                     

@@ -26,7 +26,7 @@
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "K2Node_FunctionResult.h"
-#include "Engine/UserDefinedStruct.h"
+#include "StructUtils/UserDefinedStruct.h"
 #include "EdGraphSchema_K2.h"
 #include "Logging/TokenizedMessage.h"
 #include "Logging/MessageLog.h"

@@ -203,9 +203,9 @@ bool FPropertyService::SetObjectProperties(UObject* Object, const TSharedPtr<FJs
     // Iterate through all properties
     for (const auto& PropertyPair : Properties->Values)
     {
-        const FString& PropertyName = PropertyPair.Key;
+        const FString PropertyName = FString(PropertyPair.Key.ToView());
         const TSharedPtr<FJsonValue>& PropertyValue = PropertyPair.Value;
-        
+
         FString ErrorMessage;
         if (SetObjectProperty(Object, PropertyName, PropertyValue, ErrorMessage))
         {
@@ -1073,15 +1073,16 @@ bool FPropertyService::SetStructPropertyFromJson(FStructProperty* StructProp, vo
             TSharedPtr<FJsonObject> NormalizedJson = MakeShareable(new FJsonObject);
             for (const auto& FieldPair : StructJson->Values)
             {
-                const FString* Alias = Vector4Aliases.Find(FieldPair.Key);
+                const FString FieldKey = FString(FieldPair.Key.ToView());
+                const FString* Alias = Vector4Aliases.Find(FieldKey);
                 if (Alias)
                 {
-                    UE_LOG(LogTemp, Log, TEXT("PropertyService: Mapping FVector4 alias '%s' -> '%s'"), *FieldPair.Key, **Alias);
+                    UE_LOG(LogTemp, Log, TEXT("PropertyService: Mapping FVector4 alias '%s' -> '%s'"), *FieldKey, **Alias);
                     NormalizedJson->SetField(*Alias, FieldPair.Value);
                 }
                 else
                 {
-                    NormalizedJson->SetField(FieldPair.Key, FieldPair.Value);
+                    NormalizedJson->SetField(FieldKey, FieldPair.Value);
                 }
             }
             StructJson = NormalizedJson;
@@ -1098,7 +1099,7 @@ bool FPropertyService::SetStructPropertyFromJson(FStructProperty* StructProp, vo
                 void* FieldData = StructField->ContainerPtrToValuePtr<void>(PropertyData);
                 FString FieldError;
                 
-                if (!SetPropertyFromJson(StructField, FieldData, StructJson->Values[FieldName], FieldError))
+                if (!SetPropertyFromJson(StructField, FieldData, StructJson->TryGetField(FieldName), FieldError))
                 {
                     OutError = FString::Printf(TEXT("Failed to set struct field '%s': %s"), *FieldName, *FieldError);
                     return false;

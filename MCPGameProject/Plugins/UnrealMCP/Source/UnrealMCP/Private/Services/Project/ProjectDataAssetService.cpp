@@ -189,10 +189,11 @@ bool FProjectDataAssetService::CreateDataAsset(const FString& Name, const FStrin
     {
         for (const auto& Pair : Properties->Values)
         {
+            const FString Key = FString(Pair.Key.ToView());
             FString PropError;
-            if (!ProjectDataAssetServiceHelpers::ApplyJsonProperty(NewDataAsset, Pair.Key, Pair.Value, PropError))
+            if (!ProjectDataAssetServiceHelpers::ApplyJsonProperty(NewDataAsset, Key, Pair.Value, PropError))
             {
-                UE_LOG(LogTemp, Warning, TEXT("MCP Project: Failed to set property '%s': %s"), *Pair.Key, *PropError);
+                UE_LOG(LogTemp, Warning, TEXT("MCP Project: Failed to set property '%s': %s"), *Key, *PropError);
             }
         }
     }

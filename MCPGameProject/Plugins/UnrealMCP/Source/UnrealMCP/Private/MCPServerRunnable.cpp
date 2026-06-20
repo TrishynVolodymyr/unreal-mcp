@@ -172,7 +172,10 @@ FString ProcessClientRequest(UUnrealMCPBridge* Bridge, const FString& ReceivedTe
 	if (!JsonObject->TryGetStringField(TEXT("type"), CommandType))
 	{
 		TArray<FString> FieldNames;
-		JsonObject->Values.GetKeys(FieldNames);
+		for (const auto& Pair : JsonObject->Values)
+		{
+			FieldNames.Add(FString(Pair.Key.ToView()));
+		}
 		const FString FieldList = FString::Join(FieldNames, TEXT(", "));
 		UE_LOG(LogTemp, Warning, TEXT("MCPServerRunnable: Missing 'type' field. Available fields: %s"), *FieldList);
 		return MakeErrorResponse(TEXT("Missing type field"));

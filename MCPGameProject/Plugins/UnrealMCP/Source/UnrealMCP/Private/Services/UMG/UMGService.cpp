@@ -278,7 +278,10 @@ bool FUMGService::SetWidgetProperties(const FString& BlueprintName, const FStrin
 
                 // Log all keys in the Font object for debugging
                 TArray<FString> FontKeys;
-                (*FontJsonObject)->Values.GetKeys(FontKeys);
+                for (const auto& FontPair : (*FontJsonObject)->Values)
+                {
+                    FontKeys.Add(FString(FontPair.Key.ToView()));
+                }
                 UE_LOG(LogTemp, Warning, TEXT("UMGService: Font object has %d keys: %s"), FontKeys.Num(), *FString::Join(FontKeys, TEXT(", ")));
 
                 // Handle FontObject - load and set the font asset (UFont or UFontFace)
@@ -388,7 +391,7 @@ bool FUMGService::SetWidgetProperties(const FString& BlueprintName, const FStrin
     TArray<FString> SlotPropertiesToRemove;
     for (const auto& PropPair : RemainingProperties->Values)
     {
-        FString PropName = PropPair.Key;
+        FString PropName = FString(PropPair.Key.ToView());
         if (PropName.StartsWith(TEXT("Slot."), ESearchCase::IgnoreCase))
         {
             // Extract the property name after "Slot."
@@ -432,8 +435,8 @@ bool FUMGService::SetWidgetProperties(const FString& BlueprintName, const FStrin
     {
         // Try setting as a slot property (fallback)
         FString SlotError;
-        const TSharedPtr<FJsonValue>* PropValue = RemainingProperties->Values.Find(FailedProp.Key);
-        if (PropValue && Widget->Slot && SetSlotProperty(Widget, FailedProp.Key, *PropValue, SlotError))
+        const TSharedPtr<FJsonValue> PropValue = RemainingProperties->TryGetField(FailedProp.Key);
+        if (PropValue.IsValid() && Widget->Slot && SetSlotProperty(Widget, FailedProp.Key, PropValue, SlotError))
         {
             // Success! It was a slot property sent without "Slot." prefix
             OutSuccessProperties.Add(FailedProp.Key);

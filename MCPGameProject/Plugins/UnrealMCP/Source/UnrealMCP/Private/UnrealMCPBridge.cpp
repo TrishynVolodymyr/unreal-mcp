@@ -417,7 +417,7 @@ FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TShar
                 // Copy all additional fields from ResultJson to ResponseJson (e.g., compilation_errors)
                 for (const auto& Pair : ResultJson->Values)
                 {
-                    const FString& Key = Pair.Key;
+                    const FString Key = FString(Pair.Key.ToView());
                     // Skip 'success' and 'error' as we already handled them
                     if (Key != TEXT("success") && Key != TEXT("error"))
                     {
