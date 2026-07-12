@@ -1,19 +1,109 @@
 #include "Commands/Editor/GetRenderingStatsCommand.h"
 #include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "DynamicRHI.h"
 #include "RHIStats.h"
 #include "RHI.h"
 #include "Engine/Engine.h"
+#include "Services/IEditorStatCapture.h"
 
 #if STATS
 #include "Stats/StatsData.h"
 #include "Stats/Stats.h"
 #endif
 
+namespace
+{
+FString SerializeRenderingResponse(const TSharedRef<FJsonObject>& Result)
+{
+	FString Output;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+	FJsonSerializer::Serialize(Result, Writer);
+	return Output;
+}
+}
+
+FGetRenderingStatsCommand::FGetRenderingStatsCommand()
+	: Backend(CreateEditorStatCaptureBackend(TEXT("InitViews")))
+	, Capture(MakeUnique<FBoundedEditorStatCapture>(Backend, CreateEditorStatCaptureScheduler()))
+{
+}
+
+FGetRenderingStatsCommand::FGetRenderingStatsCommand(
+	TSharedRef<IEditorStatCaptureBackend> InBackend,
+	TSharedRef<IEditorStatCaptureScheduler> InScheduler)
+	: Backend(MoveTemp(InBackend))
+	, Capture(MakeUnique<FBoundedEditorStatCapture>(Backend, MoveTemp(InScheduler)))
+{
+}
+
+FGetRenderingStatsCommand::~FGetRenderingStatsCommand() = default;
+
 FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 {
+	TSharedPtr<FJsonObject> Request;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Parameters.IsEmpty() ? TEXT("{}") : Parameters);
+	if (!FJsonSerializer::Deserialize(Reader, Request) || !Request.IsValid())
+	{
+		const TSharedRef<FJsonObject> ErrorResult = MakeShared<FJsonObject>();
+		ErrorResult->SetBoolField(TEXT("success"), false);
+		ErrorResult->SetStringField(TEXT("error"), TEXT("Parameters must be a JSON object"));
+		return SerializeRenderingResponse(ErrorResult);
+	}
+
+	FString Action = TEXT("snapshot");
+	Request->TryGetStringField(TEXT("action"), Action);
+	Action.ToLowerInline();
+
+	if (Action == TEXT("begin"))
+	{
+		double TimeoutSeconds = 3.0;
+		if (Request->HasField(TEXT("timeout_seconds")) && !Request->TryGetNumberField(TEXT("timeout_seconds"), TimeoutSeconds))
+		{
+			const TSharedRef<FJsonObject> ErrorResult = MakeShared<FJsonObject>();
+			ErrorResult->SetBoolField(TEXT("success"), false);
+			ErrorResult->SetStringField(TEXT("error"), TEXT("timeout_seconds must be numeric"));
+			return SerializeRenderingResponse(ErrorResult);
+		}
+
+		FString Owner;
+		FString Error;
+		const TSharedRef<FJsonObject> BeginResult = MakeShared<FJsonObject>();
+		if (!Capture->Begin(static_cast<float>(TimeoutSeconds), Owner, Error))
+		{
+			BeginResult->SetBoolField(TEXT("success"), false);
+			BeginResult->SetStringField(TEXT("error"), Error);
+			return SerializeRenderingResponse(BeginResult);
+		}
+		BeginResult->SetBoolField(TEXT("success"), true);
+		BeginResult->SetBoolField(TEXT("capture_started"), true);
+		BeginResult->SetStringField(TEXT("capture_owner"), Owner);
+		BeginResult->SetNumberField(TEXT("timeout_seconds"), TimeoutSeconds);
+		return SerializeRenderingResponse(BeginResult);
+	}
+
+	if (Action == TEXT("cancel"))
+	{
+		Capture->Finish();
+		const TSharedRef<FJsonObject> CancelResult = MakeShared<FJsonObject>();
+		CancelResult->SetBoolField(TEXT("success"), true);
+		CancelResult->SetBoolField(TEXT("capture_cancelled"), true);
+		return SerializeRenderingResponse(CancelResult);
+	}
+
+	if (Action != TEXT("snapshot") && Action != TEXT("read"))
+	{
+		const TSharedRef<FJsonObject> ErrorResult = MakeShared<FJsonObject>();
+		ErrorResult->SetBoolField(TEXT("success"), false);
+		ErrorResult->SetStringField(TEXT("error"), FString::Printf(TEXT("Unknown action '%s'"), *Action));
+		return SerializeRenderingResponse(ErrorResult);
+	}
+
+	bool bFinish = Action == TEXT("read");
+	Request->TryGetBoolField(TEXT("finish"), bFinish);
+
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("success"), true);
 
@@ -79,19 +169,14 @@ FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 	{
 		TSharedPtr<FJsonObject> VisObj = MakeShared<FJsonObject>();
 		FGameThreadStatsData* ViewData = FLatestGameThreadStatsData::Get().Latest;
-		if (!ViewData)
+		if (!Backend->IsCaptureEnabled() || !ViewData)
 		{
-			// Auto-enable stat initviews if not active
-			if (GEngine)
-			{
-				UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
-				GEngine->Exec(World, TEXT("stat initviews"));
-			}
-			VisObj->SetBoolField(TEXT("just_enabled"), true);
-			VisObj->SetStringField(TEXT("note"), TEXT("InitViews stats enabled. Call again for visibility data."));
+			VisObj->SetBoolField(TEXT("detailed_available"), false);
+			VisObj->SetStringField(TEXT("note"), TEXT("InitViews stats are not active. Use bounded begin/read capture for visibility data."));
 		}
 		else
 		{
+			VisObj->SetBoolField(TEXT("detailed_available"), true);
 			// Use short FNames (GetShortName() returns these) — NOT GET_STATFNAME() which returns long encoded paths
 			struct FStatMapping
 			{
@@ -158,11 +243,12 @@ FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 #endif
 
 	Result->SetStringField(TEXT("message"), Summary);
+	if (bFinish)
+	{
+		Capture->Finish();
+	}
 
-	FString Out;
-	TSharedRef<TJsonWriter<>> W = TJsonWriterFactory<>::Create(&Out);
-	FJsonSerializer::Serialize(Result.ToSharedRef(), W);
-	return Out;
+	return SerializeRenderingResponse(Result.ToSharedRef());
 }
 
 FString FGetRenderingStatsCommand::GetCommandName() const { return TEXT("get_rendering_stats"); }

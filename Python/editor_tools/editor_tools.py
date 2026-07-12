@@ -5,6 +5,7 @@ This module provides tools for controlling the Unreal Editor viewport and other 
 """
 
 import logging
+import time
 from typing import Dict, List, Any, Optional
 from mcp.server.fastmcp import FastMCP, Context
 from utils.editor.editor_operations import (
@@ -35,6 +36,57 @@ logger = logging.getLogger("UnrealMCP")
 
 # Get the help registry for this server
 _help_registry = get_help_registry()
+
+
+def _response_payload(response: Dict[str, Any]) -> Dict[str, Any]:
+    result = response.get("result")
+    return result if isinstance(result, dict) else response
+
+
+def _capture_payload_ready(command: str, payload: Dict[str, Any]) -> bool:
+    if command == "get_rendering_stats":
+        visibility = payload.get("visibility")
+        return isinstance(visibility, dict) and visibility.get("detailed_available", False)
+    return payload.get("success", False) and payload.get("detailed_available", False)
+
+
+def _run_bounded_stat_capture(
+    command: str,
+    capture_seconds: float,
+    timeout_seconds: float,
+) -> Dict[str, Any]:
+    retry_interval_seconds = 0.5
+    max_read_attempts = 4
+    effective_timeout = max(timeout_seconds, capture_seconds + 0.5)
+    begin = send_unreal_command(
+        command,
+        {"action": "begin", "timeout_seconds": effective_timeout},
+    )
+    if not _response_payload(begin).get("success", False):
+        return begin
+
+    try:
+        time.sleep(capture_seconds)
+        last_result = None
+        for attempt in range(max_read_attempts):
+            last_result = send_unreal_command(
+                command,
+                {"action": "read", "finish": False},
+            )
+            if _capture_payload_ready(command, _response_payload(last_result)):
+                send_unreal_command(command, {"action": "cancel"})
+                return last_result
+            if attempt + 1 < max_read_attempts:
+                time.sleep(retry_interval_seconds)
+
+        send_unreal_command(command, {"action": "cancel"})
+        return last_result
+    except Exception:
+        try:
+            send_unreal_command(command, {"action": "cancel"})
+        except Exception:
+            logger.warning("Failed to cancel %s capture after read error", command, exc_info=True)
+        raise
 
 def register_editor_tools(mcp: FastMCP):
     """Register editor tools with the MCP server."""
@@ -1054,14 +1106,25 @@ def register_editor_tools(mcp: FastMCP):
         return send_unreal_command("set_viewport_camera", params)
 
     @mcp.tool()
-    def get_gpu_stats(ctx: Context) -> Dict[str, Any]:
+    def get_gpu_stats(
+        ctx: Context,
+        capture_seconds: float = 0.5,
+        timeout_seconds: float = 5.0,
+    ) -> Dict[str, Any]:
         """
-        Get per-pass GPU profiler breakdown.
+        Capture a bounded per-pass GPU profiler breakdown.
 
         Returns detailed GPU timing for each render pass: BasePass, Shadows,
         Translucency, PostProcessing, etc. Sorted by cost (highest first).
 
-        First call enables GPU stat collection. Call again for actual data.
+        The tool temporarily enables detailed GPU profiling when needed, waits
+        for a short capture window, reads the result, and restores profiler
+        state before returning. A profiler session that was already active is
+        left untouched.
+
+        Args:
+            capture_seconds: Time allowed for detailed GPU samples to accumulate.
+            timeout_seconds: Editor-side watchdog for abandoned MCP-owned capture.
 
         Returns:
             Dictionary containing:
@@ -1073,7 +1136,11 @@ def register_editor_tools(mcp: FastMCP):
         Example:
             get_gpu_stats()
         """
-        return send_unreal_command("get_gpu_stats", {})
+        return _run_bounded_stat_capture(
+            "get_gpu_stats",
+            capture_seconds,
+            timeout_seconds,
+        )
 
     @mcp.tool()
     def get_scene_breakdown(
@@ -1117,12 +1184,24 @@ def register_editor_tools(mcp: FastMCP):
         return send_unreal_command("get_scene_breakdown", params)
 
     @mcp.tool()
-    def get_rendering_stats(ctx: Context) -> Dict[str, Any]:
+    def get_rendering_stats(
+        ctx: Context,
+        capture_seconds: float = 0.5,
+        timeout_seconds: float = 5.0,
+    ) -> Dict[str, Any]:
         """
         Get focused rendering diagnostics: draw call categories, VRAM, visibility/culling stats.
 
         Complements get_gpu_stats (GPU pass timing) and get_scene_breakdown (mesh instances).
         Shows VRAM usage, total draw calls / triangles, and initviews visibility data.
+
+        InitViews collection is enabled only for the bounded capture window and
+        restored before the tool returns. Existing user-owned stat state is left
+        untouched.
+
+        Args:
+            capture_seconds: Time allowed for InitViews samples to accumulate.
+            timeout_seconds: Editor-side watchdog for abandoned MCP-owned capture.
 
         Returns:
             Dictionary containing:
@@ -1144,7 +1223,11 @@ def register_editor_tools(mcp: FastMCP):
         Example:
             get_rendering_stats()
         """
-        return send_unreal_command("get_rendering_stats", {})
+        return _run_bounded_stat_capture(
+            "get_rendering_stats",
+            capture_seconds,
+            timeout_seconds,
+        )
 
     @mcp.tool()
     def get_mesh_draw_stats(ctx: Context, mesh_filter: str = None) -> Dict[str, Any]:
