@@ -28,7 +28,26 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
     TArray<FString> SetScalarParams;
     TArray<FString> SetVectorParams;
     TArray<FString> SetTextureParams;
+    TArray<FString> Failures;
     FString Error;
+
+    bool bHasParameterObject = false;
+    for (const TCHAR* FieldName : {TEXT("scalar_params"), TEXT("vector_params"), TEXT("texture_params")})
+    {
+        if (!JsonObject->HasField(FieldName))
+        {
+            continue;
+        }
+        bHasParameterObject = true;
+        if (JsonObject->Values[FieldName]->Type != EJson::Object)
+        {
+            return CreateErrorResponse(FString::Printf(TEXT("'%s' must be a JSON object"), FieldName));
+        }
+    }
+    if (!bHasParameterObject)
+    {
+        return CreateErrorResponse(TEXT("At least one of scalar_params, vector_params, or texture_params is required"));
+    }
 
     // Process scalar parameters
     const TSharedPtr<FJsonObject>* ScalarParamsObj;
@@ -37,10 +56,18 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
         for (const auto& Pair : (*ScalarParamsObj)->Values)
         {
             const FString Key = FString(Pair.Key.ToView());
+            if (Pair.Value->Type != EJson::Number)
+            {
+                return CreateErrorResponse(FString::Printf(TEXT("scalar_params.%s must be a number"), *Key));
+            }
             float Value = static_cast<float>(Pair.Value->AsNumber());
             if (MaterialService.SetScalarParameter(MaterialPath, Key, Value, Error))
             {
                 SetScalarParams.Add(Key);
+            }
+            else
+            {
+                Failures.Add(FString::Printf(TEXT("scalar %s: %s"), *Key, *Error));
             }
         }
     }
@@ -55,6 +82,13 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
             const TArray<TSharedPtr<FJsonValue>>* ColorArray;
             if (Pair.Value->TryGetArray(ColorArray) && ColorArray->Num() >= 3)
             {
+                for (const TSharedPtr<FJsonValue>& Component : *ColorArray)
+                {
+                    if (Component->Type != EJson::Number)
+                    {
+                        return CreateErrorResponse(FString::Printf(TEXT("vector_params.%s components must be numbers"), *Key));
+                    }
+                }
                 FLinearColor Color;
                 Color.R = static_cast<float>((*ColorArray)[0]->AsNumber());
                 Color.G = static_cast<float>((*ColorArray)[1]->AsNumber());
@@ -65,6 +99,14 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
                 {
                     SetVectorParams.Add(Key);
                 }
+                else
+                {
+                    Failures.Add(FString::Printf(TEXT("vector %s: %s"), *Key, *Error));
+                }
+            }
+            else
+            {
+                return CreateErrorResponse(FString::Printf(TEXT("vector_params.%s must be an array with at least 3 numbers"), *Key));
             }
         }
     }
@@ -76,12 +118,25 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
         for (const auto& Pair : (*TextureParamsObj)->Values)
         {
             const FString Key = FString(Pair.Key.ToView());
+            if (Pair.Value->Type != EJson::String)
+            {
+                return CreateErrorResponse(FString::Printf(TEXT("texture_params.%s must be an asset path string"), *Key));
+            }
             FString TexturePath = Pair.Value->AsString();
             if (MaterialService.SetTextureParameter(MaterialPath, Key, TexturePath, Error))
             {
                 SetTextureParams.Add(Key);
             }
+            else
+            {
+                Failures.Add(FString::Printf(TEXT("texture %s: %s"), *Key, *Error));
+            }
         }
+    }
+
+    if (!Failures.IsEmpty())
+    {
+        return CreateErrorResponse(FString::Join(Failures, TEXT("; ")));
     }
 
     return CreateSuccessResponse(MaterialPath, SetScalarParams, SetVectorParams, SetTextureParams);
