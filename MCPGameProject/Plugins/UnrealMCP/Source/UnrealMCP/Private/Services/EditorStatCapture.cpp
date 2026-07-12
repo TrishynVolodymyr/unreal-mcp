@@ -30,7 +30,7 @@ public:
 			return true;
 		}
 
-#if STATS && RHI_NEW_GPU_PROFILER
+#if STATS
 		if (bMacroGroup)
 		{
 			const FGameThreadStatsData* ViewData = FLatestGameThreadStatsData::Get().Latest;
@@ -135,9 +135,38 @@ private:
 		{
 			return GEngine->GameViewport;
 		}
-		return GLastKeyLevelEditingViewportClient
-			? static_cast<FCommonViewportClient*>(GLastKeyLevelEditingViewportClient)
-			: static_cast<FCommonViewportClient*>(GCurrentLevelEditingViewportClient);
+		if (GLastKeyLevelEditingViewportClient)
+		{
+			return GLastKeyLevelEditingViewportClient;
+		}
+		if (GCurrentLevelEditingViewportClient)
+		{
+			return GCurrentLevelEditingViewportClient;
+		}
+
+		if (GEditor)
+		{
+			if (const FViewport* ActiveViewport = GEditor->GetActiveViewport())
+			{
+				for (FEditorViewportClient* ViewportClient : GEditor->GetAllViewportClients())
+				{
+					if (ViewportClient && ViewportClient->IsLevelEditorClient()
+						&& ViewportClient->Viewport == ActiveViewport)
+					{
+						return ViewportClient;
+					}
+				}
+			}
+
+			for (FEditorViewportClient* ViewportClient : GEditor->GetAllViewportClients())
+			{
+				if (ViewportClient && ViewportClient->IsLevelEditorClient() && ViewportClient->Viewport)
+				{
+					return ViewportClient;
+				}
+			}
+		}
+		return nullptr;
 	}
 
 	bool IsViewportClientAlive(const FCommonViewportClient* ViewportClient) const

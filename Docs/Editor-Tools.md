@@ -362,6 +362,15 @@ The Python wrapper retries reads until the detailed payload is actually ready.
 This matters when Unreal is unfocused and editor throttling yields only a few
 frames during the initial `0.5` second window.
 
+UE 5.8 removes the legacy GPU profiler, so the plugin always reads the dynamic
+engine stats emitted by the new GPU profiler. Legacy per-category draw-call data
+is unavailable in that engine version; `get_rendering_stats` returns an empty
+`draw_call_categories` array and directs callers to `get_gpu_stats` for per-pass
+timing instead. The bounded controller targets an existing level-editor or PIE
+viewport. Call it only after editor startup has finished and recovery dialogs
+have been dismissed; the MCP TCP port can become available before a level
+viewport exists.
+
 Do not use `stat gpu -nodisplay` as a persistent workaround: it hides the HUD but
 continues detailed per-pass collection and its associated profiling overhead.
 

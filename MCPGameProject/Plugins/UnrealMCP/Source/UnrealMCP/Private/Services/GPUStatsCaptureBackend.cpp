@@ -6,9 +6,7 @@
 #include "Stats/StatsData.h"
 #endif
 
-#if RHI_NEW_GPU_PROFILER
 #include "GPUProfiler.h"
-#endif
 
 namespace
 {
@@ -42,7 +40,7 @@ public:
 
 	virtual bool TryReadDetailedSnapshot(FGPUStatsSnapshot& OutSnapshot) const override
 	{
-#if STATS && RHI_NEW_GPU_PROFILER
+#if STATS
 		if (!IsCaptureEnabled())
 		{
 			return false;

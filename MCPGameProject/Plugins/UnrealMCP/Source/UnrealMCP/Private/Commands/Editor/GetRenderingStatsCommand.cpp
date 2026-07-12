@@ -116,34 +116,10 @@ FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 	Result->SetNumberField(TEXT("gpu_time_ms"), FPlatformTime::ToMilliseconds(GPUCycles));
 
 	// === Draw Call Categories ===
-#if RHI_NEW_GPU_PROFILER
-	// UE 5.7+ new GPU profiler: per-category draw call breakdown not available via legacy FRHIDrawStatsCategory API
+	// UE 5.8 has only the new GPU profiler. Legacy FRHIDrawStatsCategory data is unavailable.
 	Result->SetArrayField(TEXT("draw_call_categories"), TArray<TSharedPtr<FJsonValue>>());
 	Result->SetStringField(TEXT("draw_call_categories_note"),
-		TEXT("Per-category breakdown unavailable in UE 5.7+ (RHI_NEW_GPU_PROFILER). Use get_gpu_stats for per-pass GPU timing."));
-#elif HAS_GPU_STATS
-	{
-		TArray<TSharedPtr<FJsonValue>> CategoriesArray;
-		FRHIDrawStatsCategory::FManager& Manager = FRHIDrawStatsCategory::GetManager();
-		for (int32 i = 0; i < Manager.NumCategory; ++i)
-		{
-			int32 DrawCount = Manager.DisplayCounts[i][0];
-			if (DrawCount <= 0) continue;
-
-			TSharedPtr<FJsonObject> CatObj = MakeShared<FJsonObject>();
-			CatObj->SetStringField(TEXT("name"), Manager.Array[i]->Name.ToString());
-			CatObj->SetNumberField(TEXT("draw_calls"), DrawCount);
-			CategoriesArray.Add(MakeShared<FJsonValueObject>(CatObj));
-		}
-
-		CategoriesArray.Sort([](const TSharedPtr<FJsonValue>& A, const TSharedPtr<FJsonValue>& B)
-		{
-			return A->AsObject()->GetNumberField(TEXT("draw_calls")) > B->AsObject()->GetNumberField(TEXT("draw_calls"));
-		});
-
-		Result->SetArrayField(TEXT("draw_call_categories"), CategoriesArray);
-	}
-#endif
+		TEXT("Per-category breakdown is unavailable in UE 5.8. Use get_gpu_stats for per-pass GPU timing."));
 
 	// === VRAM Stats ===
 	{
@@ -223,24 +199,6 @@ FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 		TEXT("Draw calls: %d, Tris: %d, GPU: %.1fms"),
 		GNumDrawCallsRHI[0], GNumPrimitivesDrawnRHI[0],
 		FPlatformTime::ToMilliseconds(GPUCycles));
-
-#if RHI_NEW_GPU_PROFILER
-	// No per-category breakdown available in UE 5.7+
-#elif HAS_GPU_STATS
-	{
-		FRHIDrawStatsCategory::FManager& Manager = FRHIDrawStatsCategory::GetManager();
-		Summary += TEXT(" | Categories: ");
-		int32 Shown = 0;
-		for (int32 i = 0; i < Manager.NumCategory && Shown < 5; ++i)
-		{
-			int32 DrawCount = Manager.DisplayCounts[i][0];
-			if (DrawCount <= 0) continue;
-			if (Shown > 0) Summary += TEXT(", ");
-			Summary += FString::Printf(TEXT("%s=%d"), *Manager.Array[i]->Name.ToString(), DrawCount);
-			++Shown;
-		}
-	}
-#endif
 
 	Result->SetStringField(TEXT("message"), Summary);
 	if (bFinish)

@@ -92,7 +92,7 @@ public:
 	float LastTimeoutSeconds = 0.0f;
 };
 
-TSharedPtr<FJsonObject> ParseResponse(const FString& Json)
+TSharedPtr<FJsonObject> ParseGPUStatsResponse(const FString& Json)
 {
 	TSharedPtr<FJsonObject> Result;
 	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
@@ -112,7 +112,7 @@ bool FGPUStatsSnapshotDoesNotMutateTest::RunTest(const FString& Parameters)
 	const TSharedRef<FFakeGPUStatsScheduler> Scheduler = MakeShared<FFakeGPUStatsScheduler>();
 	FGetGPUStatsCommand Command(Backend, Scheduler);
 
-	const TSharedPtr<FJsonObject> Result = ParseResponse(Command.Execute(TEXT("{}")));
+	const TSharedPtr<FJsonObject> Result = ParseGPUStatsResponse(Command.Execute(TEXT("{}")));
 	TestTrue(TEXT("Snapshot response parses"), Result.IsValid());
 	TestTrue(TEXT("Snapshot succeeds"), Result && Result->GetBoolField(TEXT("success")));
 	TestFalse(TEXT("Detailed snapshot is unavailable"), Result && Result->GetBoolField(TEXT("detailed_available")));
@@ -133,7 +133,7 @@ bool FGPUStatsOwnedCaptureCleansEveryExitTest::RunTest(const FString& Parameters
 	const TSharedRef<FFakeGPUStatsScheduler> Scheduler = MakeShared<FFakeGPUStatsScheduler>();
 	FGetGPUStatsCommand Command(Backend, Scheduler);
 
-	TSharedPtr<FJsonObject> Result = ParseResponse(Command.Execute(TEXT(R"({"action":"begin","timeout_seconds":2.0})")));
+	TSharedPtr<FJsonObject> Result = ParseGPUStatsResponse(Command.Execute(TEXT(R"({"action":"begin","timeout_seconds":2.0})")));
 	TestTrue(TEXT("Begin succeeds"), Result && Result->GetBoolField(TEXT("success")));
 	TestEqual(TEXT("Begin reports MCP ownership"), Result ? Result->GetStringField(TEXT("capture_owner")) : FString(), FString(TEXT("mcp")));
 	TestEqual(TEXT("Owned begin enables profiler once"), Backend->EnableCalls, 1);
@@ -141,7 +141,7 @@ bool FGPUStatsOwnedCaptureCleansEveryExitTest::RunTest(const FString& Parameters
 	TestEqual(TEXT("Requested timeout reaches scheduler"), Scheduler->LastTimeoutSeconds, 2.0f);
 
 	Backend->bSnapshotReady = true;
-	Result = ParseResponse(Command.Execute(TEXT(R"({"action":"read","finish":true})")));
+	Result = ParseGPUStatsResponse(Command.Execute(TEXT(R"({"action":"read","finish":true})")));
 	TestTrue(TEXT("Read succeeds"), Result && Result->GetBoolField(TEXT("success")));
 	TestTrue(TEXT("Read returns detailed data"), Result && Result->GetBoolField(TEXT("detailed_available")));
 	TestEqual(TEXT("Read returns one pass"), Result ? static_cast<int32>(Result->GetNumberField(TEXT("pass_count"))) : 0, 1);
@@ -180,18 +180,18 @@ bool FGPUStatsExternalOwnershipAndValidationTest::RunTest(const FString& Paramet
 	const TSharedRef<FFakeGPUStatsScheduler> Scheduler = MakeShared<FFakeGPUStatsScheduler>();
 	FGetGPUStatsCommand Command(Backend, Scheduler);
 
-	TSharedPtr<FJsonObject> Result = ParseResponse(Command.Execute(TEXT(R"({"action":"begin"})")));
+	TSharedPtr<FJsonObject> Result = ParseGPUStatsResponse(Command.Execute(TEXT(R"({"action":"begin"})")));
 	TestEqual(TEXT("Existing profiler is externally owned"), Result ? Result->GetStringField(TEXT("capture_owner")) : FString(), FString(TEXT("external")));
 	Command.Execute(TEXT(R"({"action":"read","finish":true})"));
 	TestEqual(TEXT("External profiler is never disabled"), Backend->DisableCalls, 0);
 	TestEqual(TEXT("External profiler does not need watchdog"), Scheduler->ScheduleCalls, 0);
 
-	Result = ParseResponse(Command.Execute(TEXT(R"({"action":"explode"})")));
+	Result = ParseGPUStatsResponse(Command.Execute(TEXT(R"({"action":"explode"})")));
 	TestFalse(TEXT("Unknown action fails"), Result && Result->GetBoolField(TEXT("success")));
 	TestEqual(TEXT("Invalid action does not mutate profiler"), Backend->EnableCalls, 0);
 	TestEqual(TEXT("Invalid action does not disable profiler"), Backend->DisableCalls, 0);
 
-	Result = ParseResponse(Command.Execute(TEXT(R"({"action":"begin","timeout_seconds":0.01})")));
+	Result = ParseGPUStatsResponse(Command.Execute(TEXT(R"({"action":"begin","timeout_seconds":0.01})")));
 	TestFalse(TEXT("Out-of-range timeout fails"), Result && Result->GetBoolField(TEXT("success")));
 	TestEqual(TEXT("Invalid timeout does not mutate profiler"), Backend->EnableCalls, 0);
 	return true;
