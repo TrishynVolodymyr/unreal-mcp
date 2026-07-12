@@ -45,3 +45,10 @@ UNREALMCP_API TSharedRef<IEditorStatCaptureBackend> CreateEditorStatCaptureBacke
 	FName StatGroup,
 	bool bMacroGroup = false);
 UNREALMCP_API TSharedRef<IEditorStatCaptureScheduler> CreateEditorStatCaptureScheduler();
+
+#if WITH_DEV_AUTOMATION_TESTS
+UNREALMCP_API TSharedRef<IEditorStatCaptureBackend> CreateEditorStatCaptureBackendForTest(
+	FName StatGroup,
+	TFunction<bool()> IsEnabled,
+	TFunction<void(bool)> ExecuteToggle);
+#endif

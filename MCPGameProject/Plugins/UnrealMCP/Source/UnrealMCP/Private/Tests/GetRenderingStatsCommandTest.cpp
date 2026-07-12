@@ -6,51 +6,9 @@
 #include "Misc/AutomationTest.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
-#include "Services/IEditorStatCapture.h"
 
 namespace
 {
-class FFakeInitViewsBackend final : public IEditorStatCaptureBackend
-{
-public:
-	bool bEnabled = false;
-	bool bRenderStats = true;
-	int32 EnableCalls = 0;
-	int32 DisableCalls = 0;
-
-	virtual bool IsCaptureEnabled() const override { return bEnabled; }
-	virtual bool IsStatsRenderingEnabled() const override { return bRenderStats; }
-	virtual void SetCaptureEnabled(bool bInEnabled, bool bInRenderStats) override
-	{
-		bEnabled = bInEnabled;
-		bRenderStats = bInRenderStats;
-		bInEnabled ? ++EnableCalls : ++DisableCalls;
-	}
-};
-
-class FFakeInitViewsScheduler final : public IEditorStatCaptureScheduler
-{
-public:
-	TFunction<void()> Pending;
-	int32 ScheduleCalls = 0;
-	int32 CancelCalls = 0;
-
-	virtual uint64 Schedule(float, TFunction<void()> Callback) override
-	{
-		++ScheduleCalls;
-		Pending = MoveTemp(Callback);
-		return 1;
-	}
-	virtual void Cancel(uint64 Handle) override
-	{
-		if (Handle != 0)
-		{
-			++CancelCalls;
-		}
-		Pending = nullptr;
-	}
-};
-
 TSharedPtr<FJsonObject> ParseRenderingResponse(const FString& Json)
 {
 	TSharedPtr<FJsonObject> Result;
@@ -61,33 +19,26 @@ TSharedPtr<FJsonObject> ParseRenderingResponse(const FString& Json)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FRenderingStatsBoundedInitViewsTest,
-	"UnrealMCP.Editor.RenderingStats.BoundedInitViews",
+	FRenderingStatsSnapshotTest,
+	"UnrealMCP.Editor.RenderingStats.Snapshot",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRenderingStatsBoundedInitViewsTest::RunTest(const FString& Parameters)
+bool FRenderingStatsSnapshotTest::RunTest(const FString& Parameters)
 {
-	const TSharedRef<FFakeInitViewsBackend> Backend = MakeShared<FFakeInitViewsBackend>();
-	const TSharedRef<FFakeInitViewsScheduler> Scheduler = MakeShared<FFakeInitViewsScheduler>();
-	FGetRenderingStatsCommand Command(Backend, Scheduler);
-
+	FGetRenderingStatsCommand Command;
 	TSharedPtr<FJsonObject> Result = ParseRenderingResponse(Command.Execute(TEXT("{}")));
 	TestTrue(TEXT("Snapshot succeeds"), Result && Result->GetBoolField(TEXT("success")));
-	TestEqual(TEXT("Snapshot does not enable InitViews"), Backend->EnableCalls, 0);
+	TestTrue(TEXT("Snapshot includes draw calls"), Result && Result->HasTypedField<EJson::Number>(TEXT("draw_calls")));
+	TestTrue(TEXT("Snapshot includes primitives"), Result && Result->HasTypedField<EJson::Number>(TEXT("primitives_drawn")));
+	TestTrue(TEXT("Snapshot includes GPU frame time"), Result && Result->HasTypedField<EJson::Number>(TEXT("gpu_time_ms")));
+	TestTrue(TEXT("Snapshot includes VRAM object"), Result && Result->HasTypedField<EJson::Object>(TEXT("vram")));
 
-	Result = ParseRenderingResponse(Command.Execute(TEXT(R"({"action":"begin","timeout_seconds":2.0})")));
-	TestEqual(TEXT("Begin reports MCP ownership"), Result ? Result->GetStringField(TEXT("capture_owner")) : FString(), FString(TEXT("mcp")));
-	TestEqual(TEXT("Begin enables InitViews once"), Backend->EnableCalls, 1);
-	TestEqual(TEXT("Begin arms watchdog"), Scheduler->ScheduleCalls, 1);
+	const TSharedPtr<FJsonObject>* Visibility = nullptr;
+	TestTrue(TEXT("Snapshot includes visibility contract"), Result && Result->TryGetObjectField(TEXT("visibility"), Visibility));
+	TestFalse(TEXT("Snapshot never claims fresh InitViews detail"), Visibility && (*Visibility)->GetBoolField(TEXT("detailed_available")));
 
-	Command.Execute(TEXT(R"({"action":"read","finish":true})"));
-	TestEqual(TEXT("Finished read disables InitViews"), Backend->DisableCalls, 1);
-	TestEqual(TEXT("Finished read cancels watchdog"), Scheduler->CancelCalls, 1);
-
-	Backend->bEnabled = true;
-	Command.Execute(TEXT(R"({"action":"begin"})"));
-	Command.Execute(TEXT(R"({"action":"read","finish":true})"));
-	TestEqual(TEXT("Externally owned InitViews remains enabled"), Backend->DisableCalls, 1);
+	Result = ParseRenderingResponse(Command.Execute(TEXT(R"({"action":"begin"})")));
+	TestFalse(TEXT("Removed mutating capture mode is rejected"), Result && Result->GetBoolField(TEXT("success")));
 	return true;
 }
 

@@ -11,8 +11,11 @@ This file tracks MCP tool limitations discovered during development. When encoun
   not run: construction-script/native `OnConstruction` rebuilds could stay stale,
   render components could keep old state, and a saved actor could contain the new
   UPROPERTY value while its derived scene representation remained unchanged.
-- **Fix**: Successful writes now call `Modify`, emit one
-  `PostEditChangeProperty` with `EPropertyChangeType::ValueSet`, mark the actor/package
+- **Fix**: Values are converted and validated before the editor lifecycle begins.
+  Successful writes call `Modify`, then emit `PreEditChange`, apply the converted
+  value, and emit one `PostEditChangeProperty` with `EPropertyChangeType::ValueSet`.
+  Failed conversion restores the old value and emits neither notification. The
+  successful path marks the actor/package
   and component render state dirty, and request a level-viewport redraw.
 - **Verification**:
   `UnrealMCP.Editor.SetActorProperty.SendsEditorNotification` writes through the
@@ -405,6 +408,12 @@ This file tracks MCP tool limitations discovered during development. When encoun
   - Also applies to VectorParameter DefaultValue for consistency
 
 ## Notes
+
+- **UE 5.8 InitViews HUD counters are unavailable through `get_rendering_stats`**
+  - `stat InitViews` still exists and the counters remain declared in RenderCore.
+  - Live bounded and manual captures did not expose mapped counter aggregates through `FLatestGameThreadStatsData`.
+  - The public tool is therefore a non-mutating draw/VRAM/GPU snapshot and returns `visibility.detailed_available=false` rather than fabricated zeroes.
+  - Use Unreal Insights for detailed culling diagnostics until an explicit trace-reader integration is implemented.
 
 - When working on MCP improvements, check this file first
 - Add new issues as they are discovered during development

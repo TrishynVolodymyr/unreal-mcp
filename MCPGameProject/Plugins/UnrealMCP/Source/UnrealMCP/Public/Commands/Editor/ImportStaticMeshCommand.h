@@ -11,6 +11,8 @@ struct FImportStaticMeshSettings
 	bool bImportMaterials = false;
 	bool bAutoGenerateCollision = true;
 	EVertexColorImportOption::Type VertexColorImportOption = EVertexColorImportOption::Replace;
+	FColor VertexOverrideColor = FColor::White;
+	bool bHasVertexOverrideColor = false;
 };
 
 /**
@@ -20,7 +22,11 @@ struct FImportStaticMeshSettings
 class UNREALMCP_API FImportStaticMeshCommand : public IUnrealMCPCommand
 {
 public:
-	FImportStaticMeshCommand() = default;
+	using FExecutionOverride = TFunction<FString(const FImportStaticMeshSettings&, const UFbxImportUI&)>;
+	explicit FImportStaticMeshCommand(FExecutionOverride InExecutionOverride = {})
+		: ExecutionOverride(MoveTemp(InExecutionOverride))
+	{
+	}
 
 	//~ IUnrealMCPCommand interface
 	virtual FString Execute(const FString& Parameters) override;
@@ -37,6 +43,8 @@ public:
 #endif
 
 private:
+	FExecutionOverride ExecutionOverride;
+
 	bool ParseParameters(
 		const FString& JsonString,
 		FString& OutSourceFilePath,

@@ -21,12 +21,18 @@ class BatchMaterialParamsTests(unittest.TestCase):
                     parent_material="/Game/Test/M_Parent",
                     scalar_params={"WindStrength": 0.03},
                     vector_params={"WindDirection": [1.0, 0.0, 0.0, 0.0]},
+                    texture_params={"Albedo": "/Game/Test/T.T"},
                 )
 
             command, params = send.await_args.args
             self.assertEqual(command, "create_material_instance")
             self.assertIsInstance(params["scalar_params"], dict)
             self.assertIsInstance(params["vector_params"], dict)
+            self.assertIsInstance(params["texture_params"], dict)
+            self.assertEqual(params["scalar_params"], {"WindStrength": 0.03})
+            self.assertEqual(params["vector_params"], {"WindDirection": [1.0, 0.0, 0.0, 0.0]})
+            self.assertEqual(params["texture_params"], {"Albedo": "/Game/Test/T.T"})
+            self.assertIn("scalar_params", material_mcp_server.create_material_instance.__doc__)
 
         asyncio.run(run_test())
 
@@ -38,13 +44,17 @@ class BatchMaterialParamsTests(unittest.TestCase):
                     material_instance="/Game/Test/MI_Test.MI_Test",
                     scalar_params={"WindStrength": 0.03},
                     vector_params={"WindDirection": [1.0, 0.0, 0.0, 0.0]},
+                    texture_params={"Albedo": "/Game/Test/T.T"},
                 )
 
             command, params = send.await_args.args
             self.assertEqual(command, "batch_set_material_params")
             self.assertIsInstance(params["scalar_params"], dict)
             self.assertIsInstance(params["vector_params"], dict)
-            self.assertEqual(params["scalar_params"]["WindStrength"], 0.03)
+            self.assertIsInstance(params["texture_params"], dict)
+            self.assertEqual(params["scalar_params"], {"WindStrength": 0.03})
+            self.assertEqual(params["vector_params"], {"WindDirection": [1.0, 0.0, 0.0, 0.0]})
+            self.assertEqual(params["texture_params"], {"Albedo": "/Game/Test/T.T"})
 
         asyncio.run(run_test())
 

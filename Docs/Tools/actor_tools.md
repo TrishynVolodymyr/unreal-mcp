@@ -165,7 +165,7 @@ and refreshes derived construction/render state in the active level.
 **Parameters:**
 - `name` (string) **REQUIRED** - Name of the actor
 - `property_name` (string) **REQUIRED** - Name of the property to set
-- `property_value` (string) **REQUIRED** - Value to set the property to (passed as string, converted internally)
+- `property_value` (JSON value) **REQUIRED** - Type must match the reflected property (number, boolean, string, object, or array)
 
 **Returns:**
 - Dict containing response information
@@ -177,7 +177,7 @@ and refreshes derived construction/render state in the active level.
   "params": {
     "name": "MyCube",
     "property_name": "bHidden",
-    "property_value": "True"
+    "property_value": true
   }
 }
 ```

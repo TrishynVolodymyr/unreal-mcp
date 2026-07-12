@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 
 from fastmcp import FastMCP
 
+from material_instance_tools import register_material_instance_tools
 from utils.async_tcp_utils import send_tcp_command
 
 # Initialize FastMCP app
@@ -199,104 +200,10 @@ async def create_material_parameter_collection(
 # Material Instance Creation
 # ============================================================================
 
-@app.tool()
-async def create_material_instance(
-    name: str,
-    parent_material: str,
-    folder_path: str = "",
-    scalar_params: dict = None,
-    vector_params: dict = None,
-    texture_params: dict = None
-) -> Dict[str, Any]:
-    """
-    Create a new Material Instance Constant from a parent material.
-
-    This is the primary way to create variations of materials with different
-    parameter values without modifying the original master material.
-
-    Args:
-        name: Name of the Material Instance (e.g., "MI_Crystal_Red")
-        parent_material: Path or name of the parent material (e.g., "/Game/Materials/M_Crystal" or "M_Crystal")
-        folder_path: Optional folder path for the new asset (e.g., "/Game/Materials/Instances")
-        scalar_params: Optional dictionary of scalar parameters {"ParamName": 0.5, ...}
-        vector_params: Optional dictionary of vector parameters {"ParamName": [R, G, B, A], ...}
-        texture_params: Optional dictionary of texture parameters {"ParamName": "/Game/Textures/T_Name", ...}
-
-    Returns:
-        Dictionary containing:
-        - success: Whether creation was successful
-        - name: Name of the created Material Instance
-        - path: Full path to the created asset
-        - parent: Path to the parent material
-        - message: Success/error message
-
-    Example:
-        create_material_instance(
-            name="MI_Crystal_Red",
-            parent_material="/Game/Materials/M_Crystal",
-            folder_path="/Game/Materials/Instances",
-            scalar_params={"Metallic": 0.8, "Roughness": 0.2},
-            vector_params={"BaseColor": [1.0, 0.0, 0.0, 1.0]}
-        )
-    """
-    params = {
-        "name": name,
-        "parent_material": parent_material
-    }
-    if folder_path:
-        params["folder_path"] = folder_path
-    # Keep mappings as JSON objects. FastMCP serializes them for the C++ command,
-    # whose contract uses TryGetObjectField for each parameter family.
-    if scalar_params:
-        params["scalar_params"] = scalar_params
-    if vector_params:
-        params["vector_params"] = vector_params
-    if texture_params:
-        params["texture_params"] = texture_params
-
-    return await send_tcp_command("create_material_instance", params)
-
-
-@app.tool()
-async def duplicate_material_instance(
-    source_material_instance: str,
-    new_name: str,
-    folder_path: str = ""
-) -> Dict[str, Any]:
-    """
-    Duplicate an existing Material Instance to create a variation.
-
-    This is useful for creating variations of an existing material instance
-    while preserving all current parameter values.
-
-    Args:
-        source_material_instance: Path or name of the source Material Instance
-        new_name: Name for the new duplicated Material Instance
-        folder_path: Optional folder path for the new asset
-
-    Returns:
-        Dictionary containing:
-        - success: Whether duplication was successful
-        - name: Name of the duplicated Material Instance
-        - path: Full path to the new asset
-        - parent: Path to the parent material
-        - message: Success/error message
-
-    Example:
-        duplicate_material_instance(
-            source_material_instance="MI_Crystal_Red",
-            new_name="MI_Crystal_DarkRed",
-            folder_path="/Game/Materials/Instances"
-        )
-    """
-    params = {
-        "source_material_instance": source_material_instance,
-        "new_name": new_name
-    }
-    if folder_path:
-        params["folder_path"] = folder_path
-
-    return await send_tcp_command("duplicate_material_instance", params)
+create_material_instance, duplicate_material_instance = register_material_instance_tools(
+    app,
+    lambda command, params: send_tcp_command(command, params),
+)
 
 
 # ============================================================================

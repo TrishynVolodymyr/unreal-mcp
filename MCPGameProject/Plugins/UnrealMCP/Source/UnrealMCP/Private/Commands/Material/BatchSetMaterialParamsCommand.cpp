@@ -29,6 +29,9 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
     TArray<FString> SetVectorParams;
     TArray<FString> SetTextureParams;
     TArray<FString> Failures;
+    TArray<TPair<FString, float>> ScalarValues;
+    TArray<TPair<FString, FLinearColor>> VectorValues;
+    TArray<TPair<FString, FString>> TextureValues;
     FString Error;
 
     bool bHasParameterObject = false;
@@ -60,15 +63,7 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
             {
                 return CreateErrorResponse(FString::Printf(TEXT("scalar_params.%s must be a number"), *Key));
             }
-            float Value = static_cast<float>(Pair.Value->AsNumber());
-            if (MaterialService.SetScalarParameter(MaterialPath, Key, Value, Error))
-            {
-                SetScalarParams.Add(Key);
-            }
-            else
-            {
-                Failures.Add(FString::Printf(TEXT("scalar %s: %s"), *Key, *Error));
-            }
+            ScalarValues.Emplace(Key, static_cast<float>(Pair.Value->AsNumber()));
         }
     }
 
@@ -80,7 +75,7 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
         {
             const FString Key = FString(Pair.Key.ToView());
             const TArray<TSharedPtr<FJsonValue>>* ColorArray;
-            if (Pair.Value->TryGetArray(ColorArray) && ColorArray->Num() >= 3)
+            if (Pair.Value->TryGetArray(ColorArray) && (ColorArray->Num() == 3 || ColorArray->Num() == 4))
             {
                 for (const TSharedPtr<FJsonValue>& Component : *ColorArray)
                 {
@@ -95,18 +90,11 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
                 Color.B = static_cast<float>((*ColorArray)[2]->AsNumber());
                 Color.A = ColorArray->Num() >= 4 ? static_cast<float>((*ColorArray)[3]->AsNumber()) : 1.0f;
 
-                if (MaterialService.SetVectorParameter(MaterialPath, Key, Color, Error))
-                {
-                    SetVectorParams.Add(Key);
-                }
-                else
-                {
-                    Failures.Add(FString::Printf(TEXT("vector %s: %s"), *Key, *Error));
-                }
+                VectorValues.Emplace(Key, Color);
             }
             else
             {
-                return CreateErrorResponse(FString::Printf(TEXT("vector_params.%s must be an array with at least 3 numbers"), *Key));
+                return CreateErrorResponse(FString::Printf(TEXT("vector_params.%s must be an array with 3 or 4 numbers"), *Key));
             }
         }
     }
@@ -122,21 +110,57 @@ FString FBatchSetMaterialParamsCommand::Execute(const FString& Parameters)
             {
                 return CreateErrorResponse(FString::Printf(TEXT("texture_params.%s must be an asset path string"), *Key));
             }
-            FString TexturePath = Pair.Value->AsString();
-            if (MaterialService.SetTextureParameter(MaterialPath, Key, TexturePath, Error))
-            {
-                SetTextureParams.Add(Key);
-            }
-            else
-            {
-                Failures.Add(FString::Printf(TEXT("texture %s: %s"), *Key, *Error));
-            }
+            TextureValues.Emplace(Key, Pair.Value->AsString());
+        }
+    }
+
+    // Validation is complete before the first mutation. Setter failures can still
+    // produce a partial update, so error responses include the exact applied names.
+    for (const TPair<FString, float>& Pair : ScalarValues)
+    {
+        Error.Reset();
+        if (MaterialService.SetScalarParameter(MaterialPath, Pair.Key, Pair.Value, Error))
+        {
+            SetScalarParams.Add(Pair.Key);
+        }
+        else
+        {
+            Failures.Add(FString::Printf(TEXT("scalar %s: %s"), *Pair.Key, *Error));
+        }
+    }
+    for (const TPair<FString, FLinearColor>& Pair : VectorValues)
+    {
+        Error.Reset();
+        if (MaterialService.SetVectorParameter(MaterialPath, Pair.Key, Pair.Value, Error))
+        {
+            SetVectorParams.Add(Pair.Key);
+        }
+        else
+        {
+            Failures.Add(FString::Printf(TEXT("vector %s: %s"), *Pair.Key, *Error));
+        }
+    }
+    for (const TPair<FString, FString>& Pair : TextureValues)
+    {
+        Error.Reset();
+        if (MaterialService.SetTextureParameter(MaterialPath, Pair.Key, Pair.Value, Error))
+        {
+            SetTextureParams.Add(Pair.Key);
+        }
+        else
+        {
+            Failures.Add(FString::Printf(TEXT("texture %s: %s"), *Pair.Key, *Error));
         }
     }
 
     if (!Failures.IsEmpty())
     {
-        return CreateErrorResponse(FString::Join(Failures, TEXT("; ")));
+        return CreateErrorResponse(
+            FString::Join(Failures, TEXT("; ")),
+            &MaterialPath,
+            &SetScalarParams,
+            &SetVectorParams,
+            &SetTextureParams);
     }
 
     return CreateSuccessResponse(MaterialPath, SetScalarParams, SetVectorParams, SetTextureParams);
@@ -195,11 +219,38 @@ FString FBatchSetMaterialParamsCommand::CreateSuccessResponse(const FString& Mat
     return OutputString;
 }
 
-FString FBatchSetMaterialParamsCommand::CreateErrorResponse(const FString& ErrorMessage) const
+FString FBatchSetMaterialParamsCommand::CreateErrorResponse(
+    const FString& ErrorMessage,
+    const FString* MaterialPath,
+    const TArray<FString>* ScalarParams,
+    const TArray<FString>* VectorParams,
+    const TArray<FString>* TextureParams) const
 {
     TSharedPtr<FJsonObject> ErrorObj = MakeShared<FJsonObject>();
     ErrorObj->SetBoolField(TEXT("success"), false);
     ErrorObj->SetStringField(TEXT("error"), ErrorMessage);
+
+    if (MaterialPath && ScalarParams && VectorParams && TextureParams)
+    {
+        ErrorObj->SetStringField(TEXT("material_instance"), *MaterialPath);
+        TSharedPtr<FJsonObject> ResultsObj = MakeShared<FJsonObject>();
+        auto AddNames = [&ResultsObj](const TCHAR* Field, const TArray<FString>& Names)
+        {
+            TArray<TSharedPtr<FJsonValue>> Values;
+            for (const FString& Name : Names)
+            {
+                Values.Add(MakeShared<FJsonValueString>(Name));
+            }
+            ResultsObj->SetArrayField(Field, Values);
+        };
+        AddNames(TEXT("scalar"), *ScalarParams);
+        AddNames(TEXT("vector"), *VectorParams);
+        AddNames(TEXT("texture"), *TextureParams);
+        ErrorObj->SetObjectField(TEXT("results"), ResultsObj);
+        ErrorObj->SetBoolField(
+            TEXT("partial_update"),
+            !ScalarParams->IsEmpty() || !VectorParams->IsEmpty() || !TextureParams->IsEmpty());
+    }
 
     FString OutputString;
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);

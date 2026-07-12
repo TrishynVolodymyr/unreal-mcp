@@ -1,4 +1,5 @@
 #include "Services/EditorService.h"
+#include "Services/EditorActorPropertyValidation.h"
 #include "Utils/UnrealMCPCommonUtils.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
@@ -663,16 +664,46 @@ bool FEditorService::SetActorProperty(AActor* Actor, const FString& PropertyName
         return false;
     }
 
-    // Record the pre-write state for undo without dirtying the level when JSON
-    // conversion fails. A successful write is marked dirty below.
-    Actor->Modify(false);
-    if (!FUnrealMCPCommonUtils::SetObjectProperty(Actor, PropertyName, PropertyValue, OutError))
+    if (!UnrealMCP::EditorActorPropertyValidation::ValidateJsonType(
+        Property,
+        PropertyName,
+        PropertyValue,
+        OutError))
     {
         return false;
     }
 
+    void* PropertyAddress = Property->ContainerPtrToValuePtr<void>(Actor);
+    void* OldValue = FMemory::Malloc(Property->GetSize(), Property->GetMinAlignment());
+    void* ConvertedValue = FMemory::Malloc(Property->GetSize(), Property->GetMinAlignment());
+    Property->InitializeValue(OldValue);
+    Property->InitializeValue(ConvertedValue);
+    Property->CopyCompleteValue(OldValue, PropertyAddress);
+
+    // Convert through the existing property path before entering the editor
+    // lifecycle. On failure, restore any partial write and emit no notifications.
+    if (!FUnrealMCPCommonUtils::SetObjectProperty(Actor, PropertyName, PropertyValue, OutError))
+    {
+        Property->CopyCompleteValue(PropertyAddress, OldValue);
+        Property->DestroyValue(ConvertedValue);
+        Property->DestroyValue(OldValue);
+        FMemory::Free(ConvertedValue);
+        FMemory::Free(OldValue);
+        return false;
+    }
+    Property->CopyCompleteValue(ConvertedValue, PropertyAddress);
+    Property->CopyCompleteValue(PropertyAddress, OldValue);
+
+    Actor->Modify(false);
+    Actor->PreEditChange(Property);
+    Property->CopyCompleteValue(PropertyAddress, ConvertedValue);
+
     FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet);
     Actor->PostEditChangeProperty(PropertyChangedEvent);
+    Property->DestroyValue(ConvertedValue);
+    Property->DestroyValue(OldValue);
+    FMemory::Free(ConvertedValue);
+    FMemory::Free(OldValue);
     Actor->MarkPackageDirty();
     Actor->MarkComponentsRenderStateDirty();
     if (GEditor)

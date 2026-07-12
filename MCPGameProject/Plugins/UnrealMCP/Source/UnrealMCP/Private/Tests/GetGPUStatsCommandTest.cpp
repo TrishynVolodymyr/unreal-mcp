@@ -159,11 +159,60 @@ bool FGPUStatsOwnedCaptureCleansEveryExitTest::RunTest(const FString& Parameters
 	Command.Execute(TEXT(R"({"action":"cancel"})"));
 	TestEqual(TEXT("Cancel cleanup is idempotent"), Backend->DisableCalls, 3);
 
+	Command.Execute(TEXT(R"({"action":"begin"})"));
+	Backend->bDetailedEnabled = false;
+	Command.Execute(TEXT(R"({"action":"cancel"})"));
+	TestEqual(
+		TEXT("Cleanup releases ownership even when the user already disabled profiling"),
+		Backend->DisableCalls,
+		4);
+	TestFalse(TEXT("Cleanup never re-enables a user-disabled profiler"), Backend->bDetailedEnabled);
+
 	{
 		FGetGPUStatsCommand DestructedCommand(Backend, Scheduler);
 		DestructedCommand.Execute(TEXT(R"({"action":"begin"})"));
 	}
-	TestEqual(TEXT("Command destruction disables owned profiler"), Backend->DisableCalls, 4);
+	TestEqual(TEXT("Command destruction disables owned profiler"), Backend->DisableCalls, 5);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGPUStatsConcreteBackendUserDisableTest,
+	"UnrealMCP.Editor.GPUStats.ConcreteBackendDoesNotRetoggleUserDisabledStat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGPUStatsConcreteBackendUserDisableTest::RunTest(const FString& Parameters)
+{
+	bool bStatEnabled = false;
+	int32 ToggleCalls = 0;
+	const TSharedRef<IEditorStatCaptureBackend> Backend = CreateEditorStatCaptureBackendForTest(
+		TEXT("GPU"),
+		[&bStatEnabled]() { return bStatEnabled; },
+		[&bStatEnabled, &ToggleCalls](bool)
+		{
+			++ToggleCalls;
+			bStatEnabled = !bStatEnabled;
+		});
+	const TSharedRef<FFakeGPUStatsScheduler> Scheduler = MakeShared<FFakeGPUStatsScheduler>();
+	FBoundedEditorStatCapture Capture(Backend, Scheduler);
+	FString Owner;
+	FString Error;
+	TestTrue(TEXT("concrete backend begins owned capture"), Capture.Begin(2.0f, Owner, Error));
+	TestEqual(TEXT("enable executes one toggle"), ToggleCalls, 1);
+	TestTrue(TEXT("stat is enabled after begin"), bStatEnabled);
+
+	// Simulate the user issuing `stat GPU` while MCP still owns the window.
+	bStatEnabled = false;
+	Capture.Finish();
+	TestEqual(TEXT("cleanup does not execute a second toggle"), ToggleCalls, 1);
+	TestFalse(TEXT("user-disabled stat stays disabled"), bStatEnabled);
+
+	TestTrue(TEXT("concrete backend can begin a second owned capture"), Capture.Begin(2.0f, Owner, Error));
+	TestEqual(TEXT("second begin executes an enable toggle"), ToggleCalls, 2);
+	TestTrue(TEXT("second capture is enabled"), bStatEnabled);
+	Capture.Finish();
+	TestEqual(TEXT("normal concrete cleanup executes the disable toggle"), ToggleCalls, 3);
+	TestFalse(TEXT("normal concrete cleanup leaves profiling disabled"), bStatEnabled);
 	return true;
 }
 

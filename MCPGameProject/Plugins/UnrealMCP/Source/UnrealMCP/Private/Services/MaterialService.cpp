@@ -158,6 +158,21 @@ UMaterialInterface* FMaterialService::CreateMaterialInstance(const FMaterialInst
         return nullptr;
     }
 
+    TMap<FString, UTexture*> LoadedTextures;
+    for (const TPair<FString, FString>& Pair : Params.TextureParameters)
+    {
+        UTexture* Texture = LoadObject<UTexture>(nullptr, *Pair.Value);
+        if (!Texture)
+        {
+            OutError = FString::Printf(
+                TEXT("Texture for parameter '%s' not found: %s"),
+                *Pair.Key,
+                *Pair.Value);
+            return nullptr;
+        }
+        LoadedTextures.Add(Pair.Key, Texture);
+    }
+
     if (Params.bIsDynamic)
     {
         // Create dynamic material instance (runtime modifiable)
@@ -166,6 +181,19 @@ UMaterialInterface* FMaterialService::CreateMaterialInstance(const FMaterialInst
         {
             OutError = TEXT("Failed to create dynamic material instance");
             return nullptr;
+        }
+
+        for (const TPair<FString, float>& Pair : Params.ScalarParameters)
+        {
+            MID->SetScalarParameterValue(FName(*Pair.Key), Pair.Value);
+        }
+        for (const TPair<FString, FLinearColor>& Pair : Params.VectorParameters)
+        {
+            MID->SetVectorParameterValue(FName(*Pair.Key), Pair.Value);
+        }
+        for (const TPair<FString, UTexture*>& Pair : LoadedTextures)
+        {
+            MID->SetTextureParameterValue(FName(*Pair.Key), Pair.Value);
         }
 
         OutInstancePath = FString::Printf(TEXT("Transient/%s"), *Params.Name);
@@ -210,6 +238,19 @@ UMaterialInterface* FMaterialService::CreateMaterialInstance(const FMaterialInst
         {
             OutError = TEXT("Failed to create material instance constant");
             return nullptr;
+        }
+
+        for (const TPair<FString, float>& Pair : Params.ScalarParameters)
+        {
+            MIC->SetScalarParameterValueEditorOnly(FMaterialParameterInfo(*Pair.Key), Pair.Value);
+        }
+        for (const TPair<FString, FLinearColor>& Pair : Params.VectorParameters)
+        {
+            MIC->SetVectorParameterValueEditorOnly(FMaterialParameterInfo(*Pair.Key), Pair.Value);
+        }
+        for (const TPair<FString, UTexture*>& Pair : LoadedTextures)
+        {
+            MIC->SetTextureParameterValueEditorOnly(FMaterialParameterInfo(*Pair.Key), Pair.Value);
         }
 
         Package->MarkPackageDirty();

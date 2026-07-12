@@ -51,7 +51,7 @@ Set a scalar (float) parameter on a Material Instance.
 **Example**:
 ```python
 set_material_scalar_param(
-    instance_path="/Game/Materials/MI_Character_Red",
+    material_instance="/Game/Materials/MI_Character_Red",
     param_name="Metallic",
     value=0.8
 )
@@ -65,16 +65,19 @@ Set a vector/color parameter on a Material Instance.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `instance_path` | string | Yes | Path to the Material Instance |
+| `material_instance` | string | Yes | Path to the Material Instance |
 | `param_name` | string | Yes | Name of the vector parameter |
-| `value` | array | Yes | [R, G, B, A] values (0.0-1.0) |
+| `r` | float | Yes | Red/X component |
+| `g` | float | Yes | Green/Y component |
+| `b` | float | Yes | Blue/Z component |
+| `a` | float | No | Alpha/W component; defaults to 1.0 |
 
 **Example**:
 ```python
 set_material_vector_param(
-    instance_path="/Game/Materials/MI_Character_Red",
+    material_instance="/Game/Materials/MI_Character_Red",
     param_name="BaseColor",
-    value=[1.0, 0.2, 0.2, 1.0]
+    r=1.0, g=0.2, b=0.2, a=1.0
 )
 ```
 
@@ -86,14 +89,14 @@ Set a texture parameter on a Material Instance.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `instance_path` | string | Yes | Path to the Material Instance |
+| `material_instance` | string | Yes | Path to the Material Instance |
 | `param_name` | string | Yes | Name of the texture parameter |
 | `texture_path` | string | Yes | Path to the texture asset |
 
 **Example**:
 ```python
 set_material_texture_param(
-    instance_path="/Game/Materials/MI_Character_Red",
+    material_instance="/Game/Materials/MI_Character_Red",
     param_name="DiffuseTexture",
     texture_path="/Game/Textures/T_Character_Diffuse"
 )
@@ -107,7 +110,7 @@ Set multiple parameters on a Material Instance in a single operation.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `instance_path` | string | Yes | Path to the Material Instance |
+| `material_instance` | string | Yes | Path to the Material Instance |
 | `scalar_params` | object | No | Dict of scalar param name -> value |
 | `vector_params` | object | No | Dict of vector param name -> [R,G,B,A] |
 | `texture_params` | object | No | Dict of texture param name -> texture path |
@@ -132,8 +135,10 @@ batch_set_material_params(
 ```
 
 The parameter families are JSON objects, not JSON-encoded strings. The command
-fails when a field has the wrong type or when any requested setter fails; its
-`results` arrays list the names that were actually updated.
+validates every field before applying the first setter. Individual setter
+failures cannot be rolled back by Unreal's parameter API: an error response
+therefore includes `partial_update` plus `results` arrays naming exactly which
+parameters were already updated.
 
 ---
 
@@ -143,7 +148,7 @@ Get metadata about a Material Instance including parent and current parameter va
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `instance_path` | string | Yes | Path to the Material Instance |
+| `material_instance` | string | Yes | Path to the Material Instance |
 
 **Returns**:
 - `instance_path`: Full asset path
@@ -155,7 +160,7 @@ Get metadata about a Material Instance including parent and current parameter va
 **Example**:
 ```python
 get_material_instance_metadata(
-    instance_path="/Game/Materials/MI_Character_Red"
+    material_instance="/Game/Materials/MI_Character_Red"
 )
 ```
 
@@ -216,14 +221,14 @@ params = get_material_parameters(
 
 # 2. Create instances for different character variants
 create_material_instance(
-    instance_name="MI_Character_Warrior",
-    parent_material_path="/Game/Materials/M_PBR_Master",
-    save_path="/Game/Characters/Materials"
+    name="MI_Character_Warrior",
+    parent_material="/Game/Materials/M_PBR_Master",
+    folder_path="/Game/Characters/Materials"
 )
 
 # 3. Configure the instance with batch operation
 batch_set_material_params(
-    instance_path="/Game/Characters/Materials/MI_Character_Warrior",
+    material_instance="/Game/Characters/Materials/MI_Character_Warrior",
     scalar_params={
         "Metallic": 0.9,
         "Roughness": 0.2,
@@ -242,19 +247,19 @@ batch_set_material_params(
 
 # 4. Create variant by duplication
 duplicate_material_instance(
-    source_path="/Game/Characters/Materials/MI_Character_Warrior",
+    source_material_instance="/Game/Characters/Materials/MI_Character_Warrior",
     new_name="MI_Character_Warrior_Gold"
 )
 
 # 5. Modify the variant
 set_material_vector_param(
-    instance_path="/Game/Characters/Materials/MI_Character_Warrior_Gold",
+    material_instance="/Game/Characters/Materials/MI_Character_Warrior_Gold",
     param_name="BaseColor",
-    value=[1.0, 0.85, 0.0, 1.0]  # Gold tint
+    r=1.0, g=0.85, b=0.0, a=1.0  # Gold tint
 )
 
 set_material_scalar_param(
-    instance_path="/Game/Characters/Materials/MI_Character_Warrior_Gold",
+    material_instance="/Game/Characters/Materials/MI_Character_Warrior_Gold",
     param_name="Metallic",
     value=1.0
 )

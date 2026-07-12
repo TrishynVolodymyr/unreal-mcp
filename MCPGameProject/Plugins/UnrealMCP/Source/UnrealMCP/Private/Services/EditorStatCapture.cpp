@@ -19,7 +19,17 @@ class FEditorStatCaptureBackend final : public IEditorStatCaptureBackend
 public:
 	FEditorStatCaptureBackend(FName InStatGroup, bool bInMacroGroup)
 		: StatGroup(InStatGroup)
-		, bMacroGroup(bInMacroGroup)
+	{
+		(void)bInMacroGroup;
+	}
+
+	FEditorStatCaptureBackend(
+		FName InStatGroup,
+		TFunction<bool()> InIsEnabled,
+		TFunction<void(bool)> InExecuteToggle)
+		: StatGroup(InStatGroup)
+		, IsEnabledOverride(MoveTemp(InIsEnabled))
+		, ExecuteToggleOverride(MoveTemp(InExecuteToggle))
 	{
 	}
 
@@ -27,25 +37,12 @@ public:
 	{
 		if (bOwnsToggle)
 		{
-			return true;
+			return IsOwnedTargetEnabled();
 		}
-
-#if STATS
-		if (bMacroGroup)
+		if (IsEnabledOverride)
 		{
-			const FGameThreadStatsData* ViewData = FLatestGameThreadStatsData::Get().Latest;
-			if (ViewData)
-			{
-				for (const FActiveStatGroupInfo& Group : ViewData->ActiveStatGroups)
-				{
-					if (!Group.GpuStatsAggregate.IsEmpty())
-					{
-						return true;
-					}
-				}
-			}
+			return IsEnabledOverride();
 		}
-#endif
 
 		if (GEditor)
 		{
@@ -72,7 +69,7 @@ public:
 
 	virtual void SetCaptureEnabled(bool bEnabled, bool bRenderStats) override
 	{
-		if (!GEngine)
+		if (!GEngine && !ExecuteToggleOverride)
 		{
 			return;
 		}
@@ -83,17 +80,35 @@ public:
 			{
 				return;
 			}
-			OwnedViewportClient = ResolveTargetViewportClient();
+			if (!ExecuteToggleOverride)
+			{
+				OwnedViewportClient = ResolveTargetViewportClient();
+			}
 		}
-		else if (!bOwnsToggle || !OwnedViewportClient || !IsViewportClientAlive(OwnedViewportClient))
+		else if (!bOwnsToggle || !HasOwnedTarget())
 		{
 			OwnedViewportClient = nullptr;
 			bOwnsToggle = false;
 			return;
 		}
-
-		if (!OwnedViewportClient)
+		else if (!IsCaptureEnabled())
 		{
+			// The user (or another system) already disabled the stat during our
+			// capture window. Release ownership without executing the toggle,
+			// which would otherwise re-enable it.
+			OwnedViewportClient = nullptr;
+			bOwnsToggle = false;
+			return;
+		}
+
+		if (!HasOwnedTarget())
+		{
+			return;
+		}
+		if (ExecuteToggleOverride)
+		{
+			ExecuteToggleOverride(bRenderStats);
+			bOwnsToggle = bEnabled && IsOwnedTargetEnabled();
 			return;
 		}
 
@@ -121,7 +136,7 @@ public:
 			EditorViewportClient->RemoveRealtimeOverride(CleanupRealtimeOverride);
 		}
 
-		bOwnsToggle = bEnabled;
+		bOwnsToggle = bEnabled && IsOwnedTargetEnabled();
 		if (!bOwnsToggle)
 		{
 			OwnedViewportClient = nullptr;
@@ -129,6 +144,23 @@ public:
 	}
 
 private:
+	bool HasOwnedTarget() const
+	{
+		return ExecuteToggleOverride
+			|| (OwnedViewportClient && IsViewportClientAlive(OwnedViewportClient));
+	}
+
+	bool IsOwnedTargetEnabled() const
+	{
+		if (IsEnabledOverride)
+		{
+			return IsEnabledOverride();
+		}
+		return OwnedViewportClient
+			&& IsViewportClientAlive(OwnedViewportClient)
+			&& OwnedViewportClient->IsStatEnabled(StatGroup.ToString());
+	}
+
 	FCommonViewportClient* ResolveTargetViewportClient() const
 	{
 		if (GEngine && GEngine->GameViewport && GEditor && GEditor->PlayWorld)
@@ -208,9 +240,10 @@ private:
 	}
 
 	FName StatGroup;
-	bool bMacroGroup = false;
 	bool bOwnsToggle = false;
 	FCommonViewportClient* OwnedViewportClient = nullptr;
+	TFunction<bool()> IsEnabledOverride;
+	TFunction<void(bool)> ExecuteToggleOverride;
 };
 
 class FEditorStatCaptureScheduler final : public IEditorStatCaptureScheduler
@@ -319,7 +352,7 @@ void FBoundedEditorStatCapture::Cleanup(bool bCancelTimeout)
 	}
 	TimeoutHandle = 0;
 
-	if (bOwnsCapture && Backend->IsCaptureEnabled())
+	if (bOwnsCapture)
 	{
 		Backend->SetCaptureEnabled(false, bRestoreStatsRendering);
 	}
@@ -341,3 +374,13 @@ TSharedRef<IEditorStatCaptureScheduler> CreateEditorStatCaptureScheduler()
 {
 	return MakeShared<FEditorStatCaptureScheduler>();
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+TSharedRef<IEditorStatCaptureBackend> CreateEditorStatCaptureBackendForTest(
+	FName StatGroup,
+	TFunction<bool()> IsEnabled,
+	TFunction<void(bool)> ExecuteToggle)
+{
+	return MakeShared<FEditorStatCaptureBackend>(StatGroup, MoveTemp(IsEnabled), MoveTemp(ExecuteToggle));
+}
+#endif

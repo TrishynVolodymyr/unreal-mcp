@@ -374,10 +374,12 @@ viewport exists.
 Do not use `stat gpu -nodisplay` as a persistent workaround: it hides the HUD but
 continues detailed per-pass collection and its associated profiling overhead.
 
-`get_rendering_stats` applies the same bounded ownership contract to
-`stat initviews`: routine snapshots do not activate it, the public MCP tool uses
-a short begin/read window, and plugin-owned state is restored on read, cancel,
-timeout, or command destruction.
+`get_rendering_stats` is intentionally a non-mutating snapshot in UE 5.8. The
+engine still declares the legacy InitViews counters, but live editor validation
+showed that `FLatestGameThreadStatsData` does not expose their HUD aggregates in
+this path. The tool therefore reports `visibility.detailed_available=false`
+instead of treating missing counters as real zeroes. Use Unreal Insights when a
+detailed culling trace is required.
 
 ## Error Handling and Troubleshooting
 

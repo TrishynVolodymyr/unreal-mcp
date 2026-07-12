@@ -5,9 +5,9 @@ This module provides tools for controlling the Unreal Editor viewport and other 
 """
 
 import logging
-import time
 from typing import Dict, List, Any, Optional
 from mcp.server.fastmcp import FastMCP, Context
+from editor_tools.runtime_tools import register_runtime_tools
 from utils.editor.editor_operations import (
     spawn_actor as spawn_actor_impl,
     delete_actor as delete_actor_impl,
@@ -36,57 +36,6 @@ logger = logging.getLogger("UnrealMCP")
 
 # Get the help registry for this server
 _help_registry = get_help_registry()
-
-
-def _response_payload(response: Dict[str, Any]) -> Dict[str, Any]:
-    result = response.get("result")
-    return result if isinstance(result, dict) else response
-
-
-def _capture_payload_ready(command: str, payload: Dict[str, Any]) -> bool:
-    if command == "get_rendering_stats":
-        visibility = payload.get("visibility")
-        return isinstance(visibility, dict) and visibility.get("detailed_available", False)
-    return payload.get("success", False) and payload.get("detailed_available", False)
-
-
-def _run_bounded_stat_capture(
-    command: str,
-    capture_seconds: float,
-    timeout_seconds: float,
-) -> Dict[str, Any]:
-    retry_interval_seconds = 0.5
-    max_read_attempts = 4
-    effective_timeout = max(timeout_seconds, capture_seconds + 0.5)
-    begin = send_unreal_command(
-        command,
-        {"action": "begin", "timeout_seconds": effective_timeout},
-    )
-    if not _response_payload(begin).get("success", False):
-        return begin
-
-    try:
-        time.sleep(capture_seconds)
-        last_result = None
-        for attempt in range(max_read_attempts):
-            last_result = send_unreal_command(
-                command,
-                {"action": "read", "finish": False},
-            )
-            if _capture_payload_ready(command, _response_payload(last_result)):
-                send_unreal_command(command, {"action": "cancel"})
-                return last_result
-            if attempt + 1 < max_read_attempts:
-                time.sleep(retry_interval_seconds)
-
-        send_unreal_command(command, {"action": "cancel"})
-        return last_result
-    except Exception:
-        try:
-            send_unreal_command(command, {"action": "cancel"})
-        except Exception:
-            logger.warning("Failed to cancel %s capture after read error", command, exc_info=True)
-        raise
 
 def register_editor_tools(mcp: FastMCP):
     """Register editor tools with the MCP server."""
@@ -909,7 +858,8 @@ def register_editor_tools(mcp: FastMCP):
         folder_path: str = "/Game/Meshes",
         import_materials: bool = False,
         auto_generate_collision: bool = True,
-        vertex_color_import_option: str = "Replace"
+        vertex_color_import_option: str = "Replace",
+        vertex_override_color: List[float] = None,
     ) -> Dict[str, Any]:
         """
         Import a static mesh from disk into the Unreal Engine project.
@@ -928,6 +878,7 @@ def register_editor_tools(mcp: FastMCP):
             import_materials: Whether to import materials/textures from the source file (default: False)
             auto_generate_collision: Whether Unreal should generate simple collision (default: True)
             vertex_color_import_option: Ignore, Replace, or Override (default: Replace)
+            vertex_override_color: Required [R,G,B,A] values in 0..1 when using Override
 
         Returns:
             Dictionary containing:
@@ -954,6 +905,7 @@ def register_editor_tools(mcp: FastMCP):
             import_materials,
             auto_generate_collision,
             vertex_color_import_option,
+            vertex_override_color,
         )
 
     @mcp.tool()
@@ -1010,294 +962,7 @@ def register_editor_tools(mcp: FastMCP):
         """
         return import_texture_impl(ctx, source_file_path, asset_name, folder_path, compression_settings, srgb, preserve_alpha)
 
-    @mcp.tool()
-    def get_performance_stats(ctx: Context) -> Dict[str, Any]:
-        """
-        Get real-time performance statistics from Unreal Engine.
-
-        Returns FPS, frame time, GPU time, memory usage, draw calls, and triangle count.
-        Use this to profile performance and identify bottlenecks.
-
-        Returns:
-            Dictionary containing:
-            - fps_current: Current frame FPS
-            - fps_average: Smoothed average FPS
-            - frame_time_ms: Current frame time in milliseconds
-            - gpu_time_ms: GPU frame time in milliseconds
-            - draw_calls: Number of draw calls this frame
-            - primitives_drawn: Number of triangles/primitives drawn
-            - memory: Object with used_physical_mb, available_physical_mb, peak_used_physical_mb
-            - message: Human-readable summary
-
-        Example:
-            get_performance_stats()
-        """
-        return send_unreal_command("get_performance_stats", {})
-
-    @mcp.tool()
-    def execute_console_command(
-        ctx: Context,
-        command: str
-    ) -> Dict[str, Any]:
-        """
-        Execute an Unreal Engine console command and capture output.
-
-        Useful for toggling stat overlays, changing CVars, and runtime tweaks.
-
-        Args:
-            command: Console command to execute (e.g., "stat fps", "stat unit",
-                    "stat scenerendering", "r.SetRes 1920x1080",
-                    "t.MaxFPS 60", "stat memory")
-
-        Returns:
-            Dictionary containing:
-            - success: Whether command was executed
-            - command: The command that was run
-            - output: Captured text output (may be empty for toggle commands)
-            - message: Status message
-
-        Examples:
-            execute_console_command(command="stat fps")
-            execute_console_command(command="stat unit")
-            execute_console_command(command="r.ScreenPercentage 50")
-        """
-        return send_unreal_command("execute_console_command", {"command": command})
-
-    @mcp.tool()
-    def set_viewport_camera(
-        ctx: Context,
-        location: list = None,
-        look_at: list = None,
-        rotation: list = None,
-        fov: float = None
-    ) -> Dict[str, Any]:
-        """
-        Set the editor perspective viewport camera (to frame the level for screenshots).
-
-        Lets you position the camera and then capture_viewport_screenshot from a chosen
-        angle without a human dragging the viewport — including orbiting a point to
-        check view-dependent rendering.
-
-        Args:
-            location: [X, Y, Z] camera world position. If omitted, keeps current.
-            look_at: [X, Y, Z] point to aim the camera at. Overrides rotation — ideal
-                     for orbiting: vary location around a target, aim at the target.
-            rotation: [Pitch, Yaw, Roll] explicit rotation (used only if look_at omitted).
-            fov: optional horizontal field of view in degrees.
-
-        Returns:
-            success, plus the applied location and rotation.
-
-        Examples:
-            # Look at a cavity centered at (0,0,300) from the +X side, slightly above
-            set_viewport_camera(location=[2500, 0, 1200], look_at=[0, 0, 300])
-            # Orbit 90 degrees: move to +Y side, still aiming at the cavity
-            set_viewport_camera(location=[0, 2500, 1200], look_at=[0, 0, 300])
-        """
-        params = {}
-        if location is not None:
-            params["location"] = location
-        if look_at is not None:
-            params["look_at"] = look_at
-        if rotation is not None:
-            params["rotation"] = rotation
-        if fov is not None:
-            params["fov"] = fov
-        return send_unreal_command("set_viewport_camera", params)
-
-    @mcp.tool()
-    def get_gpu_stats(
-        ctx: Context,
-        capture_seconds: float = 0.5,
-        timeout_seconds: float = 5.0,
-    ) -> Dict[str, Any]:
-        """
-        Capture a bounded per-pass GPU profiler breakdown.
-
-        Returns detailed GPU timing for each render pass: BasePass, Shadows,
-        Translucency, PostProcessing, etc. Sorted by cost (highest first).
-
-        The tool temporarily enables detailed GPU profiling when needed, waits
-        for a short capture window, reads the result, and restores profiler
-        state before returning. A profiler session that was already active is
-        left untouched.
-
-        Args:
-            capture_seconds: Time allowed for detailed GPU samples to accumulate.
-            timeout_seconds: Editor-side watchdog for abandoned MCP-owned capture.
-
-        Returns:
-            Dictionary containing:
-            - total_gpu_ms: Total GPU frame time
-            - passes: Array of {name, avg_ms, min_ms, max_ms} per render pass
-            - pass_count: Number of active passes
-            - message: Human-readable summary of top passes
-
-        Example:
-            get_gpu_stats()
-        """
-        return _run_bounded_stat_capture(
-            "get_gpu_stats",
-            capture_seconds,
-            timeout_seconds,
-        )
-
-    @mcp.tool()
-    def get_scene_breakdown(
-        ctx: Context,
-        mesh_filter: str = "",
-        max_results: int = 50
-    ) -> Dict[str, Any]:
-        """
-        Get per-mesh breakdown of scene rendering cost.
-
-        Iterates all StaticMesh/ISM/HISM components, aggregates by mesh,
-        sorted by total triangle cost (instances * LOD0 tris). Essential for
-        identifying what's eating FPS.
-
-        Args:
-            mesh_filter: Optional filter by mesh name (case-insensitive contains)
-            max_results: Max meshes to return (default: 50)
-
-        Returns:
-            Dictionary containing:
-            - meshes: Array sorted by cost, each with:
-                - mesh: Mesh asset name
-                - instances: Total instance count (ISM) or component count (SMC)
-                - lod0_tris: Triangle count at LOD0
-                - total_tris: instances * lod0_tris
-                - shadow_casters: Components with CastShadow=true
-                - nanite: Whether Nanite is enabled
-                - instanced: Whether using ISM/HISM
-            - total_instances, total_tris_lod0, total_shadow_casters
-            - message: Human-readable summary
-
-        Example:
-            get_scene_breakdown()
-            get_scene_breakdown(mesh_filter="Grass")
-        """
-        params = {}
-        if mesh_filter:
-            params["mesh_filter"] = mesh_filter
-        if max_results != 50:
-            params["max_results"] = max_results
-        return send_unreal_command("get_scene_breakdown", params)
-
-    @mcp.tool()
-    def get_rendering_stats(
-        ctx: Context,
-        capture_seconds: float = 0.5,
-        timeout_seconds: float = 5.0,
-    ) -> Dict[str, Any]:
-        """
-        Get focused rendering diagnostics: draw call categories, VRAM, visibility/culling stats.
-
-        Complements get_gpu_stats (GPU pass timing) and get_scene_breakdown (mesh instances).
-        Shows VRAM usage, total draw calls / triangles, and initviews visibility data.
-
-        InitViews collection is enabled only for the bounded capture window and
-        restored before the tool returns. Existing user-owned stat state is left
-        untouched.
-
-        Args:
-            capture_seconds: Time allowed for InitViews samples to accumulate.
-            timeout_seconds: Editor-side watchdog for abandoned MCP-owned capture.
-
-        Returns:
-            Dictionary containing:
-            - draw_calls: Total draw calls
-            - primitives_drawn: Total triangles
-            - gpu_time_ms: GPU frame time
-            - draw_call_categories: Array (empty in UE 5.7+ due to RHI_NEW_GPU_PROFILER)
-            - visibility: Culling/visibility stats (auto-enabled on first call):
-                - processed_primitives: Total primitives processed
-                - frustum_culled_primitives: Primitives culled by frustum
-                - occluded_primitives: Primitives culled by occlusion
-                - statically_occluded: Statically occluded primitives
-                - visible_static_mesh_elements: Visible static mesh draw elements
-                - visible_dynamic_primitives: Visible dynamic primitives
-                - occlusion_queries: Number of occlusion queries
-            - vram: {dedicated_vram_mb, budget_mb, streaming_mb, non_streaming_mb}
-            - message: Human-readable summary
-
-        Example:
-            get_rendering_stats()
-        """
-        return _run_bounded_stat_capture(
-            "get_rendering_stats",
-            capture_seconds,
-            timeout_seconds,
-        )
-
-    @mcp.tool()
-    def get_mesh_draw_stats(ctx: Context, mesh_filter: str = None) -> Dict[str, Any]:
-        """
-        Get per-mesh draw count breakdown per render pass.
-
-        Triggers mesh draw command stats dump and returns per-resource/material
-        breakdown showing how many primitives, vertices, and instances each mesh
-        contributes to each render pass (BasePass, ShadowDepths, etc.).
-
-        First call triggers stats collection. Call again after one rendered frame for data.
-
-        Args:
-            mesh_filter: Optional filter by mesh/resource name (case-insensitive contains)
-
-        Returns:
-            Dictionary containing:
-            - entries: Array of {pass, resource, category, material, visible_primitives,
-              visible_vertices, visible_instances, lod_index, total_instances,
-              total_primitives, total_vertices}
-            - total_entries: Total CSV rows (after filter)
-            - shown_entries: Entries returned (max 100)
-            - total_visible_primitives/vertices/instances: Aggregated totals
-            - mesh_filter: Applied filter (if any)
-            - message: Human-readable summary
-
-        Example:
-            get_mesh_draw_stats()
-            get_mesh_draw_stats(mesh_filter="Grass")
-        """
-        params = {}
-        if mesh_filter:
-            params["mesh_filter"] = mesh_filter
-        return send_unreal_command("get_mesh_draw_stats", params)
-
-    @mcp.tool()
-    def start_pie(ctx: Context) -> Dict[str, Any]:
-        """
-        Start a Play In Editor (PIE) session.
-
-        Queues PIE start for the next engine tick. The session begins
-        asynchronously — it won't be active the instant this returns.
-
-        Returns:
-            Dictionary containing:
-            - success: Whether the request was accepted
-            - already_running: True if PIE was already active
-            - message: Status message
-
-        Example:
-            start_pie()
-        """
-        return send_unreal_command("start_pie", {})
-
-    @mcp.tool()
-    def stop_pie(ctx: Context) -> Dict[str, Any]:
-        """
-        Stop the current Play In Editor (PIE) session.
-
-        Returns:
-            Dictionary containing:
-            - success: Whether the request was accepted
-            - already_stopped: True if no PIE session was running
-            - message: Status message
-
-        Example:
-            stop_pie()
-        """
-        return send_unreal_command("stop_pie", {})
-
+    register_runtime_tools(mcp)
     # Register all tools with the help system
     _help_registry.register(spawn_actor, category="actors")
     _help_registry.register(delete_actor, category="actors")
@@ -1315,13 +980,4 @@ def register_editor_tools(mcp: FastMCP):
     _help_registry.register(spawn_actors, category="actors")
     _help_registry.register(import_static_mesh, category="assets")
     _help_registry.register(import_texture, category="assets")
-    _help_registry.register(get_performance_stats, category="profiling")
-    _help_registry.register(execute_console_command, category="profiling")
-    _help_registry.register(get_gpu_stats, category="profiling")
-    _help_registry.register(get_scene_breakdown, category="profiling")
-    _help_registry.register(get_rendering_stats, category="profiling")
-    _help_registry.register(get_mesh_draw_stats, category="profiling")
-    _help_registry.register(start_pie, category="profiling")
-    _help_registry.register(stop_pie, category="profiling")
-
     logger.info("Editor tools registered successfully")

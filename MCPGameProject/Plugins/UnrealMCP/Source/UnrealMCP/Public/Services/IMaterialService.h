@@ -74,6 +74,11 @@ struct UNREALMCP_API FMaterialInstanceCreationParams
     /** Whether to create a dynamic (runtime modifiable) instance */
     bool bIsDynamic = false;
 
+    /** Initial parameter overrides applied before the new instance is returned/saved. */
+    TMap<FString, float> ScalarParameters;
+    TMap<FString, FLinearColor> VectorParameters;
+    TMap<FString, FString> TextureParameters;
+
     /** Default constructor */
     FMaterialInstanceCreationParams() = default;
 

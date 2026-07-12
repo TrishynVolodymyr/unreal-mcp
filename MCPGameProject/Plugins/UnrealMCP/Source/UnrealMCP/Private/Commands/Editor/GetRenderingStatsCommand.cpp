@@ -1,18 +1,12 @@
 #include "Commands/Editor/GetRenderingStatsCommand.h"
+
 #include "Dom/JsonObject.h"
+#include "DynamicRHI.h"
+#include "RHI.h"
+#include "RHIStats.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
-#include "DynamicRHI.h"
-#include "RHIStats.h"
-#include "RHI.h"
-#include "Engine/Engine.h"
-#include "Services/IEditorStatCapture.h"
-
-#if STATS
-#include "Stats/StatsData.h"
-#include "Stats/Stats.h"
-#endif
 
 namespace
 {
@@ -23,23 +17,17 @@ FString SerializeRenderingResponse(const TSharedRef<FJsonObject>& Result)
 	FJsonSerializer::Serialize(Result, Writer);
 	return Output;
 }
-}
 
-FGetRenderingStatsCommand::FGetRenderingStatsCommand()
-	: Backend(CreateEditorStatCaptureBackend(TEXT("InitViews")))
-	, Capture(MakeUnique<FBoundedEditorStatCapture>(Backend, CreateEditorStatCaptureScheduler()))
+TSharedPtr<FJsonObject> BuildUnavailableVisibilityPayload()
 {
+	TSharedPtr<FJsonObject> Visibility = MakeShared<FJsonObject>();
+	Visibility->SetBoolField(TEXT("detailed_available"), false);
+	Visibility->SetStringField(
+		TEXT("note"),
+		TEXT("Fresh InitViews counters are unavailable through the UE 5.8 editor stats snapshot. Use Unreal Insights for visibility profiling."));
+	return Visibility;
 }
-
-FGetRenderingStatsCommand::FGetRenderingStatsCommand(
-	TSharedRef<IEditorStatCaptureBackend> InBackend,
-	TSharedRef<IEditorStatCaptureScheduler> InScheduler)
-	: Backend(MoveTemp(InBackend))
-	, Capture(MakeUnique<FBoundedEditorStatCapture>(Backend, MoveTemp(InScheduler)))
-{
 }
-
-FGetRenderingStatsCommand::~FGetRenderingStatsCommand() = default;
 
 FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 {
@@ -56,44 +44,7 @@ FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 	FString Action = TEXT("snapshot");
 	Request->TryGetStringField(TEXT("action"), Action);
 	Action.ToLowerInline();
-
-	if (Action == TEXT("begin"))
-	{
-		double TimeoutSeconds = 3.0;
-		if (Request->HasField(TEXT("timeout_seconds")) && !Request->TryGetNumberField(TEXT("timeout_seconds"), TimeoutSeconds))
-		{
-			const TSharedRef<FJsonObject> ErrorResult = MakeShared<FJsonObject>();
-			ErrorResult->SetBoolField(TEXT("success"), false);
-			ErrorResult->SetStringField(TEXT("error"), TEXT("timeout_seconds must be numeric"));
-			return SerializeRenderingResponse(ErrorResult);
-		}
-
-		FString Owner;
-		FString Error;
-		const TSharedRef<FJsonObject> BeginResult = MakeShared<FJsonObject>();
-		if (!Capture->Begin(static_cast<float>(TimeoutSeconds), Owner, Error))
-		{
-			BeginResult->SetBoolField(TEXT("success"), false);
-			BeginResult->SetStringField(TEXT("error"), Error);
-			return SerializeRenderingResponse(BeginResult);
-		}
-		BeginResult->SetBoolField(TEXT("success"), true);
-		BeginResult->SetBoolField(TEXT("capture_started"), true);
-		BeginResult->SetStringField(TEXT("capture_owner"), Owner);
-		BeginResult->SetNumberField(TEXT("timeout_seconds"), TimeoutSeconds);
-		return SerializeRenderingResponse(BeginResult);
-	}
-
-	if (Action == TEXT("cancel"))
-	{
-		Capture->Finish();
-		const TSharedRef<FJsonObject> CancelResult = MakeShared<FJsonObject>();
-		CancelResult->SetBoolField(TEXT("success"), true);
-		CancelResult->SetBoolField(TEXT("capture_cancelled"), true);
-		return SerializeRenderingResponse(CancelResult);
-	}
-
-	if (Action != TEXT("snapshot") && Action != TEXT("read"))
+	if (Action != TEXT("snapshot"))
 	{
 		const TSharedRef<FJsonObject> ErrorResult = MakeShared<FJsonObject>();
 		ErrorResult->SetBoolField(TEXT("success"), false);
@@ -101,113 +52,53 @@ FString FGetRenderingStatsCommand::Execute(const FString& Parameters)
 		return SerializeRenderingResponse(ErrorResult);
 	}
 
-	bool bFinish = Action == TEXT("read");
-	Request->TryGetBoolField(TEXT("finish"), bFinish);
-
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
 	Result->SetBoolField(TEXT("success"), true);
+	Result->SetNumberField(TEXT("draw_calls"), static_cast<double>(GNumDrawCallsRHI[0]));
+	Result->SetNumberField(TEXT("primitives_drawn"), static_cast<double>(GNumPrimitivesDrawnRHI[0]));
 
-	// === RHI Global Counters ===
-	Result->SetNumberField(TEXT("draw_calls"), (double)GNumDrawCallsRHI[0]);
-	Result->SetNumberField(TEXT("primitives_drawn"), (double)GNumPrimitivesDrawnRHI[0]);
-
-	// === GPU Frame Time ===
-	uint32 GPUCycles = RHIGetGPUFrameCycles(0);
+	const uint32 GPUCycles = RHIGetGPUFrameCycles(0);
 	Result->SetNumberField(TEXT("gpu_time_ms"), FPlatformTime::ToMilliseconds(GPUCycles));
 
-	// === Draw Call Categories ===
-	// UE 5.8 has only the new GPU profiler. Legacy FRHIDrawStatsCategory data is unavailable.
 	Result->SetArrayField(TEXT("draw_call_categories"), TArray<TSharedPtr<FJsonValue>>());
-	Result->SetStringField(TEXT("draw_call_categories_note"),
+	Result->SetStringField(
+		TEXT("draw_call_categories_note"),
 		TEXT("Per-category breakdown is unavailable in UE 5.8. Use get_gpu_stats for per-pass GPU timing."));
 
-	// === VRAM Stats ===
+	FTextureMemoryStats TexMemStats;
+	RHIGetTextureMemoryStats(TexMemStats);
+	TSharedPtr<FJsonObject> Vram = MakeShared<FJsonObject>();
+	if (TexMemStats.DedicatedVideoMemory > 0)
 	{
-		FTextureMemoryStats TexMemStats;
-		RHIGetTextureMemoryStats(TexMemStats);
-
-		TSharedPtr<FJsonObject> VramObj = MakeShared<FJsonObject>();
-		if (TexMemStats.DedicatedVideoMemory > 0)
-		{
-			VramObj->SetNumberField(TEXT("dedicated_vram_mb"), (double)(TexMemStats.DedicatedVideoMemory / (1024 * 1024)));
-			VramObj->SetNumberField(TEXT("budget_mb"), (double)(TexMemStats.TotalGraphicsMemory / (1024 * 1024)));
-		}
-		if (TexMemStats.StreamingMemorySize > 0)
-		{
-			VramObj->SetNumberField(TEXT("streaming_mb"), (double)(TexMemStats.StreamingMemorySize / (1024 * 1024)));
-			VramObj->SetNumberField(TEXT("non_streaming_mb"), (double)(TexMemStats.NonStreamingMemorySize / (1024 * 1024)));
-		}
-		Result->SetObjectField(TEXT("vram"), VramObj);
+		Vram->SetNumberField(TEXT("dedicated_vram_mb"), static_cast<double>(TexMemStats.DedicatedVideoMemory / (1024 * 1024)));
+		Vram->SetNumberField(TEXT("budget_mb"), static_cast<double>(TexMemStats.TotalGraphicsMemory / (1024 * 1024)));
 	}
-
-	// === Visibility / InitViews Stats ===
-#if STATS
+	if (TexMemStats.StreamingMemorySize > 0)
 	{
-		TSharedPtr<FJsonObject> VisObj = MakeShared<FJsonObject>();
-		FGameThreadStatsData* ViewData = FLatestGameThreadStatsData::Get().Latest;
-		if (!Backend->IsCaptureEnabled() || !ViewData)
-		{
-			VisObj->SetBoolField(TEXT("detailed_available"), false);
-			VisObj->SetStringField(TEXT("note"), TEXT("InitViews stats are not active. Use bounded begin/read capture for visibility data."));
-		}
-		else
-		{
-			VisObj->SetBoolField(TEXT("detailed_available"), true);
-			// Use short FNames (GetShortName() returns these) — NOT GET_STATFNAME() which returns long encoded paths
-			struct FStatMapping
-			{
-				FName StatName;
-				const TCHAR* JsonKey;
-			};
-			const FStatMapping Mappings[] = {
-				{ FName(TEXT("STAT_ProcessedPrimitives")),          TEXT("processed_primitives") },
-				{ FName(TEXT("STAT_CulledPrimitives")),             TEXT("frustum_culled_primitives") },
-				{ FName(TEXT("STAT_OccludedPrimitives")),           TEXT("occluded_primitives") },
-				{ FName(TEXT("STAT_StaticallyOccludedPrimitives")), TEXT("statically_occluded") },
-				{ FName(TEXT("STAT_VisibleStaticMeshElements")),    TEXT("visible_static_mesh_elements") },
-				{ FName(TEXT("STAT_VisibleDynamicPrimitives")),     TEXT("visible_dynamic_primitives") },
-				{ FName(TEXT("STAT_OcclusionQueries")),             TEXT("occlusion_queries") },
-			};
-
-			// Collect counter values — stored as double in stats system, read via GetValue_double
-			TMap<FName, double> StatValues;
-			for (int32 GroupIdx = 0; GroupIdx < ViewData->ActiveStatGroups.Num(); ++GroupIdx)
-			{
-				const FActiveStatGroupInfo& StatGroup = ViewData->ActiveStatGroups[GroupIdx];
-				for (const FComplexStatMessage& Message : StatGroup.CountersAggregate)
-				{
-					FName ShortName = Message.GetShortName();
-					ShortName.SetNumber(0);
-					double Value = Message.GetValue_double(EComplexStatField::IncAve);
-					StatValues.Add(ShortName, Value);
-				}
-			}
-
-			// Extract the specific stats we care about
-			for (const FStatMapping& M : Mappings)
-			{
-				double* Found = StatValues.Find(M.StatName);
-				VisObj->SetNumberField(M.JsonKey, Found ? FMath::RoundToInt(*Found) : 0.0);
-			}
-		}
-		Result->SetObjectField(TEXT("visibility"), VisObj);
+		Vram->SetNumberField(TEXT("streaming_mb"), static_cast<double>(TexMemStats.StreamingMemorySize / (1024 * 1024)));
+		Vram->SetNumberField(TEXT("non_streaming_mb"), static_cast<double>(TexMemStats.NonStreamingMemorySize / (1024 * 1024)));
 	}
-#endif
+	Result->SetObjectField(TEXT("vram"), Vram);
 
-	// === Summary ===
-	FString Summary = FString::Printf(
-		TEXT("Draw calls: %d, Tris: %d, GPU: %.1fms"),
-		GNumDrawCallsRHI[0], GNumPrimitivesDrawnRHI[0],
-		FPlatformTime::ToMilliseconds(GPUCycles));
-
-	Result->SetStringField(TEXT("message"), Summary);
-	if (bFinish)
-	{
-		Capture->Finish();
-	}
-
+	// The UE 5.8 editor snapshot has no freshness signal for InitViews counters.
+	// Never return cached or zero counters as though they were a fresh sample.
+	Result->SetObjectField(TEXT("visibility"), BuildUnavailableVisibilityPayload());
+	Result->SetStringField(
+		TEXT("message"),
+		FString::Printf(
+			TEXT("Draw calls: %d, Tris: %d, GPU: %.1fms"),
+			GNumDrawCallsRHI[0],
+			GNumPrimitivesDrawnRHI[0],
+			FPlatformTime::ToMilliseconds(GPUCycles)));
 	return SerializeRenderingResponse(Result.ToSharedRef());
 }
 
-FString FGetRenderingStatsCommand::GetCommandName() const { return TEXT("get_rendering_stats"); }
-bool FGetRenderingStatsCommand::ValidateParams(const FString& Parameters) const { return true; }
+FString FGetRenderingStatsCommand::GetCommandName() const
+{
+	return TEXT("get_rendering_stats");
+}
+
+bool FGetRenderingStatsCommand::ValidateParams(const FString& Parameters) const
+{
+	return true;
+}

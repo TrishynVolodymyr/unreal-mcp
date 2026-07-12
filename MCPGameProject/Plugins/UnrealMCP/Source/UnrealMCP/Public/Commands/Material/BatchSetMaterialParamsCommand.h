@@ -22,5 +22,10 @@ private:
     IMaterialService& MaterialService;
 
     FString CreateSuccessResponse(const FString& MaterialPath, const TArray<FString>& ScalarParams, const TArray<FString>& VectorParams, const TArray<FString>& TextureParams) const;
-    FString CreateErrorResponse(const FString& ErrorMessage) const;
+    FString CreateErrorResponse(
+        const FString& ErrorMessage,
+        const FString* MaterialPath = nullptr,
+        const TArray<FString>* ScalarParams = nullptr,
+        const TArray<FString>* VectorParams = nullptr,
+        const TArray<FString>* TextureParams = nullptr) const;
 };

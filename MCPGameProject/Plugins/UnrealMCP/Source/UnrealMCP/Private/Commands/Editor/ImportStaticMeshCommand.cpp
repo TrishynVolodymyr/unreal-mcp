@@ -33,7 +33,6 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 	{
 		return CreateErrorResponse(Error);
 	}
-
 	// Validate source file exists
 	if (!FPaths::FileExists(SourceFilePath))
 	{
@@ -105,6 +104,12 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 	FbxFactory->ImportUI->StaticMeshImportData->bCombineMeshes = false;    // SPLIT — match the dialog default
 	FbxFactory->ImportUI->StaticMeshImportData->bConvertSceneUnit = true;  // FBX scene unit (m) → UE cm — correct size
 	ConfigureImportUI(*FbxFactory->ImportUI, Settings);
+	if (ExecutionOverride)
+	{
+		const FString Response = ExecutionOverride(Settings, *FbxFactory->ImportUI);
+		FbxFactory->RemoveFromRoot();
+		return Response;
+	}
 
 	// THE SCALE FIX (UE 5.7, NOT Interchange): ImportObject uses the LEGACY libfbx path, but it only copies
 	// the StaticMeshImportData scale/unit options into the live FBXImportOptions when the import is AUTOMATED
@@ -267,6 +272,37 @@ bool FImportStaticMeshCommand::ParseParameters(
 	else if (VertexColorOption.Equals(TEXT("Override"), ESearchCase::IgnoreCase))
 	{
 		OutSettings.VertexColorImportOption = EVertexColorImportOption::Override;
+		const TArray<TSharedPtr<FJsonValue>>* OverrideColor = nullptr;
+		if (!JsonObject->TryGetArrayField(TEXT("vertex_override_color"), OverrideColor)
+			|| OverrideColor->Num() != 4)
+		{
+			OutError = TEXT("vertex_override_color with exactly 4 numeric RGBA components is required when using Override");
+			return false;
+		}
+		for (const TSharedPtr<FJsonValue>& Component : *OverrideColor)
+		{
+			if (!Component.IsValid() || Component->Type != EJson::Number)
+			{
+				OutError = TEXT("vertex_override_color components must be numbers");
+				return false;
+			}
+			const double Value = Component->AsNumber();
+			if (Value < 0.0 || Value > 1.0)
+			{
+				OutError = TEXT("vertex_override_color components must be between 0.0 and 1.0");
+				return false;
+			}
+		}
+		const auto ToByte = [](double Value)
+		{
+			return static_cast<uint8>(FMath::RoundToInt(Value * 255.0));
+		};
+		OutSettings.VertexOverrideColor = FColor(
+			ToByte((*OverrideColor)[0]->AsNumber()),
+			ToByte((*OverrideColor)[1]->AsNumber()),
+			ToByte((*OverrideColor)[2]->AsNumber()),
+			ToByte((*OverrideColor)[3]->AsNumber()));
+		OutSettings.bHasVertexOverrideColor = true;
 	}
 	else
 	{
@@ -285,6 +321,10 @@ void FImportStaticMeshCommand::ConfigureImportUI(
 {
 	ImportUI.StaticMeshImportData->bAutoGenerateCollision = Settings.bAutoGenerateCollision;
 	ImportUI.StaticMeshImportData->VertexColorImportOption = Settings.VertexColorImportOption;
+	if (Settings.bHasVertexOverrideColor)
+	{
+		ImportUI.StaticMeshImportData->VertexOverrideColor = Settings.VertexOverrideColor;
+	}
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
