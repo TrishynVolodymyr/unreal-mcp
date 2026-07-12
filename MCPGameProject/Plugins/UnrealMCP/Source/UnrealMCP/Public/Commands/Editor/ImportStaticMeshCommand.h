@@ -2,6 +2,16 @@
 
 #include "CoreMinimal.h"
 #include "Commands/IUnrealMCPCommand.h"
+#include "Factories/FbxMeshImportData.h"
+
+class UFbxImportUI;
+
+struct FImportStaticMeshSettings
+{
+	bool bImportMaterials = false;
+	bool bAutoGenerateCollision = true;
+	EVertexColorImportOption::Type VertexColorImportOption = EVertexColorImportOption::Replace;
+};
 
 /**
  * Command to import a static mesh file (FBX, OBJ) from disk into the Unreal project.
@@ -18,14 +28,23 @@ public:
 	virtual bool ValidateParams(const FString& Parameters) const override;
 	//~ End IUnrealMCPCommand interface
 
+#if WITH_DEV_AUTOMATION_TESTS
+	bool ParseParametersForTest(
+		const FString& JsonString,
+		FImportStaticMeshSettings& OutSettings,
+		FString& OutError) const;
+	static void ConfigureImportUIForTest(UFbxImportUI& ImportUI, const FImportStaticMeshSettings& Settings);
+#endif
+
 private:
 	bool ParseParameters(
 		const FString& JsonString,
 		FString& OutSourceFilePath,
 		FString& OutAssetName,
 		FString& OutFolderPath,
-		bool& OutImportMaterials,
+		FImportStaticMeshSettings& OutSettings,
 		FString& OutError) const;
+	static void ConfigureImportUI(UFbxImportUI& ImportUI, const FImportStaticMeshSettings& Settings);
 
 	FString CreateErrorResponse(const FString& ErrorMessage) const;
 };

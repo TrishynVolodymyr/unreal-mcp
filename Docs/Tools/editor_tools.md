@@ -57,6 +57,32 @@ Capture a screenshot of the viewport.
 }
 ```
 
+### import_static_mesh
+
+Import one or more FBX/OBJ static meshes into a Content folder. Multi-mesh FBX
+files are split by node; a single mesh is renamed to `asset_name`.
+
+**Parameters:**
+- `source_file_path` (string, required) - Absolute source file path.
+- `asset_name` (string, required) - Name used for a single imported mesh.
+- `folder_path` (string, optional) - Destination Content folder.
+- `import_materials` (boolean, optional) - Import source materials and textures; default `false`.
+- `auto_generate_collision` (boolean, optional) - Generate simple collision; default `true` for backward compatibility.
+- `vertex_color_import_option` (string, optional) - `Ignore`, `Replace`, or `Override`; default `Replace`, matching UE 5.7's previous importer behavior. Use `Replace` to import vertex colors stored in the source mesh.
+
+```python
+import_static_mesh(
+    source_file_path="E:/meshes/SM_Grass.fbx",
+    asset_name="SM_Grass",
+    folder_path="/Game/Flora",
+    import_materials=False,
+    auto_generate_collision=False,
+    vertex_color_import_option="Replace",
+)
+```
+
+Invalid vertex-color option text fails before import and lists the three valid values.
+
 ## Error Handling
 
 All command responses include a "status" field indicating whether the operation succeeded, and an optional "message" field with details in case of failure.
