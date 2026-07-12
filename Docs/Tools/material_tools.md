@@ -17,18 +17,22 @@ Create a new Material Instance from a parent material.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `instance_name` | string | Yes | - | Name for the new instance |
-| `parent_material_path` | string | Yes | - | Path to parent material |
-| `save_path` | string | No | "/Game/Materials" | Folder to save the instance |
+| `name` | string | Yes | - | Name for the new instance |
+| `parent_material` | string | Yes | - | Path to parent material |
+| `folder_path` | string | No | "/Game/Materials" | Folder to save the instance |
+| `scalar_params` | object | No | Initial scalar overrides |
+| `vector_params` | object | No | Initial vector overrides |
+| `texture_params` | object | No | Initial texture overrides |
 
 **Returns**: Success status, instance path, and parent reference.
 
 **Example**:
 ```python
 create_material_instance(
-    instance_name="MI_Character_Red",
-    parent_material_path="/Game/Materials/M_Character_Base",
-    save_path="/Game/Materials/Instances"
+    name="MI_Character_Red",
+    parent_material="/Game/Materials/M_Character_Base",
+    folder_path="/Game/Materials/Instances",
+    scalar_params={"Roughness": 0.4}
 )
 ```
 
@@ -40,7 +44,7 @@ Set a scalar (float) parameter on a Material Instance.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `instance_path` | string | Yes | Path to the Material Instance |
+| `material_instance` | string | Yes | Path to the Material Instance |
 | `param_name` | string | Yes | Name of the scalar parameter |
 | `value` | float | Yes | Value to set |
 
@@ -111,7 +115,7 @@ Set multiple parameters on a Material Instance in a single operation.
 **Example**:
 ```python
 batch_set_material_params(
-    instance_path="/Game/Materials/MI_Character_Red",
+    material_instance="/Game/Materials/MI_Character_Red.MI_Character_Red",
     scalar_params={
         "Metallic": 0.5,
         "Roughness": 0.3,
@@ -126,6 +130,10 @@ batch_set_material_params(
     }
 )
 ```
+
+The parameter families are JSON objects, not JSON-encoded strings. The command
+fails when a field has the wrong type or when any requested setter fails; its
+`results` arrays list the names that were actually updated.
 
 ---
 

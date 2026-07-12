@@ -245,13 +245,14 @@ async def create_material_instance(
     }
     if folder_path:
         params["folder_path"] = folder_path
-    # Convert dict to JSON string for C++ side (which expects JSON strings)
+    # Keep mappings as JSON objects. FastMCP serializes them for the C++ command,
+    # whose contract uses TryGetObjectField for each parameter family.
     if scalar_params:
-        params["scalar_params"] = json.dumps(scalar_params) if isinstance(scalar_params, dict) else scalar_params
+        params["scalar_params"] = scalar_params
     if vector_params:
-        params["vector_params"] = json.dumps(vector_params) if isinstance(vector_params, dict) else vector_params
+        params["vector_params"] = vector_params
     if texture_params:
-        params["texture_params"] = json.dumps(texture_params) if isinstance(texture_params, dict) else texture_params
+        params["texture_params"] = texture_params
 
     return await send_tcp_command("create_material_instance", params)
 
@@ -477,13 +478,14 @@ async def batch_set_material_params(
     params = {
         "material_instance": material_instance
     }
-    # Convert dict to JSON string for C++ side (which expects JSON strings)
+    # Keep mappings as JSON objects. FastMCP serializes them for the C++ command,
+    # whose contract uses TryGetObjectField for each parameter family.
     if scalar_params:
-        params["scalar_params"] = json.dumps(scalar_params) if isinstance(scalar_params, dict) else scalar_params
+        params["scalar_params"] = scalar_params
     if vector_params:
-        params["vector_params"] = json.dumps(vector_params) if isinstance(vector_params, dict) else vector_params
+        params["vector_params"] = vector_params
     if texture_params:
-        params["texture_params"] = json.dumps(texture_params) if isinstance(texture_params, dict) else texture_params
+        params["texture_params"] = texture_params
 
     return await send_tcp_command("batch_set_material_params", params)
 
