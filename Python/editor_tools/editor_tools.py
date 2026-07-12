@@ -855,7 +855,9 @@ def register_editor_tools(mcp: FastMCP):
         source_file_path: str,
         asset_name: str,
         folder_path: str = "/Game/Meshes",
-        import_materials: bool = False
+        import_materials: bool = False,
+        auto_generate_collision: bool = True,
+        vertex_color_import_option: str = "Replace"
     ) -> Dict[str, Any]:
         """
         Import a static mesh from disk into the Unreal Engine project.
@@ -872,6 +874,8 @@ def register_editor_tools(mcp: FastMCP):
                 names are used), so the props land as e.g. .../axe, .../jug, .../flask.
             folder_path: Destination Content FOLDER for the imported asset(s) (default: "/Game/Meshes")
             import_materials: Whether to import materials/textures from the source file (default: False)
+            auto_generate_collision: Whether Unreal should generate simple collision (default: True)
+            vertex_color_import_option: Ignore, Replace, or Override (default: Replace)
 
         Returns:
             Dictionary containing:
@@ -890,7 +894,15 @@ def register_editor_tools(mcp: FastMCP):
                 folder_path="/Game/Meshes/Props"
             )
         """
-        return import_static_mesh_impl(ctx, source_file_path, asset_name, folder_path, import_materials)
+        return import_static_mesh_impl(
+            ctx,
+            source_file_path,
+            asset_name,
+            folder_path,
+            import_materials,
+            auto_generate_collision,
+            vertex_color_import_option,
+        )
 
     @mcp.tool()
     def import_texture(

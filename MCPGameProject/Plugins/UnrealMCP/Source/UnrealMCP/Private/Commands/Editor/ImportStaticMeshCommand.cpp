@@ -21,15 +21,15 @@ FString FImportStaticMeshCommand::GetCommandName() const
 bool FImportStaticMeshCommand::ValidateParams(const FString& Parameters) const
 {
 	FString SourceFilePath, AssetName, FolderPath, Error;
-	bool bImportMaterials;
-	return ParseParameters(Parameters, SourceFilePath, AssetName, FolderPath, bImportMaterials, Error);
+	FImportStaticMeshSettings Settings;
+	return ParseParameters(Parameters, SourceFilePath, AssetName, FolderPath, Settings, Error);
 }
 
 FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 {
 	FString SourceFilePath, AssetName, FolderPath, Error;
-	bool bImportMaterials;
-	if (!ParseParameters(Parameters, SourceFilePath, AssetName, FolderPath, bImportMaterials, Error))
+	FImportStaticMeshSettings Settings;
+	if (!ParseParameters(Parameters, SourceFilePath, AssetName, FolderPath, Settings, Error))
 	{
 		return CreateErrorResponse(Error);
 	}
@@ -97,14 +97,14 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 	FbxFactory->ImportUI->bImportMesh = true;
 	FbxFactory->ImportUI->bImportAsSkeletal = false;
 	FbxFactory->ImportUI->MeshTypeToImport = FBXIT_StaticMesh;
-	FbxFactory->ImportUI->bImportMaterials = bImportMaterials;
-	FbxFactory->ImportUI->bImportTextures = bImportMaterials;
+	FbxFactory->ImportUI->bImportMaterials = Settings.bImportMaterials;
+	FbxFactory->ImportUI->bImportTextures = Settings.bImportMaterials;
 	FbxFactory->ImportUI->bImportAnimations = false;
 	FbxFactory->ImportUI->bAutomatedImportShouldDetectType = false;
 	FbxFactory->ImportUI->bOverrideFullName = false;                       // per-node FBX names
 	FbxFactory->ImportUI->StaticMeshImportData->bCombineMeshes = false;    // SPLIT — match the dialog default
 	FbxFactory->ImportUI->StaticMeshImportData->bConvertSceneUnit = true;  // FBX scene unit (m) → UE cm — correct size
-	FbxFactory->ImportUI->StaticMeshImportData->bAutoGenerateCollision = true;
+	ConfigureImportUI(*FbxFactory->ImportUI, Settings);
 
 	// THE SCALE FIX (UE 5.7, NOT Interchange): ImportObject uses the LEGACY libfbx path, but it only copies
 	// the StaticMeshImportData scale/unit options into the live FBXImportOptions when the import is AUTOMATED
@@ -215,7 +215,7 @@ bool FImportStaticMeshCommand::ParseParameters(
 	FString& OutSourceFilePath,
 	FString& OutAssetName,
 	FString& OutFolderPath,
-	bool& OutImportMaterials,
+	FImportStaticMeshSettings& OutSettings,
 	FString& OutError) const
 {
 	TSharedPtr<FJsonObject> JsonObject;
@@ -244,13 +244,68 @@ bool FImportStaticMeshCommand::ParseParameters(
 		OutFolderPath = TEXT("/Game/Meshes");
 	}
 
-	if (!JsonObject->TryGetBoolField(TEXT("import_materials"), OutImportMaterials))
+	if (!JsonObject->TryGetBoolField(TEXT("import_materials"), OutSettings.bImportMaterials))
 	{
-		OutImportMaterials = false;
+		OutSettings.bImportMaterials = false;
+	}
+
+	if (!JsonObject->TryGetBoolField(TEXT("auto_generate_collision"), OutSettings.bAutoGenerateCollision))
+	{
+		OutSettings.bAutoGenerateCollision = true;
+	}
+
+	FString VertexColorOption = TEXT("Replace");
+	JsonObject->TryGetStringField(TEXT("vertex_color_import_option"), VertexColorOption);
+	if (VertexColorOption.Equals(TEXT("Ignore"), ESearchCase::IgnoreCase))
+	{
+		OutSettings.VertexColorImportOption = EVertexColorImportOption::Ignore;
+	}
+	else if (VertexColorOption.Equals(TEXT("Replace"), ESearchCase::IgnoreCase))
+	{
+		OutSettings.VertexColorImportOption = EVertexColorImportOption::Replace;
+	}
+	else if (VertexColorOption.Equals(TEXT("Override"), ESearchCase::IgnoreCase))
+	{
+		OutSettings.VertexColorImportOption = EVertexColorImportOption::Override;
+	}
+	else
+	{
+		OutError = FString::Printf(
+			TEXT("Invalid vertex_color_import_option '%s'. Valid values: Ignore, Replace, Override"),
+			*VertexColorOption);
+		return false;
 	}
 
 	return true;
 }
+
+void FImportStaticMeshCommand::ConfigureImportUI(
+	UFbxImportUI& ImportUI,
+	const FImportStaticMeshSettings& Settings)
+{
+	ImportUI.StaticMeshImportData->bAutoGenerateCollision = Settings.bAutoGenerateCollision;
+	ImportUI.StaticMeshImportData->VertexColorImportOption = Settings.VertexColorImportOption;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+bool FImportStaticMeshCommand::ParseParametersForTest(
+	const FString& JsonString,
+	FImportStaticMeshSettings& OutSettings,
+	FString& OutError) const
+{
+	FString SourceFilePath;
+	FString AssetName;
+	FString FolderPath;
+	return ParseParameters(JsonString, SourceFilePath, AssetName, FolderPath, OutSettings, OutError);
+}
+
+void FImportStaticMeshCommand::ConfigureImportUIForTest(
+	UFbxImportUI& ImportUI,
+	const FImportStaticMeshSettings& Settings)
+{
+	ConfigureImportUI(ImportUI, Settings);
+}
+#endif
 
 FString FImportStaticMeshCommand::CreateErrorResponse(const FString& ErrorMessage) const
 {
