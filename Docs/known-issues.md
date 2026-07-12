@@ -4,6 +4,22 @@ This file tracks MCP tool limitations discovered during development. When encoun
 
 ## Resolved Issues
 
+### `set_actor_property` Did Not Run Editor Property Notifications (Fixed 2026-07-12)
+- **Affected**: `editorMCP.set_actor_property`, including batch property writes.
+- **Problem**: The service wrote reflected memory directly and returned success, but
+  never emitted `PostEditChangeProperty`. Editor-visible side effects therefore did
+  not run: construction-script/native `OnConstruction` rebuilds could stay stale,
+  render components could keep old state, and a saved actor could contain the new
+  UPROPERTY value while its derived scene representation remained unchanged.
+- **Fix**: Successful writes now call `Modify`, emit one
+  `PostEditChangeProperty` with `EPropertyChangeType::ValueSet`, mark the actor/package
+  and component render state dirty, and request a level-viewport redraw.
+- **Verification**:
+  `UnrealMCP.Editor.SetActorProperty.SendsEditorNotification` writes through the
+  real `FEditorService`, then asserts the reflected value plus one notification
+  carrying the exact changed property. The pre-fix implementation failed with a
+  notification count of zero.
+
 ### `capture_viewport_screenshot` Returned a Stale Frame When the Editor Was Unfocused (Fixed 2026-06-11)
 - **Affected**: `projectMCP.capture_viewport_screenshot`
 - **Problem**: The capture read the last drawn frame (`GetViewportScreenShot` → `ReadPixels`) without forcing a

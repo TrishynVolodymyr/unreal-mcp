@@ -158,6 +158,10 @@ Get all properties of an actor.
 
 Set a property on an actor.
 
+Successful writes participate in the Unreal Editor property lifecycle: the actor
+is transactional, receives `PostEditChangeProperty(ValueSet)`, is marked dirty,
+and refreshes derived construction/render state in the active level.
+
 **Parameters:**
 - `name` (string) **REQUIRED** - Name of the actor
 - `property_name` (string) **REQUIRED** - Name of the property to set
