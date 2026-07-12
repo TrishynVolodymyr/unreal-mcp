@@ -60,6 +60,7 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/Material.h"
+#include "UObject/UnrealType.h"
 
 TUniquePtr<FEditorService> FEditorService::Instance = nullptr;
 
@@ -655,7 +656,30 @@ bool FEditorService::SetActorProperty(AActor* Actor, const FString& PropertyName
         return false;
     }
     
-    return FUnrealMCPCommonUtils::SetObjectProperty(Actor, PropertyName, PropertyValue, OutError);
+    FProperty* Property = Actor->GetClass()->FindPropertyByName(FName(*PropertyName));
+    if (!Property)
+    {
+        OutError = FString::Printf(TEXT("Property not found: %s"), *PropertyName);
+        return false;
+    }
+
+    // Record the pre-write state for undo without dirtying the level when JSON
+    // conversion fails. A successful write is marked dirty below.
+    Actor->Modify(false);
+    if (!FUnrealMCPCommonUtils::SetObjectProperty(Actor, PropertyName, PropertyValue, OutError))
+    {
+        return false;
+    }
+
+    FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet);
+    Actor->PostEditChangeProperty(PropertyChangedEvent);
+    Actor->MarkPackageDirty();
+    Actor->MarkComponentsRenderStateDirty();
+    if (GEditor)
+    {
+        GEditor->RedrawLevelEditingViewports();
+    }
+    return true;
 }
 
 bool FEditorService::SetLightProperty(AActor* Actor, const FString& PropertyName, const FString& PropertyValue, FString& OutError)
