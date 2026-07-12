@@ -334,6 +334,42 @@ Use: *"Set the 'MainLight' intensity to 8000 and attenuation radius to 1500"*
 - Testing Blueprint actor spawning and deletion
 - Creating stress test environments
 
+### Bounded GPU profiling
+
+`get_gpu_stats` returns total GPU frame time and a sorted per-pass breakdown. If
+detailed GPU stats are not already active, the tool enables them only for the
+requested capture window (default `0.5` seconds) and restores the previous state
+before returning. An editor-side watchdog (default `5.0` seconds) cleans up an
+abandoned MCP-owned capture after a timeout.
+
+The tool never disables profiling that was already enabled by the user. For a
+routine low-overhead frame-time sample that must not activate detailed profiling,
+call the underlying command with `{"action":"snapshot"}`.
+
+Editor stat ownership checks inspect every editor viewport plus the PIE viewport.
+MCP commands execute outside the normal viewport stat-command scope, so relying
+only on UE's transient "current viewport" result can misclassify a profiler
+already active elsewhere and accidentally toggle user-owned state.
+
+The bounded controller records the exact viewport where it enabled a stat and
+targets cleanup back to that viewport. Editor viewports can fall out of realtime
+while an MCP request is waiting; UE then treats an enabled stat as inactive and a
+second toggle can become an accidental re-enable. Cleanup therefore applies a
+short plugin-owned realtime override only while disabling the stat, removes the
+override immediately, and restores the user's prior stats-rendering state.
+
+The Python wrapper retries reads until the detailed payload is actually ready.
+This matters when Unreal is unfocused and editor throttling yields only a few
+frames during the initial `0.5` second window.
+
+Do not use `stat gpu -nodisplay` as a persistent workaround: it hides the HUD but
+continues detailed per-pass collection and its associated profiling overhead.
+
+`get_rendering_stats` applies the same bounded ownership contract to
+`stat initviews`: routine snapshots do not activate it, the public MCP tool uses
+a short begin/read window, and plugin-owned state is restored on read, cancel,
+timeout, or command destruction.
+
 ## Error Handling and Troubleshooting
 
 If you encounter issues:
@@ -350,4 +386,4 @@ If you encounter issues:
 - Consider light attenuation radius to avoid unnecessary calculations
 - Use appropriate Blueprint actor spawning for complex objects
 
-Remember that all operations are performed through natural language with your AI assistant, making scene creation and actor management intuitive and accessible without requiring detailed knowledge of Unreal Engine's editor interface. 
+Remember that all operations are performed through natural language with your AI assistant, making scene creation and actor management intuitive and accessible without requiring detailed knowledge of Unreal Engine's editor interface.
