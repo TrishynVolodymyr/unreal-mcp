@@ -194,7 +194,7 @@ async def set_static_mesh_properties(
     Args:
         mesh_path: Path to the Static Mesh asset
         enable_nanite: Enable/disable Nanite (note: doesn't work well with masked materials)
-        has_collision: Enable/disable collision
+        has_collision: Generate box simple collision when true; remove all simple collision when false
         material_path: Path to material to set on ALL slots (e.g., "/Game/Materials/M_Grass")
         material_slot_index: Specific slot index to set material on (use with material_slot_path)
         material_slot_path: Material path for the specific slot (use with material_slot_index)
@@ -209,6 +209,11 @@ async def set_static_mesh_properties(
             material_path="/Game/Environment/Materials/M_Grass"
         )
     """
+    if (material_slot_index is None) != (material_slot_path is None):
+        raise ValueError(
+            "material_slot_index and material_slot_path must be provided together"
+        )
+
     params = {"mesh_path": mesh_path}
     if enable_nanite is not None:
         params["enable_nanite"] = enable_nanite

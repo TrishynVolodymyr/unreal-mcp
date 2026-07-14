@@ -17,6 +17,7 @@ Technical documentation for all MCP tool categories. This section provides comma
 | **[DataTable Tools](datatable_tools.md)** | `datatable_tools.md` | DataTable CRUD operations, struct management |
 | **[Editor Tools](editor_tools.md)** | `editor_tools.md` | Editor control, viewport management, scene queries |
 | **[Material Tools](material_tools.md)** | `material_tools.md` | Material Instance creation, parameter management, textures |
+| **[Mesh Tools](mesh_tools.md)** | `mesh_tools.md` | Static-mesh metadata and asset property editing |
 | **[Niagara Tools](niagara_tools.md)** | `niagara_tools.md` | Niagara VFX systems, emitters, parameters, renderers |
 | **[Node Tools](node_tools.md)** | `node_tools.md` | Blueprint visual scripting, node creation, connections |
 | **[Project Tools](project_tools.md)** | `project_tools.md` | Project organization, Enhanced Input System, structs |
@@ -409,16 +410,18 @@ Test through AI assistant:
 
 | Category | Commands | Most Used |
 |----------|----------|-----------|
+| Actor | 8 | `create_actor`, `set_actor_transform`, `get_actor_properties` |
 | Animation | 9 | `create_animation_blueprint`, `add_anim_state`, `add_anim_transition` |
 | Blueprint | 15+ | `create_blueprint`, `add_component`, `compile_blueprint` |
 | Blueprint Action | 5+ | `search_blueprint_actions`, `get_actions_for_class` |
 | DataTable | 7+ | `create_datatable`, `add_rows`, `get_datatable_rows` |
 | Editor | 8+ | `spawn_actor`, `set_actor_transform`, `get_level_metadata` |
 | Material | 8 | `create_material_instance`, `batch_set_material_params`, `set_material_texture_param` |
+| Mesh | 6 | `get_static_mesh_metadata`, `import_lod`, `set_static_mesh_properties` |
 | Niagara | 12 | `create_niagara_system`, `add_emitter_to_system`, `set_niagara_color_param` |
 | Node | 12+ | `add_event_node`, `connect_nodes`, `create_node_by_action_name` |
 | Project | 9+ | `create_enhanced_input_action`, `create_folder`, `create_struct` |
 | StateTree | 53 | `create_state_tree`, `add_state`, `add_transition`, `add_task_to_state` |
 | UMG | 10+ | `create_widget_blueprint`, `add_widget_component`, `set_widget_property` |
 
-**Total**: 145+ commands across 11 categories
+**Total**: 159+ commands across 13 categories
