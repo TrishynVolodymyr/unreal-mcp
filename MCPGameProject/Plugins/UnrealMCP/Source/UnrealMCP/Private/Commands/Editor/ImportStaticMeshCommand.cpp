@@ -3,14 +3,18 @@
 #include "IAssetTools.h"
 #include "Engine/StaticMesh.h"
 #include "AssetImportTask.h"
+#include "EditorReimportHandler.h"
+#include "EditorFramework/AssetImportData.h"
 #include "Factories/FbxFactory.h"
 #include "Factories/FbxImportUI.h"
 #include "Factories/FbxStaticMeshImportData.h"
+#include "Factories/ReimportFbxStaticMeshFactory.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Dom/JsonObject.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
+#include "UObject/StrongObjectPtr.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 
 FString FImportStaticMeshCommand::GetCommandName() const
@@ -57,6 +61,36 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 		else
 		{
 			DestinationPath = TEXT("/Game/") + DestinationPath;
+		}
+	}
+	while (DestinationPath.Len() > 5 && DestinationPath.EndsWith(TEXT("/")))
+	{
+		DestinationPath.LeftChopInline(1, EAllowShrinking::No);
+	}
+	const FString RequestedObjectPath = FString::Printf(
+		TEXT("%s/%s.%s"),
+		*DestinationPath,
+		*AssetName,
+		*AssetName);
+	UStaticMesh* ExistingMesh = LoadObject<UStaticMesh>(nullptr, *RequestedObjectPath);
+	if (ExistingMesh)
+	{
+		// UE 5.8's legacy static-mesh reimport path unconditionally disables material
+		// and texture import inside UReimportFbxStaticMeshFactory. Reject the unsupported
+		// request instead of returning success for an option the engine ignored.
+		if (Settings.bImportMaterials)
+		{
+			return CreateErrorResponse(FString::Printf(
+				TEXT("Same-path static-mesh reimport does not support import_materials=true in UE 5.8: %s"),
+				*RequestedObjectPath));
+		}
+		if (const UFbxStaticMeshImportData* ExistingFbxData =
+			Cast<UFbxStaticMeshImportData>(ExistingMesh->GetAssetImportData());
+			ExistingFbxData && ExistingFbxData->bImportAsScene)
+		{
+			return CreateErrorResponse(FString::Printf(
+				TEXT("Cannot standalone-reimport an FBX Scene-owned static mesh: %s"),
+				*RequestedObjectPath));
 		}
 	}
 
@@ -111,7 +145,23 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 		return Response;
 	}
 
-	// THE SCALE FIX (UE 5.7, NOT Interchange): ImportObject uses the LEGACY libfbx path, but it only copies
+	TStrongObjectPtr<UAssetImportData> OriginalImportDataBackup;
+	if (ExistingMesh)
+	{
+		if (UAssetImportData* OriginalImportData = ExistingMesh->GetAssetImportData())
+		{
+			OriginalImportDataBackup.Reset(DuplicateObject<UAssetImportData>(
+				OriginalImportData,
+				GetTransientPackage()));
+		}
+		PrepareExistingMeshForReimport(
+			*ExistingMesh,
+			*FbxFactory->ImportUI,
+			Settings,
+			SourceFilePath);
+	}
+
+	// THE SCALE FIX (UE 5.8, NOT Interchange): ImportObject uses the LEGACY libfbx path, but it only copies
 	// the StaticMeshImportData scale/unit options into the live FBXImportOptions when the import is AUTOMATED
 	// (UFactory::IsAutomatedImport) or a modal dialog is shown. With neither, FbxMainImport::GetImportOptions
 	// takes the "else" branch and bConvertSceneUnit / ImportUniformScale silently NO-OP — which is why earlier
@@ -127,9 +177,51 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 	FbxFactory->SetAssetImportTask(ImportTask);
 
 	bool bCancelled = false;
-	UObject* ImportedObject = FbxFactory->ImportObject(
-		UStaticMesh::StaticClass(), AnchorPackage, FName(*AssetName),
-		RF_Public | RF_Standalone, SourceFilePath, nullptr, bCancelled);
+	UObject* ImportedObject = nullptr;
+	if (ExistingMesh)
+	{
+		UReimportFbxStaticMeshFactory* ReimportFactory = NewObject<UReimportFbxStaticMeshFactory>();
+		ReimportFactory->AddToRoot();
+		ReimportFactory->SetAssetImportTask(ImportTask);
+		const EReimportResult::Type ReimportResult = ReimportFactory->Reimport(ExistingMesh);
+		const bool bReimported = ReimportResult == EReimportResult::Succeeded;
+		ReimportFactory->RemoveFromRoot();
+		if (!bReimported)
+		{
+			// UE's legacy FBX importer performs atomic failure rollback by replacing the
+			// mutated mesh UObject with a transient backup at the original object path.
+			// Resolve that restored object instead of touching the now-garbage pointer.
+			UStaticMesh* RestoredMesh = LoadObject<UStaticMesh>(nullptr, *RequestedObjectPath);
+			if (!RestoredMesh)
+			{
+				FbxFactory->RemoveFromRoot();
+				ImportTask->RemoveFromRoot();
+				return CreateErrorResponse(FString::Printf(
+					TEXT("Reimport failed and the original mesh could not be restored: %s"),
+					*RequestedObjectPath));
+			}
+			if (OriginalImportDataBackup)
+			{
+				RestoredMesh->SetAssetImportData(DuplicateObject<UAssetImportData>(
+					OriginalImportDataBackup.Get(),
+					RestoredMesh));
+			}
+			else
+			{
+				RestoredMesh->SetAssetImportData(nullptr);
+			}
+			FbxFactory->RemoveFromRoot();
+			ImportTask->RemoveFromRoot();
+			return CreateErrorResponse(FString::Printf(TEXT("Reimport failed: %s"), *SourceFilePath));
+		}
+		ImportedObject = ExistingMesh;
+	}
+	else
+	{
+		ImportedObject = FbxFactory->ImportObject(
+			UStaticMesh::StaticClass(), AnchorPackage, FName(*AssetName),
+			RF_Public | RF_Standalone, SourceFilePath, nullptr, bCancelled);
+	}
 	FbxFactory->RemoveFromRoot();
 	ImportTask->RemoveFromRoot();
 
@@ -173,7 +265,10 @@ FString FImportStaticMeshCommand::Execute(const FString& Parameters)
 	int32 FirstVerts = 0, FirstTris = 0;
 	for (UStaticMesh* Mesh : ImportedMeshes)
 	{
-		FAssetRegistryModule::AssetCreated(Mesh);
+		if (!PreExisting.Contains(Mesh->GetPathName()))
+		{
+			FAssetRegistryModule::AssetCreated(Mesh);
+		}
 		Mesh->MarkPackageDirty();
 
 		// Don't Build() here (TaskGraph recursion risk from the MCP tick); read stats if already built.
@@ -327,6 +422,38 @@ void FImportStaticMeshCommand::ConfigureImportUI(
 	}
 }
 
+UFbxStaticMeshImportData* FImportStaticMeshCommand::PrepareExistingMeshForReimport(
+	UStaticMesh& ExistingMesh,
+	UFbxImportUI& ImportUI,
+	const FImportStaticMeshSettings& Settings,
+	const FString& SourceFilePath)
+{
+	UFbxStaticMeshImportData* ImportData =
+		Cast<UFbxStaticMeshImportData>(ExistingMesh.GetAssetImportData());
+	if (!ImportData)
+	{
+		ImportData = NewObject<UFbxStaticMeshImportData>(
+			&ExistingMesh,
+			NAME_None,
+			RF_NoFlags,
+			ImportUI.StaticMeshImportData);
+		ExistingMesh.SetAssetImportData(ImportData);
+	}
+
+	// An existing target is dispatched through UReimportFbxStaticMeshFactory,
+	// which reads persisted import data instead of this command's transient UI.
+	ImportData->bCombineMeshes = true;
+	ImportData->bConvertSceneUnit = true;
+	ImportData->bAutoGenerateCollision = Settings.bAutoGenerateCollision;
+	ImportData->VertexColorImportOption = Settings.VertexColorImportOption;
+	if (Settings.bHasVertexOverrideColor)
+	{
+		ImportData->VertexOverrideColor = Settings.VertexOverrideColor;
+	}
+	ImportData->UpdateFilenameOnly(SourceFilePath);
+	return ImportData;
+}
+
 #if WITH_DEV_AUTOMATION_TESTS
 bool FImportStaticMeshCommand::ParseParametersForTest(
 	const FString& JsonString,
@@ -345,6 +472,16 @@ void FImportStaticMeshCommand::ConfigureImportUIForTest(
 {
 	ConfigureImportUI(ImportUI, Settings);
 }
+
+UFbxStaticMeshImportData* FImportStaticMeshCommand::PrepareExistingMeshForReimportForTest(
+	UStaticMesh& ExistingMesh,
+	UFbxImportUI& ImportUI,
+	const FImportStaticMeshSettings& Settings,
+	const FString& SourceFilePath)
+{
+	return PrepareExistingMeshForReimport(ExistingMesh, ImportUI, Settings, SourceFilePath);
+}
+
 #endif
 
 FString FImportStaticMeshCommand::CreateErrorResponse(const FString& ErrorMessage) const

@@ -84,6 +84,39 @@ import_static_mesh(
 
 Invalid vertex-color option text fails before import and lists the three valid values.
 
+When an asset already exists at `folder_path/asset_name`, the command performs a
+same-path reimport as one combined target. Before invoking UE's legacy FBX
+reimport factory it normalizes non-FBX/Interchange metadata to configured
+`UFbxStaticMeshImportData`, including source path, scene-unit conversion,
+collision, and vertex-color options. The reimport factory reads persisted mesh
+metadata rather than the command's transient `UFbxImportUI`.
+
+UE 5.8's legacy static-mesh reimport handler forcibly disables source material
+and texture import. Therefore `import_materials=true` is supported for a new
+import but explicitly rejected for same-path reimport; returning success while
+silently preserving the old material assignments would make the tool lie.
+
+`folder_path` is canonicalized before the existing-asset lookup, so a trailing
+slash cannot bypass the safe same-path reimport branch. Static meshes owned by an
+FBX Scene import (`bImportAsScene`) are rejected before metadata mutation: UE's
+standalone FBX reimport factory does not preserve that scene-ownership contract.
+
+The command invokes `UReimportFbxStaticMeshFactory::Reimport` directly and uses
+its `EReimportResult`. Do not route this path through `FReimportManager` in UE
+5.8: with Interchange enabled, that manager can convert the freshly normalized
+legacy metadata back to Interchange and no longer honors this command's FBX
+options. A failed handler result returns an error and restores the previous
+import metadata/source provenance. Existing assets are not rebroadcast as
+newly-created Asset Registry entries.
+
+UE 5.8's legacy FBX importer performs mesh rollback atomically: on an internal
+reimport failure it replaces the mutated `UStaticMesh` UObject with a rooted
+transient duplicate at the original object path. Command-side rollback must
+therefore resolve the mesh again by object path before restoring import
+metadata; the pre-reimport metadata duplicate must remain strongly referenced
+across the handler call. Reusing the pre-call mesh pointer after failure can
+write to an object that UE already renamed and marked as garbage.
+
 ## Error Handling
 
 All command responses include a "status" field indicating whether the operation succeeded, and an optional "message" field with details in case of failure.
