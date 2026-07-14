@@ -46,6 +46,7 @@ public:
 
 	// Command execution
 	FString ExecuteCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params);
+	static bool ShouldDispatchViaTicker(const FString& CommandType);
 
 private:
 	// Server state

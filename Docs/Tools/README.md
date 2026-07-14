@@ -179,6 +179,21 @@ Dispatcher->RegisterCommand(TEXT("create_blueprint"),
 TSharedPtr<FJsonObject> Result = Command->Execute(Params);
 ```
 
+#### Game-thread dispatch invariant
+
+Commands normally enter the game thread through `AsyncTask(ENamedThreads::GameThread, ...)`. That task inherits
+TaskGraph context from the MCP socket thread, so commands whose downstream work requires a normal game-thread tick
+must instead be listed in `UUnrealMCPBridge::ShouldDispatchViaTicker` and executed by `FTSTicker`.
+
+Current ticker-dispatched commands are:
+
+- `open_level`: UE 5.8 renderer work spawned while unloading a level requires inherited `FAppTime` context.
+- `capture_viewport_screenshot`: the forced viewport draw and render flush require the same context.
+- `import_static_mesh` and `import_lod`: FBX import must avoid nested GameThread TaskGraph work.
+
+When adding a command to this policy, extend `UnrealMCP.Bridge.CommandDispatchPolicy` and verify the real command from
+a fresh editor process; the policy unit test does not by itself prove the engine-side threading behavior.
+
 ---
 
 ## 📖 JSON Schema Examples
