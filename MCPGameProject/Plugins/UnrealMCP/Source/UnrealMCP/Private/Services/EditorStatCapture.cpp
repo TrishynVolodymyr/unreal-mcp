@@ -14,6 +14,49 @@
 
 namespace
 {
+struct FEditorStatViewportCandidate
+{
+	FEditorViewportClient* Client = nullptr;
+	bool bIsLevelEditorClient = false;
+	bool bHasViewport = false;
+	bool bIsActive = false;
+};
+
+FCommonViewportClient* ResolveEditorStatViewportFromCandidates(
+	FCommonViewportClient* PlayViewport,
+	FCommonViewportClient* LastKeyViewport,
+	FCommonViewportClient* CurrentViewport,
+	const TArray<FEditorStatViewportCandidate>& Candidates)
+{
+	if (PlayViewport)
+	{
+		return PlayViewport;
+	}
+	if (LastKeyViewport)
+	{
+		return LastKeyViewport;
+	}
+	if (CurrentViewport)
+	{
+		return CurrentViewport;
+	}
+	for (const FEditorStatViewportCandidate& Candidate : Candidates)
+	{
+		if (Candidate.Client && Candidate.bIsLevelEditorClient && Candidate.bHasViewport && Candidate.bIsActive)
+		{
+			return Candidate.Client;
+		}
+	}
+	for (const FEditorStatViewportCandidate& Candidate : Candidates)
+	{
+		if (Candidate.Client && Candidate.bIsLevelEditorClient && Candidate.bHasViewport)
+		{
+			return Candidate.Client;
+		}
+	}
+	return nullptr;
+}
+
 class FEditorStatCaptureBackend final : public IEditorStatCaptureBackend
 {
 public:
@@ -163,42 +206,27 @@ private:
 
 	FCommonViewportClient* ResolveTargetViewportClient() const
 	{
-		if (GEngine && GEngine->GameViewport && GEditor && GEditor->PlayWorld)
-		{
-			return GEngine->GameViewport;
-		}
-		if (GLastKeyLevelEditingViewportClient)
-		{
-			return GLastKeyLevelEditingViewportClient;
-		}
-		if (GCurrentLevelEditingViewportClient)
-		{
-			return GCurrentLevelEditingViewportClient;
-		}
-
+		FCommonViewportClient* PlayViewport = GEngine && GEngine->GameViewport && GEditor && GEditor->PlayWorld
+			? static_cast<FCommonViewportClient*>(GEngine->GameViewport)
+			: nullptr;
+		TArray<FEditorStatViewportCandidate> Candidates;
 		if (GEditor)
 		{
-			if (const FViewport* ActiveViewport = GEditor->GetActiveViewport())
-			{
-				for (FEditorViewportClient* ViewportClient : GEditor->GetAllViewportClients())
-				{
-					if (ViewportClient && ViewportClient->IsLevelEditorClient()
-						&& ViewportClient->Viewport == ActiveViewport)
-					{
-						return ViewportClient;
-					}
-				}
-			}
-
+			const FViewport* ActiveViewport = GEditor->GetActiveViewport();
 			for (FEditorViewportClient* ViewportClient : GEditor->GetAllViewportClients())
 			{
-				if (ViewportClient && ViewportClient->IsLevelEditorClient() && ViewportClient->Viewport)
-				{
-					return ViewportClient;
-				}
+				Candidates.Add({
+					ViewportClient,
+					ViewportClient && ViewportClient->IsLevelEditorClient(),
+					ViewportClient && ViewportClient->Viewport != nullptr,
+					ViewportClient && ViewportClient->Viewport == ActiveViewport});
 			}
 		}
-		return nullptr;
+		return ResolveEditorStatViewportFromCandidates(
+			PlayViewport,
+			GLastKeyLevelEditingViewportClient,
+			GCurrentLevelEditingViewportClient,
+			Candidates);
 	}
 
 	bool IsViewportClientAlive(const FCommonViewportClient* ViewportClient) const
@@ -287,6 +315,66 @@ private:
 };
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+int32 ResolveEditorStatCaptureViewportSourceForTest(
+	bool bHasPlayViewport,
+	bool bHasLastKeyViewport,
+	bool bHasCurrentViewport,
+	const TArray<FEditorStatCaptureViewportCandidateForTest>& Candidates)
+{
+	FCommonViewportClient* PlayViewport = bHasPlayViewport
+		? reinterpret_cast<FCommonViewportClient*>(static_cast<UPTRINT>(1))
+		: nullptr;
+	FCommonViewportClient* LastKeyViewport = bHasLastKeyViewport
+		? reinterpret_cast<FCommonViewportClient*>(static_cast<UPTRINT>(2))
+		: nullptr;
+	FCommonViewportClient* CurrentViewport = bHasCurrentViewport
+		? reinterpret_cast<FCommonViewportClient*>(static_cast<UPTRINT>(3))
+		: nullptr;
+	TArray<FEditorStatViewportCandidate> InternalCandidates;
+	InternalCandidates.Reserve(Candidates.Num());
+	for (int32 CandidateIndex = 0; CandidateIndex < Candidates.Num(); ++CandidateIndex)
+	{
+		const FEditorStatCaptureViewportCandidateForTest& Candidate = Candidates[CandidateIndex];
+		InternalCandidates.Add({
+			reinterpret_cast<FEditorViewportClient*>(static_cast<UPTRINT>(4 + CandidateIndex)),
+			Candidate.bIsLevelEditorClient,
+			Candidate.bHasViewport,
+			Candidate.bIsActive});
+	}
+
+	FCommonViewportClient* Resolved = ResolveEditorStatViewportFromCandidates(
+		PlayViewport,
+		LastKeyViewport,
+		CurrentViewport,
+		InternalCandidates);
+	if (!Resolved)
+	{
+		return INDEX_NONE;
+	}
+	if (Resolved == PlayViewport)
+	{
+		return 0;
+	}
+	if (Resolved == LastKeyViewport)
+	{
+		return 1;
+	}
+	if (Resolved == CurrentViewport)
+	{
+		return 2;
+	}
+	for (int32 CandidateIndex = 0; CandidateIndex < InternalCandidates.Num(); ++CandidateIndex)
+	{
+		if (Resolved == InternalCandidates[CandidateIndex].Client)
+		{
+			return 3 + CandidateIndex;
+		}
+	}
+	return INDEX_NONE;
+}
+#endif
+
 FBoundedEditorStatCapture::FBoundedEditorStatCapture(
 	TSharedRef<IEditorStatCaptureBackend> InBackend,
 	TSharedRef<IEditorStatCaptureScheduler> InScheduler)
@@ -310,13 +398,26 @@ bool FBoundedEditorStatCapture::Begin(float TimeoutSeconds, FString& OutOwner, F
 
 	if (bOwnsCapture)
 	{
+		if (Backend->IsCaptureEnabled())
+		{
+			if (TimeoutHandle != 0)
+			{
+				Scheduler->Cancel(TimeoutHandle);
+			}
+			TimeoutHandle = Scheduler->Schedule(TimeoutSeconds, [this]() { HandleTimeout(); });
+			OutOwner = TEXT("mcp");
+			return true;
+		}
+
+		// The user disabled the stat while MCP still owned the bounded window.
+		// Release stale backend ownership without toggling, then reacquire below.
 		if (TimeoutHandle != 0)
 		{
 			Scheduler->Cancel(TimeoutHandle);
 		}
-		TimeoutHandle = Scheduler->Schedule(TimeoutSeconds, [this]() { HandleTimeout(); });
-		OutOwner = TEXT("mcp");
-		return true;
+		TimeoutHandle = 0;
+		Backend->SetCaptureEnabled(false, bRestoreStatsRendering);
+		bOwnsCapture = false;
 	}
 
 	if (Backend->IsCaptureEnabled())

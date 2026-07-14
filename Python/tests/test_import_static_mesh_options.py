@@ -61,6 +61,7 @@ class ImportStaticMeshOptionsTests(unittest.TestCase):
         _, params = send.call_args.args
         self.assertIs(params["auto_generate_collision"], True)
         self.assertEqual(params["vertex_color_import_option"], "Replace")
+        self.assertNotIn("vertex_override_color", params)
 
 
 if __name__ == "__main__":

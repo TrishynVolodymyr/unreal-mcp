@@ -46,6 +46,23 @@ namespace
 		return UPackage::SavePackage(Package, &Mesh, *Filename, SaveArgs);
 	}
 
+	TArray<FColor> GetLOD0VertexColors(const UStaticMesh* Mesh)
+	{
+		TArray<FColor> Colors;
+		const FStaticMeshRenderData* RenderData = Mesh ? Mesh->GetRenderData() : nullptr;
+		if (!RenderData || RenderData->LODResources.IsEmpty())
+		{
+			return Colors;
+		}
+		const FColorVertexBuffer& ColorBuffer = RenderData->LODResources[0].VertexBuffers.ColorVertexBuffer;
+		Colors.Reserve(ColorBuffer.GetNumVertices());
+		for (uint32 VertexIndex = 0; VertexIndex < ColorBuffer.GetNumVertices(); ++VertexIndex)
+		{
+			Colors.Add(ColorBuffer.VertexColor(VertexIndex));
+		}
+		return Colors;
+	}
+
 	bool CleanupAutomationAsset(
 		FAutomationTestBase& Test,
 		const FString& PackageName,
@@ -144,6 +161,13 @@ bool FImportStaticMeshOptionsTest::RunTest(const FString& Parameters)
 	Error.Reset();
 	TestFalse(TEXT("Override rejects out-of-range components"), Command.ParseParametersForTest(OutOfRangeOverrideJson, Settings, Error));
 	TestTrue(TEXT("Range diagnostic explains accepted interval"), Error.Contains(TEXT("0.0 and 1.0")));
+
+	const FString NonNumericOverrideJson = TEXT(
+		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Override","vertex_override_color":[0.2,"0.4",0.6,0.8]})");
+	Settings = FImportStaticMeshSettings{};
+	Error.Reset();
+	TestFalse(TEXT("Override rejects non-numeric RGBA components"), Command.ParseParametersForTest(NonNumericOverrideJson, Settings, Error));
+	TestTrue(TEXT("Non-numeric diagnostic explains the numeric contract"), Error.Contains(TEXT("must be numbers")));
 
 	const FString InvalidJson = TEXT(
 		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Flatten"})");
@@ -525,6 +549,14 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 					TEXT("Persisted reimport provenance points at the replacement FBX"),
 					FPaths::IsSamePath(PersistedImportData->GetFirstFilename(), ReimportSourceFbx));
 			}
+		const TArray<FColor> ReimportedVertexColors = GetLOD0VertexColors(Mesh);
+		TestTrue(TEXT("Override reimport produces a real LOD0 vertex-color buffer"), !ReimportedVertexColors.IsEmpty());
+		bool bAllVerticesUseOverrideColor = !ReimportedVertexColors.IsEmpty();
+		for (const FColor& VertexColor : ReimportedVertexColors)
+		{
+			bAllVerticesUseOverrideColor &= VertexColor == PersistedOverrideColor;
+		}
+		TestTrue(TEXT("Override reimport writes the explicit color into every LOD0 vertex"), bAllVerticesUseOverrideColor);
 		}
 
 	UFbxStaticMeshImportData* SceneOwnedImportData = Mesh
@@ -586,6 +618,7 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 		? static_cast<int32>(Mesh->GetRenderData()->LODResources[0].GetNumTriangles())
 		: INDEX_NONE;
 	const FVector BoundsBeforeFailure = Mesh ? Mesh->GetBounds().BoxExtent : FVector::ZeroVector;
+	const TArray<FColor> VertexColorsBeforeFailure = GetLOD0VertexColors(Mesh);
 	TArray<FName> MaterialSlotsBeforeFailure;
 	TArray<TObjectPtr<UMaterialInterface>> MaterialsBeforeFailure;
 	if (Mesh)
@@ -712,6 +745,7 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 		}
 		TestEqual(TEXT("Failed reimport restores prior material slots"), RestoredMaterialSlots, MaterialSlotsBeforeFailure);
 		TestEqual(TEXT("Failed reimport restores prior material interfaces"), RestoredMaterials, MaterialsBeforeFailure);
+		TestEqual(TEXT("Failed reimport restores actual LOD0 vertex colors"), GetLOD0VertexColors(Mesh), VertexColorsBeforeFailure);
 	}
 
 	CleanupAutomationAsset(*this, PackageName, PackageFilename, Mesh);
