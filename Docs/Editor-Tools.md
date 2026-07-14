@@ -346,6 +346,10 @@ The tool never disables profiling that was already enabled by the user. For a
 routine low-overhead frame-time sample that must not activate detailed profiling,
 call the underlying command with `{"action":"snapshot"}`.
 
+If the user disables the stat during an MCP-owned window, a repeated `begin`
+releases the stale ownership record and reacquires the stat before reporting MCP
+ownership. It never extends a window while detailed profiling is actually off.
+
 Editor stat ownership checks inspect every editor viewport plus the PIE viewport.
 MCP commands execute outside the normal viewport stat-command scope, so relying
 only on UE's transient "current viewport" result can misclassify a profiler

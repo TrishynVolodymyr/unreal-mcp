@@ -41,7 +41,7 @@ Edits asset-level static-mesh properties and saves the mesh package.
 
 The implementation checks `UBodySetup::AggGeom.GetElementCount()`. Do not use
 `UStaticMeshEditorSubsystem::GetSimpleCollisionCount()` for the absence gate: in
-UE 5.7 it counts boxes, spheres, and capsules but omits convex elements.
+UE 5.7-5.8 it counts boxes, spheres, and capsules but omits convex elements.
 
 Collision generation/removal uses the subsystem's non-applying variants and is
 folded into the command's single final `PostEditChange`. This avoids a second

@@ -46,6 +46,23 @@ namespace
 		return UPackage::SavePackage(Package, &Mesh, *Filename, SaveArgs);
 	}
 
+	TArray<FColor> GetLOD0VertexColors(const UStaticMesh* Mesh)
+	{
+		TArray<FColor> Colors;
+		const FStaticMeshRenderData* RenderData = Mesh ? Mesh->GetRenderData() : nullptr;
+		if (!RenderData || RenderData->LODResources.IsEmpty())
+		{
+			return Colors;
+		}
+		const FColorVertexBuffer& ColorBuffer = RenderData->LODResources[0].VertexBuffers.ColorVertexBuffer;
+		Colors.Reserve(ColorBuffer.GetNumVertices());
+		for (uint32 VertexIndex = 0; VertexIndex < ColorBuffer.GetNumVertices(); ++VertexIndex)
+		{
+			Colors.Add(ColorBuffer.VertexColor(VertexIndex));
+		}
+		return Colors;
+	}
+
 	bool CleanupAutomationAsset(
 		FAutomationTestBase& Test,
 		const FString& PackageName,
@@ -92,44 +109,65 @@ bool FImportStaticMeshOptionsTest::RunTest(const FString& Parameters)
 		DefaultsUI->StaticMeshImportData->VertexColorImportOption.GetValue(),
 		EVertexColorImportOption::Replace);
 
-	struct FVertexColorCase
-	{
-		const TCHAR* JsonValue;
-		EVertexColorImportOption::Type Expected;
-	};
-	const FVertexColorCase VertexColorCases[] = {
-		{TEXT("Ignore"), EVertexColorImportOption::Ignore},
-		{TEXT("Replace"), EVertexColorImportOption::Replace},
-		{TEXT("Override"), EVertexColorImportOption::Override},
-	};
-	for (const FVertexColorCase& VertexColorCase : VertexColorCases)
-	{
-		const FString ExplicitJson = FString::Printf(
-			TEXT(R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","auto_generate_collision":false,"vertex_color_import_option":"%s"})"),
-			VertexColorCase.JsonValue);
-		Settings = FImportStaticMeshSettings{};
-		Error.Reset();
-		TestTrue(
-			*FString::Printf(TEXT("Explicit %s payload parses"), VertexColorCase.JsonValue),
-			Command.ParseParametersForTest(ExplicitJson, Settings, Error));
-		TestFalse(
-			*FString::Printf(TEXT("Explicit %s payload disables collision"), VertexColorCase.JsonValue),
-			Settings.bAutoGenerateCollision);
-		TestEqual(
-			*FString::Printf(TEXT("Explicit payload selects %s"), VertexColorCase.JsonValue),
-			Settings.VertexColorImportOption,
-			VertexColorCase.Expected);
+	const FString ExplicitJson = TEXT(
+		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","auto_generate_collision":false,"vertex_color_import_option":"Ignore"})");
+	Settings = FImportStaticMeshSettings{};
+	Error.Reset();
+	TestTrue(TEXT("Explicit payload parses"), Command.ParseParametersForTest(ExplicitJson, Settings, Error));
+	TestFalse(TEXT("Explicit collision option disables collision"), Settings.bAutoGenerateCollision);
+	TestEqual(
+		TEXT("Explicit vertex color option selects Ignore"),
+		Settings.VertexColorImportOption,
+		EVertexColorImportOption::Ignore);
 
-		UFbxImportUI* ExplicitUI = NewObject<UFbxImportUI>();
-		Command.ConfigureImportUIForTest(*ExplicitUI, Settings);
-		TestFalse(
-			*FString::Printf(TEXT("Configured %s UI disables collision"), VertexColorCase.JsonValue),
-			ExplicitUI->StaticMeshImportData->bAutoGenerateCollision);
-		TestEqual(
-			*FString::Printf(TEXT("Configured UI keeps %s vertex-color mode"), VertexColorCase.JsonValue),
-			ExplicitUI->StaticMeshImportData->VertexColorImportOption.GetValue(),
-			VertexColorCase.Expected);
-	}
+	UFbxImportUI* ExplicitUI = NewObject<UFbxImportUI>();
+	Command.ConfigureImportUIForTest(*ExplicitUI, Settings);
+	TestFalse(TEXT("Configured UI disables collision"), ExplicitUI->StaticMeshImportData->bAutoGenerateCollision);
+	TestEqual(
+		TEXT("Configured UI ignores FBX vertex colors"),
+		ExplicitUI->StaticMeshImportData->VertexColorImportOption.GetValue(),
+		EVertexColorImportOption::Ignore);
+
+	const FString OverrideJson = TEXT(
+		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Override","vertex_override_color":[0.2,0.4,0.6,0.8]})");
+	Settings = FImportStaticMeshSettings{};
+	Error.Reset();
+	TestTrue(TEXT("Override payload with color parses"), Command.ParseParametersForTest(OverrideJson, Settings, Error));
+	TestEqual(TEXT("Override option is selected"), Settings.VertexColorImportOption, EVertexColorImportOption::Override);
+	UFbxImportUI* OverrideUI = NewObject<UFbxImportUI>();
+	Command.ConfigureImportUIForTest(*OverrideUI, Settings);
+	TestEqual(
+		TEXT("Override color reaches import UI"),
+		OverrideUI->StaticMeshImportData->VertexOverrideColor,
+		FColor(51, 102, 153, 204));
+
+	const FString MissingOverrideColorJson = TEXT(
+		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Override"})");
+	Settings = FImportStaticMeshSettings{};
+	Error.Reset();
+	TestFalse(
+		TEXT("Override without explicit color is rejected"),
+		Command.ParseParametersForTest(MissingOverrideColorJson, Settings, Error));
+
+	const FString ThreeComponentOverrideJson = TEXT(
+		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Override","vertex_override_color":[0.2,0.4,0.6]})");
+	Settings = FImportStaticMeshSettings{};
+	Error.Reset();
+	TestFalse(TEXT("Override requires explicit RGBA"), Command.ParseParametersForTest(ThreeComponentOverrideJson, Settings, Error));
+
+	const FString OutOfRangeOverrideJson = TEXT(
+		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Override","vertex_override_color":[0.2,1.2,0.6,1.0]})");
+	Settings = FImportStaticMeshSettings{};
+	Error.Reset();
+	TestFalse(TEXT("Override rejects out-of-range components"), Command.ParseParametersForTest(OutOfRangeOverrideJson, Settings, Error));
+	TestTrue(TEXT("Range diagnostic explains accepted interval"), Error.Contains(TEXT("0.0 and 1.0")));
+
+	const FString NonNumericOverrideJson = TEXT(
+		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Override","vertex_override_color":[0.2,"0.4",0.6,0.8]})");
+	Settings = FImportStaticMeshSettings{};
+	Error.Reset();
+	TestFalse(TEXT("Override rejects non-numeric RGBA components"), Command.ParseParametersForTest(NonNumericOverrideJson, Settings, Error));
+	TestTrue(TEXT("Non-numeric diagnostic explains the numeric contract"), Error.Contains(TEXT("must be numbers")));
 
 	const FString InvalidJson = TEXT(
 		R"({"source_file_path":"E:/mesh.fbx","asset_name":"SM_Test","vertex_color_import_option":"Flatten"})");
@@ -137,6 +175,67 @@ bool FImportStaticMeshOptionsTest::RunTest(const FString& Parameters)
 	Error.Reset();
 	TestFalse(TEXT("Invalid vertex color option is rejected"), Command.ParseParametersForTest(InvalidJson, Settings, Error));
 	TestTrue(TEXT("Invalid option diagnostic lists valid values"), Error.Contains(TEXT("Ignore, Replace, Override")));
+
+	const FString TempSourcePath = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("UnrealMCPImportOptions.fbx"));
+	TestTrue(TEXT("temporary source file is created"), FFileHelper::SaveStringToFile(TEXT("test seam"), *TempSourcePath));
+	const FString JsonSourcePath = TempSourcePath.Replace(TEXT("\\"), TEXT("/"));
+	const FString SeamFolderPath = TEXT("/Game/Automation/ImportStaticMeshExecutionOverrideTest");
+	const FString SeamAssetName = TEXT("SM_ExecutionOverrideGuard");
+	const FString SeamPackageName = SeamFolderPath / SeamAssetName;
+	const FString SeamPackageFilename = FPackageName::LongPackageNameToFilename(
+		SeamPackageName,
+		FPackageName::GetAssetPackageExtension());
+	UStaticMesh* ExistingSeamMesh = NewObject<UStaticMesh>(
+		CreatePackage(*SeamPackageName),
+		*SeamAssetName,
+		RF_Public | RF_Standalone);
+	UAssetImportData* ExistingSeamImportData = NewObject<UAssetImportData>(ExistingSeamMesh);
+	ExistingSeamImportData->Update(TEXT("E:/sentinel-before-seam.fbx"));
+	ExistingSeamMesh->SetAssetImportData(ExistingSeamImportData);
+	ExistingSeamMesh->GetOutermost()->SetDirtyFlag(false);
+	const FString ExecuteJson = FString::Printf(
+		TEXT(R"({"source_file_path":"%s","asset_name":"%s","folder_path":"%s","auto_generate_collision":false,"vertex_color_import_option":"Ignore"})"),
+		*JsonSourcePath,
+		*SeamAssetName,
+		*SeamFolderPath);
+
+	bool bExecutionOverrideCalled = false;
+	FImportStaticMeshCommand ExecuteCommand(
+		[&bExecutionOverrideCalled, ExistingSeamMesh, ExistingSeamImportData, this](
+			const FImportStaticMeshSettings& Received,
+			const UFbxImportUI& ImportUI)
+		{
+			bExecutionOverrideCalled = true;
+			TestFalse(TEXT("Execute forwards collision setting"), Received.bAutoGenerateCollision);
+			TestEqual(
+				TEXT("Execute forwards parsed vertex mode"),
+				Received.VertexColorImportOption,
+				EVertexColorImportOption::Ignore);
+			TestFalse(TEXT("real Execute call-site configures collision on FBX UI"), ImportUI.StaticMeshImportData->bAutoGenerateCollision);
+			TestEqual(
+				TEXT("real Execute call-site configures vertex mode on FBX UI"),
+				ImportUI.StaticMeshImportData->VertexColorImportOption.GetValue(),
+				EVertexColorImportOption::Ignore);
+			TestTrue(
+				TEXT("Execution seam runs before replacing existing non-FBX metadata"),
+				ExistingSeamMesh->GetAssetImportData() == ExistingSeamImportData);
+			TestTrue(
+				TEXT("Execution seam sees original source provenance"),
+				ExistingSeamImportData->GetFirstFilename().EndsWith(TEXT("sentinel-before-seam.fbx")));
+			TestFalse(
+				TEXT("Execution seam runs before dirtying the existing package"),
+				ExistingSeamMesh->GetOutermost()->IsDirty());
+			return FString(TEXT("{\"success\":true}"));
+		});
+	const FString ExecuteResponse = ExecuteCommand.Execute(ExecuteJson);
+	TestTrue(TEXT("Execute invokes the import seam"), bExecutionOverrideCalled);
+	TestTrue(TEXT("Execute returns seam response"), ExecuteResponse.Contains(TEXT("\"success\":true")));
+	TestTrue(
+		TEXT("Execution seam leaves existing import metadata untouched after return"),
+		ExistingSeamMesh->GetAssetImportData() == ExistingSeamImportData);
+	TestFalse(TEXT("Execution seam does not save the existing package"), IFileManager::Get().FileExists(*SeamPackageFilename));
+	CleanupAutomationAsset(*this, SeamPackageName, SeamPackageFilename, ExistingSeamMesh);
+	TestTrue(TEXT("temporary source file is cleaned up"), IFileManager::Get().Delete(*TempSourcePath, false, true, true));
 
 	UStaticMesh* ExistingMesh = NewObject<UStaticMesh>();
 	UAssetImportData* NonLegacyImportData = NewObject<UAssetImportData>(ExistingMesh);
@@ -195,6 +294,23 @@ bool FImportStaticMeshOptionsTest::RunTest(const FString& Parameters)
 	TestTrue(
 		TEXT("Legacy metadata source path is updated"),
 		ReusedLegacyImportData->GetFirstFilename().EndsWith(TEXT("legacy-new-source.fbx")));
+
+	Settings.VertexColorImportOption = EVertexColorImportOption::Override;
+	Settings.VertexOverrideColor = FColor(26, 77, 128, 204);
+	Settings.bHasVertexOverrideColor = true;
+	FImportStaticMeshCommand::PrepareExistingMeshForReimportForTest(
+		*LegacyMesh,
+		*ReimportUI,
+		Settings,
+		TEXT("E:/legacy-override-source.fbx"));
+	TestEqual(
+		TEXT("Same-path reimport persists the Override vertex-color mode"),
+		LegacyImportData->VertexColorImportOption.GetValue(),
+		EVertexColorImportOption::Override);
+	TestEqual(
+		TEXT("Same-path reimport persists the explicit vertex override color"),
+		LegacyImportData->VertexOverrideColor,
+		Settings.VertexOverrideColor);
 
 	return true;
 }
@@ -383,8 +499,14 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 	}
 
 	TSharedPtr<FJsonObject> SecondResponse;
+	const FColor PersistedOverrideColor(26, 77, 128, 204);
+	const FString OverrideReimportPayload = FString::Printf(
+		TEXT(R"({"source_file_path":"%s","asset_name":"%s","folder_path":"%s","import_materials":false,"auto_generate_collision":false,"vertex_color_import_option":"Override","vertex_override_color":[0.1,0.3,0.5,0.8]})"),
+		*ReimportSourceFbx.Replace(TEXT("\\"), TEXT("/")),
+		*AssetName,
+		*(FolderPath + TEXT("/")));
 	TestTrue(TEXT("Same-path reimport response is valid JSON"), ParseResponse(
-		Command.Execute(MakePayload(ReimportSourceFbx, FolderPath + TEXT("/"), false, TEXT("Replace"))),
+		Command.Execute(OverrideReimportPayload),
 		SecondResponse));
 	TestTrue(TEXT("Same-path reimport succeeds"), SecondResponse.IsValid() && SecondResponse->GetBoolField(TEXT("success")));
 	Mesh = LoadObject<UStaticMesh>(nullptr, *ObjectPath);
@@ -421,13 +543,25 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 			TestTrue(TEXT("Persisted reimport metadata converts scene units"), PersistedImportData->bConvertSceneUnit);
 			TestFalse(TEXT("Persisted reimport metadata disables generated collision"), PersistedImportData->bAutoGenerateCollision);
 				TestEqual(
-					TEXT("Persisted reimport metadata keeps Replace vertex colors"),
+					TEXT("Persisted reimport metadata keeps Override vertex-color mode"),
 					PersistedImportData->VertexColorImportOption.GetValue(),
-					EVertexColorImportOption::Replace);
+					EVertexColorImportOption::Override);
+				TestEqual(
+					TEXT("Persisted reimport metadata keeps the explicit vertex override color"),
+					PersistedImportData->VertexOverrideColor,
+					PersistedOverrideColor);
 				TestTrue(
 					TEXT("Persisted reimport provenance points at the replacement FBX"),
 					FPaths::IsSamePath(PersistedImportData->GetFirstFilename(), ReimportSourceFbx));
 			}
+		const TArray<FColor> ReimportedVertexColors = GetLOD0VertexColors(Mesh);
+		TestTrue(TEXT("Override reimport produces a real LOD0 vertex-color buffer"), !ReimportedVertexColors.IsEmpty());
+		bool bAllVerticesUseOverrideColor = !ReimportedVertexColors.IsEmpty();
+		for (const FColor& VertexColor : ReimportedVertexColors)
+		{
+			bAllVerticesUseOverrideColor &= VertexColor == PersistedOverrideColor;
+		}
+		TestTrue(TEXT("Override reimport writes the explicit color into every LOD0 vertex"), bAllVerticesUseOverrideColor);
 		}
 
 	UFbxStaticMeshImportData* SceneOwnedImportData = Mesh
@@ -448,6 +582,7 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 		const bool bSceneConvertUnit = SceneOwnedImportData->bConvertSceneUnit;
 		const bool bSceneCollision = SceneOwnedImportData->bAutoGenerateCollision;
 		const EVertexColorImportOption::Type SceneVertexColor = SceneOwnedImportData->VertexColorImportOption.GetValue();
+		const FColor SceneVertexOverrideColor = SceneOwnedImportData->VertexOverrideColor;
 		TSharedPtr<FJsonObject> SceneOwnedResponse;
 		TestTrue(TEXT("Scene-owned response is valid JSON"), ParseResponse(
 			Command.Execute(MakePayload(SourceFbx, FolderPath, true, TEXT("Ignore"))),
@@ -467,6 +602,10 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 			TEXT("Rejected scene-owned mesh keeps vertex-color metadata"),
 			SceneOwnedImportData->VertexColorImportOption.GetValue(),
 			SceneVertexColor);
+		TestEqual(
+			TEXT("Rejected scene-owned mesh keeps vertex override color"),
+			SceneOwnedImportData->VertexOverrideColor,
+			SceneVertexOverrideColor);
 		TestEqual(TEXT("Rejected scene-owned mesh keeps provenance"), SceneOwnedImportData->GetFirstFilename(), SceneProvenance);
 		TestEqual(
 			TEXT("Rejected scene-owned mesh keeps triangle count"),
@@ -484,6 +623,7 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 		? static_cast<int32>(Mesh->GetRenderData()->LODResources[0].GetNumTriangles())
 		: INDEX_NONE;
 	const FVector BoundsBeforeFailure = Mesh ? Mesh->GetBounds().BoxExtent : FVector::ZeroVector;
+	const TArray<FColor> VertexColorsBeforeFailure = GetLOD0VertexColors(Mesh);
 	TArray<FName> MaterialSlotsBeforeFailure;
 	TArray<TObjectPtr<UMaterialInterface>> MaterialsBeforeFailure;
 	if (Mesh)
@@ -508,6 +648,8 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 		MutableFbxDataBeforeFailure->ImportUniformScale = 1.75f;
 		MutableFbxDataBeforeFailure->bGenerateLightmapUVs = false;
 		MutableFbxDataBeforeFailure->bRemoveDegenerates = false;
+		MutableFbxDataBeforeFailure->VertexColorImportOption = EVertexColorImportOption::Override;
+		MutableFbxDataBeforeFailure->VertexOverrideColor = FColor(17, 34, 51, 68);
 	}
 	const UFbxStaticMeshImportData* FbxDataBeforeFailure = MutableFbxDataBeforeFailure;
 	const bool bCombineMeshesBeforeFailure = FbxDataBeforeFailure && FbxDataBeforeFailure->bCombineMeshes;
@@ -525,6 +667,9 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 	const EVertexColorImportOption::Type VertexColorBeforeFailure = FbxDataBeforeFailure
 		? FbxDataBeforeFailure->VertexColorImportOption.GetValue()
 		: EVertexColorImportOption::Ignore;
+	const FColor VertexOverrideColorBeforeFailure = FbxDataBeforeFailure
+		? FbxDataBeforeFailure->VertexOverrideColor
+		: FColor::Black;
 	const FString ProvenanceBeforeFailure = ImportDataBeforeFailure
 		? ImportDataBeforeFailure->GetFirstFilename()
 		: FString();
@@ -579,6 +724,10 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 			TEXT("Failed reimport restores vertex-color metadata"),
 			RestoredFbxData->VertexColorImportOption.GetValue(),
 			VertexColorBeforeFailure);
+		TestEqual(
+			TEXT("Failed reimport restores vertex override color"),
+			RestoredFbxData->VertexOverrideColor,
+			VertexOverrideColorBeforeFailure);
 	}
 	const FStaticMeshRenderData* RestoredRenderData = Mesh ? Mesh->GetRenderData() : nullptr;
 	TestNotNull(TEXT("Failed reimport restores render data"), RestoredRenderData);
@@ -601,6 +750,7 @@ bool FImportStaticMeshReimportIntegrationTest::RunTest(const FString& Parameters
 		}
 		TestEqual(TEXT("Failed reimport restores prior material slots"), RestoredMaterialSlots, MaterialSlotsBeforeFailure);
 		TestEqual(TEXT("Failed reimport restores prior material interfaces"), RestoredMaterials, MaterialsBeforeFailure);
+		TestEqual(TEXT("Failed reimport restores actual LOD0 vertex colors"), GetLOD0VertexColors(Mesh), VertexColorsBeforeFailure);
 	}
 
 	CleanupAutomationAsset(*this, PackageName, PackageFilename, Mesh);

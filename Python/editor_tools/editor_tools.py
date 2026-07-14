@@ -909,7 +909,8 @@ def register_editor_tools(mcp: FastMCP):
         folder_path: str = "/Game/Meshes",
         import_materials: bool = False,
         auto_generate_collision: bool = True,
-        vertex_color_import_option: str = "Replace"
+        vertex_color_import_option: str = "Replace",
+        vertex_override_color: List[float] = None,
     ) -> Dict[str, Any]:
         """
         Import a static mesh from disk into the Unreal Engine project.
@@ -928,6 +929,7 @@ def register_editor_tools(mcp: FastMCP):
             import_materials: Whether to import materials/textures from the source file (default: False)
             auto_generate_collision: Whether Unreal should generate simple collision (default: True)
             vertex_color_import_option: Ignore, Replace, or Override (default: Replace)
+            vertex_override_color: Required [R,G,B,A] values in 0..1 when using Override
 
         Returns:
             Dictionary containing:
@@ -954,6 +956,7 @@ def register_editor_tools(mcp: FastMCP):
             import_materials,
             auto_generate_collision,
             vertex_color_import_option,
+            vertex_override_color,
         )
 
     @mcp.tool()

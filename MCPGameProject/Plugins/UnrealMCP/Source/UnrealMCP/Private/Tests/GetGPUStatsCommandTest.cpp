@@ -61,14 +61,16 @@ public:
 	int32 ScheduleCalls = 0;
 	int32 CancelCalls = 0;
 	uint64 NextHandle = 1;
-	TFunction<void()> PendingCallback;
+	uint64 LastScheduledHandle = 0;
+	TMap<uint64, TFunction<void()>> PendingCallbacks;
 
 	virtual uint64 Schedule(float TimeoutSeconds, TFunction<void()> Callback) override
 	{
 		++ScheduleCalls;
 		LastTimeoutSeconds = TimeoutSeconds;
-		PendingCallback = MoveTemp(Callback);
-		return NextHandle++;
+		LastScheduledHandle = NextHandle++;
+		PendingCallbacks.Add(LastScheduledHandle, MoveTemp(Callback));
+		return LastScheduledHandle;
 	}
 
 	virtual void Cancel(uint64 Handle) override
@@ -77,16 +79,25 @@ public:
 		{
 			++CancelCalls;
 		}
-		PendingCallback = nullptr;
+		PendingCallbacks.Remove(Handle);
 	}
 
-	void Fire()
+	bool Fire(uint64 Handle)
 	{
-		TFunction<void()> Callback = MoveTemp(PendingCallback);
-		if (Callback)
+		TFunction<void()>* PendingCallback = PendingCallbacks.Find(Handle);
+		if (!PendingCallback)
 		{
-			Callback();
+			return false;
 		}
+		TFunction<void()> Callback = MoveTemp(*PendingCallback);
+		PendingCallbacks.Remove(Handle);
+		Callback();
+		return true;
+	}
+
+	bool Fire()
+	{
+		return Fire(LastScheduledHandle);
 	}
 
 	float LastTimeoutSeconds = 0.0f;
@@ -159,11 +170,121 @@ bool FGPUStatsOwnedCaptureCleansEveryExitTest::RunTest(const FString& Parameters
 	Command.Execute(TEXT(R"({"action":"cancel"})"));
 	TestEqual(TEXT("Cancel cleanup is idempotent"), Backend->DisableCalls, 3);
 
+	Command.Execute(TEXT(R"({"action":"begin"})"));
+	Backend->bDetailedEnabled = false;
+	Command.Execute(TEXT(R"({"action":"cancel"})"));
+	TestEqual(
+		TEXT("Cleanup releases ownership even when the user already disabled profiling"),
+		Backend->DisableCalls,
+		4);
+	TestFalse(TEXT("Cleanup never re-enables a user-disabled profiler"), Backend->bDetailedEnabled);
+
 	{
 		FGetGPUStatsCommand DestructedCommand(Backend, Scheduler);
 		DestructedCommand.Execute(TEXT(R"({"action":"begin"})"));
 	}
-	TestEqual(TEXT("Command destruction disables owned profiler"), Backend->DisableCalls, 4);
+	TestEqual(TEXT("Command destruction disables owned profiler"), Backend->DisableCalls, 5);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGPUStatsViewportResolutionPriorityTest,
+	"UnrealMCP.Editor.GPUStats.ViewportResolutionPriority",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGPUStatsViewportResolutionPriorityTest::RunTest(const FString& Parameters)
+{
+	TArray<FEditorStatCaptureViewportCandidateForTest> Candidates = {
+		{true, true, false},
+		{false, true, true},
+		{true, true, true},
+		{true, true, false}};
+	TestEqual(
+		TEXT("PIE viewport has first priority"),
+		ResolveEditorStatCaptureViewportSourceForTest(true, true, true, Candidates),
+		0);
+	TestEqual(
+		TEXT("last-key editor viewport has second priority"),
+		ResolveEditorStatCaptureViewportSourceForTest(false, true, true, Candidates),
+		1);
+	TestEqual(
+		TEXT("current editor viewport has third priority"),
+		ResolveEditorStatCaptureViewportSourceForTest(false, false, true, Candidates),
+		2);
+	TestEqual(
+		TEXT("active live level viewport is the first fallback"),
+		ResolveEditorStatCaptureViewportSourceForTest(false, false, false, Candidates),
+		5);
+
+	Candidates[2].bIsActive = false;
+	TestEqual(
+		TEXT("first live level viewport is the final fallback"),
+		ResolveEditorStatCaptureViewportSourceForTest(false, false, false, Candidates),
+		3);
+	Candidates[0].bHasViewport = false;
+	Candidates[2].bHasViewport = false;
+	Candidates[3].bHasViewport = false;
+	TestEqual(
+		TEXT("non-level and viewport-less candidates are rejected"),
+		ResolveEditorStatCaptureViewportSourceForTest(false, false, false, Candidates),
+		INDEX_NONE);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGPUStatsConcreteBackendUserDisableTest,
+	"UnrealMCP.Editor.GPUStats.ConcreteBackendDoesNotRetoggleUserDisabledStat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGPUStatsConcreteBackendUserDisableTest::RunTest(const FString& Parameters)
+{
+	bool bStatEnabled = false;
+	int32 ToggleCalls = 0;
+	const TSharedRef<IEditorStatCaptureBackend> Backend = CreateEditorStatCaptureBackendForTest(
+		TEXT("GPU"),
+		[&bStatEnabled]() { return bStatEnabled; },
+		[&bStatEnabled, &ToggleCalls](bool)
+		{
+			++ToggleCalls;
+			bStatEnabled = !bStatEnabled;
+		});
+	const TSharedRef<FFakeGPUStatsScheduler> Scheduler = MakeShared<FFakeGPUStatsScheduler>();
+	FBoundedEditorStatCapture Capture(Backend, Scheduler);
+	FString Owner;
+	FString Error;
+	TestTrue(TEXT("concrete backend begins owned capture"), Capture.Begin(2.0f, Owner, Error));
+	TestEqual(TEXT("enable executes one toggle"), ToggleCalls, 1);
+	TestTrue(TEXT("stat is enabled after begin"), bStatEnabled);
+
+	// Simulate the user issuing `stat GPU` while MCP still owns the window.
+	bStatEnabled = false;
+	Capture.Finish();
+	TestEqual(TEXT("cleanup does not execute a second toggle"), ToggleCalls, 1);
+	TestFalse(TEXT("user-disabled stat stays disabled"), bStatEnabled);
+
+	TestTrue(TEXT("concrete backend can begin a second owned capture"), Capture.Begin(2.0f, Owner, Error));
+	TestEqual(TEXT("second begin executes an enable toggle"), ToggleCalls, 2);
+	TestTrue(TEXT("second capture is enabled"), bStatEnabled);
+	const uint64 StaleWatchdogHandle = Scheduler->LastScheduledHandle;
+
+	// A repeated begin must repair stale MCP ownership if the user disabled the
+	// stat between calls; reporting owner=mcp while the stat is off is a lie.
+	bStatEnabled = false;
+	Owner.Reset();
+	Error.Reset();
+	TestTrue(TEXT("repeated begin repairs a user-disabled owned capture"), Capture.Begin(2.0f, Owner, Error));
+	TestEqual(TEXT("repeated begin executes a replacement enable toggle"), ToggleCalls, 3);
+	TestTrue(TEXT("repeated begin leaves the stat enabled"), bStatEnabled);
+	TestEqual(TEXT("repeated begin still reports MCP ownership"), Owner, FString(TEXT("mcp")));
+	const uint64 ReplacementWatchdogHandle = Scheduler->LastScheduledHandle;
+	TestNotEqual(TEXT("reacquisition installs a distinct watchdog"), ReplacementWatchdogHandle, StaleWatchdogHandle);
+	TestFalse(TEXT("cancelled stale watchdog cannot fire"), Scheduler->Fire(StaleWatchdogHandle));
+	TestTrue(TEXT("stale watchdog cannot disable the replacement capture"), bStatEnabled);
+	TestTrue(TEXT("replacement watchdog remains armed"), Scheduler->Fire(ReplacementWatchdogHandle));
+	TestEqual(TEXT("replacement watchdog disables the reacquired capture"), ToggleCalls, 4);
+	TestFalse(TEXT("replacement watchdog leaves profiling disabled"), bStatEnabled);
+	Capture.Finish();
+	TestEqual(TEXT("finish after watchdog cleanup is idempotent"), ToggleCalls, 4);
 	return true;
 }
 

@@ -68,7 +68,8 @@ files are split by node; a single mesh is renamed to `asset_name`.
 - `folder_path` (string, optional) - Destination Content folder.
 - `import_materials` (boolean, optional) - Import source materials and textures; default `false`.
 - `auto_generate_collision` (boolean, optional) - Generate simple collision; default `true` for backward compatibility.
-- `vertex_color_import_option` (string, optional) - `Ignore`, `Replace`, or `Override`; default `Replace`, matching UE 5.7's previous importer behavior. Use `Replace` to import vertex colors stored in the source mesh.
+- `vertex_color_import_option` (string, optional) - `Ignore`, `Replace`, or `Override`; default `Replace`, matching the previous importer behavior. Use `Replace` to import vertex colors stored in the source mesh.
+- `vertex_override_color` (array, conditionally required) - `[R,G,B,A]` values in `0..1`; required with `Override` so the importer never silently falls back to opaque white.
 
 ```python
 import_static_mesh(
