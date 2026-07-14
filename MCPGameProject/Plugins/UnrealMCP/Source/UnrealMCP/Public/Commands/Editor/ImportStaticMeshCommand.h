@@ -5,6 +5,8 @@
 #include "Factories/FbxMeshImportData.h"
 
 class UFbxImportUI;
+class UFbxStaticMeshImportData;
+class UStaticMesh;
 
 struct FImportStaticMeshSettings
 {
@@ -34,6 +36,11 @@ public:
 		FImportStaticMeshSettings& OutSettings,
 		FString& OutError) const;
 	static void ConfigureImportUIForTest(UFbxImportUI& ImportUI, const FImportStaticMeshSettings& Settings);
+	static UFbxStaticMeshImportData* PrepareExistingMeshForReimportForTest(
+		UStaticMesh& ExistingMesh,
+		UFbxImportUI& ImportUI,
+		const FImportStaticMeshSettings& Settings,
+		const FString& SourceFilePath);
 #endif
 
 private:
@@ -45,6 +52,10 @@ private:
 		FImportStaticMeshSettings& OutSettings,
 		FString& OutError) const;
 	static void ConfigureImportUI(UFbxImportUI& ImportUI, const FImportStaticMeshSettings& Settings);
-
+	static UFbxStaticMeshImportData* PrepareExistingMeshForReimport(
+		UStaticMesh& ExistingMesh,
+		UFbxImportUI& ImportUI,
+		const FImportStaticMeshSettings& Settings,
+		const FString& SourceFilePath);
 	FString CreateErrorResponse(const FString& ErrorMessage) const;
 };
