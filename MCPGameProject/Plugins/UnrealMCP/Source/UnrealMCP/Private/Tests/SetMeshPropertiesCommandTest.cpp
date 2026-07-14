@@ -101,6 +101,18 @@ bool FSetMeshPropertiesCollisionTest::RunTest(const FString& Parameters)
 		TEXT("BodySetup-less fixture receives a real collision primitive"),
 		BodySetupLessCube->GetBodySetup() && BodySetupLessCube->GetBodySetup()->AggGeom.GetElementCount() > 0);
 
+	UStaticMesh* FailedBodySetupLessCube = DuplicateObject<UStaticMesh>(EngineCube, GetTransientPackage());
+	FailedBodySetupLessCube->SetBodySetup(nullptr);
+	TestNull(TEXT("Failed-add fixture begins without BodySetup"), FailedBodySetupLessCube->GetBodySetup());
+	FSetMeshPropertiesCommand::SetAddCollisionResultOverrideForTest(INDEX_NONE);
+	TestFalse(
+		TEXT("Failed collision generation reports failure after creating temporary BodySetup"),
+		FSetMeshPropertiesCommand::ApplyCollisionSettingForTest(*FailedBodySetupLessCube, true));
+	FSetMeshPropertiesCommand::SetAddCollisionResultOverrideForTest(TOptional<int32>());
+	TestNull(
+		TEXT("Failed collision generation rolls newly created BodySetup back to null"),
+		FailedBodySetupLessCube->GetBodySetup());
+
 	const FString PackageName = TEXT("/Game/Automation/SM_SetMeshPropertiesCollisionTest");
 	const FString AssetName = TEXT("SM_SetMeshPropertiesCollisionTest");
 	const FString ObjectPath = FString::Printf(TEXT("%s.%s"), *PackageName, *AssetName);
@@ -587,6 +599,11 @@ bool FSetMeshPropertiesCollisionTest::RunTest(const FString& Parameters)
 	UPackage* FailurePackage = CreatePackage(*FailurePackageName);
 	UStaticMesh* UnsavableMesh = DuplicateObject<UStaticMesh>(EngineCube, FailurePackage, *FailureAssetName);
 	UnsavableMesh->SetFlags(RF_Public | RF_Standalone);
+	const bool bOpenedUnsavableEditor = AssetEditorSubsystem && AssetEditorSubsystem->OpenEditorForAsset(UnsavableMesh);
+	TestTrue(TEXT("Save-failure fixture opens in Static Mesh Editor"), bOpenedUnsavableEditor);
+	TestTrue(
+		TEXT("Static Mesh Editor is open before the save-failure edit"),
+		AssetEditorSubsystem && AssetEditorSubsystem->FindEditorForAsset(UnsavableMesh, false) != nullptr);
 	FSetMeshPropertiesCommand::SetSaveResultOverrideForTest(false);
 	const FString FailureResponse = Command.Execute(FString::Printf(
 		TEXT(R"({"mesh_path":"%s","has_collision":false})"),
@@ -598,7 +615,14 @@ bool FSetMeshPropertiesCollisionTest::RunTest(const FString& Parameters)
 	TestFalse(
 		TEXT("Execute reports package-save failure"),
 		FailureResponseObject.IsValid() && FailureResponseObject->GetBoolField(TEXT("success")));
+	TestTrue(
+		TEXT("Save failure restores the previously open Static Mesh Editor"),
+		AssetEditorSubsystem && AssetEditorSubsystem->FindEditorForAsset(UnsavableMesh, false) != nullptr);
 	TestFalse(TEXT("Simulated save failure does not create a package file"), IFileManager::Get().FileExists(*FailureFilename));
+	if (AssetEditorSubsystem)
+	{
+		AssetEditorSubsystem->CloseAllEditorsForAsset(UnsavableMesh);
+	}
 	FailurePackage->SetDirtyFlag(false);
 	UnsavableMesh = nullptr;
 	PackagesToUnload = {FailurePackage};

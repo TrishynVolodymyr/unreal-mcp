@@ -12,6 +12,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 TOptional<bool> FSetMeshPropertiesCommand::SaveResultOverrideForTest;
 TOptional<bool> FSetMeshPropertiesCommand::CollisionResultOverrideForTest;
+TOptional<int32> FSetMeshPropertiesCommand::AddCollisionResultOverrideForTest;
 int32 FSetMeshPropertiesCommand::PostEditChangeCallCountForTest = 0;
 int32 FSetMeshPropertiesCommand::SaveAttemptCountForTest = 0;
 #endif
@@ -61,10 +62,20 @@ bool FSetMeshPropertiesCommand::ApplyCollisionSetting(
 		}
 		bCreatedBodySetup = true;
 	}
-	const int32 NewCollisionIndex = Subsystem->AddSimpleCollisionsWithNotification(
-		&Mesh,
-		EScriptCollisionShapeType::Box,
-		false);
+	int32 NewCollisionIndex = INDEX_NONE;
+#if WITH_DEV_AUTOMATION_TESTS
+	if (AddCollisionResultOverrideForTest.IsSet())
+	{
+		NewCollisionIndex = AddCollisionResultOverrideForTest.GetValue();
+	}
+	else
+#endif
+	{
+		NewCollisionIndex = Subsystem->AddSimpleCollisionsWithNotification(
+			&Mesh,
+			EScriptCollisionShapeType::Box,
+			false);
+	}
 	if (NewCollisionIndex < 0 && bCreatedBodySetup)
 	{
 		Mesh.SetBodySetup(nullptr);
@@ -88,6 +99,11 @@ void FSetMeshPropertiesCommand::SetSaveResultOverrideForTest(TOptional<bool> Res
 void FSetMeshPropertiesCommand::SetCollisionResultOverrideForTest(TOptional<bool> ResultOverride)
 {
 	CollisionResultOverrideForTest = ResultOverride;
+}
+
+void FSetMeshPropertiesCommand::SetAddCollisionResultOverrideForTest(TOptional<int32> ResultOverride)
+{
+	AddCollisionResultOverrideForTest = ResultOverride;
 }
 
 void FSetMeshPropertiesCommand::ResetExecutionCountersForTest()
