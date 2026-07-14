@@ -4,13 +4,13 @@
 <span style="color: #555555">unreal-mcp</span>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.7-orange)](https://www.unrealengine.com)
+[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.8-orange)](https://www.unrealengine.com)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-yellow)](https://www.python.org)
 [![Status](https://img.shields.io/badge/Status-Experimental-red)](https://github.com/TrishynVolodymyr/unreal-mcp)
 
 </div>
 
-Control **Unreal Engine 5.7** through natural language using AI assistants (Claude Desktop, Cursor, Windsurf) via the Model Context Protocol (MCP). Build games, create Blueprints, design UI, and manage assets using conversational commands.
+Control **Unreal Engine 5.8** through natural language using AI assistants (Claude Desktop, Cursor, Windsurf) via the Model Context Protocol (MCP). Build games, create Blueprints, design UI, and manage assets using conversational commands.
 
 ## ⚠️ Experimental Status
 
@@ -224,7 +224,7 @@ Python MCP Servers (15 specialized FastMCP servers)
     ↓ [TCP/JSON on localhost:55557]
 C++ Plugin (UnrealMCP EditorSubsystem)
     ↓ [Direct Unreal Engine API]
-Unreal Engine 5.7 Editor
+Unreal Engine 5.8 Editor
 ```
 
 ### Core Components
@@ -244,7 +244,7 @@ Unreal Engine 5.7 Editor
 - JSON serialization for cross-language communication
 
 **Sample Project** ([MCPGameProject/](MCPGameProject/))
-- UE 5.7 Blank Project template with UnrealMCP plugin pre-configured
+- UE 5.8 Blank Project template with UnrealMCP plugin pre-configured
 - Ready-to-use environment for testing and development
 - Includes build and launch scripts ([RebuildProject.bat](RebuildProject.bat), [LaunchProject.bat](LaunchProject.bat))
 
@@ -252,7 +252,7 @@ Unreal Engine 5.7 Editor
 
 ```
 unreal-mcp/
-├── MCPGameProject/                    # Sample UE 5.7 project
+├── MCPGameProject/                    # Sample UE 5.8 project
 │   ├── Plugins/UnrealMCP/            # C++ Plugin
 │   │   ├── Source/UnrealMCP/
 │   │   │   ├── Private/
@@ -309,7 +309,7 @@ unreal-mcp/
 
 | Requirement | Version | Notes |
 |------------|---------|-------|
-| **Unreal Engine** | 5.7 | Required for the sample project and plugin |
+| **Unreal Engine** | 5.8 | Required for the sample project and plugin |
 | **Python** | 3.10+ | For running MCP servers |
 | **Visual Studio** | 2022+ | For building C++ plugin (Windows) |
 | **MCP Client** | Latest | Claude Desktop, Cursor, or Windsurf |
@@ -342,7 +342,7 @@ The fastest way to get started is using the included `MCPGameProject`:
 
 ### Option 2: Add Plugin to Existing Project
 
-To use UnrealMCP in your own UE 5.7 project:
+To use UnrealMCP in your own UE 5.8 project:
 
 1. **Copy the Plugin**
    ```powershell
@@ -586,7 +586,7 @@ See [MCPGameProject/Plugins/UnrealMCP/Documentation/](MCPGameProject/Plugins/Unr
 
 **Build Errors:**
 - Clean and rebuild: `RebuildProject.bat`
-- Verify Unreal Engine 5.7 is installed correctly
+- Verify Unreal Engine 5.8 is installed correctly
 - Check Visual Studio 2022 is installed with C++ workload
 
 **MCP Server Issues:**
@@ -610,7 +610,7 @@ This is a fork and continuation of the original [unreal-mcp](https://github.com/
 ### Built With
 - [FastMCP](https://github.com/anthropics/fastmcp) - Python MCP framework by Anthropic
 - [Model Context Protocol](https://modelcontextprotocol.io/) - AI integration standard
-- [Unreal Engine 5.7](https://www.unrealengine.com/) - Epic Games' game engine
+- [Unreal Engine 5.8](https://www.unrealengine.com/) - Epic Games' game engine
 
 ## 📝 License
 

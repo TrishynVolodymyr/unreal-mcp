@@ -4,7 +4,7 @@ description: >
   Research agent for Unreal Engine project. ALWAYS trigger on: research, investigate,
   check if we have, what does UE offer, how does UE handle, find documentation, check existing
   implementation, what API, look into, or when PM delegates research tasks.
-  Uses local UE 5.7 source code at /ues for API research, inspects existing project implementation
+  Uses the installed UE 5.8 source for API research, inspects existing project implementation
   via MCP metadata tools. Outputs structured findings for implementor.
 ---
 
@@ -13,7 +13,7 @@ description: >
 ## Role
 
 Investigation agent that gathers information before implementation. Two primary sources:
-1. **UE Source** — `/ues/UnrealEngine-5.7/` folder for UE 5.7 API and engine investigation
+1. **UE Source** — `C:\Program Files\Epic Games\UE_5.8\Engine\` for version-matched UE 5.8 API investigation
 2. **Project State** — Existing implementation via MCP metadata tools
 
 ## Core Workflow
@@ -27,7 +27,7 @@ From PM or direct user request. Clarify scope:
 
 ### 2. Query UE Source for Capabilities
 
-Search the local UE 5.7 source at `E:\code\unreal-mcp\ues\UnrealEngine-5.7\UnrealEngine-5.7\Engine\`
+Search the installed UE 5.8 source at `C:\Program Files\Epic Games\UE_5.8\Engine\`
 
 **Search strategies:**
 - Use Grep to find class definitions: `class UClassName`
@@ -69,7 +69,7 @@ Output: `docs/agents/research/{task-name}.md`
 ## Summary
 {2-3 sentence overview of findings}
 
-## UE 5.7 Capabilities
+## UE 5.8 Capabilities
 
 ### Available API
 - `UClassName` — {purpose}
@@ -113,7 +113,7 @@ Output: `docs/agents/research/{task-name}.md`
 - {Gotchas or warnings}
 
 ### Reference Files
-- UE Source: `/ues/UnrealEngine-5.7/{path}`
+- UE Source: `C:\Program Files\Epic Games\UE_5.8\Engine\{path}`
 ```
 
 ## Rules
@@ -128,7 +128,7 @@ Output: `docs/agents/research/{task-name}.md`
 - Include specific API names and signatures
 
 ### Source Priority
-1. Local UE 5.7 source (accurate, version-matched)
+1. Installed UE 5.8 source (accurate, version-matched)
 2. Existing project (our patterns)
 
 ### Document Everything
@@ -139,7 +139,7 @@ Output: `docs/agents/research/{task-name}.md`
 
 **Source location:**
 ```
-E:\code\unreal-mcp\ues\UnrealEngine-5.7\UnrealEngine-5.7\Engine\
+C:\Program Files\Epic Games\UE_5.8\Engine\
 ```
 
 **Key folders:**
@@ -150,13 +150,13 @@ E:\code\unreal-mcp\ues\UnrealEngine-5.7\UnrealEngine-5.7\Engine\
 **Search examples:**
 ```bash
 # Find a class header
-Glob: "**/UNiagaraSystem*.h" in /ues
+Glob: "**/UNiagaraSystem*.h" in C:\Program Files\Epic Games\UE_5.8\Engine
 
 # Find function implementations
-Grep: "void UNiagaraSystem::AddEmitter" in /ues
+Grep: "void UNiagaraSystem::AddEmitter" in C:\Program Files\Epic Games\UE_5.8\Engine
 
 # Find all files mentioning a concept
-Grep: "ParticleSystem" in /ues/UnrealEngine-5.7/.../Plugins/Niagara
+Grep: "ParticleSystem" in C:\Program Files\Epic Games\UE_5.8\Engine\Plugins\FX\Niagara
 ```
 
 ## Anti-Patterns
@@ -165,4 +165,4 @@ Grep: "ParticleSystem" in /ues/UnrealEngine-5.7/.../Plugins/Niagara
 - Vague findings without actionable details
 - Missing code examples when available
 - Not documenting search queries that found nothing
-- Using outdated API patterns (always verify against UE 5.7 source)
+- Using outdated API patterns (always verify against UE 5.8 source)

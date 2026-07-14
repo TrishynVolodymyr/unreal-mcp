@@ -7,10 +7,10 @@ applyTo: **
 
 ## 🎯 Core Dual-Component System
 
-The Unreal MCP project enables **natural language control of Unreal Engine 5.7** through a synchronized dual-component architecture:
+The Unreal MCP project enables **natural language control of Unreal Engine 5.8** through a synchronized dual-component architecture:
 
-### 📚 Unreal Engine Source Code Reference (`ues/UnrealEngine-5.7/`)
-- **Complete UE 5.7 Source**: Available as documentation and reference for plugin development
+### 📚 Unreal Engine Source Code Reference (`C:\Program Files\Epic Games\UE_5.8\Engine\`)
+- **Installed UE 5.8 Source**: Available as documentation and reference for plugin development
 - **Engine API Reference**: Use for understanding internal systems, subsystems, and implementation patterns
 - **Class Hierarchies**: Reference for proper inheritance and interface implementation
 - **Best Practices**: Study engine code for C++ conventions, memory management, and performance patterns
@@ -82,7 +82,7 @@ The Unreal MCP project enables **natural language control of Unreal Engine 5.7**
 ```
 
 **Build Details**: 
-- `RebuildProject.bat` uses UE 5.7's Build.bat for MCPGameProjectEditor Win64 Development
+- `RebuildProject.bat` uses UE 5.8's Build.bat for MCPGameProjectEditor Win64 Development
 - Automatically terminates existing UnrealEditor.exe processes before compilation
 - `LaunchProject.bat` prevents duplicate editor instances
 
