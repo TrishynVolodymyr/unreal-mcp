@@ -1,6 +1,6 @@
 # Unreal MCP - Python Servers
 
-Python MCP servers for interacting with **Unreal Engine 5.7** using the Model Context Protocol (MCP).
+Python MCP servers for interacting with **Unreal Engine 5.8** using the Model Context Protocol (MCP).
 
 ## Overview
 
@@ -145,7 +145,7 @@ Python MCP Servers (7 servers)
     ↓ [TCP/JSON on localhost:55557]
 C++ Plugin (UnrealMCP)
     ↓ [Direct Unreal Engine API]
-Unreal Engine 5.7
+Unreal Engine 5.8
 ```
 
 Each Python tool sends JSON commands via TCP to the C++ plugin, which executes them and returns JSON responses.
@@ -198,4 +198,4 @@ Core dependencies (see `pyproject.toml` for full list):
 - **FastAPI** - HTTP API framework
 - **Uvicorn** - ASGI server
 
-All dependencies are automatically installed via `uv pip install -e .` 
+All dependencies are automatically installed via `uv pip install -e .`

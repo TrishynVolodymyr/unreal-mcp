@@ -1,6 +1,6 @@
 # Quick Start Guide - Unreal MCP
 
-Welcome! This guide will get you up and running with Unreal MCP in under 15 minutes. You'll learn how to control Unreal Engine 5.7 using natural language through AI assistants.
+Welcome! This guide will get you up and running with Unreal MCP in under 15 minutes. You'll learn how to control Unreal Engine 5.8 using natural language through AI assistants.
 
 ## What You'll Build
 
@@ -17,7 +17,7 @@ By the end of this guide, you'll use natural language to:
 
 Before starting, ensure you have:
 
-- [ ] **Unreal Engine 5.7** installed ([Download](https://www.unrealengine.com/))
+- [ ] **Unreal Engine 5.8** installed ([Download](https://www.unrealengine.com/))
 - [ ] **Python 3.10+** installed ([Download](https://www.python.org/downloads/))
 - [ ] **Visual Studio 2022+** with C++ workload (Windows) or Xcode (macOS)
 - [ ] **AI Assistant**: Claude Desktop, Cursor, or Windsurf
@@ -305,7 +305,7 @@ Explore the comprehensive documentation for each tool category:
 **Problem:** C++ plugin won't build
 
 **Solutions:**
-1. Verify Unreal Engine 5.7 is installed correctly
+1. Verify Unreal Engine 5.8 is installed correctly
 2. Ensure Visual Studio 2022 has C++ Desktop Development workload
 3. Try cleaning: Delete `Binaries/`, `Intermediate/`, and `Saved/` folders, then rebuild
 4. Run `RebuildProject.bat` which automatically cleans before building

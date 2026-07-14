@@ -214,20 +214,26 @@ void UUnrealMCPBridge::StopServer()
     UE_LOG(LogTemp, Display, TEXT("UnrealMCPBridge: Server stopped"));
 }
 
+bool UUnrealMCPBridge::ShouldDispatchViaTicker(const FString& CommandType)
+{
+    // AsyncTask(GameThread) inherits TaskGraph context from the MCP socket thread.
+    // UE 5.8 requires FAppTime context for renderer tasks spawned by level teardown,
+    // while FBX imports must also avoid nested GameThread TaskGraph work. The ticker
+    // executes these commands on a normal game-thread tick, outside TaskGraph.
+    return CommandType == TEXT("open_level") ||
+        CommandType == TEXT("capture_viewport_screenshot") ||
+        CommandType == TEXT("import_static_mesh") ||
+        CommandType == TEXT("import_lod");
+}
+
 // Execute a command received from a client
 FString UUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params)
 {
     UE_LOG(LogTemp, Display, TEXT("UnrealMCPBridge: Executing command: %s"), *CommandType);
 
-    // Commands that use FBX import internally must run via Ticker (not AsyncTask)
-    // to avoid TaskGraph recursion. AsyncTask(GameThread) runs inside TaskGraph,
-    // but FBX ImportObject queues more tasks on GameThread → recursion crash.
-    // FTSTicker runs on game thread tick, OUTSIDE TaskGraph.
-    static const TArray<FString> TickerCommands = {
-        TEXT("import_static_mesh"),
-        TEXT("import_lod")
-    };
-    const bool bUseTicker = TickerCommands.Contains(CommandType);
+    // Commands whose downstream work requires a normal game-thread context run via
+    // FTSTicker, outside TaskGraph. See ShouldDispatchViaTicker for each reason.
+    const bool bUseTicker = ShouldDispatchViaTicker(CommandType);
 
     // Use TSharedPtr<TPromise> so lambda is copyable (required by FTickerDelegate)
     TSharedPtr<TPromise<FString>> PromisePtr = MakeShared<TPromise<FString>>();

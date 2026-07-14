@@ -136,8 +136,7 @@ If any answer is wrong, STOP and be direct with the user.
 - Basic listing: `ls -la` works
 
 **UE Source Code Location:**
-- UE 5.7 source is at: `E:\code\unreal-mcp\ues\UnrealEngine-5.7\UnrealEngine-5.7\Engine\`
-- NOT at `E:\code\ues\` - the ues folder is INSIDE this project root
+- UE 5.8 source is installed at: `C:\Program Files\Epic Games\UE_5.8\Engine\`
 
 **MCP Connection Errors:**
 - `[WinError 10054] An existing connection was forcibly closed by the remote host` - This means Unreal Engine has **crashed**. Check the crash log for the call stack and restart the editor.
@@ -162,7 +161,7 @@ powershell -Command "& {cd e:\code\unreal-mcp; .\RebuildProject.bat}"
 # This script:
 # 1. Terminates all UnrealEditor*.exe processes
 # 2. Cleans Intermediate and Binaries folders
-# 3. Calls UE 5.7's Build.bat for MCPGameProjectEditor Win64 Development
+# 3. Calls UE 5.8's Build.bat for MCPGameProjectEditor Win64 Development
 # 4. Targets: MCPGameProject\MCPGameProject.uproject
 ```
 
@@ -171,7 +170,7 @@ powershell -Command "& {cd e:\code\unreal-mcp; .\RebuildProject.bat}"
 # IMPORTANT: Always use this exact command format (not ./LaunchProject.bat or cmd /c)
 powershell -Command "& {cd e:\code\unreal-mcp; .\LaunchProject.bat}"
 
-# Uses: C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe
+# Uses: C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe
 # Opens: E:\code\unreal-mcp\MCPGameProject\MCPGameProject.uproject
 ```
 
@@ -189,7 +188,7 @@ uv pip install -e .
 
 ### Dual-Component System
 
-This project enables **natural language control of Unreal Engine 5.7** through AI assistants via a synchronized dual-component architecture:
+This project enables **natural language control of Unreal Engine 5.8** through AI assistants via a synchronized dual-component architecture:
 
 ```
 AI Assistant (Claude/Cursor/Windsurf)
@@ -198,7 +197,7 @@ Python MCP Servers (7 FastMCP servers)
     ↓ [TCP/JSON on 127.0.0.1:55557]
 C++ Plugin (UnrealMCP EditorSubsystem)
     ↓ [Direct API calls]
-Unreal Engine 5.7 Editor
+Unreal Engine 5.8 Editor
 ```
 
 ### Critical Synchronization Requirement
@@ -440,8 +439,8 @@ The C++ plugin uses a **modular service layer pattern** for clean separation of 
 ## Unreal Engine Specifics
 
 ### Version & APIs
-- **Using Unreal Engine 5.7** - Be cautious of deprecated/outdated APIs
-- Reference full UE 5.7 source in `ues/UnrealEngine-5.7/` for API documentation
+- **Using Unreal Engine 5.8** - Be cautious of deprecated/outdated APIs
+- Reference the installed UE 5.8 source in `C:\Program Files\Epic Games\UE_5.8\Engine\` for API documentation
 - Due to large folder size - use OS file search tools to locate specific classes/functions when needed
 
 ### Coordinate System

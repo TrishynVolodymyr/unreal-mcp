@@ -6,4 +6,4 @@ model: opus
 skills: ue-researcher
 ---
 
-Follow the loaded skill instructions. Use local UE 5.7 source at /ues for API research, inspect project via MCP metadata tools.
+Follow the loaded skill instructions. Use the installed UE 5.8 source at C:\Program Files\Epic Games\UE_5.8\Engine\ for API research, inspect project via MCP metadata tools.

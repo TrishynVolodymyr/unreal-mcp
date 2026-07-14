@@ -59,6 +59,18 @@ This file tracks MCP tool limitations discovered during development. When encoun
 - **Verification**: Capture the same PIE target from distinct camera transforms and confirm the images change
   accordingly.
 
+### Renderer Commands Lost UE 5.8 `FAppTime` Context (Fixed 2026-07-14)
+- **Affected**: `editorMCP.open_level`, especially when leaving a World Partition startup map, and
+  `projectMCP.capture_viewport_screenshot` on UE 5.8.
+- **Problem**: The socket thread created `AsyncTask(GameThread)` without an inherited `FAppTime` context. Renderer
+  tasks spawned during level teardown or a forced viewport draw inherited that empty context and raised a handled
+  ensure in `AppTime.cpp:38`.
+- **Fix**: Route `open_level` and `capture_viewport_screenshot` through the normal game-thread ticker using
+  `UUnrealMCPBridge::ShouldDispatchViaTicker`, alongside the existing FBX import exceptions.
+- **Verification**: `UnrealMCP.Bridge.CommandDispatchPolicy` is mutation-checked, and a fresh UE 5.8
+  `Lvl_TopDown` -> `TestLevel_Caves` -> viewport capture MCP sequence completes with Map Check 0/0 and no `FAppTime`
+  ensure.
+
 ## Active Issues
 
 ### `viewmode` Console Commands Don't Reach the Editor Viewport

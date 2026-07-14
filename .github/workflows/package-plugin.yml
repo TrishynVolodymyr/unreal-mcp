@@ -63,7 +63,7 @@ jobs:
           
           ## Requirements
           
-          - Unreal Engine 5.7+
+          - Unreal Engine 5.8+
           - Python 3.10+ (for MCP servers)
           - uv (Python package manager)
           
@@ -103,12 +103,12 @@ jobs:
           ## Installation
           
           1. Copy `UnrealMCP` folder to your project's `Plugins` directory
-          2. If UE version matches (5.7), binaries should work directly
+          2. If UE version matches (5.8), binaries should work directly
           3. If not, delete `Binaries` folder and rebuild
           
           ## Requirements
           
-          - Unreal Engine 5.7 (for pre-built binaries)
+          - Unreal Engine 5.8 (for pre-built binaries)
           - Python 3.10+ (for MCP servers)
           
           See Documentation folder for detailed setup.
